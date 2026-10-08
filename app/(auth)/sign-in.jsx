@@ -2,12 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useNavigation, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useContext, useEffect, useState } from "react";
-import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import CustomButton from "../../components/CustomButton";
 import FormField from "../../components/FormField";
 import { GlobalStateContext } from "../../context/GlobalState";
+import { checkAndApplyUpdate, getVersionLabel } from "../../services/appUpdates";
 import Logger from "../../services/logger"; // Import logger service
 import tokenService from "../../services/tokenService"; // Import token service
 import bukowskiLogo from "./bukowski.png"; // Import the image
@@ -22,6 +23,21 @@ const SignIn = () => {
   const [isAdminPanel, setIsAdminPanel] = useState(false);
   const navigation = useNavigation();
   const { setUser, bukowski_login, isLoading, user } = useContext(GlobalStateContext);
+  // Aktualizacja OTA sprawdzana przy wejściu na ekran logowania (null = sprawdzanie zakończone)
+  const [updateStage, setUpdateStage] = useState("checking");
+
+  useEffect(() => {
+    let active = true;
+    checkAndApplyUpdate({ onDownloading: () => active && setUpdateStage("downloading") })
+      .then((result) => {
+        Logger.debug("OTA update check:", result?.status);
+        if (active && result?.status !== "reloading") setUpdateStage(null);
+      })
+      .catch(() => active && setUpdateStage(null));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Usunięto automatyczne przekierowanie przy wejściu - użytkownik musi wybrać panel
 
@@ -158,8 +174,17 @@ const SignIn = () => {
             title="Zologuj się"
             handlePress={submit}
             containerStyles={styles.button}
-            isLoading={isLoading} // Use global isLoading state
+            isLoading={isLoading || Boolean(updateStage)} // Logowanie czeka na sprawdzenie aktualizacji
           />
+
+          {updateStage ? (
+            <View style={styles.updateContainer}>
+              <ActivityIndicator color="#fff" />
+              <Text style={styles.updateText}>
+                {updateStage === "downloading" ? "Pobieranie aktualizacji…" : "Sprawdzanie aktualizacji…"}
+              </Text>
+            </View>
+          ) : null}
 
           {error ? (
             <View style={styles.errorContainer}>
@@ -187,6 +212,8 @@ const SignIn = () => {
             resizeMode="contain"
             style={styles.logo}
           />
+
+          <Text style={styles.versionText}>{getVersionLabel()}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -249,6 +276,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
+  },
+  updateContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  updateText: {
+    color: "#fff",
+    fontSize: 14,
+  },
+  versionText: {
+    color: "#6b7280",
+    fontSize: 11,
+    textAlign: "center",
+    marginBottom: 8,
   },
 });
 

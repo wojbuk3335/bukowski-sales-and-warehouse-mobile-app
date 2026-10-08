@@ -6,13 +6,16 @@
   "build": {
     "development":  {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview":  {
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://bukowskiapp.pl/api",
         "EXPO_PUBLIC_ENVIRONMENT": "production"
@@ -28,7 +31,7 @@
         "track": "internal"
       },
       "ios": {
-        "appleId":"bukowskibukowski1985@gmai.com",
+        "appleId":"bukowskibukowski1985@gmail.com",
         "ascAppId": "6755741831",
         "appleTeamId": "3LR32JKUHA"
       }
