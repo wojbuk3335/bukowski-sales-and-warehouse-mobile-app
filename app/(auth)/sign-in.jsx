@@ -214,6 +214,9 @@ const SignIn = () => {
           />
 
           <Text style={styles.versionText}>{getVersionLabel()}</Text>
+          <Text style={[styles.versionText, { color: "#22c55e", fontSize: 14, fontWeight: "700" }]}>
+            TEST COMMITA
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
