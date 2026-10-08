@@ -42,3 +42,6 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# log automatycznych aktualizacji OTA
+.eas-update.log

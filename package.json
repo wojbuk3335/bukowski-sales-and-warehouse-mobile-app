@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
+    "update": "eas update --channel production --non-interactive --message",
     "test:watch": "jest --watch",
     "test:api": "jest __tests__/context/GlobalStateSimple.test.js",
     "test:unit": "jest __tests__/unit/",
