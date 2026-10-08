@@ -23,6 +23,14 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "production-company": {
+      "extends": "production",
+      "env": {
+        "APP_VARIANT": "company",
+        "EXPO_PUBLIC_API_URL": "https://bukowskiapp.pl/api",
+        "EXPO_PUBLIC_ENVIRONMENT": "production"
+      }
     }
   },
   "submit": {
