@@ -1,5 +1,13 @@
 import Constants from "expo-constants";
-import * as Updates from "expo-updates";
+
+// Expo Go and older development builds have no ExpoUpdates native module: importing it
+// there crashes the sign-in screen, so the module is loaded only when it is available.
+let Updates = null;
+try {
+  Updates = require("expo-updates");
+} catch (_error) {
+  Updates = null;
+}
 
 // Aktualizacje OTA (EAS Update) są sprawdzane tylko na ekranie logowania: o północy backend
 // wylogowuje wszystkich, więc rano każdy przechodzi przez logowanie i dostaje nową wersję
@@ -10,7 +18,7 @@ const DEFAULT_TIMEOUT_MS = 10000;
 // Sprawdza i instaluje aktualizację; przeładowuje aplikację, gdy jest nowa wersja.
 // Przy braku sieci, błędzie albo po przekroczeniu czasu logowanie idzie dalej na obecnej wersji.
 export const checkAndApplyUpdate = async ({ timeoutMs = DEFAULT_TIMEOUT_MS, onDownloading } = {}) => {
-  if (__DEV__ || !Updates.isEnabled) return { status: "skipped" };
+  if (__DEV__ || !Updates?.isEnabled) return { status: "skipped" };
 
   let timedOut = false;
   const timeout = new Promise((resolve) => {
@@ -51,6 +59,6 @@ const formatDateTime = (date) => {
 // Napis na ekranie logowania: wersja ze sklepu + data aktualizacji OTA, jeśli jakaś działa
 export const getVersionLabel = () => {
   const version = Constants.expoConfig?.version || "?";
-  const updatedAt = !Updates.isEmbeddedLaunch && Updates.createdAt ? formatDateTime(Updates.createdAt) : null;
+  const updatedAt = Updates && !Updates.isEmbeddedLaunch && Updates.createdAt ? formatDateTime(Updates.createdAt) : null;
   return updatedAt ? `Wersja ${version} · aktualizacja ${updatedAt}` : `Wersja ${version}`;
 };
