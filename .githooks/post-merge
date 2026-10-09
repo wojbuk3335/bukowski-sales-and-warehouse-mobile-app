@@ -1,0 +1,4 @@
+#!/bin/sh
+# Po scaleniu gałęzi do main (także fast-forward, które nie wywołuje post-commit):
+# automatyczna aktualizacja OTA ze zmian od stanu sprzed scalenia (ORIG_HEAD).
+exec sh "$(dirname "$0")/eas-auto-update.sh" "ORIG_HEAD"
