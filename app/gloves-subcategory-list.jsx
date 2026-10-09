@@ -17,6 +17,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import { getRemainingProductType, normalizeRemainingProductCode, validateRemainingProductCode } from "../config/remainingProductTypes";
+
+const PRODUCT_TYPE = 'Rękawiczka'; // wzór kodu z metki pilnowany w aplikacji i na serwerze
+const TYPE = getRemainingProductType(PRODUCT_TYPE);
 
 const GlovesSubcategoryList = () => {
   const insets = useSafeAreaInsets();
@@ -76,21 +80,30 @@ const GlovesSubcategoryList = () => {
   };
 
   const handleSave = async () => {
-    if (!gloveOpis.trim()) {
+    const normalizedOpis = normalizeRemainingProductCode(gloveOpis);
+    if (!normalizedOpis) {
       setErrorMessage("Nazwa rękawiczki jest wymagana");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Wzór kodu z metki (ten sam co w panelu i na serwerze)
+    const check = validateRemainingProductCode(PRODUCT_TYPE, normalizedOpis);
+    if (!check.valid) {
+      setErrorMessage(check.message);
       setShowErrorModal(true);
       return;
     }
 
     // Check for duplicate Glove_Opis
     const duplicate = subcategories.find(
-      item => 
-        item.Glove_Opis === gloveOpis.trim() && 
+      item =>
+        item.Glove_Opis === normalizedOpis &&
         item._id !== editingItem?._id
     );
 
     if (duplicate) {
-      setErrorMessage(`Rękawiczka "${gloveOpis}" już istnieje w bazie danych. Proszę wybrać inną nazwę.`);
+      setErrorMessage(`Nazwa "${normalizedOpis}" już istnieje w bazie danych. Proszę wybrać inną nazwę.`);
       setShowErrorModal(true);
       return;
     }
@@ -103,13 +116,14 @@ const GlovesSubcategoryList = () => {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            Glove_Opis: gloveOpis.trim(),
+            Glove_Kod: editingItem.Glove_Kod,
+            Glove_Opis: normalizedOpis,
             Rodzaj: rodzaj,
           }),
         });
 
         if (response.ok) {
-          setSuccessMessage("Rękawiczka zaktualizowana pomyślnie");
+          setSuccessMessage("Zaktualizowano pomyślnie");
           setShowSuccessModal(true);
           setShowModal(false);
           fetchSubcategories();
@@ -131,15 +145,15 @@ const GlovesSubcategoryList = () => {
         const response = await tokenService.authenticatedFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify([{
+          body: JSON.stringify({
             Glove_Kod: nextCode.toString(),
-            Glove_Opis: gloveOpis.trim(),
+            Glove_Opis: normalizedOpis,
             Rodzaj: rodzaj,
-          }]),
+          }),
         });
 
         if (response.ok) {
-          setSuccessMessage("Rękawiczka dodana pomyślnie");
+          setSuccessMessage("Dodano pomyślnie");
           setShowSuccessModal(true);
           setShowModal(false);
           fetchSubcategories();
@@ -172,7 +186,7 @@ const GlovesSubcategoryList = () => {
               });
 
               if (response.ok) {
-                setSuccessMessage("Rękawiczka usunięta pomyślnie");
+                setSuccessMessage("Usunięto pomyślnie");
                 setShowSuccessModal(true);
                 fetchSubcategories();
               } else {
@@ -286,12 +300,16 @@ const GlovesSubcategoryList = () => {
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Nazwa rękawiczki:</Text>
+                <Text style={styles.hintText}>
+                  Wymagany wzór: {TYPE.formatHint}{TYPE.example ? ` — np. ${TYPE.example}` : ""}
+                </Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Np. Rękawiczka skórzana"
+                  placeholder={TYPE.example ? `np. ${TYPE.example}` : "Nazwa"}
                   placeholderTextColor="#64748B"
                   value={gloveOpis}
                   onChangeText={setGloveOpis}
+                  autoCapitalize="characters"
                 />
               </View>
 
@@ -306,8 +324,6 @@ const GlovesSubcategoryList = () => {
                   >
                     <Picker.Item label="Damskie (D)" value="D" />
                     <Picker.Item label="Męskie (M)" value="M" />
-                    <Picker.Item label="Dziecięce (Dz)" value="Dz" />
-                    <Picker.Item label="Unisex (U)" value="U" />
                   </Picker>
                 </View>
               </View>
@@ -615,6 +631,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     width: "80%",
+  },
+  hintText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    marginBottom: 8,
   },
   modalMessage: {
     color: "#fff",

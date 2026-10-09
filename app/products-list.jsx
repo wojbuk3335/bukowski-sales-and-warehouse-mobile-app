@@ -69,6 +69,7 @@ const ProductsList = () => {
   const [manufacturers, setManufacturers] = useState([]);
   const [belts, setBelts] = useState([]);
   const [gloves, setGloves] = useState([]);
+  const [caps, setCaps] = useState([]); // czapki (Rodzaj D/M jak paski i rękawiczki)
   const [bagsData, setBagsData] = useState([]);
   const [walletsData, setWalletsData] = useState([]);
   const [bagsCategories, setBagsCategories] = useState([]);
@@ -223,6 +224,14 @@ const ProductsList = () => {
         setGloves(glovesData.gloves || []);
       }
 
+      // Fetch caps
+      const capsUrl = getApiUrl("/excel/caps");
+      const capsResponse = await tokenService.authenticatedFetch(capsUrl);
+      if (capsResponse.ok) {
+        const capsData = await capsResponse.json();
+        setCaps(capsData.caps || []);
+      }
+
       // Fetch bags
       const bagsUrl = getApiUrl("/excel/bags/get-all-bags");
       const bagsResponse = await tokenService.authenticatedFetch(bagsUrl);
@@ -266,7 +275,8 @@ const ProductsList = () => {
       // Fetch remaining categories - use static categories for Paski and Rękawiczki
       const staticCategories = [
         { _id: 'belts', Rem_Kat_1_Opis_1: 'Paski', type: 'static' },
-        { _id: 'gloves', Rem_Kat_1_Opis_1: 'Rękawiczki', type: 'static' }
+        { _id: 'gloves', Rem_Kat_1_Opis_1: 'Rękawiczki', type: 'static' },
+        { _id: 'caps', Rem_Kat_1_Opis_1: 'Czapki', type: 'static' }
       ];
       setRemainingCategories(staticCategories);
     } catch (error) {
@@ -448,6 +458,11 @@ const ProductsList = () => {
     // Pozycje 10-12: PASKI: ostatnie 3 cyfry | RĘKAWICZKI: cyfry po kropce
     let lastThreeDigits = '000';
     if (selectedRemainingProductCode) {
+      // Czapki: ostatnie cyfry z nazwy (np. "MK 04" → 004)
+      if (selectedRemainingCategoryId === 'caps') {
+        const capDigits = selectedRemainingProductCode.match(/(\d+)$/);
+        lastThreeDigits = capDigits ? capDigits[1].slice(-3).padStart(3, '0') : '000';
+      } else
       // Sprawdź czy to pasek (format "ABC 123")
       if (selectedRemainingCategoryId === 'belts' && /^[A-Z]{3} \d{3}$/.test(selectedRemainingProductCode)) {
         // Dla pasków: weź ostatnie 3 cyfry z kodu (np. z "APS 202" weź "202")
@@ -543,6 +558,9 @@ const ProductsList = () => {
         } else if (selectedRemainingCategoryId === 'gloves') {
           // Show only gloves: must contain dot with exactly 3 digits after it
           return /\d+\.\d{3}/.test(product.Poz_Kod);
+        } else if (selectedRemainingCategoryId === 'caps') {
+          // Show only caps: "MK 04" (2 letters + space + 2 digits)
+          return /^[A-Z]{2} \d{2}$/.test(product.Poz_Kod);
         }
         // For other categories, show all products
         return true;
@@ -2640,6 +2658,16 @@ const ProductsList = () => {
                       setRemainingSubcategories(glovesOptions);
                       if (glovesOptions.length > 0) {
                         setSelectedRemainingSubcategoryId(glovesOptions[0]._id);
+                      }
+                    } else if (item._id === 'caps') {
+                      const capsOptions = caps.map(cap => ({
+                        _id: cap._id,
+                        Sub_Opis: cap.Cap_Opis,
+                        type: 'cap'
+                      }));
+                      setRemainingSubcategories(capsOptions);
+                      if (capsOptions.length > 0) {
+                        setSelectedRemainingSubcategoryId(capsOptions[0]._id);
                       }
                     }
                     

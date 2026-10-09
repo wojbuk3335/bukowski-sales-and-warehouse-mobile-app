@@ -61,7 +61,8 @@ const InventoryReport = () => {
     'Portfele',
     'Pozostały asortyment',
     'Paski',
-    'Rękawiczki'
+    'Rękawiczki',
+    'Czapki'
   ];
 
   useEffect(() => {

@@ -19,10 +19,10 @@ import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 import { getRemainingProductType, normalizeRemainingProductCode, validateRemainingProductCode } from "../config/remainingProductTypes";
 
-const PRODUCT_TYPE = 'Pasek'; // wzór kodu z metki pilnowany w aplikacji i na serwerze
+const PRODUCT_TYPE = 'Czapka'; // wzór kodu z metki pilnowany w aplikacji i na serwerze
 const TYPE = getRemainingProductType(PRODUCT_TYPE);
 
-const BeltsSubcategoryList = () => {
+const CapsSubcategoryList = () => {
   const insets = useSafeAreaInsets();
   const [subcategories, setSubcategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,7 @@ const BeltsSubcategoryList = () => {
   const [errorMessage, setErrorMessage] = useState("");
   
   // Form states
-  const [beltOpis, setBeltOpis] = useState("");
+  const [capOpis, setCapOpis] = useState("");
   const [rodzaj, setRodzaj] = useState("D");
 
   useEffect(() => {
@@ -45,20 +45,20 @@ const BeltsSubcategoryList = () => {
   const fetchSubcategories = async () => {
     try {
       setLoading(true);
-      const url = getApiUrl("/excel/belts");
+      const url = getApiUrl("/excel/caps");
       const response = await tokenService.authenticatedFetch(url);
       
       if (response.ok) {
         const data = await response.json();
-        const sortedData = (data.belts || []).sort((a, b) => {
-          const aKod = parseInt(a.Belt_Kod) || 0;
-          const bKod = parseInt(b.Belt_Kod) || 0;
+        const sortedData = (data.caps || []).sort((a, b) => {
+          const aKod = parseInt(a.Cap_Kod) || 0;
+          const bKod = parseInt(b.Cap_Kod) || 0;
           return bKod - aKod; // Descending order (newest first)
         });
         setSubcategories(sortedData);
       }
     } catch (error) {
-      setErrorMessage("Nie udało się pobrać listy pasków");
+      setErrorMessage("Nie udało się pobrać listy czapek");
       setShowErrorModal(true);
     } finally {
       setLoading(false);
@@ -67,22 +67,22 @@ const BeltsSubcategoryList = () => {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setBeltOpis("");
+    setCapOpis("");
     setRodzaj("D");
     setShowModal(true);
   };
 
   const handleEdit = (item) => {
     setEditingItem(item);
-    setBeltOpis(item.Belt_Opis);
+    setCapOpis(item.Cap_Opis);
     setRodzaj(item.Rodzaj || "D");
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    const normalizedOpis = normalizeRemainingProductCode(beltOpis);
+    const normalizedOpis = normalizeRemainingProductCode(capOpis);
     if (!normalizedOpis) {
-      setErrorMessage("Nazwa paska jest wymagana");
+      setErrorMessage("Nazwa czapki jest wymagana");
       setShowErrorModal(true);
       return;
     }
@@ -95,10 +95,10 @@ const BeltsSubcategoryList = () => {
       return;
     }
 
-    // Check for duplicate Belt_Opis
+    // Check for duplicate Cap_Opis
     const duplicate = subcategories.find(
       item =>
-        item.Belt_Opis === normalizedOpis &&
+        item.Cap_Opis === normalizedOpis &&
         item._id !== editingItem?._id
     );
 
@@ -111,13 +111,13 @@ const BeltsSubcategoryList = () => {
     try {
       if (editingItem) {
         // Update existing
-        const url = getApiUrl(`/excel/belts/${editingItem._id}`);
+        const url = getApiUrl(`/excel/caps/${editingItem._id}`);
         const response = await tokenService.authenticatedFetch(url, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            Belt_Kod: editingItem.Belt_Kod,
-            Belt_Opis: normalizedOpis,
+            Cap_Kod: editingItem.Cap_Kod,
+            Cap_Opis: normalizedOpis,
             Rodzaj: rodzaj,
           }),
         });
@@ -129,7 +129,7 @@ const BeltsSubcategoryList = () => {
           fetchSubcategories();
         } else {
           const error = await response.json();
-          setErrorMessage(error.message || "Nie udało się zaktualizować paska");
+          setErrorMessage(error.message || "Nie udało się zaktualizować czapki");
           setShowErrorModal(true);
         }
       } else {
@@ -137,17 +137,17 @@ const BeltsSubcategoryList = () => {
         // Get next code
         let nextCode = 1;
         if (subcategories.length > 0) {
-          const maxCode = Math.max(...subcategories.map(item => Number(item.Belt_Kod) || 0));
+          const maxCode = Math.max(...subcategories.map(item => Number(item.Cap_Kod) || 0));
           nextCode = maxCode + 1;
         }
 
-        const url = getApiUrl("/excel/belts");
+        const url = getApiUrl("/excel/caps");
         const response = await tokenService.authenticatedFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            Belt_Kod: nextCode.toString(),
-            Belt_Opis: normalizedOpis,
+            Cap_Kod: nextCode.toString(),
+            Cap_Opis: normalizedOpis,
             Rodzaj: rodzaj,
           }),
         });
@@ -159,7 +159,7 @@ const BeltsSubcategoryList = () => {
           fetchSubcategories();
         } else {
           const error = await response.json();
-          setErrorMessage(error.message || "Nie udało się dodać paska");
+          setErrorMessage(error.message || "Nie udało się dodać czapki");
           setShowErrorModal(true);
         }
       }
@@ -172,7 +172,7 @@ const BeltsSubcategoryList = () => {
   const handleDelete = (item) => {
     Alert.alert(
       "Potwierdzenie",
-      `Czy na pewno chcesz usunąć pasek "${item.Belt_Opis}"?`,
+      `Czy na pewno chcesz usunąć czapkę "${item.Cap_Opis}"?`,
       [
         { text: "Anuluj", style: "cancel" },
         {
@@ -180,7 +180,7 @@ const BeltsSubcategoryList = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              const url = getApiUrl(`/excel/belts/${item._id}`);
+              const url = getApiUrl(`/excel/caps/${item._id}`);
               const response = await tokenService.authenticatedFetch(url, {
                 method: "DELETE",
               });
@@ -191,7 +191,7 @@ const BeltsSubcategoryList = () => {
                 fetchSubcategories();
               } else {
                 const error = await response.json();
-                setErrorMessage(error.message || "Nie udało się usunąć paska");
+                setErrorMessage(error.message || "Nie udało się usunąć czapki");
                 setShowErrorModal(true);
               }
             } catch (error) {
@@ -205,15 +205,15 @@ const BeltsSubcategoryList = () => {
   };
 
   const filteredSubcategories = subcategories.filter(item =>
-    (item.Belt_Opis || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.Belt_Kod || "").toLowerCase().includes(searchTerm.toLowerCase())
+    (item.Cap_Opis || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.Cap_Kod || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const renderItem = ({ item }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemContent}>
-        <Text style={styles.itemName}>{item.Belt_Opis}</Text>
-        <Text style={styles.itemMeta}>Kod: {item.Belt_Kod}</Text>
+        <Text style={styles.itemName}>{item.Cap_Opis}</Text>
+        <Text style={styles.itemMeta}>Kod: {item.Cap_Kod}</Text>
         <Text style={styles.itemMeta}>Rodzaj: {item.Rodzaj || "D"}</Text>
       </View>
       <View style={styles.actionButtons}>
@@ -249,7 +249,7 @@ const BeltsSubcategoryList = () => {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Paski</Text>
+        <Text style={styles.headerTitle}>Czapki</Text>
         <TouchableOpacity style={styles.addIconButton} onPress={handleAdd}>
           <Ionicons name="add" size={24} color="#fff" />
         </TouchableOpacity>
@@ -279,7 +279,7 @@ const BeltsSubcategoryList = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="folder-open-outline" size={64} color="#64748B" />
-            <Text style={styles.emptyText}>Brak pasków</Text>
+            <Text style={styles.emptyText}>Brak czapek</Text>
           </View>
         }
       />
@@ -290,7 +290,7 @@ const BeltsSubcategoryList = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingItem ? "Edytuj pasek" : "Dodaj pasek"}
+                {editingItem ? "Edytuj czapkę" : "Dodaj czapkę"}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
                 <Ionicons name="close" size={24} color="#fff" />
@@ -299,7 +299,7 @@ const BeltsSubcategoryList = () => {
 
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Nazwa paska:</Text>
+                <Text style={styles.label}>Nazwa czapki:</Text>
                 <Text style={styles.hintText}>
                   Wymagany wzór: {TYPE.formatHint}{TYPE.example ? ` — np. ${TYPE.example}` : ""}
                 </Text>
@@ -307,8 +307,8 @@ const BeltsSubcategoryList = () => {
                   style={styles.input}
                   placeholder={TYPE.example ? `np. ${TYPE.example}` : "Nazwa"}
                   placeholderTextColor="#64748B"
-                  value={beltOpis}
-                  onChangeText={setBeltOpis}
+                  value={capOpis}
+                  onChangeText={setCapOpis}
                   autoCapitalize="characters"
                 />
               </View>
@@ -646,4 +646,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BeltsSubcategoryList;
+export default CapsSubcategoryList;

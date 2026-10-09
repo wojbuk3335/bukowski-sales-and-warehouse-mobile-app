@@ -52,6 +52,14 @@ const SubcategoriesMenu = () => {
       route: "/gloves-subcategory-list",
       color: "#06B6D4",
     },
+    {
+      id: "caps",
+      title: "Czapki",
+      subtitle: "Zarządzaj podkategorią czapek",
+      icon: "snow",
+      route: "/caps-subcategory-list",
+      color: "#8B5CF6",
+    },
   ];
 
   const handleSubcategoryPress = (route) => {

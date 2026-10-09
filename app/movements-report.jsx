@@ -54,6 +54,7 @@ const MovementsReport = () => {
     'Pozostały asortyment',
     'Paski',
     'Rękawiczki',
+    'Czapki',
   ];
 
   useEffect(() => {

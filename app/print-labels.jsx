@@ -66,7 +66,8 @@ const PrintLabels = () => {
     'Portfele',
     'Pozostały asortyment',
     'Paski',
-    'Rękawiczki'
+    'Rękawiczki',
+    'Czapki'
   ];
 
   useEffect(() => {
@@ -89,7 +90,7 @@ const PrintLabels = () => {
 
   // Clear size filter when category doesn't have sizes
   useEffect(() => {
-    const categoriesWithoutSizes = ['Torebki', 'Portfele', 'Pozostały asortyment', 'Paski', 'Rękawiczki'];
+    const categoriesWithoutSizes = ['Torebki', 'Portfele', 'Pozostały asortyment', 'Paski', 'Rękawiczki', 'Czapki'];
     if (selectedCategory && categoriesWithoutSizes.includes(selectedCategory) && selectedSize) {
       setSelectedSize(null);
     }
