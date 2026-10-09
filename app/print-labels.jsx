@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
+import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
   Text,
@@ -65,9 +66,7 @@ const PrintLabels = () => {
     'Torebki',
     'Portfele',
     'Pozostały asortyment',
-    'Paski',
-    'Rękawiczki',
-    'Czapki'
+    ...REMAINING_CATEGORY_LABELS
   ];
 
   useEffect(() => {
@@ -90,7 +89,7 @@ const PrintLabels = () => {
 
   // Clear size filter when category doesn't have sizes
   useEffect(() => {
-    const categoriesWithoutSizes = ['Torebki', 'Portfele', 'Pozostały asortyment', 'Paski', 'Rękawiczki', 'Czapki'];
+    const categoriesWithoutSizes = ['Torebki', 'Portfele', 'Pozostały asortyment', ...REMAINING_CATEGORY_LABELS];
     if (selectedCategory && categoriesWithoutSizes.includes(selectedCategory) && selectedSize) {
       setSelectedSize(null);
     }

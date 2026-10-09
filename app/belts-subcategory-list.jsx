@@ -17,10 +17,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
-import { getRemainingProductType, normalizeRemainingProductCode, validateRemainingProductCode } from "../config/remainingProductTypes";
 
-const PRODUCT_TYPE = 'Pasek'; // wzór kodu z metki pilnowany w aplikacji i na serwerze
-const TYPE = getRemainingProductType(PRODUCT_TYPE);
+// Tabela podpodkategorii pasków (np. „Pasek damski”, „Pasek męski”) – jak podkategorie kurtek.
+// Kody z metek (APS 120 …) są w Tabeli pozostałego asortymentu.
+const NAME_EXAMPLE = "Pasek damski";
 
 const BeltsSubcategoryList = () => {
   const insets = useSafeAreaInsets();
@@ -80,17 +80,9 @@ const BeltsSubcategoryList = () => {
   };
 
   const handleSave = async () => {
-    const normalizedOpis = normalizeRemainingProductCode(beltOpis);
+    const normalizedOpis = String(beltOpis || "").trim().replace(/\s+/g, " ");
     if (!normalizedOpis) {
-      setErrorMessage("Nazwa paska jest wymagana");
-      setShowErrorModal(true);
-      return;
-    }
-
-    // Wzór kodu z metki (ten sam co w panelu i na serwerze)
-    const check = validateRemainingProductCode(PRODUCT_TYPE, normalizedOpis);
-    if (!check.valid) {
-      setErrorMessage(check.message);
+      setErrorMessage("Nazwa paska jest wymagana (np. " + NAME_EXAMPLE + ")");
       setShowErrorModal(true);
       return;
     }
@@ -300,16 +292,13 @@ const BeltsSubcategoryList = () => {
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Nazwa paska:</Text>
-                <Text style={styles.hintText}>
-                  Wymagany wzór: {TYPE.formatHint}{TYPE.example ? ` — np. ${TYPE.example}` : ""}
-                </Text>
+                <Text style={styles.hintText}>Nazwa podpodkategorii, np. {NAME_EXAMPLE}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={TYPE.example ? `np. ${TYPE.example}` : "Nazwa"}
+                  placeholder={`np. ${NAME_EXAMPLE}`}
                   placeholderTextColor="#64748B"
                   value={beltOpis}
                   onChangeText={setBeltOpis}
-                  autoCapitalize="characters"
                 />
               </View>
 

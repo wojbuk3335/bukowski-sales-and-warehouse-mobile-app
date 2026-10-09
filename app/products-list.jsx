@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { REMAINING_SUBCATEGORY_OPTIONS, getRemainingProductTypeByKey, remainingCodeDigits } from "../config/remainingProductTypes";
 import {
   StyleSheet,
   Text,
@@ -272,13 +273,8 @@ const ProductsList = () => {
         setRemainingProducts(remainingData.remainingProducts || []);
       }
 
-      // Fetch remaining categories - use static categories for Paski and Rękawiczki
-      const staticCategories = [
-        { _id: 'belts', Rem_Kat_1_Opis_1: 'Paski', type: 'static' },
-        { _id: 'gloves', Rem_Kat_1_Opis_1: 'Rękawiczki', type: 'static' },
-        { _id: 'caps', Rem_Kat_1_Opis_1: 'Czapki', type: 'static' }
-      ];
-      setRemainingCategories(staticCategories);
+      // Podkategorie pozostałego asortymentu = typy produktów z Tabeli pozostałego asortymentu (lista wspólna z serwerem)
+      setRemainingCategories(REMAINING_SUBCATEGORY_OPTIONS);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -455,31 +451,8 @@ const ProductsList = () => {
     const productNumber = remainingProduct.Poz_Nr || 0;
     code += productNumber.toString().padStart(2, '0').substring(0, 2);
     
-    // Pozycje 10-12: PASKI: ostatnie 3 cyfry | RĘKAWICZKI: cyfry po kropce
-    let lastThreeDigits = '000';
-    if (selectedRemainingProductCode) {
-      // Czapki: ostatnie cyfry z nazwy (np. "MK 04" → 004)
-      if (selectedRemainingCategoryId === 'caps') {
-        const capDigits = selectedRemainingProductCode.match(/(\d+)$/);
-        lastThreeDigits = capDigits ? capDigits[1].slice(-3).padStart(3, '0') : '000';
-      } else
-      // Sprawdź czy to pasek (format "ABC 123")
-      if (selectedRemainingCategoryId === 'belts' && /^[A-Z]{3} \d{3}$/.test(selectedRemainingProductCode)) {
-        // Dla pasków: weź ostatnie 3 cyfry z kodu (np. z "APS 202" weź "202")
-        const beltNumberMatch = selectedRemainingProductCode.match(/\s(\d{3})$/);
-        if (beltNumberMatch) {
-          lastThreeDigits = beltNumberMatch[1];
-        }
-      } else {
-        // Dla rękawiczek: standardowa logika - cyfry po kropce
-        const afterDotMatch = selectedRemainingProductCode.match(/\.(\d+)/);
-        if (afterDotMatch) {
-          const digits = afterDotMatch[1];
-          lastThreeDigits = digits.padStart(3, '0').substring(0, 3);
-        }
-      }
-    }
-    code += lastThreeDigits;
+    // Pozycje 10-12: 3 cyfry z kodu z metki (po kropce, gdy jest; inaczej końcowe cyfry)
+    code += remainingCodeDigits(selectedRemainingProductCode);
     
     // Pozycja 13: Suma kontrolna
     const controlSum = calculateControlSum(code);
@@ -546,28 +519,13 @@ const ProductsList = () => {
     return productCode || "";
   };
 
-  // Filter remaining products based on selected category (belts or gloves)
+  // Kody z metek z Tabeli pozostałego asortymentu o typie wybranej podkategorii (Pasek, Rękawiczka, Czapka, …)
   const getFilteredRemainingProducts = () => {
+    const type = getRemainingProductTypeByKey(selectedRemainingCategoryId);
     return remainingProducts
       .filter(product => product.Poz_Kod && product.Poz_Kod.trim() !== '')
-      .filter(product => {
-        // Filter by product type based on selected remaining category
-        if (selectedRemainingCategoryId === 'belts') {
-          // Show only belts: format "ABC 123" (3 letters + space + 3 digits)
-          return /^[A-Z]{3} \d{3}$/.test(product.Poz_Kod);
-        } else if (selectedRemainingCategoryId === 'gloves') {
-          // Show only gloves: must contain dot with exactly 3 digits after it
-          return /\d+\.\d{3}/.test(product.Poz_Kod);
-        } else if (selectedRemainingCategoryId === 'caps') {
-          // Show only caps: "MK 04" (2 letters + space + 2 digits)
-          return /^[A-Z]{2} \d{2}$/.test(product.Poz_Kod);
-        }
-        // For other categories, show all products
-        return true;
-      })
-      .filter(product => 
-        product.Poz_Kod.toLowerCase().includes(remainingProductsSearch.toLowerCase())
-      );
+      .filter(product => !type || product.productType === type.value)
+      .filter(product => product.Poz_Kod.toLowerCase().includes(remainingProductsSearch.toLowerCase()));
   };
 
   const handleAddProduct = () => {
@@ -663,11 +621,25 @@ const ProductsList = () => {
   const handleSaveProduct = async () => {
     const finalProductName = generateProductName();
     const finalProductCode = generateProductCode();
-    
+    const remainingType = category === "Pozostałe" ? getRemainingProductTypeByKey(selectedRemainingCategoryId) : null;
+
     if (!finalProductName.trim()) {
       setErrorMessage("Nazwa produktu jest wymagana");
       setShowErrorModal(true);
       return;
+    }
+
+    if (category === "Pozostałe") {
+      if (!remainingType || !selectedRemainingProductCode) {
+        setErrorMessage("Wybierz podkategorię i kod produktu");
+        setShowErrorModal(true);
+        return;
+      }
+      if (remainingType.hasSubcategoryTable && !selectedRemainingSubcategoryId) {
+        setErrorMessage("Wybierz podpodkategorię");
+        setShowErrorModal(true);
+        return;
+      }
     }
 
     if (!selectedColor) {
@@ -684,9 +656,16 @@ const ProductsList = () => {
       formData.append("code", finalProductCode);
       formData.append("price", parseFloat(price) || 0);
       formData.append("discount_price", discountPrice ? parseFloat(discountPrice) : 0);
-      formData.append("category", category);
+      formData.append("category", category === "Pozostałe" ? "Pozostały asortyment" : category);
       formData.append("description", description || "");
       formData.append("color", selectedColor);
+      if (category === "Pozostałe") {
+        // Podkategoria (typ), podpodkategoria (wiersz tabeli pasków/rękawiczek/czapek) i kod z Tabeli pozostałego asortymentu
+        formData.append("subcategory", selectedRemainingCategoryId);
+        formData.append("bagsCategoryId", selectedRemainingCategoryId);
+        formData.append("bagProduct", selectedRemainingProductCode);
+        formData.append("remainingsubsubcategory", remainingType && remainingType.hasSubcategoryTable ? selectedRemainingSubcategoryId : "");
+      }
       
       // Optional fields based on category
       if (selectedStock) formData.append("stock", selectedStock);
@@ -2669,6 +2648,8 @@ const ProductsList = () => {
                       if (capsOptions.length > 0) {
                         setSelectedRemainingSubcategoryId(capsOptions[0]._id);
                       }
+                    } else {
+                      setRemainingSubcategories([]); // impregnaty, pasty, pompony, kapy, kołnierze, opaski - bez podpodkategorii
                     }
                     
                     setShowRemainingCategoryPicker(false);

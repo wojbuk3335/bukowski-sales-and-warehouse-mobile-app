@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
   Text,
@@ -60,9 +61,7 @@ const InventoryReport = () => {
     'Torebki',
     'Portfele',
     'Pozostały asortyment',
-    'Paski',
-    'Rękawiczki',
-    'Czapki'
+    ...REMAINING_CATEGORY_LABELS
   ];
 
   useEffect(() => {

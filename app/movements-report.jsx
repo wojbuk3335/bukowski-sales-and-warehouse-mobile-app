@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
   Text,
@@ -52,9 +53,7 @@ const MovementsReport = () => {
     'Torebki',
     'Portfele',
     'Pozostały asortyment',
-    'Paski',
-    'Rękawiczki',
-    'Czapki',
+    ...REMAINING_CATEGORY_LABELS,
   ];
 
   useEffect(() => {
