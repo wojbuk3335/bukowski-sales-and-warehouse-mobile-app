@@ -16,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import { REMAINING_PRODUCT_TYPES, getRemainingProductType, normalizeRemainingProductCode, validateRemainingProductCode } from "../config/remainingProductTypes";
 
 const RemainingProductsList = () => {
   const insets = useSafeAreaInsets();
@@ -33,87 +34,17 @@ const RemainingProductsList = () => {
   // Form states
   const [pozNr, setPozNr] = useState("");
   const [pozKod, setPozKod] = useState("");
-  const [productType, setProductType] = useState("Rękawiczka");
+  const [productType, setProductType] = useState("");
   const [startingNumber, setStartingNumber] = useState(10);
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  // Validation function for Poz_Kod - different rules based on product type
+  // Walidacja Poz_Kod wg typu produktu (ta sama lista wzorców co w panelu i na serwerze)
   const validatePozKod = (value, type) => {
-    if (!value || value === '') return { isValid: true, message: '' };
-    
-    // Special validation for Pasek (Belt) - format: "APS 052" (3 letters + space + 3 digits)
-    if (type === 'Pasek') {
-      const beltPattern = /^[A-Z]{3} \d{3}$/;
-      if (!beltPattern.test(value)) {
-        return { 
-          isValid: false, 
-          message: 'Pasek musi mieć format: 3 duże litery + spacja + 3 cyfry (np. APS 052)' 
-        };
-      }
-      return { isValid: true, message: '' };
-    }
-    
-    // Validation for Rękawiczka - MUST have a dot followed by exactly 3 digits
-    if (type === 'Rękawiczka') {
-      // Check if the value contains at least one number with a dot and exactly 3 digits after it
-      const hasValidDecimal = /\d+\.\d{3}/.test(value);
-      
-      if (!hasValidDecimal) {
-        return { 
-          isValid: false, 
-          message: 'Rękawiczka: Poz_Kod musi zawierać liczbę z kropką i dokładnie 3 cyframi po niej (np. Rekawiczka12.123)' 
-        };
-      }
-      
-      // Additional check: make sure no numbers have more than 3 decimal places
-      const decimalMatches = value.match(/\d+\.\d+/g);
-      if (decimalMatches) {
-        for (let match of decimalMatches) {
-          const decimalPart = match.split('.')[1];
-          if (decimalPart && decimalPart.length !== 3) {
-            return { 
-              isValid: false, 
-              message: 'Rękawiczka: Wszystkie liczby muszą mieć dokładnie 3 cyfry po kropce (np. 12.123)' 
-            };
-          }
-        }
-      }
-      
-      if (value.length > 100) {
-        return { 
-          isValid: false, 
-          message: 'Poz_Kod może mieć maksymalnie 100 znaków' 
-        };
-      }
-      
-      return { isValid: true, message: '' };
-    }
-    
-    // Default validation
-    const decimalMatches = value.match(/\d+\.\d+/g);
-    if (decimalMatches) {
-      for (let match of decimalMatches) {
-        const decimalPart = match.split('.')[1];
-        if (decimalPart && decimalPart.length > 3) {
-          return { 
-            isValid: false, 
-            message: 'Poz_Kod nie może zawierać liczb z więcej niż 3 cyframi po kropce' 
-          };
-        }
-      }
-    }
-    
-    if (value.length > 100) {
-      return { 
-        isValid: false, 
-        message: 'Poz_Kod może mieć maksymalnie 100 znaków' 
-      };
-    }
-    
-    return { isValid: true, message: '' };
+    const check = validateRemainingProductCode(type, value);
+    return { isValid: check.valid, message: check.valid ? '' : check.message };
   };
 
   const fetchProducts = async () => {
@@ -211,7 +142,7 @@ const RemainingProductsList = () => {
   };
 
   const handleEditProduct = (product) => {
-    const defaultProductType = product.productType || 'Rękawiczka';
+    const defaultProductType = product.productType || '';
     setEditingProduct(product);
     setPozNr(product.Poz_Nr.toString());
     setPozKod(product.Poz_Kod || "");
@@ -261,16 +192,17 @@ const RemainingProductsList = () => {
       return;
     }
     
-    // Check for duplicate Poz_Kod (only if not empty)
-    if (pozKod !== "") {
+    // Check for duplicate Poz_Kod (only if not empty); kod zapisywany jest znormalizowany (wielkie litery, pojedyncze spacje)
+    const normalizedCode = normalizeRemainingProductCode(pozKod);
+    if (normalizedCode !== "") {
       const duplicate = products.find(
         product => 
-          product.Poz_Kod === pozKod && 
+          product.Poz_Kod === normalizedCode && 
           product._id !== editingProduct?._id
       );
 
       if (duplicate) {
-        setErrorMessage(`Kod "${pozKod}" już istnieje w bazie danych. Proszę wybrać inną wartość.`);
+        setErrorMessage(`Kod "${normalizedCode}" już istnieje w bazie danych. Proszę wybrać inną wartość.`);
         setShowErrorModal(true);
         return;
       }
@@ -284,7 +216,7 @@ const RemainingProductsList = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          Poz_Kod: pozKod,
+          Poz_Kod: normalizedCode,
           productType: productType,
         }),
       });
@@ -297,7 +229,7 @@ const RemainingProductsList = () => {
         fetchProducts();
       } else {
         const errorData = await response.json();
-        setErrorMessage(errorData.error?.message || "Nie udało się zaktualizować produktu");
+        setErrorMessage(errorData.message || errorData.error?.message || "Nie udało się zaktualizować produktu"); // serwer sprawdza wzór niezależnie
         setShowErrorModal(true);
       }
     } catch (error) {
@@ -490,15 +422,16 @@ const RemainingProductsList = () => {
                     style={styles.picker}
                     dropdownIconColor="#fff"
                   >
-                    <Picker.Item label="Rękawiczka" value="Rękawiczka" />
-                    <Picker.Item label="Pasek" value="Pasek" />
+                    <Picker.Item label="- wybierz typ -" value="" />
+                    {REMAINING_PRODUCT_TYPES.map((type) => (
+                      <Picker.Item key={type.value} label={type.label} value={type.value} />
+                    ))}
                   </Picker>
                 </View>
                 <Text style={styles.formHint}>
-                  {productType === 'Pasek' 
-                    ? 'Pasek: 3 wielkie litery + spacja + 3 cyfry (np. APS 052)'
-                    : 'Rękawiczka: liczba z kropką i 3 cyfry po niej (np. 12.123)'
-                  }
+                  {getRemainingProductType(productType)
+                    ? `Wymagany wzór: ${getRemainingProductType(productType).formatHint}${getRemainingProductType(productType).example ? `, np. ${getRemainingProductType(productType).example}` : ''}`
+                    : 'Najpierw wybierz typ produktu - od niego zależy wzór kodu'}
                 </Text>
               </View>
 
@@ -507,11 +440,11 @@ const RemainingProductsList = () => {
                 <Text style={styles.formLabel}>Kod produktu</Text>
                 <TextInput
                   style={styles.formInput}
-                  placeholder={productType === 'Pasek' ? "np. APS 052" : "np. Rekawiczka12.123"}
+                  placeholder={getRemainingProductType(productType)?.example ? `np. ${getRemainingProductType(productType).example}` : "Wpisz kod z metki"}
                   placeholderTextColor="#64748B"
                   value={pozKod}
                   onChangeText={handlePozKodChange}
-                  autoCapitalize={productType === 'Pasek' ? 'characters' : 'none'}
+                  autoCapitalize="characters"
                 />
                 {validationMessage !== '' && (
                   <Text style={styles.validationError}>{validationMessage}</Text>
