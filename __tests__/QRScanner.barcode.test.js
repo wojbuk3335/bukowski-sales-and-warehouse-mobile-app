@@ -87,7 +87,7 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     
     await waitFor(() => {
       // Sprawdź czy pole "Sprzedano produkt" zawiera nazwę produktu
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeTruthy();
     });
   });
 
@@ -112,14 +112,14 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     
     // Najpierw sprawdź że pojawiła się nazwa
     await waitFor(() => {
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeTruthy();
     });
     
     // Potem wyczyść
     fireEvent.changeText(barcodeInput, '');
     
     await waitFor(() => {
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeFalsy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeFalsy();
     });
   });
 
@@ -132,14 +132,14 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     // Pierwszy kod
     fireEvent.changeText(barcodeInput, '1234567890');
     await waitFor(() => {
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeTruthy();
     });
     
     // Zmień na drugi kod
     fireEvent.changeText(barcodeInput, '9876543210');
     await waitFor(() => {
-      expect(queryByDisplayValue('Spodnie Niebieskie')).toBeTruthy();
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeFalsy();
+      expect(queryByDisplayValue('Spodnie Niebieskie L')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeFalsy();
     });
   });
 
@@ -163,7 +163,7 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     fireEvent.changeText(barcodeInput, '  1234567890  '); // Spacje dookoła
     
     await waitFor(() => {
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeTruthy();
     });
   });
 
@@ -180,7 +180,7 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     fireEvent.changeText(barcodeInput, '1234567890');
     
     await waitFor(() => {
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeTruthy();
     });
   });
 
@@ -234,7 +234,37 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     
     await waitFor(() => {
       // Powinno zwrócić pierwszy znaleziony
-      expect(queryByDisplayValue('Kurtka Czarna')).toBeTruthy();
+      expect(queryByDisplayValue('Kurtka Czarna M')).toBeTruthy();
+    });
+  });
+  // 📏 Trello 1.1.4: rozmiar w polu "Sprzedano produkt" dla produktów ze stanu
+  test('Powinno pokazać rozmiar produktu ze stanu (kurtki, kożuchy, futra)', async () => {
+    const { getByPlaceholderText, getByTestId, queryByDisplayValue } = render(<QRScanner {...mockProps} />);
+
+    const barcodeInput = await openModalAndGetBarcodeInput({ getByTestId, getByPlaceholderText });
+    fireEvent.changeText(barcodeInput, '9876543210');
+
+    await waitFor(() => {
+      expect(queryByDisplayValue('Spodnie Niebieskie L')).toBeTruthy();
+    });
+  });
+
+  test('Nie powinno dopisywać rozmiaru "-" (torebki, portfele, pozostały asortyment)', async () => {
+    const propsWithBag = {
+      ...mockProps,
+      stateData: [
+        ...mockProps.stateData,
+        { _id: '4', barcode: '5555555555', fullName: 'Torebka Brązowa', size: '-', symbol: 'PUNKT1' }
+      ]
+    };
+    const { getByPlaceholderText, getByTestId, queryByDisplayValue } = render(<QRScanner {...propsWithBag} />);
+
+    const barcodeInput = await openModalAndGetBarcodeInput({ getByTestId, getByPlaceholderText });
+    fireEvent.changeText(barcodeInput, '5555555555');
+
+    await waitFor(() => {
+      expect(queryByDisplayValue('Torebka Brązowa')).toBeTruthy();
+      expect(queryByDisplayValue('Torebka Brązowa -')).toBeFalsy();
     });
   });
 });

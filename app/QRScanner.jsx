@@ -404,6 +404,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     );
   }
 
+  // Nazwa produktu ze stanu z rozmiarem; backend zwraca "-" dla torebek, portfeli i pozostałego asortymentu
+  const formatStateItemName = (item) => {
+    const size = String(item?.size || "").trim();
+    const hasSize = size && size !== "-" && size !== "Nieznany rozmiar";
+    return hasSize ? `${item.fullName} ${size}` : item.fullName;
+  };
+
   // Dynamicznie aktualizuj pole "Sprzedano produkt" podczas wpisywania kodu kreskowego
   const handleBarcodeChange = async (newBarcode) => {
     setBarcode(newBarcode);
@@ -419,7 +426,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     
     if (matchedItems && matchedItems.length > 0) {
       // Znaleziono w stateData
-      setModalMessage(matchedItems[0].fullName);
+      setModalMessage(formatStateItemName(matchedItems[0]));
       return;
     }
 
