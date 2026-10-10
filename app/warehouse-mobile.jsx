@@ -306,8 +306,12 @@ const WarehouseMobile = () => {
       const response = await tokenService.authenticatedFetch(url);
       const data = await response.json();
       if (data?.sizes) {
-        setSizes(data.sizes);
-        setFilteredSizes(data.sizes);
+        // Kurtki/kożuchy/futra muszą mieć konkretny rozmiar - !NIEOKREŚLONY nie jest do wyboru (serwer też go odrzuca)
+        const selectable = data.sizes.filter(
+          (size) => !/NIEOKRE/i.test(String(size.Roz_Opis || "")) && String(size.Roz_Kod || "") !== "000"
+        );
+        setSizes(selectable);
+        setFilteredSizes(selectable);
       }
     } catch (error) {
       console.error("❌ Error fetching sizes:", error);
