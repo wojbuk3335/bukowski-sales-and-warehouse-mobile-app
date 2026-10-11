@@ -74,76 +74,96 @@ const Remanent = () => {
   });
   const [scanStartTime, setScanStartTime] = useState(null);
 
-  // Extract available assortments, colors, and sizes from remanent data
-  useEffect(() => {
-    if (remanentData && remanentData.length > 0) {
-      // Extract assortments (first word of product name)
-      const assortments = [...new Set(remanentData.map(item => {
-        const name = item.name || '';
-        return name.split(' ')[0];
-      }).filter(name => name))].sort();
-      
-      // Extract colors (second word of product name, if exists)
-      const colors = [...new Set(remanentData.map(item => {
-        const name = item.name || '';
-        const parts = name.split(' ');
-        return parts.length > 1 ? parts[1] : '';
-      }).filter(color => color && color !== 'XS' && color !== 'S' && color !== 'M' && color !== 'L' && color !== 'XL' && color !== 'XXL'))].sort();
-      
-      // Extract sizes (look for size patterns)
-      const sizes = [...new Set(remanentData.map(item => {
-        const name = item.name || '';
-        const sizeMatch = name.match(/\b(XS|S|M|L|XL|XXL|\d+)\b/);
-        return sizeMatch ? sizeMatch[0] : '';
-      }).filter(size => size))].sort();
-      
-      setAvailableAssortments(assortments);
-      setAvailableColors(colors);
-      setAvailableSizes(sizes);
-    } else {
-      // Fallback: try to get filter options from state endpoint
-      fetchFilterOptionsFromState();
-    }
-  }, [remanentData]);
+  // ---------------------------------------------------------------------------
+  // Filtry oparte na KODZIE KRESKOWYM i słownikach (asortyment, kolory, rozmiary),
+  // a nie na słowach w nazwie (dawniej „APS 054 CZARNY” dawało kolor „054”).
+  // Kurtki: Tow_Kod(3) + Kol_Kod(2) + Roz_Kod(3) + ...; reszta: 000 + Kol_Kod(2) + ...
+  // ---------------------------------------------------------------------------
+  const toList = (value, key) => (Array.isArray(value) ? value : (value?.data || value?.[key] || []));
+  const stockByKod = React.useMemo(
+    () => Object.fromEntries(toList(stocks, "stocks").filter((item) => item?.Tow_Kod).map((item) => [String(item.Tow_Kod), item.Tow_Opis])),
+    [stocks]
+  );
+  const colorByKod = React.useMemo(
+    () => Object.fromEntries(toList(colors, "colors").filter((item) => item?.Kol_Kod).map((item) => [String(item.Kol_Kod), item.Kol_Opis])),
+    [colors]
+  );
+  const sizeByKod = React.useMemo(
+    () => Object.fromEntries(toList(sizes, "sizes").filter((item) => item?.Roz_Kod).map((item) => [String(item.Roz_Kod), item.Roz_Opis])),
+    [sizes]
+  );
 
-  // Fallback function to get filter options from state when no remanent data exists
-  const fetchFilterOptionsFromState = async () => {
-    try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/state'));
-      if (response.ok) {
-        const allStateData = await response.json();
-        const currentState = allStateData.filter(item => item.symbol === user?.symbol);
-        
-        // Extract unique assortments, colors, and sizes from state
-        const assortments = [...new Set(currentState.map(item => {
-          const fullName = item.fullName || item.name || '';
-          return fullName.split(' ')[0];
-        }).filter(name => name && name.length > 1))].sort();
-        
-        const colors = [...new Set(currentState.map(item => {
-          const fullName = item.fullName || item.name || '';
-          const parts = fullName.split(' ');
-          return parts.length > 1 ? parts[1] : '';
-        }).filter(color => color && color !== 'XS' && color !== 'S' && color !== 'M' && color !== 'L' && color !== 'XL' && color !== 'XXL'))].sort();
-        
-        const sizes = [...new Set(currentState.map(item => {
-          const fullName = item.fullName || item.name || '';
-          const sizeMatch = fullName.match(/\b(XS|S|M|L|XL|XXL|\d+)\b/);
-          return sizeMatch ? sizeMatch[0] : '';
-        }).filter(size => size))].sort();
-        
-        Logger.debug('📝 Fallback options from state - assortments:', assortments, 'colors:', colors, 'sizes:', sizes);
-        setAvailableAssortments(assortments);
-        setAvailableColors(colors);
-        setAvailableSizes(sizes);
-      }
-    } catch (error) {
-      // Ultimate fallback - common options
-      setAvailableAssortments(['ANETA', 'BARBARA', 'CLAUDIA', 'DIANA', 'ELENA']);
-      setAvailableColors(['CZARNY', 'GRANATOWY', 'BRĄZOWY', 'BEŻOWY', 'CZERWONY']);
-      setAvailableSizes(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+  // { assortment, color, size } dla kodu kreskowego sztuki
+  const describeBarcode = (barcode) => {
+    const code = String(barcode || "").trim();
+    if (!/^\d{13}$/.test(code)) return { assortment: "", color: "", size: "" };
+    const color = colorByKod[code.slice(3, 5)] || "";
+    if (code.slice(0, 3) !== "000") {
+      const sizeName = sizeByKod[code.slice(5, 8)] || "";
+      return {
+        assortment: stockByKod[code.slice(0, 3)] || "",
+        color,
+        size: /NIEOKRE/i.test(sizeName) ? "" : sizeName,
+      };
     }
+    const assortment = code[5] !== "0" ? "Torebki" : (code[6] !== "0" ? "Portfele" : "Pozostały asortyment");
+    return { assortment, color, size: "" };
   };
+
+  // Czy sztuka o danym kodzie pasuje do aktywnych filtrów (porównanie dokładne, bez podciągów)
+  const matchesFilters = (barcode) => {
+    const wantedAssortment = advancedFilters.assortment || assortmentFilter;
+    if (!wantedAssortment && !advancedFilters.color && !advancedFilters.size) return true;
+    const info = describeBarcode(barcode);
+    if (wantedAssortment && info.assortment !== wantedAssortment) return false;
+    if (advancedFilters.color && info.color !== advancedFilters.color) return false;
+    if (advancedFilters.size && info.size !== advancedFilters.size) return false;
+    return true;
+  };
+
+  // Słowniki potrzebne filtrom ładujemy od razu po wejściu na zakładkę
+  useEffect(() => {
+    if (toList(stocks, "stocks").length === 0 && fetchStock) fetchStock();
+    if (toList(colors, "colors").length === 0 && fetchColors) fetchColors();
+    if (toList(sizes, "sizes").length === 0 && fetchSizes) fetchSizes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Opcje filtrów: wartości z kodów sztuk na stanie punktu oraz już zeskanowanych
+  useEffect(() => {
+    let cancelled = false;
+    const buildFilterOptions = async () => {
+      const codes = new Set((remanentData || []).map((item) => item.code).filter(Boolean));
+      try {
+        const response = await tokenService.authenticatedFetch(getApiUrl("/state"));
+        if (response.ok) {
+          const allStateData = await response.json();
+          allStateData
+            .filter((item) => item.symbol === user?.symbol)
+            .forEach((item) => { if (item.barcode) codes.add(item.barcode); });
+        }
+      } catch (error) {
+        // bez stanu - opcje tylko z zeskanowanych sztuk
+      }
+      if (cancelled) return;
+      const assortments = new Set();
+      const colorNames = new Set();
+      const sizeNames = new Set();
+      codes.forEach((code) => {
+        const info = describeBarcode(code);
+        if (info.assortment) assortments.add(info.assortment);
+        if (info.color) colorNames.add(info.color);
+        if (info.size) sizeNames.add(info.size);
+      });
+      const sizeOrder = toList(sizes, "sizes").map((item) => item.Roz_Opis);
+      setAvailableAssortments([...assortments].sort((a, b) => a.localeCompare(b, "pl")));
+      setAvailableColors([...colorNames].sort((a, b) => a.localeCompare(b, "pl")));
+      setAvailableSizes([...sizeNames].sort((a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b)));
+    };
+    buildFilterOptions();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remanentData, stockByKod, colorByKod, sizeByKod, user?.symbol]);
 
   // Filter remanent data based on advanced filters
   useEffect(() => {
@@ -154,37 +174,12 @@ const Remanent = () => {
 
     let filtered = remanentData;
 
-    // Apply legacy assortment filter (for backward compatibility)
-    if (assortmentFilter && assortmentFilter !== '') {
-      filtered = filtered.filter(item => 
-        item.name && item.name.toLowerCase().includes(assortmentFilter.toLowerCase())
-      );
-    }
-
-    // Apply advanced filters
-    if (advancedFilters.assortment && advancedFilters.assortment !== '') {
-      filtered = filtered.filter(item => {
-        const name = item.name || '';
-        return name.toLowerCase().includes(advancedFilters.assortment.toLowerCase());
-      });
-    }
-
-    if (advancedFilters.color && advancedFilters.color !== '') {
-      filtered = filtered.filter(item => {
-        const name = item.name || '';
-        return name.toLowerCase().includes(advancedFilters.color.toLowerCase());
-      });
-    }
-
-    if (advancedFilters.size && advancedFilters.size !== '') {
-      filtered = filtered.filter(item => {
-        const name = item.name || '';
-        return name.toLowerCase().includes(advancedFilters.size.toLowerCase());
-      });
-    }
+    // Filtry po kodzie kreskowym (asortyment, kolor, rozmiar ze słowników)
+    filtered = filtered.filter(item => matchesFilters(item.code));
 
     setFilteredRemanentData(filtered);
-  }, [remanentData, assortmentFilter, advancedFilters]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remanentData, assortmentFilter, advancedFilters, stockByKod, colorByKod, sizeByKod]);
 
   // Calculate scan progress based on current state and scanned items
   useEffect(() => {
@@ -196,30 +191,8 @@ const Remanent = () => {
           const allStateData = await response.json();
           let expectedItems = allStateData.filter(item => item.symbol === user?.symbol);
           
-          // Apply filters to expected items (same as in performStateCheck)
-          if (advancedFilters.assortment || advancedFilters.color || advancedFilters.size) {
-            expectedItems = expectedItems.filter(item => {
-              const fullName = item.fullName || item.name || '';
-              let matches = true;
-              
-              if (advancedFilters.assortment) {
-                matches = matches && fullName.toLowerCase().includes(advancedFilters.assortment.toLowerCase());
-              }
-              if (advancedFilters.color) {
-                matches = matches && fullName.toLowerCase().includes(advancedFilters.color.toLowerCase());
-              }
-              if (advancedFilters.size) {
-                matches = matches && fullName.toLowerCase().includes(advancedFilters.size.toLowerCase());
-              }
-              
-              return matches;
-            });
-          } else if (assortmentFilter && assortmentFilter !== '') {
-            expectedItems = expectedItems.filter(item => {
-              const fullName = item.fullName || item.name || '';
-              return fullName.toLowerCase().includes(assortmentFilter.toLowerCase());
-            });
-          }
+          // Te same filtry co na liście i przy porównaniu (po kodzie kreskowym)
+          expectedItems = expectedItems.filter(item => matchesFilters(item.barcode));
 
           // Grupuj zeskanowane produkty według kodu i policz ilości
           const scannedByBarcode = {};
@@ -454,26 +427,13 @@ const Remanent = () => {
     const activeFilters = [];
     let shouldBlock = false;
     
-    if (advancedFilters.assortment || advancedFilters.color || advancedFilters.size) {
-      // Check advanced filters
-      if (advancedFilters.assortment && (!jacketName || !jacketName.toLowerCase().includes(advancedFilters.assortment.toLowerCase()))) {
-        activeFilters.push(`Asortyment: ${advancedFilters.assortment}`);
-        shouldBlock = true;
-      }
-      if (advancedFilters.color && (!jacketName || !jacketName.toLowerCase().includes(advancedFilters.color.toLowerCase()))) {
-        activeFilters.push(`Kolor: ${advancedFilters.color}`);
-        shouldBlock = true;
-      }
-      if (advancedFilters.size && (!jacketName || !jacketName.toLowerCase().includes(advancedFilters.size.toLowerCase()))) {
-        activeFilters.push(`Rozmiar: ${advancedFilters.size}`);
-        shouldBlock = true;
-      }
-    } else if (assortmentFilter && assortmentFilter !== '') {
-      // Fallback to legacy assortment filter
-      if (!jacketName || !jacketName.toLowerCase().includes(assortmentFilter.toLowerCase())) {
-        activeFilters.push(`Asortyment: ${assortmentFilter}`);
-        shouldBlock = true;
-      }
+    if (!matchesFilters(data)) {
+      const info = describeBarcode(data);
+      const wantedAssortment = advancedFilters.assortment || assortmentFilter;
+      if (wantedAssortment && info.assortment !== wantedAssortment) activeFilters.push(`Asortyment: ${wantedAssortment} (zeskanowano: ${info.assortment || "nieznany"})`);
+      if (advancedFilters.color && info.color !== advancedFilters.color) activeFilters.push(`Kolor: ${advancedFilters.color} (zeskanowano: ${info.color || "nieznany"})`);
+      if (advancedFilters.size && info.size !== advancedFilters.size) activeFilters.push(`Rozmiar: ${advancedFilters.size} (zeskanowano: ${info.size || "brak"})`);
+      shouldBlock = true;
     }
     
     if (shouldBlock) {
@@ -703,32 +663,8 @@ const Remanent = () => {
         // Filtruj produkty dla aktualnego użytkownika
         let currentState = allStateData.filter(item => item.symbol === user?.symbol);
         
-        // Jeśli są aktywne zaawansowane filtry, filtruj stan według nich
-        if (advancedFilters.assortment || advancedFilters.color || advancedFilters.size) {
-          currentState = currentState.filter(item => {
-            const fullName = item.fullName || item.name || '';
-            let matches = true;
-            
-            if (advancedFilters.assortment) {
-              matches = matches && fullName.toLowerCase().includes(advancedFilters.assortment.toLowerCase());
-            }
-            if (advancedFilters.color) {
-              matches = matches && fullName.toLowerCase().includes(advancedFilters.color.toLowerCase());
-            }
-            if (advancedFilters.size) {
-              matches = matches && fullName.toLowerCase().includes(advancedFilters.size.toLowerCase());
-            }
-            
-            return matches;
-          });
-        }
-        // Fallback na stary filtr asortymentu jeśli nie ma zaawansowanych filtrów
-        else if (assortmentFilter && assortmentFilter !== '') {
-          currentState = currentState.filter(item => {
-            const fullName = item.fullName || item.name || '';
-            return fullName.toLowerCase().includes(assortmentFilter.toLowerCase());
-          });
-        }
+        // Te same filtry co na liście (po kodzie kreskowym: asortyment, kolor, rozmiar)
+        currentState = currentState.filter(item => matchesFilters(item.barcode));
         
         // Porównaj remanent z aktualnym stanem (uwzględniając filtr asortymentu)
         const missingItems = []; // Produkty w stanie, ale nie w remanencie
