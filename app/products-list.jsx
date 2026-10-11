@@ -618,7 +618,9 @@ const ProductsList = () => {
     setShowModal(true);
   };
 
-  const handleSaveProduct = async () => {
+  const handleSaveProduct = async (syncPricesArg = null) => {
+    // true/false = odpowiedź na pytanie o nadpisanie cen w cennikach; cokolwiek innego (np. zdarzenie onPress) = brak odpowiedzi
+    const syncPricesToPriceLists = typeof syncPricesArg === "boolean" ? syncPricesArg : null;
     const finalProductName = generateProductName();
     const finalProductCode = generateProductCode();
     const remainingType = category === "Pozostałe" ? getRemainingProductTypeByKey(selectedRemainingCategoryId) : null;
@@ -648,9 +650,31 @@ const ProductsList = () => {
       return;
     }
 
+    // Edycja ze zmianą ceny: zapytaj, czy nadpisać ceny w cennikach punktów. Bez zmiany ceny cenniki zostają.
+    if (editingProduct && syncPricesToPriceLists === null) {
+      const normalizeExceptions = (list) => JSON.stringify((list || [])
+        .map((e) => ({ size: String(e.size?._id || e.size || ""), value: Number(e.value) }))
+        .sort((a, b) => a.size.localeCompare(b.size)));
+      const priceChanged = Number(price) !== Number(editingProduct.price)
+        || Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)
+        || normalizeExceptions(priceExceptions) !== normalizeExceptions(editingProduct.priceExceptions);
+      if (priceChanged) {
+        Alert.alert(
+          "Zmiana ceny produktu",
+          `Zmieniono cenę „${editingProduct.fullName}”. Nadpisać ceny w cennikach wszystkich punktów sprzedaży?\nJeśli nie, zmieni się tylko karta produktu, a ceny w cennikach zostaną.`,
+          [
+            { text: "Anuluj", style: "cancel" },
+            { text: "Nie, tylko karta", onPress: () => handleSaveProduct(false) },
+            { text: "Tak, nadpisz cenniki", style: "destructive", onPress: () => handleSaveProduct(true) },
+          ]
+        );
+        return;
+      }
+    }
+
     try {
       const formData = new FormData();
-      
+
       // Basic fields
       formData.append("fullName", finalProductName);
       formData.append("code", finalProductCode);
@@ -687,6 +711,9 @@ const ProductsList = () => {
       
       // Price exceptions - always send, even if empty
       formData.append("priceExceptions", JSON.stringify(priceExceptions || []));
+      if (editingProduct) {
+        formData.append("syncPricesToPriceLists", syncPricesToPriceLists === true ? "true" : "false");
+      }
       
       // Image handling
       if (selectedImage && selectedImage.uri) {
