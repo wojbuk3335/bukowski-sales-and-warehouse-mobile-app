@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   RefreshControl,
   ActivityIndicator,
   Modal,
@@ -74,10 +73,17 @@ const Remanent = () => {
     clearTimeout(scanToastTimer.current);
     scanToastTimer.current = setTimeout(() => setScanToast(null), kind === "warn" ? 4000 : 1800);
   };
-  const scanFeedback = () => {
+  // Wibracja: krótka przy dodanej sztuce, inna (ostrzegawcza) przy powtórce metki albo produkcie spoza filtrów,
+  // żeby dało się skanować bez patrzenia w ekran
+  const scanFeedback = (kind = "ok") => {
     try {
       const Haptics = require("expo-haptics");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (kind === "warn") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 180);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (error) {
       // bez wibracji (np. Expo Go bez modułu)
     }
@@ -546,7 +552,7 @@ const Remanent = () => {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert('Błąd', 'Brak uprawnień do kamery');
+        setClearResult({ ok: false, text: 'Brak dostępu do kamery. Włącz go w ustawieniach telefonu dla tej aplikacji.' });
         return;
       }
     }
@@ -621,6 +627,7 @@ const Remanent = () => {
     
     if (shouldBlock) {
       // Komunikat nad kamerą (bez blokującego okienka): co zeskanowano i czego nie spełnia
+      scanFeedback("warn");
       showScanToast(`Nie pasuje do filtrów: ${jacketName || data}\n${activeFilters.join("\n")}`, "warn");
       
       // Re-enable scanning
@@ -637,7 +644,7 @@ const Remanent = () => {
       scannedJackets.filter((jacket) => jacket.code === data).length +
       remanentData.filter((item) => item.code === data).length;
     if (alreadyCounted > 0 && lastAcceptedCodeRef.current === data) {
-      scanFeedback();
+      scanFeedback("warn");
       setDuplicatePrompt({ code: data, name: jacketName || data, count: alreadyCounted });
       return; // skanowanie wznawia się po wyborze w okienku
     }
@@ -884,7 +891,7 @@ const Remanent = () => {
       performStateCheck();
     } catch (error) {
       Logger.error('❌ Error in checkCurrentState:', error);
-      Alert.alert('Błąd', 'Wystąpił błąd podczas sprawdzania stanu');
+      setClearResult({ ok: false, text: 'Nie udało się sprawdzić stanu. Spróbuj ponownie.' });
     }
   };
 
@@ -1009,11 +1016,11 @@ const Remanent = () => {
         
       } else {
         Logger.error('❌ Failed to fetch current state:', response.status);
-        Alert.alert('Błąd', 'Nie udało się pobrać aktualnego stanu');
+        setClearResult({ ok: false, text: 'Nie udało się pobrać stanu punktu. Sprawdź połączenie i spróbuj ponownie.' });
       }
     } catch (error) {
       Logger.error('❌ Error checking current state:', error);
-      Alert.alert('Błąd', 'Wystąpił błąd podczas sprawdzania stanu');
+      setClearResult({ ok: false, text: 'Nie udało się sprawdzić stanu. Sprawdź połączenie i spróbuj ponownie.' });
     }
   };
 
@@ -1127,28 +1134,6 @@ const Remanent = () => {
       </View>
     </View>
   );
-
-  // Handle item actions
-  const handleItemAction = (item, action) => {
-    switch (action) {
-      case 'edit':
-        Alert.alert(
-          'Edycja produktu',
-          `Edytuj: ${item.name}`,
-          [{ text: 'OK' }]
-        );
-        break;
-      case 'inventory':
-        Alert.alert(
-          'Inwentarz',
-          `Przeprowadź inwentarz dla: ${item.name}`,
-          [{ text: 'OK' }]
-        );
-        break;
-      default:
-        break;
-    }
-  };
 
   // Loading state
   if (loading) {
