@@ -27,6 +27,7 @@ const ProductsList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [priceSyncQuestion, setPriceSyncQuestion] = useState(null); // pytanie: nadpisać ceny w cennikach punktów?
   const [enlargedImage, setEnlargedImage] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -658,16 +659,12 @@ const ProductsList = () => {
       const priceChanged = Number(price) !== Number(editingProduct.price)
         || Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)
         || normalizeExceptions(priceExceptions) !== normalizeExceptions(editingProduct.priceExceptions);
+      const changes = [];
+      if (Number(price) !== Number(editingProduct.price)) changes.push(`cena ${editingProduct.price || 0} zł → ${parseFloat(price) || 0} zł`);
+      if (Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)) changes.push(`promocja ${editingProduct.discount_price || 0} zł → ${parseFloat(discountPrice) || 0} zł`);
+      if (normalizeExceptions(priceExceptions) !== normalizeExceptions(editingProduct.priceExceptions)) changes.push("wyjątki cenowe dla rozmiarów");
       if (priceChanged) {
-        Alert.alert(
-          "Zmiana ceny produktu",
-          `Zmieniono cenę „${editingProduct.fullName}”. Nadpisać ceny w cennikach wszystkich punktów sprzedaży?\nJeśli nie, zmieni się tylko karta produktu, a ceny w cennikach zostaną.`,
-          [
-            { text: "Anuluj", style: "cancel" },
-            { text: "Nie, tylko karta", onPress: () => handleSaveProduct(false) },
-            { text: "Tak, nadpisz cenniki", style: "destructive", onPress: () => handleSaveProduct(true) },
-          ]
-        );
+        setPriceSyncQuestion({ text: changes.join(", ") || "cena" });
         return;
       }
     }
@@ -1950,6 +1947,43 @@ const ProductsList = () => {
             </View>
           </View>
         </View>
+
+        {/* Pytanie o nadpisanie cen w cennikach punktów (w stylu aplikacji) */}
+        {priceSyncQuestion && (
+          <View style={[StyleSheet.absoluteFill, styles.successModalOverlay]}>
+            <View style={styles.successModalContent}>
+              <View style={styles.successIconContainer}>
+                <Ionicons name="pricetags" size={56} color="#F59E0B" />
+              </View>
+              <Text style={styles.successTitle}>Zmiana ceny produktu</Text>
+              <Text style={styles.successMessage}>
+                {`Zmieniono: ${priceSyncQuestion.text}.
+
+Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni się tylko karta produktu.`}
+              </Text>
+              <View style={styles.priceSyncButtons}>
+                <TouchableOpacity
+                  style={[styles.priceSyncButton, styles.deleteConfirmButton]}
+                  onPress={() => { setPriceSyncQuestion(null); handleSaveProduct(true); }}
+                >
+                  <Text style={styles.successButtonText}>Tak, nadpisz cenniki</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.priceSyncButton, styles.priceSyncKeepButton]}
+                  onPress={() => { setPriceSyncQuestion(null); handleSaveProduct(false); }}
+                >
+                  <Text style={styles.successButtonText}>Nie, tylko karta produktu</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.priceSyncButton, styles.cancelConfirmButton]}
+                  onPress={() => setPriceSyncQuestion(null)}
+                >
+                  <Text style={styles.successButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </Modal>
 
       {/* Category Picker Modal */}
@@ -3586,6 +3620,19 @@ const styles = StyleSheet.create({
   },
   deleteConfirmButton: {
     backgroundColor: "#DC2626",
+  },
+  priceSyncButtons: {
+    width: "100%",
+    gap: 10,
+    marginTop: 8,
+  },
+  priceSyncButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  priceSyncKeepButton: {
+    backgroundColor: "#0D6EFD",
   },
   productSubcategory: {
     fontSize: 13,
