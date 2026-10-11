@@ -17,6 +17,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Picker } from "@react-native-picker/picker";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
+import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na żywo (także z panelu)
 import { API_CONFIG, getApiUrl } from "../config/api";
 
 const Cenniki = () => {
@@ -176,6 +177,11 @@ const Cenniki = () => {
 
     await checkSynchronization(sellingPointId);
   };
+
+  // Zmiana cennika gdziekolwiek (panel, inny telefon) od razu odświeża widok
+  useLiveRefresh(["pricelists", "goods"], () => {
+    if (selectedSellingPoint) fetchPriceList(selectedSellingPoint);
+  });
 
   const checkSynchronization = async (sellingPointId) => {
     try {

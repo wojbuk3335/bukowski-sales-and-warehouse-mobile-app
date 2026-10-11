@@ -18,6 +18,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import tokenService from "../services/tokenService";
+import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na żywo (także z panelu)
 import { getApiUrl, API_CONFIG } from "../config/api";
 import { GlobalStateContext } from "../context/GlobalState";
 
@@ -59,6 +60,8 @@ const WarehouseMobile = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [priceList, setPriceList] = useState([]); // State for dedykowany cennik
   const [priceListsBySymbol, setPriceListsBySymbol] = useState({}); // tryb „Wszystkie stany”: cennik każdego punktu
+  const [pointIdsBySymbol, setPointIdsBySymbol] = useState({}); // tryb „Wszystkie stany”: id punktu po symbolu (druk etykiet)
+  const [priceListOwnerId, setPriceListOwnerId] = useState(null); // punkt, którego cennik obowiązuje na tym ekranie
   const [editingItem, setEditingItem] = useState(null); // State for edit modal
   const [editFullName, setEditFullName] = useState("");
   const [editDate, setEditDate] = useState(new Date());
@@ -188,6 +191,9 @@ const WarehouseMobile = () => {
 
     fetchTableData();
   }, [isLoggedIn, isStatesMode, isAllStatesMode, targetSymbol, targetUserRole, targetUserId]);
+
+  // Zmiana cennika lub produktów gdziekolwiek (panel, inny telefon) od razu odświeża ten ekran
+  useLiveRefresh(["pricelists", "goods"], () => fetchTableData(), { enabled: Boolean(isLoggedIn && isFocused) });
 
   // Ensure data loads on screen focus for both magazyn and stany
   useEffect(() => {
@@ -340,6 +346,7 @@ const WarehouseMobile = () => {
         }
         
         if (priceListUserId) {
+          setPriceListOwnerId(priceListUserId);
           const priceListUrl = getApiUrl(`/pricelists/${priceListUserId}`);
           const priceListResponse = await tokenService.authenticatedFetch(priceListUrl);
           const priceListData = await priceListResponse.json();
@@ -358,6 +365,7 @@ const WarehouseMobile = () => {
           const usersResponse = await tokenService.authenticatedFetch(getApiUrl("/user"));
           const usersData = await usersResponse.json();
           const points = (usersData?.users || []).filter((u) => u.symbol && String(u.symbol).toUpperCase() !== "MAGAZYN");
+          setPointIdsBySymbol(Object.fromEntries(points.map((u) => [u.symbol, u._id])));
           await Promise.all(points.map(async (u) => {
             try {
               const plResponse = await tokenService.authenticatedFetch(getApiUrl(`/pricelists/${u._id}`));
@@ -811,6 +819,43 @@ const WarehouseMobile = () => {
       const sizeStr = typeof item.size === "object" 
         ? (item.size?.Roz_Opis || item.size)
         : item.size;
+
+      // Etykieta z serwera: cena z AKTUALNEGO cennika punktu w chwili druku (jak w panelu i „Drukuj etykiety”)
+      const itemSymbol = typeof item.symbol === "string" ? item.symbol : item.sellingPoint?.symbol;
+      const labelPointId = isAllStatesMode ? pointIdsBySymbol[itemSymbol] : priceListOwnerId;
+      if (labelPointId) {
+        try {
+          const labelResponse = await tokenService.authenticatedFetch(getApiUrl("/print/generate-zpl"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sellingPointId: labelPointId,
+              itemBarcode: item.barcode ? String(item.barcode) : undefined,
+              itemFullName: fullNameStr,
+              itemSize: sizeStr,
+            }),
+          });
+          if (labelResponse.ok) {
+            const labelData = await labelResponse.json();
+            if (Array.isArray(labelData?.zplCodes) && labelData.zplCodes.length > 0) {
+              let printed = 0;
+              for (const code of labelData.zplCodes) {
+                if (await sendZplToPrinter(code)) printed++;
+              }
+              if (printed === 0) {
+                showNotification({
+                  title: "Błąd",
+                  message: "Nie udało się wysłać etykiety do drukarki. Sprawdź połączenie z drukarką Zebra (192.168.1.25:9100)",
+                  type: "error",
+                });
+              }
+              return;
+            }
+          }
+        } catch (labelError) {
+          // serwer niedostępny - druk lokalny poniżej
+        }
+      }
       
       // Parse price string "price;discount_price"
       let standardPrice = 0;
