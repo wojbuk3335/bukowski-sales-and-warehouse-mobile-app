@@ -35,6 +35,11 @@ const Remanent = () => {
   const [sessionBusy, setSessionBusy] = useState(false);
   const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
   const [selectSearch, setSelectSearch] = useState({}); // wyszukiwarka w listach filtrów (klucz pola -> tekst)
+  // Historia zakończonych remanentów punktu (wyniki zapisane na serwerze)
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyDetail, setHistoryDetail] = useState(null); // { session, loading }
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -829,6 +834,43 @@ const Remanent = () => {
     }
   };
 
+  // Liczby braków/nadwyżek z zapisanego wyniku (wynik z telefonu może nie mieć missingCount przy braku całkowitym)
+  const missingOf = (item) => Number(item.missingCount ?? (Number(item.expectedCount || 0) - Number(item.actualCount || 0)));
+  const excessOf = (item) => Number(item.excessCount ?? (Number(item.actualCount || 0) - Number(item.expectedCount || 0)));
+  const countsOf = (result) => ({
+    missing: result ? (result.missingCount ?? (result.missingItems || []).reduce((sum, item) => sum + missingOf(item), 0)) : 0,
+    excess: result ? (result.excessCount ?? (result.extraItems || []).reduce((sum, item) => sum + excessOf(item), 0)) : 0,
+  });
+  const formatHistoryDate = (value) => (value ? new Date(value).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-');
+
+  const openHistory = async () => {
+    setHistoryVisible(true);
+    setHistoryDetail(null);
+    setHistoryLoading(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/sessions?status=closed&limit=50'));
+      const data = await response.json().catch(() => ({}));
+      setHistoryList(response.ok ? (data.sessions || []) : []);
+      if (!response.ok) setClearResult({ ok: false, text: data?.message || 'Nie udało się pobrać historii remanentów.' });
+    } catch (error) {
+      setHistoryList([]);
+      setClearResult({ ok: false, text: 'Nie udało się pobrać historii remanentów. Sprawdź połączenie.' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openHistoryDetail = async (summary) => {
+    setHistoryDetail({ session: summary, loading: true });
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${summary._id}`));
+      const data = await response.json().catch(() => ({}));
+      setHistoryDetail({ session: response.ok && data.session ? data.session : summary, loading: false });
+    } catch (error) {
+      setHistoryDetail({ session: summary, loading: false });
+    }
+  };
+
   const cancelScanning = () => {
     setScannerVisible(false);
     setDuplicatePrompt(null);
@@ -1286,6 +1328,10 @@ const Remanent = () => {
               }
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.historyButton} onPress={openHistory}>
+            <Ionicons name="time-outline" size={16} color="white" />
+            <Text style={styles.filterButtonText}>Historia</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Pasek postępu skanowania */}
@@ -1591,6 +1637,142 @@ const Remanent = () => {
               </TouchableOpacity>
             )}
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Historia zakończonych remanentów punktu */}
+      <Modal
+        visible={historyVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => (historyDetail ? setHistoryDetail(null) : setHistoryVisible(false))}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.comparisonHeader}>
+            <TouchableOpacity
+              onPress={() => (historyDetail ? setHistoryDetail(null) : setHistoryVisible(false))}
+              style={styles.comparisonBackButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.comparisonTitle} numberOfLines={1}>
+                {historyDetail ? `Remanent ${formatHistoryDate(historyDetail.session.closedAt).slice(0, 10)}` : 'Historia remanentów'}
+              </Text>
+              <Text style={styles.comparisonSubtitle} numberOfLines={1}>
+                {historyDetail
+                  ? (historyDetail.session.result?.filters?.length ? `Filtry: ${historyDetail.session.result.filters.join(' · ')}` : 'Cały punkt')
+                  : `Punkt ${user?.sellingPoint || user?.symbol || ''}`}
+              </Text>
+            </View>
+          </View>
+
+          {historyDetail ? (
+            historyDetail.loading || !historyDetail.session.result ? (
+              <View style={styles.comparisonContent}>
+                <ActivityIndicator size="large" color="#0d6efd" />
+              </View>
+            ) : (
+              <ScrollView style={styles.comparisonContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.historyMeta}>
+                  <Text style={styles.historyMetaText}>Rozpoczęto: {formatHistoryDate(historyDetail.session.startedAt)} ({historyDetail.session.startedBy || '-'})</Text>
+                  <Text style={styles.historyMetaText}>Zakończono: {formatHistoryDate(historyDetail.session.closedAt)} ({historyDetail.session.closedBy || '-'})</Text>
+                </View>
+                <View style={styles.statsContainer}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{historyDetail.session.result.currentStateCount || 0}</Text>
+                    <Text style={styles.statLabel}>Na stanie</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{historyDetail.session.result.remanentCount ?? historyDetail.session.itemsCount ?? 0}</Text>
+                    <Text style={styles.statLabel}>Zeskanowane</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statNumber, { color: '#dc3545' }]}>{countsOf(historyDetail.session.result).missing}</Text>
+                    <Text style={styles.statLabel}>Braki</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statNumber, { color: '#ffc107' }]}>{countsOf(historyDetail.session.result).excess}</Text>
+                    <Text style={styles.statLabel}>Nadwyżki</Text>
+                  </View>
+                </View>
+
+                {(historyDetail.session.result.missingItems || []).length > 0 && (
+                  <View style={styles.resultSection}>
+                    <Text style={styles.sectionTitle}>❌ Brakuje ({historyDetail.session.result.missingItems.length})</Text>
+                    {historyDetail.session.result.missingItems.map((item, index) => (
+                      <View key={`m-${item.code}-${index}`} style={styles.resultItem}>
+                        <View style={styles.resultItemContent}>
+                          <Text style={styles.itemName}>{item.name && item.size && item.size !== '-' ? `${item.name} ${item.size}` : item.name || 'Nieznany produkt'}</Text>
+                          <Text style={styles.itemQuantity}>Na stanie: {item.expectedCount || 0}, zeskanowano: {item.actualCount || 0}</Text>
+                        </View>
+                        <Text style={[styles.historyDelta, { color: '#dc3545' }]}>-{missingOf(item)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {(historyDetail.session.result.extraItems || []).length > 0 && (
+                  <View style={styles.resultSection}>
+                    <Text style={styles.sectionTitle}>⚠️ Nadwyżka ({historyDetail.session.result.extraItems.length})</Text>
+                    {historyDetail.session.result.extraItems.map((item, index) => (
+                      <View key={`e-${item.code}-${index}`} style={styles.resultItem}>
+                        <View style={styles.resultItemContent}>
+                          <Text style={styles.itemName}>{item.name && item.size && item.size !== '-' ? `${item.name} ${item.size}` : item.name || 'Nieznany produkt'}</Text>
+                          <Text style={styles.itemQuantity}>Na stanie: {item.expectedCount || 0}, zeskanowano: {item.actualCount || 0}</Text>
+                        </View>
+                        <Text style={[styles.historyDelta, { color: '#ffc107' }]}>+{excessOf(item)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {countsOf(historyDetail.session.result).missing === 0 && countsOf(historyDetail.session.result).excess === 0 && (
+                  <View style={styles.historyOk}>
+                    <Ionicons name="checkmark-circle" size={22} color="#28a745" />
+                    <Text style={styles.historyOkText}>Wszystko się zgadzało</Text>
+                  </View>
+                )}
+                <View style={{ height: 32 }} />
+              </ScrollView>
+            )
+          ) : historyLoading ? (
+            <View style={styles.comparisonContent}>
+              <ActivityIndicator size="large" color="#0d6efd" />
+            </View>
+          ) : historyList.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="time-outline" size={64} color="#CDCDE0" />
+              <Text style={styles.emptyText}>Brak zakończonych remanentów</Text>
+              <Text style={styles.emptySubtext}>Wynik pojawi się tutaj po kliknięciu „Zakończ remanent i zapisz wynik”.</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={historyList}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+              renderItem={({ item }) => {
+                const counts = countsOf(item.result);
+                return (
+                  <TouchableOpacity style={styles.historyRow} onPress={() => openHistoryDetail(item)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyRowTitle}>{formatHistoryDate(item.closedAt)}</Text>
+                      <Text style={styles.historyRowSub} numberOfLines={1}>
+                        {item.closedBy || item.startedBy || '-'} · {item.result?.filters?.length ? item.result.filters.join(' · ') : 'cały punkt'}
+                      </Text>
+                      <Text style={styles.historyRowSub}>Zeskanowano {item.result?.remanentCount ?? item.itemsCount ?? 0} szt.</Text>
+                    </View>
+                    <View style={styles.historyCounts}>
+                      <Text style={[styles.historyCount, { color: '#dc3545' }]}>-{counts.missing}</Text>
+                      <Text style={[styles.historyCount, { color: '#ffc107' }]}>+{counts.excess}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#888" />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
         </SafeAreaView>
       </Modal>
 
@@ -2105,6 +2287,67 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#0F172A',
     paddingVertical: 10,
+  },
+  historyButton: {
+    backgroundColor: '#343a40',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#232533',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  historyRowTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  historyRowSub: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  historyCounts: {
+    alignItems: 'flex-end',
+  },
+  historyCount: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  historyMeta: {
+    marginBottom: 12,
+  },
+  historyMetaText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  historyDelta: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  historyOk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(40, 167, 69, 0.15)',
+    borderRadius: 12,
+    padding: 14,
+  },
+  historyOkText: {
+    color: '#28a745',
+    fontSize: 16,
+    fontWeight: '600',
   },
   sessionBar: {
     flexDirection: 'row',
