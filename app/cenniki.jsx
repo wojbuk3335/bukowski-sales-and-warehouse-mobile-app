@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
-  Alert,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -66,6 +65,9 @@ const Cenniki = () => {
   const [editPriceExceptions, setEditPriceExceptions] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [messageModal, setMessageModal] = useState(null); // { kind: 'success' | 'error', text } - zamiast systemowych okienek
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false); // potwierdzenie usunięcia cennika
+  const showMessage = (text, kind = "success") => setMessageModal({ kind, text });
   const [showSizePicker, setShowSizePicker] = useState(false);
   const [sizeSearch, setSizeSearch] = useState("");
   const [activeExceptionIndex, setActiveExceptionIndex] = useState(null);
@@ -243,12 +245,12 @@ const Cenniki = () => {
       });
       if (response.ok) {
         await fetchPriceList(selectedSellingPoint);
-        Alert.alert("Sukces", "Cennik został utworzony na podstawie produktów");
+        showMessage("Cennik został utworzony na podstawie produktów");
       } else {
-        Alert.alert("Błąd", "Nie udało się utworzyć cennika");
+        showMessage("Nie udało się utworzyć cennika", "error");
       }
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się utworzyć cennika");
+      showMessage("Nie udało się utworzyć cennika", "error");
     } finally {
       setLoadingPriceList(false);
     }
@@ -268,12 +270,12 @@ const Cenniki = () => {
         await fetchPriceList(selectedSellingPoint);
         setShowCloneModal(false);
         setSourcePointForClone("");
-        Alert.alert("Sukces", "Cennik został sklonowany");
+        showMessage("Cennik został sklonowany");
       } else {
-        Alert.alert("Błąd", "Nie udało się sklonować cennika");
+        showMessage("Nie udało się sklonować cennika", "error");
       }
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się sklonować cennika");
+      showMessage("Nie udało się sklonować cennika", "error");
     } finally {
       setLoadingPriceList(false);
     }
@@ -281,33 +283,25 @@ const Cenniki = () => {
 
   const deletePriceList = async () => {
     if (!selectedSellingPoint) return;
-    Alert.alert(
-      "Usuń cennik",
-      "Czy na pewno chcesz usunąć cały cennik?",
-      [
-        { text: "Anuluj", style: "cancel" },
-        {
-          text: "Usuń",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const url = getApiUrl(`/pricelists/${selectedSellingPoint}`);
-              const response = await tokenService.authenticatedFetch(url, {
-                method: "DELETE",
-              });
-              if (response.ok) {
-                setPriceList([]);
-                Alert.alert("Sukces", "Cennik został usunięty");
-              } else {
-                Alert.alert("Błąd", "Nie udało się usunąć cennika");
-              }
-            } catch (error) {
-              Alert.alert("Błąd", "Nie udało się usunąć cennika");
-            }
-          },
-        },
-      ]
-    );
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDeletePriceList = async () => {
+    setConfirmDeleteOpen(false);
+    try {
+      const url = getApiUrl(`/pricelists/${selectedSellingPoint}`);
+      const response = await tokenService.authenticatedFetch(url, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setPriceList([]);
+        showMessage("Cennik został usunięty");
+      } else {
+        showMessage("Nie udało się usunąć cennika", "error");
+      }
+    } catch (error) {
+      showMessage("Nie udało się usunąć cennika", "error");
+    }
   };
 
   const updatePrice = async () => {
@@ -417,12 +411,12 @@ const Cenniki = () => {
         setPriceList(result.priceList || []);
         setShowSyncModal(false);
         setShowOutdatedWarning(false);
-        Alert.alert("Sukces", "Synchronizacja zakończona");
+        showMessage("Synchronizacja zakończona");
       } else {
-        Alert.alert("Błąd", "Nie udało się zsynchronizować cennika");
+        showMessage("Nie udało się zsynchronizować cennika", "error");
       }
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się zsynchronizować cennika");
+      showMessage("Nie udało się zsynchronizować cennika", "error");
     }
   };
 
@@ -440,12 +434,12 @@ const Cenniki = () => {
         if (selectedSellingPoint) {
           await fetchPriceList(selectedSellingPoint);
         }
-        Alert.alert("Sukces", "Globalna synchronizacja zakończona");
+        showMessage("Globalna synchronizacja zakończona");
       } else {
-        Alert.alert("Błąd", "Nie udało się zsynchronizować cenników");
+        showMessage("Nie udało się zsynchronizować cenników", "error");
       }
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się zsynchronizować cenników");
+      showMessage("Nie udało się zsynchronizować cenników", "error");
     }
   };
 
@@ -460,12 +454,12 @@ const Cenniki = () => {
         if (selectedSellingPoint) {
           await fetchPriceList(selectedSellingPoint);
         }
-        Alert.alert("Sukces", "Globalna aktualizacja zakończona");
+        showMessage("Globalna aktualizacja zakończona");
       } else {
-        Alert.alert("Błąd", "Nie udało się zaktualizować cenników");
+        showMessage("Nie udało się zaktualizować cenników", "error");
       }
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się zaktualizować cenników");
+      showMessage("Nie udało się zaktualizować cenników", "error");
     }
   };
 
@@ -1020,6 +1014,62 @@ const Cenniki = () => {
         </View>
       </Modal>
 
+      {/* Potwierdzenie usunięcia cennika (w stylu aplikacji) */}
+      <Modal
+        visible={confirmDeleteOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmDeleteOpen(false)}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalContent}>
+            <View style={styles.successIconContainer}>
+              <Ionicons name="warning" size={64} color="#F59E0B" />
+            </View>
+            <Text style={styles.successTitle}>Usuń cennik</Text>
+            <Text style={styles.successMessage}>
+              Czy na pewno chcesz usunąć cały cennik tego punktu? Tej operacji nie da się cofnąć. Punkt będzie korzystał z cen z kart produktów.
+            </Text>
+            <View style={styles.dialogButtons}>
+              <TouchableOpacity style={[styles.dialogButton, styles.dialogDanger]} onPress={confirmDeletePriceList}>
+                <Text style={styles.successButtonText}>Tak, usuń cennik</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.dialogButton, styles.dialogCancel]} onPress={() => setConfirmDeleteOpen(false)}>
+                <Text style={styles.successButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Komunikaty (sukces / błąd) w stylu aplikacji */}
+      <Modal
+        visible={Boolean(messageModal)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMessageModal(null)}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalContent}>
+            <View style={styles.successIconContainer}>
+              <Ionicons
+                name={messageModal?.kind === "error" ? "close-circle" : "checkmark-circle"}
+                size={64}
+                color={messageModal?.kind === "error" ? "#EF4444" : "#10B981"}
+              />
+            </View>
+            <Text style={styles.successTitle}>{messageModal?.kind === "error" ? "Błąd" : "Gotowe"}</Text>
+            <Text style={styles.successMessage}>{messageModal?.text}</Text>
+            <TouchableOpacity
+              style={[styles.successButton, messageModal?.kind === "error" && styles.dialogDanger]}
+              onPress={() => setMessageModal(null)}
+            >
+              <Text style={styles.successButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal
         visible={showSuccessModal}
         transparent
@@ -1565,6 +1615,21 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
     marginBottom: 12,
+  },
+  dialogButtons: {
+    width: "100%",
+    gap: 10,
+  },
+  dialogButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  dialogDanger: {
+    backgroundColor: "#DC2626",
+  },
+  dialogCancel: {
+    backgroundColor: "#64748B",
   },
   successMessage: {
     fontSize: 16,
