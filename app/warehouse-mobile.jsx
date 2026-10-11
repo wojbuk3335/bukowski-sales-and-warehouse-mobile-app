@@ -905,9 +905,11 @@ const WarehouseMobile = () => {
         (pli.originalGoodId && item.fullName?._id && pli.originalGoodId === item.fullName._id.toString())
       );
       
+      // Cena zapisana na stanie (nadana z cennika punktu przy przyjęciu) ma pierwszeństwo; cennik tylko gdy wpis nie ma ceny
+      const hasStoredPrice = Number(item.price) > 0;
       if (priceListItem) {
-        displayPrice = priceListItem.price !== undefined ? priceListItem.price : displayPrice;
-        displayDiscountPrice = priceListItem.discountPrice !== undefined ? priceListItem.discountPrice : displayDiscountPrice;
+        displayPrice = !hasStoredPrice && priceListItem.price !== undefined ? priceListItem.price : displayPrice;
+        displayDiscountPrice = !hasStoredPrice && priceListItem.discountPrice !== undefined ? priceListItem.discountPrice : displayDiscountPrice;
         displayPriceExceptions = priceListItem.priceExceptions !== undefined ? priceListItem.priceExceptions : displayPriceExceptions;
       }
     }
@@ -918,7 +920,7 @@ const WarehouseMobile = () => {
         good.fullName === fullNameStr
       );
 
-      if (goodsItem) {
+      if (goodsItem && !(Number(item.price) > 0)) {
         displayPrice = goodsItem.price !== undefined ? goodsItem.price : displayPrice;
         displayDiscountPrice = goodsItem.discount_price !== undefined ? goodsItem.discount_price : displayDiscountPrice;
         displayPriceExceptions = goodsItem.priceExceptions !== undefined ? goodsItem.priceExceptions : displayPriceExceptions;
