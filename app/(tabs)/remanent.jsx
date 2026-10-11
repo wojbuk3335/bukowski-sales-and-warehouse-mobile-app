@@ -12,7 +12,6 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -57,6 +56,7 @@ const Remanent = () => {
 
   // Advanced filter modal states
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [openFilterSelect, setOpenFilterSelect] = useState(null); // które pole filtra ma rozwiniętą listę opcji
   const [advancedFilters, setAdvancedFilters] = useState({
     assortment: '',
     color: '',
@@ -1593,143 +1593,120 @@ const Remanent = () => {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal filtrów zaawansowanych */}
+      {/* Modal filtrów zaawansowanych - w stylu aplikacji (karta na przyciemnionym tle) */}
       <Modal
         visible={showFilterModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setOpenFilterSelect(null); setShowFilterModal(false); }}
       >
-        <SafeAreaView style={[styles.modalContainer]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filtry Remanentów</Text>
-            <TouchableOpacity
-              onPress={() => setShowFilterModal(false)}
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView style={styles.filterModalContent} showsVerticalScrollIndicator={false}>
-            {/* Asortyment */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Asortyment</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={advancedFilters.assortment}
-                  onValueChange={(value) => setAdvancedFilters(prev => ({...prev, assortment: value}))}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
-                >
-                  <Picker.Item label="Wszystkie asortymenty" value="" />
-                  {availableAssortments.map((assortment) => (
-                    <Picker.Item key={assortment} label={assortment} value={assortment} />
-                  ))}
-                </Picker>
-              </View>
+        <View style={styles.filterOverlay}>
+          <View style={styles.filterCard}>
+            <View style={styles.filterCardHeader}>
+              <Text style={styles.filterCardTitle}>Filtry remanentu</Text>
+              <TouchableOpacity onPress={() => { setOpenFilterSelect(null); setShowFilterModal(false); }}>
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
             </View>
 
-            {/* Kolor */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Kolor</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={advancedFilters.color}
-                  onValueChange={(value) => setAdvancedFilters(prev => ({...prev, color: value}))}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
-                >
-                  <Picker.Item label="Wszystkie kolory" value="" />
-                  {availableColors.map((color) => (
-                    <Picker.Item key={color} label={color} value={color} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {[
+                { key: "assortment", title: "Asortyment", placeholder: "Wszystkie asortymenty", options: availableAssortments, icon: "cube-outline" },
+                { key: "color", title: "Kolor", placeholder: "Wszystkie kolory", options: availableColors, icon: "color-palette-outline" },
+                { key: "size", title: "Rozmiar", placeholder: "Wszystkie rozmiary", options: availableSizes, icon: "resize-outline" },
+              ].map((field) => {
+                const value = advancedFilters[field.key];
+                const isOpen = openFilterSelect === field.key;
+                return (
+                  <View key={field.key} style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>{field.title}</Text>
+                    <TouchableOpacity
+                      style={[styles.selectField, isOpen && styles.selectFieldOpen]}
+                      onPress={() => setOpenFilterSelect(isOpen ? null : field.key)}
+                    >
+                      <Ionicons name={field.icon} size={18} color={value ? "#0D6EFD" : "#64748B"} style={{ marginRight: 8 }} />
+                      <Text style={[styles.selectFieldText, !value && styles.selectFieldPlaceholder]} numberOfLines={1}>
+                        {value || field.placeholder}
+                      </Text>
+                      <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
+                    </TouchableOpacity>
+                    {isOpen && (
+                      <ScrollView style={styles.optionList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                        {["", ...field.options].map((option) => {
+                          const selected = option === value;
+                          return (
+                            <TouchableOpacity
+                              key={option || "__all__"}
+                              style={[styles.optionItem, selected && styles.optionItemSelected]}
+                              onPress={() => {
+                                setAdvancedFilters((prev) => ({ ...prev, [field.key]: option }));
+                                setOpenFilterSelect(null);
+                              }}
+                            >
+                              <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                                {option || field.placeholder}
+                              </Text>
+                              {selected && <Ionicons name="checkmark" size={18} color="#0D6EFD" />}
+                            </TouchableOpacity>
+                          );
+                        })}
+                        {field.options.length === 0 && (
+                          <Text style={[styles.optionText, { padding: 12, color: "#64748B" }]}>Brak opcji do wyboru</Text>
+                        )}
+                      </ScrollView>
+                    )}
+                  </View>
+                );
+              })}
 
-            {/* Rozmiar */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Rozmiar</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={advancedFilters.size}
-                  onValueChange={(value) => setAdvancedFilters(prev => ({...prev, size: value}))}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
-                >
-                  <Picker.Item label="Wszystkie rozmiary" value="" />
-                  {availableSizes.map((size) => (
-                    <Picker.Item key={size} label={size} value={size} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-
-            {/* Aktywne filtry */}
-            {(advancedFilters.assortment || advancedFilters.color || advancedFilters.size) && (
-              <View style={styles.activeFiltersSection}>
-                <Text style={styles.filterSectionTitle}>Aktywne filtry:</Text>
-                <View style={styles.activeFiltersContainer}>
-                  {advancedFilters.assortment && (
-                    <View style={styles.activeFilterTag}>
-                      <Text style={styles.activeFilterText}>📦 {advancedFilters.assortment}</Text>
-                      <TouchableOpacity 
-                        onPress={() => setAdvancedFilters(prev => ({...prev, assortment: ''}))}
-                        style={styles.removeFilterButton}
-                      >
-                        <Ionicons name="close-circle" size={16} color="#ff6b6b" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  {advancedFilters.color && (
-                    <View style={styles.activeFilterTag}>
-                      <Text style={styles.activeFilterText}>🎨 {advancedFilters.color}</Text>
-                      <TouchableOpacity 
-                        onPress={() => setAdvancedFilters(prev => ({...prev, color: ''}))}
-                        style={styles.removeFilterButton}
-                      >
-                        <Ionicons name="close-circle" size={16} color="#ff6b6b" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  {advancedFilters.size && (
-                    <View style={styles.activeFilterTag}>
-                      <Text style={styles.activeFilterText}>📏 {advancedFilters.size}</Text>
-                      <TouchableOpacity 
-                        onPress={() => setAdvancedFilters(prev => ({...prev, size: ''}))}
-                        style={styles.removeFilterButton}
-                      >
-                        <Ionicons name="close-circle" size={16} color="#ff6b6b" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
+              {/* Aktywne filtry */}
+              {(advancedFilters.assortment || advancedFilters.color || advancedFilters.size) ? (
+                <View style={styles.activeFiltersSection}>
+                  <Text style={styles.filterSectionTitle}>Aktywne filtry:</Text>
+                  <View style={styles.activeFiltersContainer}>
+                    {[
+                      { key: "assortment", icon: "📦" },
+                      { key: "color", icon: "🎨" },
+                      { key: "size", icon: "📏" },
+                    ].filter((tag) => advancedFilters[tag.key]).map((tag) => (
+                      <View key={tag.key} style={styles.activeFilterTag}>
+                        <Text style={styles.activeFilterText}>{tag.icon} {advancedFilters[tag.key]}</Text>
+                        <TouchableOpacity
+                          onPress={() => setAdvancedFilters((prev) => ({ ...prev, [tag.key]: "" }))}
+                          style={styles.removeFilterButton}
+                        >
+                          <Ionicons name="close-circle" size={16} color="#ff6b6b" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              </View>
-            )}
+              ) : null}
+            </ScrollView>
 
             {/* Przyciski akcji */}
-            <View style={styles.filterActionsContainer}>
-              <TouchableOpacity 
-                style={styles.clearFiltersButton}
+            <View style={styles.filterCardActions}>
+              <TouchableOpacity
+                style={[styles.filterCardButton, styles.filterCardButtonSecondary]}
                 onPress={() => {
-                  setAdvancedFilters({assortment: '', color: '', size: ''});
-                  setAssortmentFilter('');
+                  setAdvancedFilters({ assortment: "", color: "", size: "" });
+                  setAssortmentFilter("");
+                  setOpenFilterSelect(null);
                 }}
               >
-                <Ionicons name="refresh" size={20} color="white" />
-                <Text style={styles.clearFiltersText}>Wyczyść wszystkie</Text>
+                <Ionicons name="refresh" size={18} color="white" />
+                <Text style={styles.filterCardButtonText}>Wyczyść</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.applyFiltersButton}
-                onPress={() => setShowFilterModal(false)}
+              <TouchableOpacity
+                style={[styles.filterCardButton, styles.filterCardButtonPrimary]}
+                onPress={() => { setOpenFilterSelect(null); setShowFilterModal(false); }}
               >
-                <Ionicons name="checkmark" size={20} color="white" />
-                <Text style={styles.applyFiltersText}>Zastosuj filtry</Text>
+                <Ionicons name="checkmark" size={18} color="white" />
+                <Text style={styles.filterCardButtonText}>Zastosuj</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </SafeAreaView>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -2232,6 +2209,110 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // Filter modal styles
+  filterOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  filterCard: {
+    width: "100%",
+    maxWidth: 420,
+    maxHeight: "85%",
+    backgroundColor: "#0A0A0A",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    padding: 20,
+  },
+  filterCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  filterCardTitle: {
+    color: "white",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  selectField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  selectFieldOpen: {
+    borderColor: "#0D6EFD",
+  },
+  selectFieldText: {
+    flex: 1,
+    color: "white",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  selectFieldPlaceholder: {
+    color: "#94A3B8",
+    fontWeight: "400",
+  },
+  optionList: {
+    maxHeight: 220,
+    marginTop: 6,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    borderRadius: 10,
+  },
+  optionItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E293B",
+  },
+  optionItemSelected: {
+    backgroundColor: "rgba(13, 110, 253, 0.15)",
+  },
+  optionText: {
+    color: "white",
+    fontSize: 15,
+  },
+  optionTextSelected: {
+    color: "#60A5FA",
+    fontWeight: "700",
+  },
+  filterCardActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
+  filterCardButton: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  filterCardButtonPrimary: {
+    backgroundColor: "#0D6EFD",
+  },
+  filterCardButtonSecondary: {
+    backgroundColor: "#64748B",
+  },
+  filterCardButtonText: {
+    color: "white",
+    fontSize: 15,
+    fontWeight: "600",
+  },
   filterModalContent: {
     flex: 1,
     padding: 20,
