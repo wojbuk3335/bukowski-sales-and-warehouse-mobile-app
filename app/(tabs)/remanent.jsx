@@ -82,7 +82,7 @@ const Remanent = () => {
   const [openFilterSelect, setOpenFilterSelect] = useState(null); // które pole filtra ma rozwiniętą listę opcji
   // Filtry: kategoria główna -> wielokrotny wybór w kategorii (modele kurtek, kody torebek/portfeli,
   // rodzaje pozostałego asortymentu), kolor, rozmiar (tylko kurtki)
-  const EMPTY_FILTERS = { category: '', items: [], models: [], color: '', size: '' };
+  const EMPTY_FILTERS = { category: '', items: [], models: [], colors: [], sizes: [] }; // kolory i rozmiary: wybór wielokrotny
   const [advancedFilters, setAdvancedFilters] = useState(EMPTY_FILTERS);
   const [goodsList, setGoodsList] = useState([]); // karty produktów: wszystkie możliwe opcje filtrów
   const [availableColors, setAvailableColors] = useState([]);
@@ -166,13 +166,13 @@ const Remanent = () => {
     };
   };
 
-  const hasActiveFilters = Boolean(advancedFilters.category || advancedFilters.color || advancedFilters.size);
+  const hasActiveFilters = Boolean(advancedFilters.category || advancedFilters.colors.length > 0 || advancedFilters.sizes.length > 0);
   const activeFilterLabels = [
     advancedFilters.category,
     advancedFilters.items.length > 0 ? advancedFilters.items.join(", ") : "",
     advancedFilters.models.length > 0 ? advancedFilters.models.join(", ") : "",
-    advancedFilters.color,
-    advancedFilters.size,
+    advancedFilters.colors.length > 0 ? advancedFilters.colors.join(", ") : "",
+    advancedFilters.sizes.length > 0 ? advancedFilters.sizes.join(", ") : "",
   ].filter(Boolean);
 
   // Czy sztuka o danym kodzie pasuje do aktywnych filtrów (porównanie dokładne)
@@ -182,8 +182,8 @@ const Remanent = () => {
     if (advancedFilters.category && info.category !== advancedFilters.category) return false;
     if (advancedFilters.items.length > 0 && !advancedFilters.items.includes(info.item)) return false;
     if (advancedFilters.models.length > 0 && !advancedFilters.models.includes(info.model)) return false;
-    if (advancedFilters.color && info.color !== advancedFilters.color) return false;
-    if (advancedFilters.size && info.size !== advancedFilters.size) return false;
+    if (advancedFilters.colors.length > 0 && !advancedFilters.colors.includes(info.color)) return false;
+    if (advancedFilters.sizes.length > 0 && !advancedFilters.sizes.includes(info.size)) return false;
     return true;
   };
 
@@ -245,8 +245,8 @@ const Remanent = () => {
     )].sort((a, b) => a.localeCompare(b, "pl"));
     setAvailableColors(colorNames);
     // wybrany kolor, którego nie ma w zawężonej liście, przestaje obowiązywać
-    if (advancedFilters.color && !colorNames.includes(advancedFilters.color)) {
-      setAdvancedFilters((prev) => ({ ...prev, color: "" }));
+    if (advancedFilters.colors.some((color) => !colorNames.includes(color))) {
+      setAdvancedFilters((prev) => ({ ...prev, colors: prev.colors.filter((color) => colorNames.includes(color)) }));
     }
     setAvailableSizes(
       toList(sizes, "sizes")
@@ -523,8 +523,8 @@ const Remanent = () => {
       if (advancedFilters.category && info.category !== advancedFilters.category) activeFilters.push(`Kategoria: ${advancedFilters.category} (zeskanowano: ${info.category || "nieznana"})`);
       if (advancedFilters.models.length > 0 && !advancedFilters.models.includes(info.model)) activeFilters.push(`Modele: ${advancedFilters.models.join(", ")} (zeskanowano: ${info.model || "nieznany"})`);
       if (advancedFilters.items.length > 0 && !advancedFilters.items.includes(info.item)) activeFilters.push(`${ITEM_FILTER_TITLES[advancedFilters.category] || "Wybór"}: ${advancedFilters.items.join(", ")} (zeskanowano: ${info.item || "nieznany"})`);
-      if (advancedFilters.color && info.color !== advancedFilters.color) activeFilters.push(`Kolor: ${advancedFilters.color} (zeskanowano: ${info.color || "nieznany"})`);
-      if (advancedFilters.size && info.size !== advancedFilters.size) activeFilters.push(`Rozmiar: ${advancedFilters.size} (zeskanowano: ${info.size || "brak"})`);
+      if (advancedFilters.colors.length > 0 && !advancedFilters.colors.includes(info.color)) activeFilters.push(`Kolor: ${advancedFilters.colors.join(", ")} (zeskanowano: ${info.color || "nieznany"})`);
+      if (advancedFilters.sizes.length > 0 && !advancedFilters.sizes.includes(info.size)) activeFilters.push(`Rozmiar: ${advancedFilters.sizes.join(", ")} (zeskanowano: ${info.size || "brak"})`);
       shouldBlock = true;
     }
     
@@ -1778,9 +1778,9 @@ const Remanent = () => {
                   options: remainingModelOptions,
                   icon: "pricetag-outline",
                 }] : []),
-                { key: "color", title: "Kolor", placeholder: "Wszystkie kolory", options: availableColors, icon: "color-palette-outline" },
+                { key: "colors", multi: true, title: "Kolor (można wybrać kilka)", placeholder: "Wszystkie kolory", options: availableColors, icon: "color-palette-outline" },
                 ...(!advancedFilters.category || advancedFilters.category === "Kurtki kożuchy futra"
-                  ? [{ key: "size", title: "Rozmiar (kurtki)", placeholder: "Wszystkie rozmiary", options: availableSizes, icon: "resize-outline" }]
+                  ? [{ key: "sizes", multi: true, title: "Rozmiar - kurtki (można wybrać kilka)", placeholder: "Wszystkie rozmiary", options: availableSizes, icon: "resize-outline" }]
                   : []),
               ].map((field) => {
                 const value = advancedFilters[field.key];
@@ -1813,7 +1813,7 @@ const Remanent = () => {
                       category: option,
                       items: [],
                       models: [],
-                      size: option && option !== "Kurtki kożuchy futra" ? "" : prev.size,
+                      sizes: option && option !== "Kurtki kożuchy futra" ? [] : prev.sizes,
                     }));
                   } else {
                     setAdvancedFilters((prev) => ({ ...prev, [field.key]: option }));
@@ -1877,8 +1877,8 @@ const Remanent = () => {
                       advancedFilters.category && { key: "category", label: `📦 ${advancedFilters.category}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, category: "", items: [], models: [] })) },
                       ...advancedFilters.items.map((entry) => ({ key: `item-${entry}`, label: `• ${entry}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, items: prev.items.filter((item) => item !== entry) })) })),
                       ...advancedFilters.models.map((entry) => ({ key: `model-${entry}`, label: `🏷 ${entry}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, models: prev.models.filter((model) => model !== entry) })) })),
-                      advancedFilters.color && { key: "color", label: `🎨 ${advancedFilters.color}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, color: "" })) },
-                      advancedFilters.size && { key: "size", label: `📏 ${advancedFilters.size}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, size: "" })) },
+                      ...advancedFilters.colors.map((entry) => ({ key: `color-${entry}`, label: `🎨 ${entry}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, colors: prev.colors.filter((color) => color !== entry) })) })),
+                      ...advancedFilters.sizes.map((entry) => ({ key: `size-${entry}`, label: `📏 ${entry}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, sizes: prev.sizes.filter((size) => size !== entry) })) })),
                     ].filter(Boolean).map((tag) => (
                       <View key={tag.key} style={styles.activeFilterTag}>
                         <Text style={styles.activeFilterText}>{tag.label}</Text>
