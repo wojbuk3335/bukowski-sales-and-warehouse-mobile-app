@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +30,11 @@ const Remanent = () => {
   const tabBarSpace = Math.max(90, 70 + insets.bottom) + 8;
   const { user, sizes, colors, stocks, stateData, fetchSizes, fetchColors, fetchStock } = useContext(GlobalStateContext);
   const [remanentData, setRemanentData] = useState([]);
+  // Sesja remanentu PUNKTU (od „Rozpocznij remanent” do „Zakończ remanent”), wspólna dla wszystkich telefonów punktu
+  const [session, setSession] = useState(null);
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
+  const [selectSearch, setSelectSearch] = useState({}); // wyszukiwarka w listach filtrów (klucz pola -> tekst)
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -128,6 +134,25 @@ const Remanent = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sizes]
   );
+
+  // Kolejność rozmiarów: literowe od najmniejszego (XXS, XS, S, M, L, XL, 2XL…8XL),
+  // potem liczbowe rosnąco (34, 36… dla dorosłych, 92, 104… dla dzieci)
+  const LETTER_SIZE_ORDER = ["XXXS", "3XS", "XXS", "2XS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "XXXL", "3XL", "4XL", "5XL", "6XL", "7XL", "8XL", "9XL"];
+  const sizeRank = (name) => {
+    const text = String(name || "").trim().toUpperCase();
+    const letterIndex = LETTER_SIZE_ORDER.indexOf(text);
+    if (letterIndex !== -1) return [0, letterIndex];
+    const number = parseFloat(text.replace(",", "."));
+    if (Number.isFinite(number)) return [1, number];
+    return [2, 0];
+  };
+  const compareSizes = (a, b) => {
+    const [groupA, valueA] = sizeRank(a);
+    const [groupB, valueB] = sizeRank(b);
+    if (groupA !== groupB) return groupA - groupB;
+    if (valueA !== valueB) return valueA - valueB;
+    return String(a).localeCompare(String(b), "pl");
+  };
 
   const FILTER_CATEGORIES = ["Kurtki kożuchy futra", "Torebki", "Portfele", "Pozostały asortyment"];
   const ITEM_FILTER_TITLES = {
@@ -272,9 +297,11 @@ const Remanent = () => {
       setAdvancedFilters((prev) => ({ ...prev, colors: prev.colors.filter((color) => colorNames.includes(color)) }));
     }
     setAvailableSizes(
-      toList(sizes, "sizes")
-        .map((size) => size.Roz_Opis)
-        .filter((name) => name && !/NIEOKRE/i.test(name))
+      [...new Set(
+        toList(sizes, "sizes")
+          .map((size) => size.Roz_Opis)
+          .filter((name) => name && !/NIEOKRE/i.test(name))
+      )].sort(compareSizes)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goodsList, advancedFilters.category, advancedFilters.items, advancedFilters.models, colorByKod, sizes, stockByKod]);
@@ -357,14 +384,10 @@ const Remanent = () => {
     }
   }, [filteredRemanentData, advancedFilters, assortmentFilter, user?.symbol]);
 
-  // Initialize scan start time
+  // Czas liczony od rozpoczęcia remanentu (sesji punktu)
   useEffect(() => {
-    if (filteredRemanentData.length > 0 && !scanStartTime) {
-      setScanStartTime(new Date());
-    } else if (filteredRemanentData.length === 0 && scanStartTime) {
-      setScanStartTime(null);
-    }
-  }, [filteredRemanentData.length, scanStartTime]);
+    setScanStartTime(session?.startedAt ? new Date(session.startedAt) : null);
+  }, [session?.startedAt]);
 
   // Timer for real-time updates
   useEffect(() => {
@@ -392,50 +415,90 @@ const Remanent = () => {
   };
 
   // Fetch remanent data
+  // Skan z sesji -> pozycja listy (ten sam kształt co dawniej, żeby reszta ekranu działała bez zmian)
+  const toRemanentItem = (item, sessionId) => ({
+    id: item._id,
+    remanentId: sessionId,
+    name: item.name,
+    code: item.code,
+    quantity: 1,
+    value: item.value || 0,
+    location: user?.symbol,
+    scannedAt: item.scannedAt,
+    timestamp: item.scannedAt
+  });
+
+  // Wczytuje OTWARTĄ sesję remanentu punktu (bez limitu skanów, wspólną dla wszystkich telefonów punktu)
   const fetchRemanentData = async () => {
     try {
       setLoading(true);
-      
-      // Try to fetch real remanent data from API
-      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent'));
-      
+      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/session/current'));
       if (response.ok) {
         const data = await response.json();
-        
-        // Backend returns remanent records with nested items
-        // We need to flatten them into individual jacket items
-        const flattenedItems = [];
-        
-        if (data.data && Array.isArray(data.data)) {
-          data.data.forEach(remanentRecord => {
-            if (remanentRecord.items && Array.isArray(remanentRecord.items)) {
-              remanentRecord.items.forEach(item => {
-                flattenedItems.push({
-                  id: item._id || item.id || Date.now() + Math.random(),
-                  remanentId: remanentRecord._id, // Add remanent record ID for deletion
-                  name: item.name,
-                  code: item.code,
-                  quantity: item.quantity || 1,
-                  value: item.value || '0.00',
-                  location: item.location,
-                  scannedAt: item.scannedAt || remanentRecord.timestamp,
-                  timestamp: remanentRecord.timestamp
-                });
-              });
-            }
-          });
-        }
-        
-        setRemanentData(flattenedItems);
-      } else {
-        // Start with empty list - only scanned items will be added
-        setRemanentData([]);
+        const current = data?.session || null;
+        setSession(current);
+        setRemanentData(current ? (current.items || []).map((item) => toRemanentItem(item, current._id)) : []);
       }
     } catch (error) {
-      // Start with empty list on error
-      setRemanentData([]);
+      Logger.error('Error fetching remanent session:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // „Rozpocznij remanent”: nowa sesja punktu (albo dołączenie do już otwartej)
+  const startSession = async () => {
+    setSessionBusy(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/session/start'), { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.session) {
+        setClearResult({ ok: false, text: data?.message || 'Nie udało się rozpocząć remanentu. Sprawdź połączenie.' });
+        return null;
+      }
+      setSession(data.session);
+      setRemanentData((data.session.items || []).map((item) => toRemanentItem(item, data.session._id)));
+      if (data.alreadyOpen) {
+        setClearResult({ ok: true, text: 'Remanent tego punktu jest już rozpoczęty - dołączono do niego.' });
+      }
+      return data.session;
+    } catch (error) {
+      setClearResult({ ok: false, text: 'Nie udało się rozpocząć remanentu. Sprawdź połączenie.' });
+      return null;
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  // „Zakończ remanent”: zapis wyniku porównania (z aktywnymi filtrami) i zamknięcie sesji
+  const finishSession = async () => {
+    setConfirmFinishOpen(false);
+    if (!session) return;
+    setSessionBusy(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/close`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result: comparisonResults || null, filters: activeFilterLabels })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setClearResult({ ok: false, text: data?.message || 'Nie udało się zakończyć remanentu.' });
+        return;
+      }
+      setComparisonModalVisible(false);
+      setSession(null);
+      setRemanentData([]);
+      setScannedJackets([]);
+      const result = data?.session?.result || {};
+      setClearResult({
+        ok: true,
+        text: `Remanent zakończony i zapisany.\nBraki: ${result.missingCount ?? (result.missingItems || []).reduce((sum, item) => sum + (item.missingCount || item.expectedCount || 0), 0)} szt., nadwyżki: ${result.excessCount ?? (result.extraItems || []).reduce((sum, item) => sum + (item.excessCount || item.actualCount || 0), 0)} szt.`
+      });
+    } catch (error) {
+      setClearResult({ ok: false, text: 'Nie udało się zakończyć remanentu. Sprawdź połączenie.' });
+    } finally {
+      setSessionBusy(false);
     }
   };
 
@@ -582,10 +645,12 @@ const Remanent = () => {
     }, 800);
   };
 
+  const savingScansRef = useRef(false);
   const confirmScannedJackets = async () => {
-    if (scannedJackets.length === 0) {
-      return; // Silently do nothing if no jackets
+    if (scannedJackets.length === 0 || savingScansRef.current) {
+      return; // nic do zapisania albo zapis już trwa (podwójne kliknięcie)
     }
+    savingScansRef.current = true;
 
     try {
       // Prepare data for API
@@ -603,83 +668,34 @@ const Remanent = () => {
         };
       });
 
-      // Save to database via API
-      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          items: remanentItemsForAPI,
-          timestamp: new Date().toISOString(),
-          userId: user?.id
-        })
-      });
-
-      if (response.ok) {
-        // Add scanned jackets to local state
-        const newRemanentItems = scannedJackets.map(jacket => {
-          const price = getPriceFromProductName(jacket.name);
-          
-          return {
-            id: jacket.id,
-            name: jacket.name,
-            code: jacket.code,
-            quantity: 1,
-            value: price,
-            location: user?.location || user?.symbol || 'Nieznana lokalizacja',
-            scannedAt: jacket.scannedAt
-          };
-        });
-
-        setRemanentData(prev => [...prev, ...newRemanentItems]);
-      } else {
-        Logger.error('❌ Failed to save remanent items:', response.status);
-        // Still add to local state even if API fails
-        const newRemanentItems = scannedJackets.map(jacket => {
-          const price = getPriceFromProductName(jacket.name);
-          
-          return {
-            id: jacket.id,
-            name: jacket.name,
-            code: jacket.code,
-            quantity: 1,
-            value: price,
-            location: user?.location || user?.symbol || 'Nieznana lokalizacja',
-            scannedAt: jacket.scannedAt
-          };
-        });
-
-        setRemanentData(prev => [...prev, ...newRemanentItems]);
+      // Zapis do sesji punktu; bez sesji najpierw ją rozpoczynamy
+      const activeSession = session || await startSession();
+      if (!activeSession) {
+        showScanToast('Nie zapisano - nie udało się rozpocząć remanentu. Skany zostają, spróbuj ponownie.', 'warn');
+        return;
       }
-      
-      // Clear scanned jackets but keep scanner open
-      setScannedJackets([]);
-      setLastScannedCode('');
-      setScanningEnabled(true);
-      
-      // No success alert - continue scanning immediately
-    } catch (error) {
-      Logger.error('Error adding scanned jackets:', error);
-      // Even on error, add to local state and clear the list
-      const newRemanentItems = scannedJackets.map(jacket => {
-        const price = getPriceFromProductName(jacket.name);
-        
-        return {
-          id: jacket.id,
-          name: jacket.name,
-          code: jacket.code,
-          quantity: 1,
-          value: price,
-          location: user?.location || user?.symbol || 'Nieznana lokalizacja',
-          scannedAt: jacket.scannedAt
-        };
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${activeSession._id}/items`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: remanentItemsForAPI })
       });
-
-      setRemanentData(prev => [...prev, ...newRemanentItems]);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        // Skany NIE giną: zostają na liście skanera, można zatwierdzić ponownie
+        showScanToast(data?.message || 'Nie zapisano skanów - sprawdź połączenie i zatwierdź ponownie.', 'warn');
+        if (response.status === 409) fetchRemanentData();
+        return;
+      }
+      setRemanentData(prev => [...prev, ...(data.added || []).map((item) => toRemanentItem(item, activeSession._id))]);
       setScannedJackets([]);
       setLastScannedCode('');
       setScanningEnabled(true);
+      showScanToast(`Zapisano ${remanentItemsForAPI.length} szt.`);
+    } catch (error) {
+      Logger.error('Error saving scanned jackets:', error);
+      showScanToast('Nie zapisano skanów - sprawdź połączenie i zatwierdź ponownie.', 'warn');
+    } finally {
+      savingScansRef.current = false;
     }
   };
 
@@ -719,27 +735,18 @@ const Remanent = () => {
   // (nie tylko te widoczne na liście - lista pokazuje ostatnie zapisy), potem odświeża widok.
   const clearAllRemanent = async () => {
     setConfirmClearOpen(false);
+    if (!session) return;
     setClearingAll(true);
-    let deleted = 0;
-    let failed = 0;
     try {
-      const listResponse = await tokenService.authenticatedFetch(getApiUrl('/remanent?limit=1000'));
-      const listData = listResponse.ok ? await listResponse.json() : { data: [] };
-      const records = Array.isArray(listData?.data) ? listData.data : [];
-      for (const record of records) {
-        try {
-          const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/${record._id}`), { method: 'DELETE' });
-          if (response.ok) deleted++; else failed++;
-        } catch (error) {
-          failed++;
-        }
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/items`), { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setClearResult({ ok: false, text: data?.message || 'Nie udało się wyczyścić remanentu.' });
+        return;
       }
       setRemanentData([]);
       setScannedJackets([]);
-      await fetchRemanentData();
-      setClearResult(failed === 0
-        ? { ok: true, text: deleted > 0 ? 'Remanent został wyczyszczony. Możesz zacząć liczenie od nowa.' : 'Lista remanentu była już pusta.' }
-        : { ok: false, text: `Nie udało się usunąć części zapisów (${failed}). Odśwież listę i spróbuj ponownie.` });
+      setClearResult({ ok: true, text: 'Skany tego remanentu zostały wyczyszczone. Możesz liczyć od nowa.' });
     } catch (error) {
       setClearResult({ ok: false, text: 'Nie udało się wyczyścić remanentu. Sprawdź połączenie i spróbuj ponownie.' });
     } finally {
@@ -748,40 +755,17 @@ const Remanent = () => {
   };
 
   const removeRemanentItem = async (itemId) => {
+    if (!session) return;
     try {
-      // Find the item to get its remanentId
-      const itemToDelete = remanentData.find(item => item.id === itemId);
-      
-      if (!itemToDelete) {
-        Logger.error('❌ Item not found in local data');
-        return;
-      }
-
-      // If item was just scanned (no remanentId), only remove from local state
-      if (!itemToDelete.remanentId) {
-        setRemanentData(prev => prev.filter(item => item.id !== itemId));
-        return;
-      }
-
-      // Call API to delete from database
-      const response = await tokenService.authenticatedFetch(
-        getApiUrl(`/remanent/${itemToDelete.remanentId}/items/${itemId}`),
-        {
-          method: 'DELETE',
-        }
-      );
-
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/items/${itemId}`), { method: 'DELETE' });
       if (response.ok) {
-        // Remove from local state only after successful API call
         setRemanentData(prev => prev.filter(item => item.id !== itemId));
       } else {
-        // Still remove from local state for better UX
-        setRemanentData(prev => prev.filter(item => item.id !== itemId));
+        const data = await response.json().catch(() => ({}));
+        setClearResult({ ok: false, text: data?.message || 'Nie udało się usunąć skanu.' });
       }
     } catch (error) {
-      Logger.error('❌ Error deleting item:', error);
-      // Still remove from local state on error
-      setRemanentData(prev => prev.filter(item => item.id !== itemId));
+      setClearResult({ ok: false, text: 'Nie udało się usunąć skanu. Sprawdź połączenie.' });
     }
   };
 
@@ -1435,13 +1419,37 @@ const Remanent = () => {
             )}
       </View>
 
-      {remanentData.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="archive-outline" size={64} color="#CDCDE0" />
-          <Text style={styles.emptyText}>Brak danych remanentów</Text>
-          <Text style={styles.emptySubtext}>
-            Skontaktuj się z administratorem aby skonfigurować remanenty
+      {/* Pasek sesji remanentu */}
+      {session ? (
+        <View style={styles.sessionBar}>
+          <Ionicons name="time-outline" size={18} color="#60A5FA" />
+          <Text style={styles.sessionBarText} numberOfLines={2}>
+            Remanent od {new Date(session.startedAt).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {remanentData.length} szt.
           </Text>
+          <TouchableOpacity style={styles.sessionFinishButton} onPress={checkCurrentState} disabled={sessionBusy}>
+            <Ionicons name="flag" size={16} color="white" />
+            <Text style={styles.sessionFinishText}>Zakończ</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {!session ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="clipboard-outline" size={64} color="#CDCDE0" />
+          <Text style={styles.emptyText}>Brak rozpoczętego remanentu</Text>
+          <Text style={styles.emptySubtext}>
+            Rozpocznij remanent, zeskanuj wszystkie sztuki w punkcie, a potem kliknij „Sprawdź” i „Zakończ remanent”.
+          </Text>
+          <TouchableOpacity style={styles.startSessionButton} onPress={startSession} disabled={sessionBusy}>
+            {sessionBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="play" size={20} color="white" />}
+            <Text style={styles.startSessionText}>Rozpocznij remanent</Text>
+          </TouchableOpacity>
+        </View>
+      ) : remanentData.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="scan-outline" size={64} color="#CDCDE0" />
+          <Text style={styles.emptyText}>Remanent rozpoczęty</Text>
+          <Text style={styles.emptySubtext}>Kliknij „Skanuj” i zeskanuj sztuki. Każdy skan to jedna sztuka.</Text>
         </View>
       ) : (
         <FlatList
@@ -1462,12 +1470,16 @@ const Remanent = () => {
       )}
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.addButton} onPress={openQRScanner}>
+        <TouchableOpacity
+          style={[styles.addButton, !session && { opacity: 0.5 }]}
+          onPress={openQRScanner}
+          disabled={!session}
+        >
           <Ionicons name="qr-code" size={20} color="white" />
           <Text style={styles.addButtonText}>Skanuj</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.checkButton} onPress={checkCurrentState}>
+        <TouchableOpacity style={[styles.checkButton, !session && { opacity: 0.5 }]} onPress={checkCurrentState} disabled={!session}>
           <Ionicons name="checkmark-circle" size={20} color="white" />
           <Text style={styles.checkButtonText}>Sprawdź</Text>
         </TouchableOpacity>
@@ -1491,7 +1503,7 @@ const Remanent = () => {
             </View>
             <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Wyczyścić cały remanent?</Text>
             <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
-              Zostaną usunięte wszystkie zapisane skany ({remanentData.length} szt. na liście). Tej operacji nie da się cofnąć.
+              Zostaną usunięte wszystkie skany bieżącego remanentu ({remanentData.length} szt.). Remanent pozostaje rozpoczęty. Tej operacji nie da się cofnąć.
             </Text>
             <View style={{ gap: 10, marginTop: 8 }}>
               <TouchableOpacity style={[styles.dialogStackButton, { backgroundColor: '#DC2626' }]} onPress={clearAllRemanent}>
@@ -1745,6 +1757,17 @@ const Remanent = () => {
                 </View>
               )}
 
+              {/* Zakończenie remanentu: zapis wyniku w historii punktu */}
+              {session ? (
+                <View style={styles.finishSection}>
+                  <TouchableOpacity style={styles.finishSessionButton} onPress={() => setConfirmFinishOpen(true)} disabled={sessionBusy}>
+                    {sessionBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="flag" size={20} color="white" />}
+                    <Text style={styles.startSessionText}>Zakończ remanent i zapisz wynik</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.finishHint}>Po zakończeniu skany tego remanentu zostaną zamknięte, a kolejny remanent zacznie się od zera.</Text>
+                </View>
+              ) : null}
+
               {/* Wszystko OK */}
               {(!comparisonResults.missingItems || comparisonResults.missingItems.length === 0) && 
                (!comparisonResults.extraItems || comparisonResults.extraItems.length === 0) && (
@@ -1757,6 +1780,29 @@ const Remanent = () => {
           ) : (
             <View style={styles.comparisonContent}>
               <Text style={[styles.sectionTitle, { textAlign: 'center' }]}>Ładowanie danych...</Text>
+            </View>
+          )}
+
+          {confirmFinishOpen && (
+            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+              <View style={styles.filterCard}>
+                <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                  <Ionicons name="flag" size={52} color="#F59E0B" />
+                </View>
+                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Zakończyć remanent?</Text>
+                <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 12 }}>
+                  Wynik (braki i nadwyżki) zostanie zapisany w historii punktu. Kolejny remanent zacznie się od pustej listy.
+                </Text>
+                <View style={{ gap: 10 }}>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={finishSession}>
+                    <Ionicons name="flag" size={18} color="white" />
+                    <Text style={styles.filterCardButtonText}>Tak, zakończ remanent</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setConfirmFinishOpen(false)}>
+                    <Text style={styles.filterCardButtonText}>Anuluj</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           )}
         </SafeAreaView>
@@ -1852,9 +1898,28 @@ const Remanent = () => {
                       </Text>
                       <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
                     </TouchableOpacity>
+                    {isOpen && field.options.length > 8 && (
+                      <View style={styles.selectSearchBox}>
+                        <Ionicons name="search" size={16} color="#94A3B8" />
+                        <TextInput
+                          style={styles.selectSearchInput}
+                          placeholder={`Szukaj: ${field.title.split(' ')[0].toLowerCase()}`}
+                          placeholderTextColor="#64748B"
+                          value={selectSearch[field.key] || ""}
+                          onChangeText={(text) => setSelectSearch((prev) => ({ ...prev, [field.key]: text }))}
+                          autoCorrect={false}
+                          autoCapitalize="characters"
+                        />
+                        {selectSearch[field.key] ? (
+                          <TouchableOpacity onPress={() => setSelectSearch((prev) => ({ ...prev, [field.key]: "" }))}>
+                            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    )}
                     {isOpen && (
                       <ScrollView style={styles.optionList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                        {["", ...field.options].map((option) => {
+                        {["", ...field.options.filter((option) => !selectSearch[field.key] || String(option).toLowerCase().includes(String(selectSearch[field.key]).toLowerCase()))].map((option) => {
                           const selected = field.multi ? (option === "" ? value.length === 0 : value.includes(option)) : option === value;
                           return (
                             <TouchableOpacity
@@ -2067,6 +2132,90 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '500',
+  },
+  sessionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1E3A8A',
+    backgroundColor: 'rgba(13, 110, 253, 0.12)',
+  },
+  sessionBarText: {
+    flex: 1,
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sessionFinishButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  sessionFinishText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  startSessionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+    backgroundColor: '#0D6EFD',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  startSessionText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  finishSection: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  finishSessionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F59E0B',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  finishHint: {
+    color: '#94A3B8',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  selectSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    backgroundColor: '#0F172A',
+  },
+  selectSearchInput: {
+    flex: 1,
+    color: 'white',
+    fontSize: 15,
+    paddingVertical: 8,
   },
   emptyContainer: {
     flex: 1,
