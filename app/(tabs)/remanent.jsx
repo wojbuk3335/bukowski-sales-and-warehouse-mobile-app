@@ -1142,184 +1142,38 @@ const Remanent = () => {
     loadLookupData();
   }, [user?.symbol]); // Dodano user?.symbol jako dependency
 
-  // Helper function to build jacket name from barcode
-  const buildJacketNameFromBarcode = (barcodeData) => {
-    try {
-      // Check if barcode has four zeros before the last digit (e.g., 0020600100009)
-      // But exclude bag patterns (starting with 000)
-      const regex = /^(\d{3})(\d{2})(\d{3})0000(\d)$/;
-      const match = barcodeData.match(regex);
-      
-      if (!match) {
-        return null; // Not the expected pattern
-      }
+  // Nazwa produktu po kodzie z metki - WYŁĄCZNIE z bazy głównej (karty produktów i słowniki),
+  // bez list testowych. Kod, którego nie ma w bazie, jest pokazany jako „Nieznany kod …”.
+  const getProductNameFromBarcode = (barcodeData) => {
+    const code = String(barcodeData || "").trim();
 
-      const [, stockCode, colorCode, sizeCode] = match;
-      
-      // Exclude bag patterns (stockCode starting with 000)
-      if (stockCode === "000") {
-        return null; // This is a bag, not a jacket
-      }
-      
-      Logger.debug('Barcode pattern match:', { stockCode, colorCode, sizeCode });
-      Logger.debug('Available data:', { 
-        stocksCount: stocks?.length || 0, 
-        colorsCount: colors?.length || 0, 
-        sizesCount: sizes?.length || 0 
-      });
-      
-      // Try to extract arrays from the objects
-      const stocksArray = Array.isArray(stocks) ? stocks : (stocks?.data || stocks?.stocks || []);
-      const colorsArray = Array.isArray(colors) ? colors : (colors?.data || colors?.colors || []);
-      const sizesArray = Array.isArray(sizes) ? sizes : (sizes?.data || sizes?.sizes || []);
-      
-      // Mock data as fallback when real data is not available
-      const mockStocks = [
-        { Tow_Kod: "001", Tow_Opis: "Kurtka zimowa" },
-        { Tow_Kod: "002", Tow_Opis: "Kurtka jesienna" },
-        { Tow_Kod: "003", Tow_Opis: "Płaszcz" },
-        { Tow_Kod: "037", Tow_Opis: "Kurtka sportowa" },
-      ];
-      
-      const mockColors = [
-        { Kol_Kod: "01", Kol_Opis: "CZARNY" },
-        { Kol_Kod: "02", Kol_Opis: "BIAŁY" },
-        { Kol_Kod: "03", Kol_Opis: "CZERWONY" },
-        { Kol_Kod: "04", Kol_Opis: "NIEBIESKI" },
-        { Kol_Kod: "21", Kol_Opis: "ZIELONY" },
-      ];
-      
-      const mockSizes = [
-        { Roz_Kod: "001", Roz_Opis: "XS" },
-        { Roz_Kod: "002", Roz_Opis: "S" },
-        { Roz_Kod: "003", Roz_Opis: "M" },
-        { Roz_Kod: "004", Roz_Opis: "L" },
-        { Roz_Kod: "005", Roz_Opis: "XL" },
-        { Roz_Kod: "006", Roz_Opis: "2XL" },
-      ];
-      
-      // Use real data if available, otherwise use mock data
-      const finalStocks = stocksArray.length > 0 ? stocksArray : mockStocks;
-      const finalColors = colorsArray.length > 0 ? colorsArray : mockColors;
-      const finalSizes = sizesArray.length > 0 ? sizesArray : mockSizes;
-      
-      // Look up stock (Tow_Opis) from first 3 digits
-      const stockItem = finalStocks.find(stock => stock.Tow_Kod === stockCode);
-      const stockName = stockItem?.Tow_Opis || `Kod_${stockCode}`;
-      
-      // Look up color (Kol_Opis) from next 2 digits  
-      const colorItem = finalColors.find(color => color.Kol_Kod === colorCode);
-      const colorName = colorItem?.Kol_Opis || `Kolor_${colorCode}`;
-      
-      // Look up size name from next 3 digits
-      const sizeItem = finalSizes.find(size => size.Roz_Kod === sizeCode);
-      const sizeName = sizeItem?.Roz_Opis || `Rozmiar_${sizeCode}`;
-      
-      Logger.debug('Lookup results:', { stockName, colorName, sizeName });
-      
-      // Build the jacket name with proper fallbacks
-      const jacketName = `${stockName || 'Nieznany'} ${colorName || 'Nieznany'} ${sizeName || 'Nieznany'}`;
-      
-      return jacketName;
-    } catch (error) {
-      Logger.error("Error building jacket name from barcode:", error);
-      return null;
+    if (/^\d{13}$/.test(code) && code.slice(0, 3) !== "000") {
+      // Kurtki: karta produktu (model + kolor) po 5 pierwszych cyfrach + rozmiar ze słownika
+      const sizeName = sizeByKod[code.slice(5, 8)] || "";
+      const size = /NIEOKRE/i.test(sizeName) ? "" : sizeName;
+      const good = jacketGoodsByPrefix[code.slice(0, 5)];
+      if (good?.fullName) return `${good.fullName}${size ? ` ${size}` : ""}`;
+      const model = stockByKod[code.slice(0, 3)];
+      const color = colorByKod[code.slice(3, 5)];
+      if (model && color) return `${model} ${color}${size ? ` ${size}` : ""}`;
+    } else {
+      // Torebki, portfele, pozostały asortyment: kod z metki = kod karty produktu
+      const good = goodsByCode[code];
+      if (good?.fullName) return good.fullName;
     }
+
+    // Zapas: sztuka na stanie z tym kodem (nazwa ze stanu)
+    const stateList = Array.isArray(stateData) ? stateData : [];
+    const matchedItem = stateList.find((item) => item.barcode === code);
+    if (matchedItem?.fullName) {
+      return matchedItem.size && matchedItem.size !== "-" ? `${matchedItem.fullName} ${matchedItem.size}` : matchedItem.fullName;
+    }
+
+    return `Nieznany kod ${code}`;
   };
 
-  // Helper function to build remaining product name from barcode
-  const buildRemainingProductNameFromBarcode = async (barcodeData) => {
-    try {
-      if (barcodeData.length < 9) {
-        return null; // Not long enough
-      }
-
-      const first3 = barcodeData.substring(0, 3); // Positions 1-3
-      const colorCode = barcodeData.substring(3, 5); // Positions 4-5
-      const positions6and7 = barcodeData.substring(5, 7); // Positions 6-7
-      const productCode = barcodeData.substring(7, 9); // Positions 8-9
-      
-      // Check remaining products pattern: 000 + color + 00 + product
-      if (first3 !== "000" || positions6and7 !== "00") {
-        return null; // Not a remaining products pattern
-      }
-
-      // Try to extract arrays from the objects
-      const colorsArray = Array.isArray(colors) ? colors : (colors?.data || colors?.colors || []);
-      
-      // Mock colors data as fallback
-      const mockColors = [
-        { Kol_Kod: "01", Kol_Opis: "CZARNY" },
-        { Kol_Kod: "02", Kol_Opis: "BIAŁY" },
-        { Kol_Kod: "03", Kol_Opis: "CZERWONY" },
-        { Kol_Kod: "04", Kol_Opis: "NIEBIESKI" },
-        { Kol_Kod: "21", Kol_Opis: "ZIELONY" },
-      ];
-      
-      // Use real data if available, otherwise use mock data
-      const finalColors = colorsArray.length > 0 ? colorsArray : mockColors;
-      
-      // Look up color (Kol_Opis) from positions 4-5
-      const colorItem = finalColors.find(color => color.Kol_Kod === colorCode);
-      const colorName = colorItem?.Kol_Opis || `Kolor_${colorCode}`;
-      
-      // For remanent, we'll use mock remaining products data since API might not be available
-      const mockRemainingProducts = [
-        { Poz_Nr: "01", Poz_Kod: "Ada" },
-        { Poz_Nr: "02", Poz_Kod: "Bela" },
-        { Poz_Nr: "03", Poz_Kod: "Carla" },
-        { Poz_Nr: "04", Poz_Kod: "Diana" },
-        { Poz_Nr: "05", Poz_Kod: "Eva" },
-        { Poz_Nr: "06", Poz_Kod: "Fiona" },
-        { Poz_Nr: "07", Poz_Kod: "Gloria" },
-        { Poz_Nr: "08", Poz_Kod: "Helena" },
-        { Poz_Nr: "09", Poz_Kod: "Inez" },
-      ];
-      
-      // Convert productCode to number for comparison
-      const productCodeNumber = parseInt(productCode, 10);
-      
-      const productItem = mockRemainingProducts.find(product => 
-        parseInt(product.Poz_Nr, 10) === productCodeNumber
-      );
-      
-      const productName = productItem?.Poz_Kod || `Produkt_${productCode}`;
-      
-      // Build the remaining product name: Poz_Kod + color
-      const fullRemainingProductName = `${productName} ${colorName}`;
-      
-      return fullRemainingProductName;
-    } catch (error) {
-      Logger.error("Error building remaining product name from barcode:", error);
-      return null;
-    }
-  };
-
-  // Function to get jacket name from barcode (tries different patterns)
-  const getJacketNameFromBarcode = async (barcodeData) => {
-    // Try remaining products pattern first
-    const remainingProductName = await buildRemainingProductNameFromBarcode(barcodeData);
-    if (remainingProductName) {
-      return remainingProductName;
-    }
-
-    // Try jacket pattern
-    const jacketName = buildJacketNameFromBarcode(barcodeData);
-    if (jacketName) {
-      return jacketName;
-    }
-
-    // Try to match with stateData as fallback
-    if (stateData && Array.isArray(stateData)) {
-      const matchedItem = stateData.find(item => item.barcode === barcodeData);
-      if (matchedItem) {
-        return `${matchedItem.fullName} ${matchedItem.size}`;
-      }
-    }
-
-    // Fallback to just showing the barcode
-    return `Kurtka ${barcodeData}`;
-  };
+  // Zachowana nazwa dla istniejących wywołań
+  const getJacketNameFromBarcode = async (barcodeData) => getProductNameFromBarcode(barcodeData);
 
   // Price functions similar to cudzych.jsx
   const getPriceFromRemanentList = (productName) => {
