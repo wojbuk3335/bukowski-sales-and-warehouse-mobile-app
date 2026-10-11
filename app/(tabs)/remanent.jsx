@@ -611,6 +611,18 @@ const Remanent = () => {
       jacketName = data;
     }
 
+    // Obcy kod (opakowanie, kod QR, metka spoza naszej bazy) nie jest sztuką remanentu:
+    // odrzucamy go z komunikatem zamiast dopisywać jako „nadwyżkę”
+    if (!isKnownProductCode(data, jacketName)) {
+      scanFeedback("warn");
+      showScanToast(`Nieznany kod: ${data}\nTo nie jest metka z bazy produktów - pominięto.`, "warn");
+      setTimeout(() => {
+        setScanningEnabled(true);
+        scanBusyRef.current = false;
+      }, 800);
+      return;
+    }
+
     // Check if advanced filters are active and if jacket matches them
     const activeFilters = [];
     let shouldBlock = false;
@@ -1081,6 +1093,14 @@ const Remanent = () => {
 
   // Zachowana nazwa dla istniejących wywołań
   const getJacketNameFromBarcode = async (barcodeData) => getProductNameFromBarcode(barcodeData);
+
+  // Czy kod to metka z naszej bazy (karta produktu albo sztuka na stanie)?
+  // Gdy karty produktów jeszcze się nie wczytały, nie blokujemy - nie da się tego sprawdzić.
+  const isKnownProductCode = (code, resolvedName) => {
+    if (!/^\d{13}$/.test(String(code || "").trim())) return false; // nasze metki to zawsze EAN-13
+    if (goodsList.length === 0 && Object.keys(stockByKod).length === 0) return true;
+    return !String(resolvedName || "").startsWith("Nieznany kod");
+  };
 
   // Price functions similar to cudzych.jsx
   const getPriceFromRemanentList = (productName) => {
