@@ -905,14 +905,8 @@ const WarehouseMobile = () => {
         (pli.originalGoodId && item.fullName?._id && pli.originalGoodId === item.fullName._id.toString())
       );
       
-      // Kolumna ceny = cena ze stanu, chyba że stan nie ma ceny albo to cena z wyjątku dla rozmiaru -
-      // wtedy cena podstawowa punktu, a wyjątek jest pokazany osobno w wyjątkach.
-      const rowSizeLabel = item.size?.Roz_Opis || (typeof item.size === "string" ? item.size : "");
-      const rowSizeException = (priceListItem?.priceExceptions || []).find(
-        (ex) => (ex?.size?.Roz_Opis || ex?.size) === rowSizeLabel
-      );
-      const storedIsException = rowSizeException && Number(rowSizeException.value) === Number(item.price);
-      const hasStoredPrice = Number(item.price) > 0 && !storedIsException;
+      // Cena wyświetlana = AKTUALNY cennik punktu (jak etykiety); cena ze stanu tylko gdy cennik nie ma produktu lub ma 0 zł
+      const hasStoredPrice = !(Number(priceListItem?.price) > 0) && Number(item.price) > 0;
       if (priceListItem) {
         displayPrice = !hasStoredPrice && priceListItem.price !== undefined ? priceListItem.price : displayPrice;
         displayDiscountPrice = !hasStoredPrice && priceListItem.discountPrice !== undefined ? priceListItem.discountPrice : displayDiscountPrice;
