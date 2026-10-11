@@ -1475,11 +1475,11 @@ const Remanent = () => {
               Zostaną usunięte wszystkie zapisane skany ({remanentData.length} szt. na liście). Tej operacji nie da się cofnąć.
             </Text>
             <View style={{ gap: 10, marginTop: 8 }}>
-              <TouchableOpacity style={[styles.filterCardButton, { backgroundColor: '#DC2626' }]} onPress={clearAllRemanent}>
+              <TouchableOpacity style={[styles.dialogStackButton, { backgroundColor: '#DC2626' }]} onPress={clearAllRemanent}>
                 <Ionicons name="trash" size={18} color="white" />
                 <Text style={styles.filterCardButtonText}>Tak, wyczyść wszystko</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.filterCardButton, styles.filterCardButtonSecondary]} onPress={() => setConfirmClearOpen(false)}>
+              <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setConfirmClearOpen(false)}>
                 <Text style={styles.filterCardButtonText}>Anuluj</Text>
               </TouchableOpacity>
             </View>
@@ -1496,7 +1496,7 @@ const Remanent = () => {
             </View>
             <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>{clearResult?.ok ? 'Gotowe' : 'Błąd'}</Text>
             <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 16 }}>{clearResult?.text}</Text>
-            <TouchableOpacity style={[styles.filterCardButton, styles.filterCardButtonPrimary]} onPress={() => setClearResult(null)}>
+            <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={() => setClearResult(null)}>
               <Text style={styles.filterCardButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
@@ -2565,6 +2565,16 @@ const styles = StyleSheet.create({
   },
   filterCardButton: {
     flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  // Przycisk na całą szerokość w oknach z przyciskami jeden pod drugim (bez flex: 1, który w kolumnie zeruje wysokość)
+  dialogStackButton: {
+    width: "100%",
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
