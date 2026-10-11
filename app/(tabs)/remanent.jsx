@@ -24,6 +24,9 @@ import LogoutButton from '../../components/LogoutButton';
 
 const Remanent = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
+  // Dolny pasek zakładek jest nałożony na ekran (position: absolute, wysokość jak w (tabs)/_layout.jsx) -
+  // rezerwujemy jego pełną wysokość, żeby przyciski na dole nie chowały się pod nim.
+  const tabBarSpace = Math.max(90, 70 + insets.bottom) + 8;
   const { user, sizes, colors, stocks, stateData, fetchSizes, fetchColors, fetchStock } = useContext(GlobalStateContext);
   const [remanentData, setRemanentData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1250,7 +1253,7 @@ const Remanent = () => {
   // Loading state
   if (loading) {
     return (
-      <SafeAreaView style={{ backgroundColor: "#000", flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
+      <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: "#000", flex: 1, paddingBottom: tabBarSpace }}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0d6efd" />
           <Text style={styles.loadingText}>Ładowanie remanentów...</Text>
@@ -1260,7 +1263,7 @@ const Remanent = () => {
   }
 
   return (
-    <SafeAreaView style={{ backgroundColor: "#000", flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: "#000", flex: 1, paddingBottom: tabBarSpace }}>
       <LogoutButton position="top-right" />
       <View style={styles.header}>
         <View style={styles.headerContent}>
@@ -1335,7 +1338,7 @@ const Remanent = () => {
           data={filteredRemanentData}
           renderItem={renderRemanentItem}
           keyExtractor={(item, index) => item.id?.toString() || index.toString()}
-          contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 16 }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
