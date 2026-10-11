@@ -19,6 +19,7 @@ import { GlobalStateContext } from '../../context/GlobalState';
 import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
+import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../config/remainingProductTypes';
 import LogoutButton from '../../components/LogoutButton';
 
 const Remanent = () => {
@@ -51,17 +52,16 @@ const Remanent = () => {
 
   // Assortment filter states
   const [assortmentFilter, setAssortmentFilter] = useState(''); // Filtr asortymentu
-  const [availableAssortments, setAvailableAssortments] = useState([]); // Dostępne asortymenty
   const [filteredRemanentData, setFilteredRemanentData] = useState([]); // Przefiltrowane dane
 
   // Advanced filter modal states
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [openFilterSelect, setOpenFilterSelect] = useState(null); // które pole filtra ma rozwiniętą listę opcji
-  const [advancedFilters, setAdvancedFilters] = useState({
-    assortment: '',
-    color: '',
-    size: ''
-  });
+  // Filtry: kategoria główna -> wielokrotny wybór w kategorii (modele kurtek, kody torebek/portfeli,
+  // rodzaje pozostałego asortymentu), kolor, rozmiar (tylko kurtki)
+  const EMPTY_FILTERS = { category: '', items: [], color: '', size: '' };
+  const [advancedFilters, setAdvancedFilters] = useState(EMPTY_FILTERS);
+  const [goodsList, setGoodsList] = useState([]); // karty produktów: wszystkie możliwe opcje filtrów
   const [availableColors, setAvailableColors] = useState([]);
   const [availableSizes, setAvailableSizes] = useState([]);
 
@@ -93,77 +93,112 @@ const Remanent = () => {
     [sizes]
   );
 
-  // { assortment, color, size } dla kodu kreskowego sztuki
+  const FILTER_CATEGORIES = ["Kurtki kożuchy futra", "Torebki", "Portfele", "Pozostały asortyment"];
+  const ITEM_FILTER_TITLES = {
+    "Kurtki kożuchy futra": "Modele",
+    "Torebki": "Torebki",
+    "Portfele": "Portfele",
+    "Pozostały asortyment": "Rodzaje",
+  };
+  const goodsByCode = React.useMemo(
+    () => Object.fromEntries(goodsList.filter((good) => good?.code).map((good) => [String(good.code), good])),
+    [goodsList]
+  );
+
+  // Element filtra w kategorii dla karty produktu: model kurtki, kod torebki/portfela, rodzaj pozostałego asortymentu
+  const filterItemOfGood = (good) => {
+    if (!good) return "";
+    if (good.category === "Kurtki kożuchy futra") return good.stock?.Tow_Opis || stockByKod[String(good.code || "").slice(0, 3)] || "";
+    if (good.category === "Torebki" || good.category === "Portfele") return good.bagProduct || "";
+    if (good.category === "Pozostały asortyment") {
+      // lista produktów zwraca podkategorię jako { _id: "belts", Rem_Kat_1_Opis_1: "Paski" } albo sam klucz
+      const typeKey = good.subcategory?._id || good.subcategory || good.bagsCategoryId;
+      return getRemainingProductTypeByKey(typeKey)?.plural || good.subcategory?.Rem_Kat_1_Opis_1 || "";
+    }
+    return "";
+  };
+
+  // { category, item, color, size } dla kodu kreskowego sztuki
   const describeBarcode = (barcode) => {
     const code = String(barcode || "").trim();
-    if (!/^\d{13}$/.test(code)) return { assortment: "", color: "", size: "" };
+    if (!/^\d{13}$/.test(code)) return { category: "", item: "", color: "", size: "" };
     const color = colorByKod[code.slice(3, 5)] || "";
     if (code.slice(0, 3) !== "000") {
       const sizeName = sizeByKod[code.slice(5, 8)] || "";
       return {
-        assortment: stockByKod[code.slice(0, 3)] || "",
+        category: "Kurtki kożuchy futra",
+        item: stockByKod[code.slice(0, 3)] || "",
         color,
         size: /NIEOKRE/i.test(sizeName) ? "" : sizeName,
       };
     }
-    const assortment = code[5] !== "0" ? "Torebki" : (code[6] !== "0" ? "Portfele" : "Pozostały asortyment");
-    return { assortment, color, size: "" };
+    const category = code[5] !== "0" ? "Torebki" : (code[6] !== "0" ? "Portfele" : "Pozostały asortyment");
+    return { category, item: filterItemOfGood(goodsByCode[code]), color, size: "" };
   };
 
-  // Czy sztuka o danym kodzie pasuje do aktywnych filtrów (porównanie dokładne, bez podciągów)
+  const hasActiveFilters = Boolean(advancedFilters.category || advancedFilters.color || advancedFilters.size);
+  const activeFilterLabels = [
+    advancedFilters.category,
+    advancedFilters.items.length > 0 ? advancedFilters.items.join(", ") : "",
+    advancedFilters.color,
+    advancedFilters.size,
+  ].filter(Boolean);
+
+  // Czy sztuka o danym kodzie pasuje do aktywnych filtrów (porównanie dokładne)
   const matchesFilters = (barcode) => {
-    const wantedAssortment = advancedFilters.assortment || assortmentFilter;
-    if (!wantedAssortment && !advancedFilters.color && !advancedFilters.size) return true;
+    if (!hasActiveFilters) return true;
     const info = describeBarcode(barcode);
-    if (wantedAssortment && info.assortment !== wantedAssortment) return false;
+    if (advancedFilters.category && info.category !== advancedFilters.category) return false;
+    if (advancedFilters.items.length > 0 && !advancedFilters.items.includes(info.item)) return false;
     if (advancedFilters.color && info.color !== advancedFilters.color) return false;
     if (advancedFilters.size && info.size !== advancedFilters.size) return false;
     return true;
   };
 
-  // Słowniki potrzebne filtrom ładujemy od razu po wejściu na zakładkę
+  // Słowniki i karty produktów ładujemy od razu po wejściu na zakładkę
   useEffect(() => {
     if (toList(stocks, "stocks").length === 0 && fetchStock) fetchStock();
     if (toList(colors, "colors").length === 0 && fetchColors) fetchColors();
     if (toList(sizes, "sizes").length === 0 && fetchSizes) fetchSizes();
+    const loadGoods = async () => {
+      try {
+        const response = await tokenService.authenticatedFetch(getApiUrl("/excel/goods/get-all-goods"));
+        if (response.ok) {
+          const data = await response.json();
+          setGoodsList(data?.goods || []);
+        }
+      } catch (error) {
+        // bez kart produktów - modele kurtek nadal z tabeli asortymentu
+      }
+    };
+    loadGoods();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Opcje filtrów: wartości z kodów sztuk na stanie punktu oraz już zeskanowanych
-  useEffect(() => {
-    let cancelled = false;
-    const buildFilterOptions = async () => {
-      const codes = new Set((remanentData || []).map((item) => item.code).filter(Boolean));
-      try {
-        const response = await tokenService.authenticatedFetch(getApiUrl("/state"));
-        if (response.ok) {
-          const allStateData = await response.json();
-          allStateData
-            .filter((item) => item.symbol === user?.symbol)
-            .forEach((item) => { if (item.barcode) codes.add(item.barcode); });
-        }
-      } catch (error) {
-        // bez stanu - opcje tylko z zeskanowanych sztuk
-      }
-      if (cancelled) return;
-      const assortments = new Set();
-      const colorNames = new Set();
-      const sizeNames = new Set();
-      codes.forEach((code) => {
-        const info = describeBarcode(code);
-        if (info.assortment) assortments.add(info.assortment);
-        if (info.color) colorNames.add(info.color);
-        if (info.size) sizeNames.add(info.size);
-      });
-      const sizeOrder = toList(sizes, "sizes").map((item) => item.Roz_Opis);
-      setAvailableAssortments([...assortments].sort((a, b) => a.localeCompare(b, "pl")));
-      setAvailableColors([...colorNames].sort((a, b) => a.localeCompare(b, "pl")));
-      setAvailableSizes([...sizeNames].sort((a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b)));
-    };
-    buildFilterOptions();
-    return () => { cancelled = true; };
+  // Opcje w wybranej kategorii: WSZYSTKIE możliwe z kart produktów (nie tylko to, co jest na stanie)
+  const categoryItemOptions = React.useMemo(() => {
+    const category = advancedFilters.category;
+    if (!category) return [];
+    if (category === "Pozostały asortyment") return REMAINING_CATEGORY_LABELS;
+    const items = new Set(goodsList.filter((good) => good.category === category).map(filterItemOfGood).filter(Boolean));
+    return [...items].sort((a, b) => a.localeCompare(b, "pl"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remanentData, stockByKod, colorByKod, sizeByKod, user?.symbol]);
+  }, [advancedFilters.category, goodsList, stockByKod]);
+
+  // Kolory i rozmiary: z kart produktów (w wybranej kategorii) i słownika rozmiarów
+  useEffect(() => {
+    const relevantGoods = goodsList.filter((good) => !advancedFilters.category || good.category === advancedFilters.category);
+    const colorNames = new Set(
+      relevantGoods.map((good) => good.color?.Kol_Opis || colorByKod[String(good.code || "").slice(3, 5)] || "").filter(Boolean)
+    );
+    setAvailableColors([...colorNames].sort((a, b) => a.localeCompare(b, "pl")));
+    setAvailableSizes(
+      toList(sizes, "sizes")
+        .map((size) => size.Roz_Opis)
+        .filter((name) => name && !/NIEOKRE/i.test(name))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goodsList, advancedFilters.category, colorByKod, sizes]);
 
   // Filter remanent data based on advanced filters
   useEffect(() => {
@@ -179,7 +214,7 @@ const Remanent = () => {
 
     setFilteredRemanentData(filtered);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remanentData, assortmentFilter, advancedFilters, stockByKod, colorByKod, sizeByKod]);
+  }, [remanentData, assortmentFilter, advancedFilters, stockByKod, colorByKod, sizeByKod, goodsByCode]);
 
   // Calculate scan progress based on current state and scanned items
   useEffect(() => {
@@ -429,8 +464,8 @@ const Remanent = () => {
     
     if (!matchesFilters(data)) {
       const info = describeBarcode(data);
-      const wantedAssortment = advancedFilters.assortment || assortmentFilter;
-      if (wantedAssortment && info.assortment !== wantedAssortment) activeFilters.push(`Asortyment: ${wantedAssortment} (zeskanowano: ${info.assortment || "nieznany"})`);
+      if (advancedFilters.category && info.category !== advancedFilters.category) activeFilters.push(`Kategoria: ${advancedFilters.category} (zeskanowano: ${info.category || "nieznana"})`);
+      if (advancedFilters.items.length > 0 && !advancedFilters.items.includes(info.item)) activeFilters.push(`${ITEM_FILTER_TITLES[advancedFilters.category] || "Wybór"}: ${advancedFilters.items.join(", ")} (zeskanowano: ${info.item || "nieznany"})`);
       if (advancedFilters.color && info.color !== advancedFilters.color) activeFilters.push(`Kolor: ${advancedFilters.color} (zeskanowano: ${info.color || "nieznany"})`);
       if (advancedFilters.size && info.size !== advancedFilters.size) activeFilters.push(`Rozmiar: ${advancedFilters.size} (zeskanowano: ${info.size || "brak"})`);
       shouldBlock = true;
@@ -1218,8 +1253,7 @@ const Remanent = () => {
             <Ionicons name="filter" size={16} color="white" />
             <Text style={styles.filterButtonText}>
               Filtry
-              {(advancedFilters.assortment || advancedFilters.color || advancedFilters.size || assortmentFilter) 
-                && ` (${[advancedFilters.assortment, advancedFilters.color, advancedFilters.size, assortmentFilter].filter(f => f).length})`
+              {hasActiveFilters && ` (${activeFilterLabels.length})`
               }
             </Text>
           </TouchableOpacity>
@@ -1402,10 +1436,7 @@ const Remanent = () => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               Porównanie Remanent vs Stan
-              {(advancedFilters.assortment || advancedFilters.color || advancedFilters.size) 
-                && ` - ${[advancedFilters.assortment, advancedFilters.color, advancedFilters.size].filter(f => f).join(' ')}`}
-              {(!advancedFilters.assortment && !advancedFilters.color && !advancedFilters.size && assortmentFilter) 
-                && ` - ${assortmentFilter}`}
+              {hasActiveFilters && ` - ${activeFilterLabels.join(' · ')}`}
             </Text>
             <TouchableOpacity
               onPress={() => setComparisonModalVisible(false)}
@@ -1547,12 +1578,45 @@ const Remanent = () => {
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {[
-                { key: "assortment", title: "Asortyment", placeholder: "Wszystkie asortymenty", options: availableAssortments, icon: "cube-outline" },
+                { key: "category", title: "Kategoria", placeholder: "Wszystkie kategorie", options: FILTER_CATEGORIES, icon: "albums-outline" },
+                ...(advancedFilters.category ? [{
+                  key: "items",
+                  multi: true,
+                  title: `${ITEM_FILTER_TITLES[advancedFilters.category]} (można wybrać kilka)`,
+                  placeholder: `Wszystkie: ${ITEM_FILTER_TITLES[advancedFilters.category].toLowerCase()}`,
+                  options: categoryItemOptions,
+                  icon: "list-outline",
+                }] : []),
                 { key: "color", title: "Kolor", placeholder: "Wszystkie kolory", options: availableColors, icon: "color-palette-outline" },
-                { key: "size", title: "Rozmiar", placeholder: "Wszystkie rozmiary", options: availableSizes, icon: "resize-outline" },
+                ...(!advancedFilters.category || advancedFilters.category === "Kurtki kożuchy futra"
+                  ? [{ key: "size", title: "Rozmiar (kurtki)", placeholder: "Wszystkie rozmiary", options: availableSizes, icon: "resize-outline" }]
+                  : []),
               ].map((field) => {
                 const value = advancedFilters[field.key];
                 const isOpen = openFilterSelect === field.key;
+                const shown = field.multi ? (value.length > 0 ? value.join(", ") : "") : value;
+                const pick = (option) => {
+                  if (field.multi) {
+                    setAdvancedFilters((prev) => ({
+                      ...prev,
+                      items: option === "" ? [] : (prev.items.includes(option) ? prev.items.filter((entry) => entry !== option) : [...prev.items, option]),
+                    }));
+                    if (option === "") setOpenFilterSelect(null);
+                    return;
+                  }
+                  if (field.key === "category") {
+                    // nowa kategoria = nowy wybór w kategorii; rozmiar tylko dla kurtek
+                    setAdvancedFilters((prev) => ({
+                      ...prev,
+                      category: option,
+                      items: [],
+                      size: option && option !== "Kurtki kożuchy futra" ? "" : prev.size,
+                    }));
+                  } else {
+                    setAdvancedFilters((prev) => ({ ...prev, [field.key]: option }));
+                  }
+                  setOpenFilterSelect(null);
+                };
                 return (
                   <View key={field.key} style={styles.filterSection}>
                     <Text style={styles.filterSectionTitle}>{field.title}</Text>
@@ -1560,29 +1624,30 @@ const Remanent = () => {
                       style={[styles.selectField, isOpen && styles.selectFieldOpen]}
                       onPress={() => setOpenFilterSelect(isOpen ? null : field.key)}
                     >
-                      <Ionicons name={field.icon} size={18} color={value ? "#0D6EFD" : "#64748B"} style={{ marginRight: 8 }} />
-                      <Text style={[styles.selectFieldText, !value && styles.selectFieldPlaceholder]} numberOfLines={1}>
-                        {value || field.placeholder}
+                      <Ionicons name={field.icon} size={18} color={shown ? "#0D6EFD" : "#64748B"} style={{ marginRight: 8 }} />
+                      <Text style={[styles.selectFieldText, !shown && styles.selectFieldPlaceholder]} numberOfLines={2}>
+                        {shown || field.placeholder}
                       </Text>
                       <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
                     </TouchableOpacity>
                     {isOpen && (
                       <ScrollView style={styles.optionList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                         {["", ...field.options].map((option) => {
-                          const selected = option === value;
+                          const selected = field.multi ? (option === "" ? value.length === 0 : value.includes(option)) : option === value;
                           return (
                             <TouchableOpacity
                               key={option || "__all__"}
                               style={[styles.optionItem, selected && styles.optionItemSelected]}
-                              onPress={() => {
-                                setAdvancedFilters((prev) => ({ ...prev, [field.key]: option }));
-                                setOpenFilterSelect(null);
-                              }}
+                              onPress={() => pick(option)}
                             >
                               <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
                                 {option || field.placeholder}
                               </Text>
-                              {selected && <Ionicons name="checkmark" size={18} color="#0D6EFD" />}
+                              {field.multi && option !== "" ? (
+                                <Ionicons name={selected ? "checkbox" : "square-outline"} size={20} color={selected ? "#0D6EFD" : "#64748B"} />
+                              ) : (
+                                selected && <Ionicons name="checkmark" size={18} color="#0D6EFD" />
+                              )}
                             </TouchableOpacity>
                           );
                         })}
@@ -1591,26 +1656,29 @@ const Remanent = () => {
                         )}
                       </ScrollView>
                     )}
+                    {field.multi && isOpen && (
+                      <TouchableOpacity style={styles.multiDoneButton} onPress={() => setOpenFilterSelect(null)}>
+                        <Text style={styles.filterCardButtonText}>Gotowe</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               })}
 
               {/* Aktywne filtry */}
-              {(advancedFilters.assortment || advancedFilters.color || advancedFilters.size) ? (
+              {hasActiveFilters ? (
                 <View style={styles.activeFiltersSection}>
                   <Text style={styles.filterSectionTitle}>Aktywne filtry:</Text>
                   <View style={styles.activeFiltersContainer}>
                     {[
-                      { key: "assortment", icon: "📦" },
-                      { key: "color", icon: "🎨" },
-                      { key: "size", icon: "📏" },
-                    ].filter((tag) => advancedFilters[tag.key]).map((tag) => (
+                      advancedFilters.category && { key: "category", label: `📦 ${advancedFilters.category}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, category: "", items: [] })) },
+                      ...advancedFilters.items.map((entry) => ({ key: `item-${entry}`, label: `• ${entry}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, items: prev.items.filter((item) => item !== entry) })) })),
+                      advancedFilters.color && { key: "color", label: `🎨 ${advancedFilters.color}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, color: "" })) },
+                      advancedFilters.size && { key: "size", label: `📏 ${advancedFilters.size}`, clear: () => setAdvancedFilters((prev) => ({ ...prev, size: "" })) },
+                    ].filter(Boolean).map((tag) => (
                       <View key={tag.key} style={styles.activeFilterTag}>
-                        <Text style={styles.activeFilterText}>{tag.icon} {advancedFilters[tag.key]}</Text>
-                        <TouchableOpacity
-                          onPress={() => setAdvancedFilters((prev) => ({ ...prev, [tag.key]: "" }))}
-                          style={styles.removeFilterButton}
-                        >
+                        <Text style={styles.activeFilterText}>{tag.label}</Text>
+                        <TouchableOpacity onPress={tag.clear} style={styles.removeFilterButton}>
                           <Ionicons name="close-circle" size={16} color="#ff6b6b" />
                         </TouchableOpacity>
                       </View>
@@ -1625,7 +1693,7 @@ const Remanent = () => {
               <TouchableOpacity
                 style={[styles.filterCardButton, styles.filterCardButtonSecondary]}
                 onPress={() => {
-                  setAdvancedFilters({ assortment: "", color: "", size: "" });
+                  setAdvancedFilters(EMPTY_FILTERS);
                   setAssortmentFilter("");
                   setOpenFilterSelect(null);
                 }}
@@ -2223,6 +2291,13 @@ const styles = StyleSheet.create({
   optionTextSelected: {
     color: "#60A5FA",
     fontWeight: "700",
+  },
+  multiDoneButton: {
+    marginTop: 8,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#0D6EFD",
   },
   filterCardActions: {
     flexDirection: "row",
