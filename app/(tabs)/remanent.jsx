@@ -836,6 +836,8 @@ const Remanent = () => {
     missing: result ? (result.missingCount ?? (result.missingItems || []).reduce((sum, item) => sum + missingOf(item), 0)) : 0,
     excess: result ? (result.excessCount ?? (result.extraItems || []).reduce((sum, item) => sum + excessOf(item), 0)) : 0,
   });
+  const productsLabel = (count) => (count === 1 ? 'produkt' : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'produkty' : 'produktów'));
+  const piecesSummary = (pieces, products) => `${pieces} szt. (${products} ${productsLabel(products)})`;
   const formatHistoryDate = (value) => (value ? new Date(value).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-');
 
   const openHistory = async () => {
@@ -942,7 +944,8 @@ const Remanent = () => {
               code: barcode,
               price: stateItems[0].price,
               expectedCount: expectedCount,
-              actualCount: 0
+              actualCount: 0,
+              missingCount: expectedCount
             });
           } else if (actualCount < expectedCount) {
             // Częściowy brak - zeskanowano mniej niż powinno być
@@ -997,6 +1000,8 @@ const Remanent = () => {
         setComparisonResults({
           currentStateCount: currentState.length,
           remanentCount: filteredRemanentData.length,
+          missingCount: missingItems.reduce((sum, item) => sum + (item.missingCount || 0), 0),
+          excessCount: extraItems.reduce((sum, item) => sum + (item.excessCount || 0), 0),
           missingItems: missingItems,
           extraItems: extraItems
         });
@@ -1208,7 +1213,7 @@ const Remanent = () => {
                 
                 <View style={styles.progressDetails}>
                   <Text style={styles.progressDetailText}>
-                    📦 Produkty: {scanProgress.uniqueScanned}/{scanProgress.totalExpected}
+                    📦 Sztuki: {scanProgress.uniqueScanned}/{scanProgress.totalExpected}
                   </Text>
                   <Text style={styles.progressDetailText}>
                     🔍 Skanowania: {scanProgress.totalScanned}
@@ -1553,7 +1558,7 @@ const Remanent = () => {
 
                 {(historyDetail.session.result.missingItems || []).length > 0 && (
                   <View style={styles.resultSection}>
-                    <Text style={styles.sectionTitle}>❌ Brakuje ({historyDetail.session.result.missingItems.length})</Text>
+                    <Text style={styles.sectionTitle}>❌ Brakuje: {piecesSummary(countsOf(historyDetail.session.result).missing, historyDetail.session.result.missingItems.length)}</Text>
                     {historyDetail.session.result.missingItems.map((item, index) => (
                       <View key={`m-${item.code}-${index}`} style={styles.resultItem}>
                         <View style={styles.resultItemContent}>
@@ -1568,7 +1573,7 @@ const Remanent = () => {
 
                 {(historyDetail.session.result.extraItems || []).length > 0 && (
                   <View style={styles.resultSection}>
-                    <Text style={styles.sectionTitle}>⚠️ Nadwyżka ({historyDetail.session.result.extraItems.length})</Text>
+                    <Text style={styles.sectionTitle}>⚠️ Nadwyżka: {piecesSummary(countsOf(historyDetail.session.result).excess, historyDetail.session.result.extraItems.length)}</Text>
                     {historyDetail.session.result.extraItems.map((item, index) => (
                       <View key={`e-${item.code}-${index}`} style={styles.resultItem}>
                         <View style={styles.resultItemContent}>
@@ -1666,13 +1671,21 @@ const Remanent = () => {
                   <Text style={styles.statNumber}>{comparisonResults.remanentCount || 0}</Text>
                   <Text style={styles.statLabel}>Zeskanowane</Text>
                 </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: '#dc3545' }]}>{countsOf(comparisonResults).missing}</Text>
+                  <Text style={styles.statLabel}>Braki</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: '#ffc107' }]}>{countsOf(comparisonResults).excess}</Text>
+                  <Text style={styles.statLabel}>Nadwyżki</Text>
+                </View>
               </View>
 
               {/* Produkty brakujące */}
               {comparisonResults.missingItems && comparisonResults.missingItems.length > 0 && (
                 <View style={styles.resultSection}>
                   <Text style={styles.sectionTitle}>
-                    ❌ Brakuje ({comparisonResults.missingItems.length})
+                    ❌ Brakuje: {piecesSummary(countsOf(comparisonResults).missing, comparisonResults.missingItems.length)}
                   </Text>
                   <Text style={styles.sectionSubtitle}>Produkty w stanie, ale nie zeskanowane</Text>
                   {comparisonResults.missingItems.map((item, index) => (
@@ -1697,7 +1710,7 @@ const Remanent = () => {
               {comparisonResults.extraItems && comparisonResults.extraItems.length > 0 && (
                 <View style={styles.resultSection}>
                   <Text style={styles.sectionTitle}>
-                    ⚠️ Nadwyżka ({comparisonResults.extraItems.length})
+                    ⚠️ Nadwyżka: {piecesSummary(countsOf(comparisonResults).excess, comparisonResults.extraItems.length)}
                   </Text>
                   <Text style={styles.sectionSubtitle}>Produkty zeskanowane, ale nie ma ich w stanie</Text>
                   {comparisonResults.extraItems.map((item, index) => (
@@ -2578,13 +2591,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     backgroundColor: '#232533',
     borderRadius: 12,
-    padding: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
   },
   statItem: {
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#0d6efd',
   },
