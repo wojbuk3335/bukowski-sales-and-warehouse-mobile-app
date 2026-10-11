@@ -208,20 +208,30 @@ const Remanent = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [advancedFilters.category, advancedFilters.items, goodsList]);
 
-  // Kolory i rozmiary: z kart produktów (w wybranej kategorii) i słownika rozmiarów
+  // Kolory: tylko kolory, w jakich istnieją karty produktów pasujące do WSZYSTKICH wybranych poziomów
+  // (kategoria -> modele/rodzaje -> modele pozostałego asortymentu). Rozmiary ze słownika rozmiarów.
   useEffect(() => {
-    const relevantGoods = goodsList.filter((good) => !advancedFilters.category || good.category === advancedFilters.category);
-    const colorNames = new Set(
+    const relevantGoods = goodsList.filter((good) => {
+      if (advancedFilters.category && good.category !== advancedFilters.category) return false;
+      if (advancedFilters.items.length > 0 && !advancedFilters.items.includes(filterItemOfGood(good))) return false;
+      if (advancedFilters.models.length > 0 && !advancedFilters.models.includes(good.bagProduct)) return false;
+      return true;
+    });
+    const colorNames = [...new Set(
       relevantGoods.map((good) => good.color?.Kol_Opis || colorByKod[String(good.code || "").slice(3, 5)] || "").filter(Boolean)
-    );
-    setAvailableColors([...colorNames].sort((a, b) => a.localeCompare(b, "pl")));
+    )].sort((a, b) => a.localeCompare(b, "pl"));
+    setAvailableColors(colorNames);
+    // wybrany kolor, którego nie ma w zawężonej liście, przestaje obowiązywać
+    if (advancedFilters.color && !colorNames.includes(advancedFilters.color)) {
+      setAdvancedFilters((prev) => ({ ...prev, color: "" }));
+    }
     setAvailableSizes(
       toList(sizes, "sizes")
         .map((size) => size.Roz_Opis)
         .filter((name) => name && !/NIEOKRE/i.test(name))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goodsList, advancedFilters.category, colorByKod, sizes]);
+  }, [goodsList, advancedFilters.category, advancedFilters.items, advancedFilters.models, colorByKod, sizes, stockByKod]);
 
   // Filter remanent data based on advanced filters
   useEffect(() => {
