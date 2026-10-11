@@ -49,6 +49,9 @@ const Remanent = () => {
   const SAME_LABEL_PAUSE_MS = 1500;
   const lastScanRef = useRef({ code: "", time: 0 });
   const scanBusyRef = useRef(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false); // potwierdzenie „Wyczyść wszystko”
+  const [clearingAll, setClearingAll] = useState(false);
+  const [clearResult, setClearResult] = useState(null); // { ok, text } - wynik czyszczenia w oknie aplikacji
   const [scanToast, setScanToast] = useState(null); // { text, kind: 'ok' | 'warn' } - potwierdzenie skanu nad kamerą
   const scanToastTimer = useRef(null);
   const showScanToast = (text, kind = "ok") => {
@@ -691,6 +694,38 @@ const Remanent = () => {
       if (!template) return prev;
       return [...prev, { ...template, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, scannedAt: new Date().toLocaleTimeString() }];
     });
+  };
+
+  // Wyczyść wszystko: usuwa WSZYSTKIE zapisane skany remanentu tego użytkownika na serwerze
+  // (nie tylko te widoczne na liście - lista pokazuje ostatnie zapisy), potem odświeża widok.
+  const clearAllRemanent = async () => {
+    setConfirmClearOpen(false);
+    setClearingAll(true);
+    let deleted = 0;
+    let failed = 0;
+    try {
+      const listResponse = await tokenService.authenticatedFetch(getApiUrl('/remanent?limit=1000'));
+      const listData = listResponse.ok ? await listResponse.json() : { data: [] };
+      const records = Array.isArray(listData?.data) ? listData.data : [];
+      for (const record of records) {
+        try {
+          const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/${record._id}`), { method: 'DELETE' });
+          if (response.ok) deleted++; else failed++;
+        } catch (error) {
+          failed++;
+        }
+      }
+      setRemanentData([]);
+      setScannedJackets([]);
+      await fetchRemanentData();
+      setClearResult(failed === 0
+        ? { ok: true, text: deleted > 0 ? 'Remanent został wyczyszczony. Możesz zacząć liczenie od nowa.' : 'Lista remanentu była już pusta.' }
+        : { ok: false, text: `Nie udało się usunąć części zapisów (${failed}). Odśwież listę i spróbuj ponownie.` });
+    } catch (error) {
+      setClearResult({ ok: false, text: 'Nie udało się wyczyścić remanentu. Sprawdź połączenie i spróbuj ponownie.' });
+    } finally {
+      setClearingAll(false);
+    }
   };
 
   const removeRemanentItem = async (itemId) => {
@@ -1409,15 +1444,64 @@ const Remanent = () => {
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.addButton} onPress={openQRScanner}>
-          <Ionicons name="qr-code" size={24} color="white" />
-          <Text style={styles.addButtonText}>Skanuj kurtki</Text>
+          <Ionicons name="qr-code" size={20} color="white" />
+          <Text style={styles.addButtonText}>Skanuj</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.checkButton} onPress={checkCurrentState}>
-          <Ionicons name="checkmark-circle" size={24} color="white" />
+          <Ionicons name="checkmark-circle" size={20} color="white" />
           <Text style={styles.checkButtonText}>Sprawdź</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.clearAllButton, (clearingAll || remanentData.length === 0) && { opacity: 0.5 }]}
+          onPress={() => setConfirmClearOpen(true)}
+          disabled={clearingAll || remanentData.length === 0}
+        >
+          {clearingAll ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="trash" size={20} color="white" />}
+          <Text style={styles.checkButtonText}>Wyczyść</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Potwierdzenie „Wyczyść wszystko” (w stylu aplikacji) */}
+      <Modal visible={confirmClearOpen} transparent animationType="fade" onRequestClose={() => setConfirmClearOpen(false)}>
+        <View style={styles.filterOverlay}>
+          <View style={styles.filterCard}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <Ionicons name="warning" size={56} color="#F59E0B" />
+            </View>
+            <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Wyczyścić cały remanent?</Text>
+            <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
+              Zostaną usunięte wszystkie zapisane skany ({remanentData.length} szt. na liście). Tej operacji nie da się cofnąć.
+            </Text>
+            <View style={{ gap: 10, marginTop: 8 }}>
+              <TouchableOpacity style={[styles.filterCardButton, { backgroundColor: '#DC2626' }]} onPress={clearAllRemanent}>
+                <Ionicons name="trash" size={18} color="white" />
+                <Text style={styles.filterCardButtonText}>Tak, wyczyść wszystko</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.filterCardButton, styles.filterCardButtonSecondary]} onPress={() => setConfirmClearOpen(false)}>
+                <Text style={styles.filterCardButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Wynik czyszczenia */}
+      <Modal visible={Boolean(clearResult)} transparent animationType="fade" onRequestClose={() => setClearResult(null)}>
+        <View style={styles.filterOverlay}>
+          <View style={styles.filterCard}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <Ionicons name={clearResult?.ok ? 'checkmark-circle' : 'close-circle'} size={56} color={clearResult?.ok ? '#10B981' : '#EF4444'} />
+            </View>
+            <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>{clearResult?.ok ? 'Gotowe' : 'Błąd'}</Text>
+            <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 16 }}>{clearResult?.text}</Text>
+            <TouchableOpacity style={[styles.filterCardButton, styles.filterCardButtonPrimary]} onPress={() => setClearResult(null)}>
+              <Text style={styles.filterCardButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* QR Scanner Modal */}
       <Modal
@@ -1981,18 +2065,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   footer: {
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#232533',
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   addButton: {
     backgroundColor: '#0d6efd',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 12,
     flex: 1,
   },
@@ -2001,21 +2087,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 12,
     flex: 1,
   },
   addButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 6,
+  },
+  clearAllButton: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    flex: 1,
   },
   checkButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   // QR Scanner styles
   scannerHeader: {
