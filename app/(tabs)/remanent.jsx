@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,26 @@ const Remanent = () => {
   const [lastScannedCode, setLastScannedCode] = useState('');
   const [scanningEnabled, setScanningEnabled] = useState(true);
   const [recentlyScannedCodes, setRecentlyScannedCodes] = useState(new Map()); // Map z czasem ostatniego skanu
+  // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
+  // Identyczne sztuki mają ten sam kod, więc kolejne skany tego kodu po przerwie to kolejne sztuki.
+  const SAME_LABEL_PAUSE_MS = 1500;
+  const lastScanRef = useRef({ code: "", time: 0 });
+  const scanBusyRef = useRef(false);
+  const [scanToast, setScanToast] = useState(null); // { text, kind: 'ok' | 'warn' } - potwierdzenie skanu nad kamerą
+  const scanToastTimer = useRef(null);
+  const showScanToast = (text, kind = "ok") => {
+    setScanToast({ text, kind });
+    clearTimeout(scanToastTimer.current);
+    scanToastTimer.current = setTimeout(() => setScanToast(null), 1800);
+  };
+  const scanFeedback = () => {
+    try {
+      const Haptics = require("expo-haptics");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      // bez wibracji (np. Expo Go bez modułu)
+    }
+  };
   
   // Comparison modal states
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false);
@@ -445,14 +465,18 @@ const Remanent = () => {
   };
 
   const handleScan = async ({ data, type }) => {
-    // Sprawdź czy ten sam kod był skanowany w ciągu ostatnich 2 sekund
+    // Ta sama metka odczytana ponownie w krótkim czasie = ten sam odczyt kamery, ignorujemy.
+    // Po przerwie ten sam kod to KOLEJNA SZTUKA (identyczne kurtki mają identyczny kod).
     const now = Date.now();
-    const lastScanTime = recentlyScannedCodes.get(data);
-    
-    if (!scanningEnabled || (lastScanTime && (now - lastScanTime) < 2000)) {
-      // Skanowanie wyłączone LUB ten sam kod w ciągu 2 sekund - ignoruj
+    if (scanBusyRef.current) return;
+    if (lastScanRef.current.code === data && now - lastScanRef.current.time < SAME_LABEL_PAUSE_MS) {
       return;
     }
+    if (!scanningEnabled) {
+      return;
+    }
+    scanBusyRef.current = true;
+    lastScanRef.current = { code: data, time: now };
     
     // Zapisz czas tego skanu
     setRecentlyScannedCodes(prev => {
@@ -478,18 +502,14 @@ const Remanent = () => {
       setLastScannedCode('');
     }, 2000);
     
-    // Check if jacket already scanned in current session
-    const alreadyScanned = scannedJackets.find(jacket => jacket.code === data);
-    if (alreadyScanned) {
-      // Quick re-enable for duplicate (no alert needed)
-      setTimeout(() => {
-        setScanningEnabled(true);
-      }, 800);
-      return;
-    }
 
-    // Get jacket name from barcode
-    const jacketName = await getJacketNameFromBarcode(data);
+    // Get jacket name from barcode (błąd nie może zablokować skanera na stałe)
+    let jacketName = '';
+    try {
+      jacketName = await getJacketNameFromBarcode(data);
+    } catch (error) {
+      jacketName = data;
+    }
 
     // Check if advanced filters are active and if jacket matches them
     const activeFilters = [];
@@ -516,23 +536,27 @@ const Remanent = () => {
       // Re-enable scanning
       setTimeout(() => {
         setScanningEnabled(true);
+        scanBusyRef.current = false;
       }, 800);
       return;
     }
 
-    // Add scanned jacket to list
+    // Każdy skan = jedna sztuka (także kolejne identyczne)
     const newJacket = {
-      id: Date.now(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       code: data,
       name: jacketName,
       scannedAt: new Date().toLocaleTimeString()
     };
-    
+    const pieceNumber = scannedJackets.filter((jacket) => jacket.code === data).length + 1;
     setScannedJackets(prev => [...prev, newJacket]);
-    
+    scanFeedback();
+    showScanToast(`Dodano: ${jacketName || data}${pieceNumber > 1 ? ` (${pieceNumber}. sztuka)` : ""}`);
+
     // Re-enable scanning after short delay
     setTimeout(() => {
       setScanningEnabled(true);
+      scanBusyRef.current = false;
     }, 800);
   };
 
@@ -639,6 +663,34 @@ const Remanent = () => {
 
   const removeScannedJacket = (jacketId) => {
     setScannedJackets(prev => prev.filter(jacket => jacket.id !== jacketId));
+  };
+
+  // Identyczne sztuki (ten sam kod) pokazywane jako jedna pozycja z licznikiem
+  const scannedGroups = React.useMemo(() => {
+    const groups = new Map();
+    scannedJackets.forEach((jacket) => {
+      const group = groups.get(jacket.code) || { code: jacket.code, name: jacket.name, ids: [] };
+      group.ids.push(jacket.id);
+      groups.set(jacket.code, group);
+    });
+    return [...groups.values()].reverse(); // ostatnio skanowane na początku
+  }, [scannedJackets]);
+
+  // −1: cofnięcie ostatniego skanu tego kodu
+  const removeOnePiece = (code) => {
+    setScannedJackets((prev) => {
+      const index = prev.map((jacket) => jacket.code).lastIndexOf(code);
+      return index === -1 ? prev : [...prev.slice(0, index), ...prev.slice(index + 1)];
+    });
+  };
+
+  // +1: dodanie sztuki bez skanowania (np. metka nieczytelna, a produkt ten sam)
+  const addOnePiece = (code) => {
+    setScannedJackets((prev) => {
+      const template = prev.find((jacket) => jacket.code === code);
+      if (!template) return prev;
+      return [...prev, { ...template, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, scannedAt: new Date().toLocaleTimeString() }];
+    });
   };
 
   const removeRemanentItem = async (itemId) => {
@@ -1413,29 +1465,37 @@ const Remanent = () => {
                 </View>
               )}
             </View>
+            {scanToast && (
+              <View style={[styles.scanToast, scanToast.kind === "warn" && styles.scanToastWarn]} pointerEvents="none">
+                <Ionicons name={scanToast.kind === "warn" ? "alert-circle" : "checkmark-circle"} size={20} color="white" />
+                <Text style={styles.scanToastText} numberOfLines={2}>{scanToast.text}</Text>
+              </View>
+            )}
           </View>
 
           {/* Scanned jackets list */}
           {scannedJackets.length > 0 && (
             <View style={styles.scannedListContainer}>
               <Text style={styles.scannedListTitle}>
-                Zeskanowane kurtki ({scannedJackets.length})
+                Zeskanowano: {scannedJackets.length} szt. ({scannedGroups.length} {scannedGroups.length === 1 ? "produkt" : "produktów"})
               </Text>
               <FlatList
-                data={scannedJackets}
+                data={scannedGroups}
                 horizontal
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.code}
                 renderItem={({ item }) => (
                   <View style={styles.scannedJacket}>
-                    <TouchableOpacity
-                      onPress={() => removeScannedJacket(item.id)}
-                      style={styles.removeJacketButton}
-                    >
-                      <Ionicons name="close" size={16} color="white" />
-                    </TouchableOpacity>
                     <Text style={styles.jacketName} numberOfLines={2}>{item.name}</Text>
                     <Text style={styles.jacketCode}>{item.code}</Text>
-                    <Text style={styles.jacketTime}>{item.scannedAt}</Text>
+                    <View style={styles.pieceCounterRow}>
+                      <TouchableOpacity onPress={() => removeOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonMinus]}>
+                        <Ionicons name="remove" size={18} color="white" />
+                      </TouchableOpacity>
+                      <Text style={styles.pieceCount}>×{item.ids.length}</Text>
+                      <TouchableOpacity onPress={() => addOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonPlus]}>
+                        <Ionicons name="add" size={18} color="white" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
                 showsHorizontalScrollIndicator={false}
@@ -2043,7 +2103,54 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#232533',
-    maxHeight: 120,
+    maxHeight: 170,
+  },
+  pieceCounterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  pieceButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pieceButtonMinus: {
+    backgroundColor: '#DC2626',
+  },
+  pieceButtonPlus: {
+    backgroundColor: '#16A34A',
+  },
+  pieceCount: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '700',
+    marginHorizontal: 10,
+  },
+  scanToast: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(22, 163, 74, 0.95)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  scanToastWarn: {
+    backgroundColor: 'rgba(217, 119, 6, 0.95)',
+  },
+  scanToastText: {
+    flex: 1,
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
   },
   scannedListTitle: {
     color: 'white',
