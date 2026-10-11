@@ -57,7 +57,7 @@ const Remanent = () => {
   const showScanToast = (text, kind = "ok") => {
     setScanToast({ text, kind });
     clearTimeout(scanToastTimer.current);
-    scanToastTimer.current = setTimeout(() => setScanToast(null), 1800);
+    scanToastTimer.current = setTimeout(() => setScanToast(null), kind === "warn" ? 4000 : 1800);
   };
   const scanFeedback = () => {
     try {
@@ -103,16 +103,29 @@ const Remanent = () => {
   // Kurtki: Tow_Kod(3) + Kol_Kod(2) + Roz_Kod(3) + ...; reszta: 000 + Kol_Kod(2) + ...
   // ---------------------------------------------------------------------------
   const toList = (value, key) => (Array.isArray(value) ? value : (value?.data || value?.[key] || []));
+  // Słowniki są wspólne dla całej aplikacji i inne ekrany mogą je chwilowo wyzerować (np. przy przekroczeniu
+  // czasu pobierania). Remanent trzyma ostatnią NIEPUSTĄ kopię, żeby filtr nie uznawał nagle skanów za „nieznane”.
+  const lastStocksRef = useRef([]);
+  const lastColorsRef = useRef([]);
+  const lastSizesRef = useRef([]);
+  const stableList = (value, key, ref) => {
+    const list = toList(value, key);
+    if (list.length > 0) ref.current = list;
+    return ref.current;
+  };
   const stockByKod = React.useMemo(
-    () => Object.fromEntries(toList(stocks, "stocks").filter((item) => item?.Tow_Kod).map((item) => [String(item.Tow_Kod), item.Tow_Opis])),
+    () => Object.fromEntries(stableList(stocks, "stocks", lastStocksRef).filter((item) => item?.Tow_Kod).map((item) => [String(item.Tow_Kod), item.Tow_Opis])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [stocks]
   );
   const colorByKod = React.useMemo(
-    () => Object.fromEntries(toList(colors, "colors").filter((item) => item?.Kol_Kod).map((item) => [String(item.Kol_Kod), item.Kol_Opis])),
+    () => Object.fromEntries(stableList(colors, "colors", lastColorsRef).filter((item) => item?.Kol_Kod).map((item) => [String(item.Kol_Kod), item.Kol_Opis])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [colors]
   );
   const sizeByKod = React.useMemo(
-    () => Object.fromEntries(toList(sizes, "sizes").filter((item) => item?.Roz_Kod).map((item) => [String(item.Roz_Kod), item.Roz_Opis])),
+    () => Object.fromEntries(stableList(sizes, "sizes", lastSizesRef).filter((item) => item?.Roz_Kod).map((item) => [String(item.Roz_Kod), item.Roz_Opis])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [sizes]
   );
 
@@ -125,6 +138,15 @@ const Remanent = () => {
   };
   const goodsByCode = React.useMemo(
     () => Object.fromEntries(goodsList.filter((good) => good?.code).map((good) => [String(good.code), good])),
+    [goodsList]
+  );
+  // Kurtki: Tow_Kod + Kol_Kod (5 pierwszych cyfr) -> karta produktu (zapas, gdy słowniki są puste)
+  const jacketGoodsByPrefix = React.useMemo(
+    () => Object.fromEntries(
+      goodsList
+        .filter((good) => good?.category === "Kurtki kożuchy futra" && good?.code)
+        .map((good) => [String(good.code).slice(0, 5), good])
+    ),
     [goodsList]
   );
 
@@ -148,10 +170,11 @@ const Remanent = () => {
     const color = colorByKod[code.slice(3, 5)] || "";
     if (code.slice(0, 3) !== "000") {
       const sizeName = sizeByKod[code.slice(5, 8)] || "";
+      const jacketGood = jacketGoodsByPrefix[code.slice(0, 5)];
       return {
         category: "Kurtki kożuchy futra",
-        item: stockByKod[code.slice(0, 3)] || "",
-        color,
+        item: stockByKod[code.slice(0, 3)] || jacketGood?.stock?.Tow_Opis || "",
+        color: color || jacketGood?.color?.Kol_Opis || "",
         size: /NIEOKRE/i.test(sizeName) ? "" : sizeName,
       };
     }
@@ -529,12 +552,8 @@ const Remanent = () => {
     }
     
     if (shouldBlock) {
-      // Show warning that this jacket doesn't match selected filters
-      Alert.alert(
-        'Niewłaściwy produkt', 
-        `Zeskanowano: ${jacketName || 'Nieznany produkt'}\n\nAktywne filtry:\n${activeFilters.join('\n')}\n\nTa kurtka nie pasuje do wybranych filtrów.`,
-        [{ text: 'OK' }]
-      );
+      // Komunikat nad kamerą (bez blokującego okienka): co zeskanowano i czego nie spełnia
+      showScanToast(`Nie pasuje do filtrów: ${jacketName || data}\n${activeFilters.join("\n")}`, "warn");
       
       // Re-enable scanning
       setTimeout(() => {
@@ -1552,7 +1571,7 @@ const Remanent = () => {
             {scanToast && (
               <View style={[styles.scanToast, scanToast.kind === "warn" && styles.scanToastWarn]} pointerEvents="none">
                 <Ionicons name={scanToast.kind === "warn" ? "alert-circle" : "checkmark-circle"} size={20} color="white" />
-                <Text style={styles.scanToastText} numberOfLines={2}>{scanToast.text}</Text>
+                <Text style={styles.scanToastText} numberOfLines={6}>{scanToast.text}</Text>
               </View>
             )}
           </View>
