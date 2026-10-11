@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Picker } from "@react-native-picker/picker";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na żywo (także z panelu)
@@ -848,24 +847,32 @@ const Cenniki = () => {
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>Wybierz punkt źródłowy</Text>
-            <View style={styles.formGroup}>
-              <View style={styles.exceptionPicker}>
-                <Picker
-                  selectedValue={sourcePointForClone}
-                  onValueChange={(value) => setSourcePointForClone(value)}
-                  dropdownIconColor="#fff"
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Wybierz punkt..." value="" />
-                  {users
-                    .filter((user) => user._id !== selectedSellingPoint && (!pointsWithPriceList || pointsWithPriceList.has(String(user._id))))
-                    .map((user) => (
-                      <Picker.Item key={user._id} label={getSellingPointName(user)} value={user._id} />
-                    ))}
-                </Picker>
-              </View>
-            </View>
+            <Text style={styles.modalSubtitle}>Wybierz punkt, z którego skopiować cennik</Text>
+            <ScrollView style={styles.cloneList}>
+              {users
+                .filter((user) => user._id !== selectedSellingPoint && (!pointsWithPriceList || pointsWithPriceList.has(String(user._id))))
+                .map((user) => {
+                  const isSelected = sourcePointForClone === user._id;
+                  return (
+                    <TouchableOpacity
+                      key={user._id}
+                      style={[styles.cloneItem, isSelected && styles.cloneItemSelected]}
+                      onPress={() => setSourcePointForClone(user._id)}
+                    >
+                      <Ionicons
+                        name={isSelected ? "radio-button-on" : "radio-button-off"}
+                        size={20}
+                        color={isSelected ? "#0D6EFD" : "#64748B"}
+                        style={{ marginRight: 10 }}
+                      />
+                      <Text style={[styles.modalItemText, isSelected && styles.cloneItemTextSelected]}>{getSellingPointName(user)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              {pointsWithPriceList && users.filter((user) => user._id !== selectedSellingPoint && pointsWithPriceList.has(String(user._id))).length === 0 ? (
+                <Text style={styles.modalItemText}>Żaden inny punkt nie ma jeszcze cennika.</Text>
+              ) : null}
+            </ScrollView>
             {priceList.length > 0 ? (
               <Text style={styles.warningText}>To zastąpi aktualny cennik</Text>
             ) : null}
@@ -1264,6 +1271,27 @@ const styles = StyleSheet.create({
   modalItemText: {
     color: "#FFFFFF",
     fontSize: 14,
+  },
+  cloneList: {
+    maxHeight: 320,
+    marginBottom: 12,
+  },
+  cloneItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    marginBottom: 8,
+  },
+  cloneItemSelected: {
+    borderColor: "#0D6EFD",
+    backgroundColor: "rgba(13, 110, 253, 0.12)",
+  },
+  cloneItemTextSelected: {
+    fontWeight: "700",
   },
   formGroup: {
     marginBottom: 12,
