@@ -60,6 +60,8 @@ const Cenniki = () => {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [priceList, setPriceList] = useState([]);
   const [loadingPriceList, setLoadingPriceList] = useState(false);
+  const [priceListError, setPriceListError] = useState(""); // błąd pobrania (sieć/serwer/uprawnienia) - to NIE jest brak cennika
+  const [pointsWithPriceList, setPointsWithPriceList] = useState(null); // id punktów z cennikiem (źródła klonowania)
   const [sizes, setSizes] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,8 +73,6 @@ const Cenniki = () => {
   const [editPrice, setEditPrice] = useState("");
   const [editDiscountPrice, setEditDiscountPrice] = useState("");
   const [editPriceExceptions, setEditPriceExceptions] = useState([]);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const [messageModal, setMessageModal] = useState(null); // { kind: 'success' | 'error', text } - zamiast systemowych okienek
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false); // potwierdzenie usunięcia cennika
   const showMessage = (text, kind = "success") => setMessageModal({ kind, text });
@@ -83,10 +83,7 @@ const Cenniki = () => {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [sourcePointForClone, setSourcePointForClone] = useState("");
 
-  const [showGlobalUpdateModal, setShowGlobalUpdateModal] = useState(false);
-  const [showSyncModal, setShowSyncModal] = useState(false);
   const [comparisonData, setComparisonData] = useState(null);
-  const [loadingComparison, setLoadingComparison] = useState(false);
   const [showOutdatedWarning, setShowOutdatedWarning] = useState(false);
 
   const [selectedPicture, setSelectedPicture] = useState(null);
@@ -133,8 +130,9 @@ const Cenniki = () => {
     if (!picturePath || picturePath.trim() === "") return null;
 
     if (picturePath.startsWith("http://") || picturePath.startsWith("https://")) {
+      // zdjęcie zapisane z innym hostem (localhost, IP z dev) - podmieniamy na aktualny serwer
       const baseUrl = API_CONFIG.BASE_URL.replace("/api", "");
-      return picturePath.replace("http://localhost:3000", baseUrl);
+      return picturePath.replace(/^https?:\/\/[^/]+/, baseUrl);
     }
 
     if (picturePath.startsWith("/")) {
@@ -166,7 +164,8 @@ const Cenniki = () => {
         });
         setUsers(filtered);
         if (filtered.length > 0) {
-          setSelectedSellingPoint(filtered[0]._id);
+          const firstPoint = filtered.find((user) => String(user.role || "").toLowerCase() === "user") || filtered[0];
+          setSelectedSellingPoint(firstPoint._id);
         }
       } else {
         console.error("Failed to fetch users:", response.status);
@@ -195,11 +194,11 @@ const Cenniki = () => {
 
   const requestSeq = useRef(0); // numer ostatniego żądania - odpowiedzi starszych żądań (inny punkt) są ignorowane
 
-  const fetchPriceList = async (sellingPointId) => {
+  const fetchPriceList = async (sellingPointId, { silent = false } = {}) => {
     if (!sellingPointId) return;
     const seq = ++requestSeq.current;
     const isStale = () => seq !== requestSeq.current;
-    setLoadingPriceList(true);
+    if (!silent) setLoadingPriceList(true); // odświeżanie na żywo nie chowa listy i nie przewija jej na górę
     try {
       const url = getApiUrl(`/pricelists/${sellingPointId}`);
       const response = await tokenService.authenticatedFetch(url);
@@ -208,12 +207,17 @@ const Cenniki = () => {
         const data = await response.json();
         if (isStale()) return;
         setPriceList(data.priceList || []);
-      } else {
+        setPriceListError("");
+      } else if (response.status === 404) {
         setPriceList([]);
+        setPriceListError("");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setPriceListError(errorData.message || `Błąd ${response.status}`);
       }
     } catch (error) {
       if (isStale()) return;
-      setPriceList([]);
+      setPriceListError("Brak połączenia z serwerem");
     }
     setLoadingPriceList(false);
 
@@ -222,7 +226,7 @@ const Cenniki = () => {
 
   // Zmiana cennika gdziekolwiek (panel, inny telefon) od razu odświeża widok
   useLiveRefresh(["pricelists", "goods"], () => {
-    if (selectedSellingPoint) fetchPriceList(selectedSellingPoint);
+    if (selectedSellingPoint) fetchPriceList(selectedSellingPoint, { silent: true });
   });
 
   const checkSynchronization = async (sellingPointId, isStale = () => false) => {
@@ -287,8 +291,12 @@ const Cenniki = () => {
       if (response.ok) {
         await fetchPriceList(selectedSellingPoint);
         showMessage("Cennik został utworzony na podstawie produktów");
+      } else if (response.status === 409) {
+        await fetchPriceList(selectedSellingPoint);
+        showMessage("Ten punkt ma już cennik. Odświeżono widok.");
       } else {
-        showMessage("Nie udało się utworzyć cennika", "error");
+        const errorData = await response.json().catch(() => ({}));
+        showMessage(`Nie udało się utworzyć cennika: ${errorData.message || response.status}`, "error");
       }
     } catch (error) {
       showMessage("Nie udało się utworzyć cennika", "error");
@@ -313,7 +321,8 @@ const Cenniki = () => {
         setSourcePointForClone("");
         showMessage("Cennik został sklonowany");
       } else {
-        showMessage("Nie udało się sklonować cennika", "error");
+        const errorData = await response.json().catch(() => ({}));
+        showMessage(`Nie udało się sklonować cennika: ${errorData.message || response.status}`, "error");
       }
     } catch (error) {
       showMessage("Nie udało się sklonować cennika", "error");
@@ -336,6 +345,8 @@ const Cenniki = () => {
       });
       if (response.ok) {
         setPriceList([]);
+        setComparisonData(null);
+        setShowOutdatedWarning(false);
         showMessage("Cennik został usunięty");
       } else {
         showMessage("Nie udało się usunąć cennika", "error");
@@ -373,8 +384,7 @@ const Cenniki = () => {
         setEditPrice("");
         setEditDiscountPrice("");
         setEditPriceExceptions([]);
-        setSuccessMessage("Cena została zaktualizowana");
-        setShowSuccessModal(true);
+        showMessage("Cena została zaktualizowana");
       } else {
         const errorData = await response.json().catch(() => ({}));
         setErrorText(errorData.message || "Nie udało się zaktualizować ceny");
@@ -413,88 +423,20 @@ const Cenniki = () => {
     setEditPriceExceptions((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const openSyncModal = async () => {
-    if (!selectedSellingPoint) return;
-    setLoadingComparison(true);
-    setShowSyncModal(true);
+  // Okno klonowania: lista źródeł tylko z punktów, które mają cennik
+  const openCloneModal = async () => {
+    setSourcePointForClone("");
+    setShowCloneModal(true);
     try {
-      const url = getApiUrl(`/pricelists/${selectedSellingPoint}/compare`);
-      const response = await tokenService.authenticatedFetch(url);
+      const response = await tokenService.authenticatedFetch(getApiUrl("/pricelists/get-all-priceLists"));
       if (response.ok) {
         const data = await response.json();
-        setComparisonData(data);
+        setPointsWithPriceList(new Set((data.priceLists || []).map((list) => String(list.sellingPointId))));
       } else {
-        setComparisonData(null);
+        setPointsWithPriceList(null);
       }
     } catch (error) {
-      setComparisonData(null);
-    }
-    setLoadingComparison(false);
-  };
-
-  const synchronizePriceList = async (updateOutdated = true, addNew = true, removeDeleted = false) => {
-    if (!selectedSellingPoint) return;
-    try {
-      const url = getApiUrl(`/pricelists/${selectedSellingPoint}/sync`);
-      const response = await tokenService.authenticatedFetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updateOutdated, addNew, removeDeleted }),
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setPriceList(result.priceList || []);
-        setShowSyncModal(false);
-        setShowOutdatedWarning(false);
-        showMessage("Synchronizacja zakończona");
-      } else {
-        showMessage("Nie udało się zsynchronizować cennika", "error");
-      }
-    } catch (error) {
-      showMessage("Nie udało się zsynchronizować cennika", "error");
-    }
-  };
-
-  const synchronizeAllPriceLists = async (updateOutdated = true, addNew = true, removeDeleted = false) => {
-    try {
-      const url = getApiUrl("/pricelists/sync-all");
-      const response = await tokenService.authenticatedFetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updateOutdated, addNew, removeDeleted }),
-      });
-      if (response.ok) {
-        setShowSyncModal(false);
-        setShowOutdatedWarning(false);
-        if (selectedSellingPoint) {
-          await fetchPriceList(selectedSellingPoint);
-        }
-        showMessage("Globalna synchronizacja zakończona");
-      } else {
-        showMessage("Nie udało się zsynchronizować cenników", "error");
-      }
-    } catch (error) {
-      showMessage("Nie udało się zsynchronizować cenników", "error");
-    }
-  };
-
-  const addNewProductsToAll = async () => {
-    try {
-      const url = getApiUrl("/pricelists/add-new-to-all");
-      const response = await tokenService.authenticatedFetch(url, {
-        method: "POST",
-      });
-      if (response.ok) {
-        setShowGlobalUpdateModal(false);
-        if (selectedSellingPoint) {
-          await fetchPriceList(selectedSellingPoint);
-        }
-        showMessage("Globalna aktualizacja zakończona");
-      } else {
-        showMessage("Nie udało się zaktualizować cenników", "error");
-      }
-    } catch (error) {
-      showMessage("Nie udało się zaktualizować cenników", "error");
+      setPointsWithPriceList(null);
     }
   };
 
@@ -621,16 +563,29 @@ const Cenniki = () => {
 
           {selectedUser && (
             <View style={styles.actionsContainer}>
-              {priceList.length === 0 && !loadingPriceList && (
-                <TouchableOpacity style={[styles.primaryAction, styles.actionButton]} onPress={createInitialPriceList}>
-                  <Ionicons name="add-circle" size={18} color="#fff" style={styles.buttonIcon} />
-                  <Text style={styles.actionText}>Utwórz cennik</Text>
+              {priceListError && !loadingPriceList && (
+                <TouchableOpacity style={[styles.dangerAction, styles.actionButton]} onPress={() => fetchPriceList(selectedSellingPoint)}>
+                  <Ionicons name="refresh" size={18} color="#fff" style={styles.buttonIcon} />
+                  <Text style={styles.actionText}>Błąd: {priceListError}. Spróbuj ponownie</Text>
                 </TouchableOpacity>
               )}
 
-              {priceList.length > 0 && (
+              {!priceListError && priceList.length === 0 && !loadingPriceList && (
                 <>
-                  <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={() => setShowCloneModal(true)}>
+                  <TouchableOpacity style={[styles.primaryAction, styles.actionButton]} onPress={createInitialPriceList}>
+                    <Ionicons name="add-circle" size={18} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.actionText}>Utwórz cennik</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={openCloneModal}>
+                    <Ionicons name="copy" size={18} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.actionText}>Sklonuj</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {!priceListError && priceList.length > 0 && (
+                <>
+                  <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={openCloneModal}>
                     <Ionicons name="copy" size={18} color="#fff" style={styles.buttonIcon} />
                     <Text style={styles.actionText}>Sklonuj</Text>
                   </TouchableOpacity>
@@ -678,9 +633,11 @@ const Cenniki = () => {
             <View style={styles.emptyContainer}>
               <Ionicons name="pricetag-outline" size={64} color="#475569" />
               <Text style={styles.emptyText}>
-                {priceList.length === 0
-                  ? "Brak cennika dla tego punktu"
-                  : "Brak wyników"}
+                {priceListError
+                  ? "Nie udało się pobrać cennika"
+                  : priceList.length === 0
+                    ? "Brak cennika dla tego punktu"
+                    : "Brak wyników"}
               </Text>
             </View>
           ) : (
@@ -850,6 +807,7 @@ const Cenniki = () => {
             <FlatList
               data={sizes.filter((size) =>
                 size.Roz_Opis?.toLowerCase().includes(sizeSearch.toLowerCase())
+                && !editPriceExceptions.some((other, otherIndex) => otherIndex !== activeExceptionIndex && other.size === size._id)
               )}
               keyExtractor={(item) => item._id}
               contentContainerStyle={{ paddingBottom: 20 }}
@@ -901,14 +859,16 @@ const Cenniki = () => {
                 >
                   <Picker.Item label="Wybierz punkt..." value="" />
                   {users
-                    .filter((user) => user._id !== selectedSellingPoint)
+                    .filter((user) => user._id !== selectedSellingPoint && (!pointsWithPriceList || pointsWithPriceList.has(String(user._id))))
                     .map((user) => (
                       <Picker.Item key={user._id} label={getSellingPointName(user)} value={user._id} />
                     ))}
                 </Picker>
               </View>
             </View>
-            <Text style={styles.warningText}>To zastąpi aktualny cennik</Text>
+            {priceList.length > 0 ? (
+              <Text style={styles.warningText}>To zastąpi aktualny cennik</Text>
+            ) : null}
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.primaryAction, styles.actionButton, !sourcePointForClone && styles.disabledAction]}
@@ -919,110 +879,6 @@ const Cenniki = () => {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={() => setShowCloneModal(false)}>
                 <Text style={styles.actionText}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showGlobalUpdateModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowGlobalUpdateModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Globalna aktualizacja</Text>
-              <TouchableOpacity onPress={() => setShowGlobalUpdateModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSubtitle}>Dodaj nowe produkty do wszystkich cenników</Text>
-            <Text style={styles.modalNote}>
-              Operacja zachowa ręcznie zmienione ceny oraz promocje.
-            </Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.warningAction, styles.actionButton]} onPress={addNewProductsToAll}>
-                <Text style={styles.actionText}>Aktualizuj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={() => setShowGlobalUpdateModal(false)}>
-                <Text style={styles.actionText}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showSyncModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowSyncModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentLarge}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Synchronizacja cennika</Text>
-              <TouchableOpacity onPress={() => setShowSyncModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            {loadingComparison ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#0D6EFD" />
-                <Text style={styles.loadingText}>Porównywanie danych...</Text>
-              </View>
-            ) : comparisonData ? (
-              <ScrollView>
-                <View style={styles.syncSummary}>
-                  <Text style={styles.syncTitle}>Podsumowanie zmian</Text>
-                  <Text style={styles.syncItem}>Aktualizacje: {comparisonData.summary.outdatedCount}</Text>
-                  <Text style={styles.syncItem}>Nowe: {comparisonData.summary.newCount}</Text>
-                  <Text style={styles.syncItem}>Usunięte: {comparisonData.summary.removedCount}</Text>
-                </View>
-
-                {comparisonData.changes?.outdatedItems?.length > 0 && (
-                  <View style={styles.syncSection}>
-                    <Text style={styles.syncSectionTitle}>Produkty do aktualizacji</Text>
-                    {comparisonData.changes.outdatedItems.slice(0, 5).map((item, index) => (
-                      <Text key={`${index}`} style={styles.syncRowText}>{item.priceListItem.fullName}</Text>
-                    ))}
-                    {comparisonData.changes.outdatedItems.length > 5 && (
-                      <Text style={styles.syncRowHint}>...i {comparisonData.changes.outdatedItems.length - 5} więcej</Text>
-                    )}
-                  </View>
-                )}
-
-                {comparisonData.changes?.newItems?.length > 0 && (
-                  <View style={styles.syncSection}>
-                    <Text style={styles.syncSectionTitle}>Nowe produkty</Text>
-                    {comparisonData.changes.newItems.slice(0, 5).map((item, index) => (
-                      <Text key={`${index}`} style={styles.syncRowText}>{item.fullName}</Text>
-                    ))}
-                    {comparisonData.changes.newItems.length > 5 && (
-                      <Text style={styles.syncRowHint}>...i {comparisonData.changes.newItems.length - 5} więcej</Text>
-                    )}
-                  </View>
-                )}
-              </ScrollView>
-            ) : (
-              <Text style={styles.emptyText}>Nie udało się pobrać danych porównania</Text>
-            )}
-            <View style={styles.modalActions}>
-              {comparisonData?.summary?.totalChanges > 0 && (
-                <>
-                  <TouchableOpacity style={[styles.primaryAction, styles.actionButton]} onPress={() => synchronizePriceList(true, true, false)}>
-                    <Text style={styles.actionText}>Aktualizuj i dodaj nowe</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.warningAction, styles.actionButton]} onPress={() => synchronizePriceList(true, false, false)}>
-                    <Text style={styles.actionText}>Tylko aktualizuj</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-              <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={() => setShowSyncModal(false)}>
-                <Text style={styles.actionText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1103,28 +959,6 @@ const Cenniki = () => {
         </View>
       </Modal>
 
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
-      >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
-            </View>
-            <Text style={styles.successTitle}>Sukces!</Text>
-            <Text style={styles.successMessage}>{successMessage}</Text>
-            <TouchableOpacity
-              style={styles.successButton}
-              onPress={() => setShowSuccessModal(false)}
-            >
-              <Text style={styles.successButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
