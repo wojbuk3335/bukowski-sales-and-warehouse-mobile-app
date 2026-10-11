@@ -980,6 +980,8 @@ const WarehouseMobile = () => {
         (pli.fullName && pli.fullName === fullNameStr) ||
         (pli.originalGoodId && item.fullName?._id && pli.originalGoodId === item.fullName._id.toString())
       );
+      // 0 zł w cenniku = brak ceny w cenniku punktu: liczy się karta produktu (jak etykiety z serwera)
+      if (priceListItem && !(Number(priceListItem.price) > 0)) priceListItem = null;
       
       // Cena wyświetlana = AKTUALNY cennik punktu (jak etykiety); cena ze stanu tylko gdy cennik nie ma produktu lub ma 0 zł
       const hasStoredPrice = !(Number(priceListItem?.price) > 0) && Number(item.price) > 0;
@@ -996,7 +998,7 @@ const WarehouseMobile = () => {
         good.fullName === fullNameStr
       );
 
-      if (goodsItem && !(Number(item.price) > 0)) {
+      if (goodsItem) { // bez ceny w cenniku punktu: aktualna karta produktu (jak etykiety z serwera)
         displayPrice = goodsItem.price !== undefined ? goodsItem.price : displayPrice;
         displayDiscountPrice = goodsItem.discount_price !== undefined ? goodsItem.discount_price : displayDiscountPrice;
         displayPriceExceptions = goodsItem.priceExceptions !== undefined ? goodsItem.priceExceptions : displayPriceExceptions;

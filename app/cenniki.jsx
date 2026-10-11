@@ -20,6 +20,32 @@ import tokenService from "../services/tokenService";
 import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na żywo (także z panelu)
 import { API_CONFIG, getApiUrl } from "../config/api";
 
+// Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
+// Zwraca komunikat błędu albo null.
+const validatePriceListPrice = ({ price, discountPrice, priceExceptions }) => {
+    const priceNumber = Number(price);
+    if (price === '' || price === null || price === undefined || !Number.isFinite(priceNumber) || priceNumber <= 0) {
+        return 'Cena musi być większa od 0 zł.';
+    }
+    const discountNumber = discountPrice === '' || discountPrice === null || discountPrice === undefined ? 0 : Number(discountPrice);
+    if (!Number.isFinite(discountNumber) || discountNumber < 0) {
+        return 'Cena promocyjna nie może być ujemna (0 = brak promocji).';
+    }
+    if (discountNumber > 0 && discountNumber >= priceNumber) {
+        return 'Cena promocyjna musi być niższa od ceny.';
+    }
+    const seenSizes = new Set();
+    for (const exception of priceExceptions || []) {
+        const sizeKey = String((exception && exception.size && (exception.size._id || exception.size)) || '');
+        if (!sizeKey) return 'Każdy wyjątek cenowy musi mieć wybrany rozmiar.';
+        const valueNumber = Number(exception.value);
+        if (!Number.isFinite(valueNumber) || valueNumber <= 0) return 'Cena w wyjątku dla rozmiaru musi być większa od 0 zł.';
+        if (seenSizes.has(sizeKey)) return 'Ten sam rozmiar nie może mieć dwóch wyjątków cenowych.';
+        seenSizes.add(sizeKey);
+    }
+    return null;
+};
+
 const Cenniki = () => {
   const insets = useSafeAreaInsets();
   const [users, setUsers] = useState([]);
@@ -33,6 +59,7 @@ const Cenniki = () => {
   const [showSellingPointModal, setShowSellingPointModal] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [errorText, setErrorText] = useState(""); // błąd walidacji ceny w oknie edycji
   const [editingItem, setEditingItem] = useState(null);
   const [editPrice, setEditPrice] = useState("");
   const [editDiscountPrice, setEditDiscountPrice] = useState("");
@@ -285,6 +312,12 @@ const Cenniki = () => {
 
   const updatePrice = async () => {
     if (!editingItem || !selectedSellingPoint) return;
+    const validationError = validatePriceListPrice({ price: editPrice, discountPrice: editDiscountPrice, priceExceptions: editPriceExceptions });
+    if (validationError) {
+      setErrorText(validationError);
+      return;
+    }
+    setErrorText("");
     try {
       const url = getApiUrl(`/pricelists/${selectedSellingPoint}/update`);
       const response = await tokenService.authenticatedFetch(url, {
@@ -308,10 +341,11 @@ const Cenniki = () => {
         setSuccessMessage("Cena została zaktualizowana");
         setShowSuccessModal(true);
       } else {
-        Alert.alert("Błąd", "Nie udało się zaktualizować ceny");
+        const errorData = await response.json().catch(() => ({}));
+        setErrorText(errorData.message || "Nie udało się zaktualizować ceny");
       }
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się zaktualizować ceny");
+      setErrorText("Nie udało się zaktualizować ceny");
     }
   };
 
@@ -747,6 +781,9 @@ const Cenniki = () => {
                 </View>
               )}
             </ScrollView>
+            {errorText ? (
+              <Text style={{ color: "#F87171", fontWeight: "600", marginBottom: 10, textAlign: "center" }}>{errorText}</Text>
+            ) : null}
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.primaryAction, styles.actionButton]} onPress={updatePrice}>
                 <Text style={styles.actionText}>Zapisz</Text>
