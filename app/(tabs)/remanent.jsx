@@ -44,15 +44,11 @@ const Remanent = () => {
   // QR Scanner states
   const [scannerVisible, setScannerVisible] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
   const [scannedJackets, setScannedJackets] = useState([]);
   const [facing, setFacing] = useState('back');
   
   // Price list state for remanent
-  const [remanentPriceList, setRemanentPriceList] = useState(null);
-  const [lastScannedCode, setLastScannedCode] = useState('');
   const [scanningEnabled, setScanningEnabled] = useState(true);
-  const [recentlyScannedCodes, setRecentlyScannedCodes] = useState(new Map()); // Map z czasem ostatniego skanu
   // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
   // Identyczne sztuki mają ten sam kod, więc kolejne skany tego kodu po przerwie to kolejne sztuki.
   const SAME_LABEL_PAUSE_MS = 1500;
@@ -94,7 +90,8 @@ const Remanent = () => {
   const [comparisonResults, setComparisonResults] = useState(null);
 
   // Assortment filter states
-  const [assortmentFilter, setAssortmentFilter] = useState(''); // Filtr asortymentu
+  // Stan punktu (sztuki na stanie) - pobierany raz przy wejściu/odświeżeniu/zatwierdzeniu, nie przy każdej zmianie listy
+  const [pointState, setPointState] = useState([]);
   const [filteredRemanentData, setFilteredRemanentData] = useState([]); // Przefiltrowane dane
 
   // Advanced filter modal states
@@ -334,101 +331,67 @@ const Remanent = () => {
 
     setFilteredRemanentData(filtered);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remanentData, assortmentFilter, advancedFilters, stockByKod, colorByKod, sizeByKod, goodsByCode]);
+  }, [remanentData, advancedFilters, stockByKod, colorByKod, sizeByKod, goodsByCode]);
 
-  // Calculate scan progress based on current state and scanned items
+  // Postęp liczony lokalnie ze stanu punktu i skanów (bez zapytań do serwera przy każdej zmianie)
   useEffect(() => {
-    const calculateProgress = async () => {
-      try {
-        // Get current state to know what should be scanned
-        const response = await tokenService.authenticatedFetch(getApiUrl('/state'));
-        if (response.ok) {
-          const allStateData = await response.json();
-          let expectedItems = allStateData.filter(item => item.symbol === user?.symbol);
-          
-          // Te same filtry co na liście i przy porównaniu (po kodzie kreskowym)
-          expectedItems = expectedItems.filter(item => matchesFilters(item.barcode));
-
-          // Grupuj zeskanowane produkty według kodu i policz ilości
-          const scannedByBarcode = {};
-          filteredRemanentData.forEach(item => {
-            const code = item.code;
-            if (!scannedByBarcode[code]) {
-              scannedByBarcode[code] = 0;
-            }
-            scannedByBarcode[code]++;
-          });
-          
-          // Grupuj oczekiwane produkty według kodu i policz ilości
-          const expectedByBarcode = {};
-          expectedItems.forEach(item => {
-            const code = item.barcode;
-            if (!expectedByBarcode[code]) {
-              expectedByBarcode[code] = 0;
-            }
-            expectedByBarcode[code]++;
-          });
-          
-          // Policz ile produktów zostało w pełni zeskanowanych (min z expected i scanned dla każdego kodu)
-          let fullyScannedCount = 0;
-          Object.keys(expectedByBarcode).forEach(barcode => {
-            const expectedCount = expectedByBarcode[barcode];
-            const scannedCount = scannedByBarcode[barcode] || 0;
-            fullyScannedCount += Math.min(expectedCount, scannedCount);
-          });
-          
-          const totalExpected = expectedItems.length;
-          const totalScanned = filteredRemanentData.length;
-          const percentage = totalExpected > 0 ? Math.round((fullyScannedCount / totalExpected) * 100) : 0;
-          
-          setScanProgress({
-            totalExpected,
-            totalScanned,
-            uniqueScanned: fullyScannedCount, // Zmieniono nazwę ale to teraz ilość w pełni zeskanowanych
-            percentage
-          });
-        }
-      } catch (error) {
-        // Silent error handling
-      }
-    };
-
-    if (user?.symbol) {
-      calculateProgress();
-    }
-  }, [filteredRemanentData, advancedFilters, assortmentFilter, user?.symbol]);
+    const expectedByBarcode = {};
+    pointState.filter((item) => matchesFilters(item.barcode)).forEach((item) => {
+      expectedByBarcode[item.barcode] = (expectedByBarcode[item.barcode] || 0) + 1;
+    });
+    const scannedByBarcode = {};
+    filteredRemanentData.forEach((item) => {
+      scannedByBarcode[item.code] = (scannedByBarcode[item.code] || 0) + 1;
+    });
+    let fullyScannedCount = 0;
+    Object.keys(expectedByBarcode).forEach((barcode) => {
+      fullyScannedCount += Math.min(expectedByBarcode[barcode], scannedByBarcode[barcode] || 0);
+    });
+    const totalExpected = Object.values(expectedByBarcode).reduce((sum, count) => sum + count, 0);
+    setScanProgress({
+      totalExpected,
+      totalScanned: filteredRemanentData.length,
+      uniqueScanned: fullyScannedCount,
+      percentage: totalExpected > 0 ? Math.round((fullyScannedCount / totalExpected) * 100) : 0
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pointState, filteredRemanentData, advancedFilters]);
 
   // Czas liczony od rozpoczęcia remanentu (sesji punktu)
   useEffect(() => {
     setScanStartTime(session?.startedAt ? new Date(session.startedAt) : null);
   }, [session?.startedAt]);
 
-  // Timer for real-time updates
+  // Czas trwania remanentu odświeżany co 30 s (dawniej cały ekran przerysowywał się co sekundę)
+  const [, setElapsedTick] = useState(0);
   useEffect(() => {
-    let interval;
-    if (scanStartTime) {
-      interval = setInterval(() => {
-        // Force re-render to update timer display
-        setScanProgress(prev => ({ ...prev }));
-      }, 1000);
-    }
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
+    if (!scanStartTime) return undefined;
+    const interval = setInterval(() => setElapsedTick((tick) => tick + 1), 30000);
+    return () => clearInterval(interval);
   }, [scanStartTime]);
 
-  // Format elapsed time
   const formatElapsedTime = () => {
-    if (!scanStartTime) return '00:00';
-    const elapsed = new Date() - scanStartTime;
-    const minutes = Math.floor(elapsed / 60000);
-    const seconds = Math.floor((elapsed % 60000) / 1000);
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    if (!scanStartTime) return '-';
+    const minutes = Math.max(0, Math.floor((Date.now() - scanStartTime.getTime()) / 60000));
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
   };
 
   // Fetch remanent data
+  // Stan TYLKO tego punktu (dawniej: cały stan wszystkich punktów przy każdej zmianie listy)
+  const fetchPointState = async () => {
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/current-state'));
+      if (!response.ok) return null;
+      const data = await response.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+      setPointState(list);
+      return list;
+    } catch (error) {
+      return null;
+    }
+  };
+
   // Skan z sesji -> pozycja listy (ten sam kształt co dawniej, żeby reszta ekranu działała bez zmian)
   const toRemanentItem = (item, sessionId) => ({
     id: item._id,
@@ -446,6 +409,7 @@ const Remanent = () => {
   const fetchRemanentData = async () => {
     try {
       setLoading(true);
+      fetchPointState();
       const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/session/current'));
       if (response.ok) {
         const data = await response.json();
@@ -516,30 +480,6 @@ const Remanent = () => {
     }
   };
 
-  // Fetch remanent price list
-  const fetchRemanentPriceList = async () => {
-    try {
-      // Skip if logout in progress
-      if (tokenService.isLoggingOut) {
-        return;
-      }
-      
-      const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/pricelist'));
-      
-      if (response.ok) {
-        const data = await response.json();
-        setRemanentPriceList(data);
-      } else {
-        Logger.error('❌ Błąd pobierania cennika remanent:', response.status);
-      }
-    } catch (error) {
-      // Ignore logout errors
-      if (!error.message?.includes('logout in progress')) {
-        Logger.error('❌ Error fetching remanent price list:', error);
-      }
-    }
-  };
-
   // Refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
@@ -559,8 +499,6 @@ const Remanent = () => {
     
     setScannedJackets([]);
     setScannerVisible(true);
-    setScanned(false);
-    setLastScannedCode('');
     setScanningEnabled(true);
   };
 
@@ -578,29 +516,9 @@ const Remanent = () => {
     scanBusyRef.current = true;
     lastScanRef.current = { code: data, time: now };
     
-    // Zapisz czas tego skanu
-    setRecentlyScannedCodes(prev => {
-      const newMap = new Map(prev);
-      newMap.set(data, now);
-      
-      // Wyczyść stare wpisy (starsze niż 5 sekund)
-      for (const [code, time] of newMap.entries()) {
-        if (now - time > 5000) {
-          newMap.delete(code);
-        }
-      }
-      
-      return newMap;
-    });
 
     // Disable scanning temporarily
     setScanningEnabled(false);
-    setLastScannedCode(data);
-    
-    // Clear lastScannedCode after 2 seconds to allow scanning the same jacket again later
-    setTimeout(() => {
-      setLastScannedCode('');
-    }, 2000);
     
 
     // Get jacket name from barcode (błąd nie może zablokować skanera na stałe)
@@ -733,19 +651,13 @@ const Remanent = () => {
 
     try {
       // Prepare data for API
-      const remanentItemsForAPI = scannedJackets.map(jacket => {
-        const price = getPriceFromProductName(jacket.name);
-        
-        return {
-          name: jacket.name,
-          code: jacket.code,
-          quantity: 1,
-          value: parseFloat(price) || 0,
-          location: user?.location || user?.symbol || 'Nieznana lokalizacja',
-          scannedAt: new Date().toISOString(),
-          scannedBy: user?.name || user?.username || 'Nieznany użytkownik'
-        };
-      });
+      // Autora (scannedBy) i punkt ustawia serwer z tokenu; ceny w remanencie nie są używane
+      const remanentItemsForAPI = scannedJackets.map(jacket => ({
+        name: jacket.name,
+        code: jacket.code,
+        quantity: 1,
+        scannedAt: new Date().toISOString()
+      }));
 
       // Zapis do sesji punktu; bez sesji najpierw ją rozpoczynamy
       const activeSession = session || await startSession();
@@ -767,7 +679,6 @@ const Remanent = () => {
       }
       setRemanentData(prev => [...prev, ...(data.added || []).map((item) => toRemanentItem(item, activeSession._id))]);
       setScannedJackets([]);
-      setLastScannedCode('');
       setScanningEnabled(true);
       showScanToast(`Zapisano ${remanentItemsForAPI.length} szt.`);
     } catch (error) {
@@ -778,9 +689,6 @@ const Remanent = () => {
     }
   };
 
-  const removeScannedJacket = (jacketId) => {
-    setScannedJackets(prev => prev.filter(jacket => jacket.id !== jacketId));
-  };
 
   // Identyczne sztuki (ten sam kod) pokazywane jako jedna pozycja z licznikiem
   const scannedGroups = React.useMemo(() => {
@@ -893,8 +801,6 @@ const Remanent = () => {
     setQuantityEdit(null);
     scanBusyRef.current = false;
     setScannedJackets([]);
-    setScanned(false);
-    setLastScannedCode('');
     setScanningEnabled(true);
   };
 
@@ -911,14 +817,10 @@ const Remanent = () => {
     try {
       // NIE resetuj wysłanych korekt - pozostaw je zapamiętane
       
-      // Pobierz stan magazynowy z endpointu /state
-      const response = await tokenService.authenticatedFetch(getApiUrl('/state'));
-      
-      if (response.ok) {
-        const allStateData = await response.json();
-        
-        // Filtruj produkty dla aktualnego użytkownika
-        let currentState = allStateData.filter(item => item.symbol === user?.symbol);
+      // Świeży stan punktu (jedno zapytanie, tylko ten punkt)
+      const freshState = await fetchPointState();
+      if (freshState) {
+        let currentState = freshState;
         
         // Te same filtry co na liście (po kodzie kreskowym: asortyment, kolor, rozmiar)
         currentState = currentState.filter(item => matchesFilters(item.barcode));
@@ -1027,7 +929,7 @@ const Remanent = () => {
         setComparisonModalVisible(true);
         
       } else {
-        Logger.error('❌ Failed to fetch current state:', response.status);
+        Logger.error('❌ Failed to fetch current state');
         setClearResult({ ok: false, text: 'Nie udało się pobrać stanu punktu. Sprawdź połączenie i spróbuj ponownie.' });
       }
     } catch (error) {
@@ -1039,7 +941,6 @@ const Remanent = () => {
 
   useEffect(() => {
     fetchRemanentData();
-    fetchRemanentPriceList();
     
     // Ensure lookup data is loaded
     const loadLookupData = async () => {
@@ -1100,41 +1001,6 @@ const Remanent = () => {
     if (!/^\d{13}$/.test(String(code || "").trim())) return false; // nasze metki to zawsze EAN-13
     if (goodsList.length === 0 && Object.keys(stockByKod).length === 0) return true;
     return !String(resolvedName || "").startsWith("Nieznany kod");
-  };
-
-  // Price functions similar to cudzych.jsx
-  const getPriceFromRemanentList = (productName) => {
-    if (remanentPriceList && remanentPriceList.items && Array.isArray(remanentPriceList.items)) {
-      // First try exact match
-      let priceItem = remanentPriceList.items.find(item => 
-        item.fullName === productName
-      );
-      
-      // If no exact match, try without size (remove last word)
-      if (!priceItem && productName.includes(' ')) {
-        const words = productName.split(' ');
-        if (words.length > 2) {
-          // Try removing last word (size)
-          const nameWithoutSize = words.slice(0, -1).join(' ');
-          priceItem = remanentPriceList.items.find(item => 
-            item.fullName === nameWithoutSize
-          );
-        }
-      }
-      
-      if (priceItem) {
-        return priceItem.price.toString();
-      }
-    }
-    return "0.00";
-  };
-
-  // Helper function to get price from product name
-  const getPriceFromProductName = (productName) => {
-    if (!productName) {
-      return "0.00";
-    }
-    return getPriceFromRemanentList(productName);
   };
 
   // Render individual remanent item
@@ -1961,7 +1827,6 @@ const Remanent = () => {
                 style={[styles.filterCardButton, styles.filterCardButtonSecondary]}
                 onPress={() => {
                   setAdvancedFilters(EMPTY_FILTERS);
-                  setAssortmentFilter("");
                   setOpenFilterSelect(null);
                 }}
               >
@@ -2050,12 +1915,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  itemName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    flex: 1,
-  },
   itemCode: {
     fontSize: 14,
     color: '#CDCDE0',
@@ -2071,9 +1930,6 @@ const styles = StyleSheet.create({
     height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  itemDetails: {
-    marginBottom: 16,
   },
   detailRow: {
     flexDirection: 'row',
@@ -2349,9 +2205,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#232533',
-  },
-  closeButton: {
-    padding: 8,
   },
   scannerTitle: {
     color: 'white',
