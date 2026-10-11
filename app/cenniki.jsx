@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -21,12 +21,20 @@ import { API_CONFIG, getApiUrl } from "../config/api";
 
 // Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
 // Zwraca komunikat błędu albo null.
+// Liczba z pola ceny: akceptuje przecinek jako separator dziesiętny ("199,99"), puste = NaN
+const toPriceNumber = (value) => {
+    if (value === null || value === undefined) return NaN;
+    const text = String(value).trim().replace(',', '.');
+    return text === '' ? NaN : Number(text);
+};
+
 const validatePriceListPrice = ({ price, discountPrice, priceExceptions }) => {
-    const priceNumber = Number(price);
-    if (price === '' || price === null || price === undefined || !Number.isFinite(priceNumber) || priceNumber <= 0) {
+    const priceNumber = toPriceNumber(price);
+    if (!Number.isFinite(priceNumber) || priceNumber <= 0) {
         return 'Cena musi być większa od 0 zł.';
     }
-    const discountNumber = discountPrice === '' || discountPrice === null || discountPrice === undefined ? 0 : Number(discountPrice);
+    const discountText = discountPrice === null || discountPrice === undefined ? '' : String(discountPrice).trim();
+    const discountNumber = discountText === '' ? 0 : toPriceNumber(discountText);
     if (!Number.isFinite(discountNumber) || discountNumber < 0) {
         return 'Cena promocyjna nie może być ujemna (0 = brak promocji).';
     }
@@ -37,7 +45,7 @@ const validatePriceListPrice = ({ price, discountPrice, priceExceptions }) => {
     for (const exception of priceExceptions || []) {
         const sizeKey = String((exception && exception.size && (exception.size._id || exception.size)) || '');
         if (!sizeKey) return 'Każdy wyjątek cenowy musi mieć wybrany rozmiar.';
-        const valueNumber = Number(exception.value);
+        const valueNumber = toPriceNumber(exception.value);
         if (!Number.isFinite(valueNumber) || valueNumber <= 0) return 'Cena w wyjątku dla rozmiaru musi być większa od 0 zł.';
         if (seenSizes.has(sizeKey)) return 'Ten sam rozmiar nie może mieć dwóch wyjątków cenowych.';
         seenSizes.add(sizeKey);
@@ -185,26 +193,31 @@ const Cenniki = () => {
     }
   };
 
+  const requestSeq = useRef(0); // numer ostatniego żądania - odpowiedzi starszych żądań (inny punkt) są ignorowane
+
   const fetchPriceList = async (sellingPointId) => {
     if (!sellingPointId) return;
+    const seq = ++requestSeq.current;
+    const isStale = () => seq !== requestSeq.current;
     setLoadingPriceList(true);
     try {
       const url = getApiUrl(`/pricelists/${sellingPointId}`);
       const response = await tokenService.authenticatedFetch(url);
+      if (isStale()) return;
       if (response.ok) {
         const data = await response.json();
+        if (isStale()) return;
         setPriceList(data.priceList || []);
-      } else if (response.status === 404) {
-        setPriceList([]);
       } else {
         setPriceList([]);
       }
     } catch (error) {
+      if (isStale()) return;
       setPriceList([]);
     }
     setLoadingPriceList(false);
 
-    await checkSynchronization(sellingPointId);
+    await checkSynchronization(sellingPointId, isStale);
   };
 
   // Zmiana cennika gdziekolwiek (panel, inny telefon) od razu odświeża widok
@@ -212,25 +225,53 @@ const Cenniki = () => {
     if (selectedSellingPoint) fetchPriceList(selectedSellingPoint);
   });
 
-  const checkSynchronization = async (sellingPointId) => {
+  const checkSynchronization = async (sellingPointId, isStale = () => false) => {
     try {
       const url = getApiUrl(`/pricelists/${sellingPointId}/compare`);
       const response = await tokenService.authenticatedFetch(url);
+      if (isStale()) return;
       if (response.ok) {
         const data = await response.json();
+        if (isStale()) return;
         setComparisonData(data);
         if (data.summary.totalChanges > 0) {
           setShowOutdatedWarning(true);
         } else {
           setShowOutdatedWarning(false);
         }
-      } else if (response.status === 404) {
+      } else {
         setComparisonData(null);
         setShowOutdatedWarning(false);
       }
     } catch (error) {
+      if (isStale()) return;
       setComparisonData(null);
       setShowOutdatedWarning(false);
+    }
+  };
+
+  // Aktualizacja cennika BIEŻĄCEGO punktu: nazwy/kody z kart, nowe produkty, usunięcie skasowanych z kart.
+  // Ceny ustawione w cenniku zostają.
+  const synchronizeCurrentPriceList = async () => {
+    if (!selectedSellingPoint) return;
+    try {
+      const url = getApiUrl(`/pricelists/${selectedSellingPoint}/sync`);
+      const response = await tokenService.authenticatedFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updateOutdated: true, addNew: true, removeDeleted: true, updatePrices: false }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showMessage(`Nie udało się zaktualizować cennika: ${result.message || result.error || response.status}`, "error");
+        return;
+      }
+      setShowOutdatedWarning(false);
+      await fetchPriceList(selectedSellingPoint);
+      const summary = result.summary || {};
+      showMessage(`Cennik zaktualizowany.\nZmienione: ${summary.updatedCount || 0}, dodane: ${summary.addedCount || 0}, usunięte: ${summary.removedCount || 0}.\nCeny ustawione w cenniku zostały bez zmian.`);
+    } catch (error) {
+      showMessage("Nie udało się zaktualizować cennika", "error");
     }
   };
 
@@ -319,9 +360,9 @@ const Cenniki = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: editingItem._id,
-          price: parseFloat(editPrice) || 0,
-          discountPrice: parseFloat(editDiscountPrice) || 0,
-          priceExceptions: editPriceExceptions,
+          price: toPriceNumber(editPrice),
+          discountPrice: String(editDiscountPrice ?? "").trim() === "" ? 0 : toPriceNumber(editDiscountPrice),
+          priceExceptions: editPriceExceptions.map((exception) => ({ size: exception.size, value: toPriceNumber(exception.value) })),
         }),
       });
 
@@ -346,32 +387,26 @@ const Cenniki = () => {
   const handleEdit = (item) => {
     setEditingItem(item);
     setEditPrice(item.price?.toString() || "");
-    setEditDiscountPrice(item.discountPrice?.toString() || "");
+    setEditDiscountPrice(item.discountPrice > 0 ? String(item.discountPrice) : "");
+    setErrorText("");
 
-    if (item.priceExceptions && item.priceExceptions.length > 0) {
-      const validExceptions = item.priceExceptions
-        .map((exception) => {
-          const size = sizes.find((s) => s._id === exception.size?._id);
-          if (!size) return null;
-          return { size: size._id, value: exception.value };
-        })
-        .filter(Boolean);
-      setEditPriceExceptions(validExceptions);
-    } else {
-      setEditPriceExceptions([]);
-    }
+    // Wszystkie istniejące wyjątki trafiają do formularza (nie filtrujemy po liście rozmiarów -
+    // gdyby rozmiary jeszcze się nie wczytały, zapis skasowałby wyjątki). Kwota jako tekst do edycji.
+    setEditPriceExceptions((item.priceExceptions || []).map((exception) => ({
+      size: String(exception.size?._id || exception.size || ""),
+      sizeLabel: exception.size?.Roz_Opis || "",
+      value: exception.value === null || exception.value === undefined ? "" : String(exception.value),
+    })));
 
     setShowEditModal(true);
   };
 
   const handlePriceExceptionChange = (index, field, value) => {
-    const updated = [...editPriceExceptions];
-    updated[index][field] = value;
-    setEditPriceExceptions(updated);
+    setEditPriceExceptions((prev) => prev.map((exception, i) => (i === index ? { ...exception, [field]: value } : exception)));
   };
 
   const handleAddPriceException = () => {
-    setEditPriceExceptions((prev) => [...prev, { size: "", value: 0 }]);
+    setEditPriceExceptions((prev) => [...prev, { size: "", value: "" }]);
   };
 
   const handleRemovePriceException = (index) => {
@@ -579,7 +614,7 @@ const Cenniki = () => {
             <View style={styles.warningBanner}>
               <Text style={styles.warningTitle}>Cennik wymaga aktualizacji</Text>
               <Text style={styles.warningText}>
-                Zmiany: {comparisonData.summary.outdatedCount} zaktualizowanych, {comparisonData.summary.newCount} nowych, {comparisonData.summary.removedCount} usuniętych
+                Do aktualizacji: {comparisonData.summary.outdatedCount} zmienionych, {comparisonData.summary.newCount} nowych, {comparisonData.summary.removedCount} usuniętych z kart. Ceny w cenniku zostaną bez zmian.
               </Text>
             </View>
           )}
@@ -603,10 +638,10 @@ const Cenniki = () => {
                   {showOutdatedWarning && (
                     <TouchableOpacity
                       style={[styles.primaryAction, styles.actionButton]}
-                      onPress={() => synchronizeAllPriceLists(true, true, false)}
+                      onPress={synchronizeCurrentPriceList}
                     >
                       <Ionicons name="flash" size={18} color="#fff" style={styles.buttonIcon} />
-                      <Text style={styles.actionText}>Aktualizuj wszędzie</Text>
+                      <Text style={styles.actionText}>Zaktualizuj cennik</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={[styles.dangerAction, styles.actionButton]} onPress={deletePriceList}>
@@ -712,7 +747,7 @@ const Cenniki = () => {
                 <Text style={styles.formLabel}>Cena</Text>
                 <TextInput
                   style={styles.formInput}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   value={editPrice}
                   onChangeText={setEditPrice}
                   placeholder="Wprowadź cenę"
@@ -723,7 +758,7 @@ const Cenniki = () => {
                 <Text style={styles.formLabel}>Cena promocyjna</Text>
                 <TextInput
                   style={styles.formInput}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   value={editDiscountPrice}
                   onChangeText={setEditDiscountPrice}
                   placeholder="Wprowadź cenę promocyjną"
@@ -731,7 +766,7 @@ const Cenniki = () => {
                 />
               </View>
 
-              {editingItem?.category === "Kurtki kożuchy futra" && (
+              {(!["Torebki", "Portfele", "Pozostały asortyment"].includes(editingItem?.category) || editPriceExceptions.length > 0) && (
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Wyjątki cenowe</Text>
                   {editPriceExceptions.map((exception, index) => (
@@ -745,18 +780,16 @@ const Cenniki = () => {
                           }}
                         >
                           <Text style={styles.exceptionSelectText}>
-                            {sizes.find((size) => size._id === exception.size)?.Roz_Opis || "Wybierz rozmiar"}
+                            {sizes.find((size) => size._id === exception.size)?.Roz_Opis || exception.sizeLabel || "Wybierz rozmiar"}
                           </Text>
                           <Ionicons name="chevron-down" size={16} color="#94A3B8" />
                         </TouchableOpacity>
                       </View>
                       <TextInput
                         style={styles.exceptionInput}
-                        keyboardType="numeric"
-                        value={String(exception.value)}
-                        onChangeText={(value) =>
-                          handlePriceExceptionChange(index, "value", parseFloat(value) || 0)
-                        }
+                        keyboardType="decimal-pad"
+                        value={String(exception.value ?? "")}
+                        onChangeText={(value) => handlePriceExceptionChange(index, "value", value)}
                         placeholder="Cena"
                         placeholderTextColor="#64748B"
                       />
