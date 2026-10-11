@@ -57,6 +57,7 @@ const Remanent = () => {
   const scanBusyRef = useRef(false);
   // Ponowny skan kodu, który jest już policzony: pytamy, czy to ta sama metka, czy kolejna sztuka
   const [duplicatePrompt, setDuplicatePrompt] = useState(null); // { code, name, count }
+  const lastAcceptedCodeRef = useRef(''); // kod ostatnio dodanej sztuki (pytamy tylko przy skanie POD RZĄD)
   // Wpisanie ilości jedną liczbą (czapki, paski: skan jednej sztuki + ilość z wieszaka)
   const [quantityEdit, setQuantityEdit] = useState(null); // { code, name, value }
   const [confirmClearOpen, setConfirmClearOpen] = useState(false); // potwierdzenie „Wyczyść wszystko”
@@ -630,12 +631,12 @@ const Remanent = () => {
       return;
     }
 
-    // Kod już policzony (w skanerze albo zapisany w tym remanencie): nie dodajemy automatycznie,
-    // pytamy, bo identyczne sztuki zdarzają się rzadko, a podwójny skan tej samej metki często
+    // Ten sam kod co POPRZEDNI skan (pod rząd): pytamy, czy to ta sama metka.
+    // Ten sam kod po innych skanach przechodzi normalnie jako kolejna sztuka.
     const alreadyCounted =
       scannedJackets.filter((jacket) => jacket.code === data).length +
       remanentData.filter((item) => item.code === data).length;
-    if (alreadyCounted > 0) {
+    if (alreadyCounted > 0 && lastAcceptedCodeRef.current === data) {
       scanFeedback();
       setDuplicatePrompt({ code: data, name: jacketName || data, count: alreadyCounted });
       return; // skanowanie wznawia się po wyborze w okienku
@@ -653,6 +654,7 @@ const Remanent = () => {
 
   // Dodaje jedną sztukę do listy skanera
   const addScannedPiece = (code, name, alreadyCounted = 0) => {
+    lastAcceptedCodeRef.current = code;
     setScannedJackets(prev => [...prev, {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       code,
