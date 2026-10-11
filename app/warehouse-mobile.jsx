@@ -58,6 +58,7 @@ const WarehouseMobile = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [priceList, setPriceList] = useState([]); // State for dedykowany cennik
+  const [priceListsBySymbol, setPriceListsBySymbol] = useState({}); // tryb „Wszystkie stany”: cennik każdego punktu
   const [editingItem, setEditingItem] = useState(null); // State for edit modal
   const [editFullName, setEditFullName] = useState("");
   const [editDate, setEditDate] = useState(new Date());
@@ -349,6 +350,30 @@ const WarehouseMobile = () => {
       }
       
       setPriceList(fetchedPriceList || []);
+
+      // Tryb „Wszystkie stany”: każda sztuka wyceniana cennikiem punktu, w którym leży
+      if (isAllStatesMode) {
+        const lists = {};
+        try {
+          const usersResponse = await tokenService.authenticatedFetch(getApiUrl("/user"));
+          const usersData = await usersResponse.json();
+          const points = (usersData?.users || []).filter((u) => u.symbol && String(u.symbol).toUpperCase() !== "MAGAZYN");
+          await Promise.all(points.map(async (u) => {
+            try {
+              const plResponse = await tokenService.authenticatedFetch(getApiUrl(`/pricelists/${u._id}`));
+              if (plResponse.ok) {
+                const plData = await plResponse.json();
+                lists[u.symbol] = plData?.priceList || [];
+              }
+            } catch (plError) {
+              // punkt bez cennika
+            }
+          }));
+        } catch (usersError) {
+          // bez cenników punktów - zostaje cena ze stanu
+        }
+        setPriceListsBySymbol(lists);
+      }
       
       // Step 3: Fetch state data - NO price transformation here
       // renderTableRow will handle all price lookup and display
@@ -899,8 +924,10 @@ const WarehouseMobile = () => {
       ? item.fullName
       : (item.fullName?.fullName || safeString(item.fullName));
 
-    if (priceList && priceList.length > 0 && item.fullName) {
-      priceListItem = priceList.find(pli =>
+    const itemSymbol = typeof item.symbol === "string" ? item.symbol : item.sellingPoint?.symbol;
+    const rowPriceList = isAllStatesMode ? (priceListsBySymbol[itemSymbol] || []) : priceList;
+    if (rowPriceList && rowPriceList.length > 0 && item.fullName) {
+      priceListItem = rowPriceList.find(pli =>
         (pli.fullName && pli.fullName === fullNameStr) ||
         (pli.originalGoodId && item.fullName?._id && pli.originalGoodId === item.fullName._id.toString())
       );
