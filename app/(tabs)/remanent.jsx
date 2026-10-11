@@ -1213,8 +1213,8 @@ const Remanent = () => {
   // Render individual remanent item
   const renderRemanentItem = ({ item }) => (
     <View style={styles.remanentItem}>
-      <View style={styles.itemHeader}>
-        <Text style={styles.itemName}>{item.name || 'Produkt'}</Text>
+      <View style={[styles.itemHeader, { marginBottom: 0 }]}>
+        <Text style={[styles.itemName, { flex: 1, marginRight: 8 }]}>{item.name || 'Produkt'}</Text>
         <View style={styles.itemHeaderRight}>
           <Text style={styles.itemCode}>{item.code || 'N/A'}</Text>
           <TouchableOpacity
@@ -1223,18 +1223,6 @@ const Remanent = () => {
           >
             <Ionicons name="close" size={18} color="white" />
           </TouchableOpacity>
-        </View>
-      </View>
-      
-      <View style={styles.itemDetails}>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Cena:</Text>
-          <Text style={styles.detailValue}>{item.value || '0.00'} PLN</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Punkt sprzedaży:</Text>
-          <Text style={styles.detailValue}>{user?.sellingPoint || user?.location || user?.symbol || 'Nieznany punkt'}</Text>
         </View>
       </View>
     </View>
