@@ -55,6 +55,10 @@ const Remanent = () => {
   const SAME_LABEL_PAUSE_MS = 1500;
   const lastScanRef = useRef({ code: "", time: 0 });
   const scanBusyRef = useRef(false);
+  // Ponowny skan kodu, który jest już policzony: pytamy, czy to ta sama metka, czy kolejna sztuka
+  const [duplicatePrompt, setDuplicatePrompt] = useState(null); // { code, name, count }
+  // Wpisanie ilości jedną liczbą (czapki, paski: skan jednej sztuki + ilość z wieszaka)
+  const [quantityEdit, setQuantityEdit] = useState(null); // { code, name, value }
   const [confirmClearOpen, setConfirmClearOpen] = useState(false); // potwierdzenie „Wyczyść wszystko”
   const [clearingAll, setClearingAll] = useState(false);
   const [clearResult, setClearResult] = useState(null); // { ok, text } - wynik czyszczenia w oknie aplikacji
@@ -626,23 +630,77 @@ const Remanent = () => {
       return;
     }
 
-    // Każdy skan = jedna sztuka (także kolejne identyczne)
-    const newJacket = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      code: data,
-      name: jacketName,
-      scannedAt: new Date().toLocaleTimeString()
-    };
-    const pieceNumber = scannedJackets.filter((jacket) => jacket.code === data).length + 1;
-    setScannedJackets(prev => [...prev, newJacket]);
+    // Kod już policzony (w skanerze albo zapisany w tym remanencie): nie dodajemy automatycznie,
+    // pytamy, bo identyczne sztuki zdarzają się rzadko, a podwójny skan tej samej metki często
+    const alreadyCounted =
+      scannedJackets.filter((jacket) => jacket.code === data).length +
+      remanentData.filter((item) => item.code === data).length;
+    if (alreadyCounted > 0) {
+      scanFeedback();
+      setDuplicatePrompt({ code: data, name: jacketName || data, count: alreadyCounted });
+      return; // skanowanie wznawia się po wyborze w okienku
+    }
+
+    addScannedPiece(data, jacketName, alreadyCounted);
     scanFeedback();
-    showScanToast(`Dodano: ${jacketName || data}${pieceNumber > 1 ? ` (${pieceNumber}. sztuka)` : ""}`);
 
     // Re-enable scanning after short delay
     setTimeout(() => {
       setScanningEnabled(true);
       scanBusyRef.current = false;
     }, 800);
+  };
+
+  // Dodaje jedną sztukę do listy skanera
+  const addScannedPiece = (code, name, alreadyCounted = 0) => {
+    setScannedJackets(prev => [...prev, {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      code,
+      name,
+      scannedAt: new Date().toLocaleTimeString()
+    }]);
+    const pieceNumber = alreadyCounted + 1;
+    showScanToast(`Dodano: ${name || code}${pieceNumber > 1 ? ` (${pieceNumber}. sztuka)` : ""}`);
+  };
+
+  // Wybór w okienku powtórnego skanu
+  const resolveDuplicate = (addAnother) => {
+    const prompt = duplicatePrompt;
+    setDuplicatePrompt(null);
+    if (prompt && addAnother) {
+      addScannedPiece(prompt.code, prompt.name, prompt.count);
+    } else if (prompt) {
+      showScanToast(`Pominięto - ta metka jest już policzona (${prompt.count} szt.)`, "warn");
+    }
+    // ten sam kod jeszcze przez chwilę ignorujemy (kamera wciąż widzi metkę)
+    lastScanRef.current = { code: prompt?.code || "", time: Date.now() };
+    setTimeout(() => {
+      setScanningEnabled(true);
+      scanBusyRef.current = false;
+    }, 800);
+  };
+
+  // Ustawia łączną liczbę sztuk danego kodu w skanerze (np. 12 czapek z wieszaka)
+  const applyQuantity = () => {
+    const edit = quantityEdit;
+    setQuantityEdit(null);
+    if (!edit) return;
+    const target = Math.max(0, Math.min(999, parseInt(String(edit.value).replace(/[^0-9]/g, ""), 10) || 0));
+    setScannedJackets((prev) => {
+      const same = prev.filter((jacket) => jacket.code === edit.code);
+      if (same.length === target) return prev;
+      if (target < same.length) {
+        const keepIds = new Set(same.slice(0, target).map((jacket) => jacket.id));
+        return prev.filter((jacket) => jacket.code !== edit.code || keepIds.has(jacket.id));
+      }
+      const template = same[0] || { code: edit.code, name: edit.name };
+      const extra = Array.from({ length: target - same.length }, (_, index) => ({
+        ...template,
+        id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        scannedAt: new Date().toLocaleTimeString()
+      }));
+      return [...prev, ...extra];
+    });
   };
 
   const savingScansRef = useRef(false);
@@ -771,6 +829,9 @@ const Remanent = () => {
 
   const cancelScanning = () => {
     setScannerVisible(false);
+    setDuplicatePrompt(null);
+    setQuantityEdit(null);
+    scanBusyRef.current = false;
     setScannedJackets([]);
     setScanned(false);
     setLastScannedCode('');
@@ -1606,7 +1667,9 @@ const Remanent = () => {
                       <TouchableOpacity onPress={() => removeOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonMinus]}>
                         <Ionicons name="remove" size={18} color="white" />
                       </TouchableOpacity>
-                      <Text style={styles.pieceCount}>×{item.ids.length}</Text>
+                      <TouchableOpacity onPress={() => setQuantityEdit({ code: item.code, name: item.name, value: String(item.ids.length) })}>
+                        <Text style={[styles.pieceCount, styles.pieceCountEditable]}>×{item.ids.length}</Text>
+                      </TouchableOpacity>
                       <TouchableOpacity onPress={() => addOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonPlus]}>
                         <Ionicons name="add" size={18} color="white" />
                       </TouchableOpacity>
@@ -1615,6 +1678,58 @@ const Remanent = () => {
                 )}
                 showsHorizontalScrollIndicator={false}
               />
+            </View>
+          )}
+
+          {duplicatePrompt && (
+            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+              <View style={styles.filterCard}>
+                <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                  <Ionicons name="copy-outline" size={48} color="#F59E0B" />
+                </View>
+                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ten kod jest już policzony</Text>
+                <Text style={{ color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{duplicatePrompt.name}</Text>
+                <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 14 }}>
+                  Policzono już {duplicatePrompt.count} szt. Czy to ta sama metka, czy kolejna, identyczna sztuka?
+                </Text>
+                <View style={{ gap: 10 }}>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => resolveDuplicate(false)}>
+                    <Ionicons name="close" size={18} color="white" />
+                    <Text style={styles.filterCardButtonText}>Ta sama metka - pomiń</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={() => resolveDuplicate(true)}>
+                    <Ionicons name="add" size={18} color="white" />
+                    <Text style={styles.filterCardButtonText}>Kolejna sztuka - dodaj</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {quantityEdit && (
+            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+              <View style={styles.filterCard}>
+                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ile sztuk łącznie?</Text>
+                <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 12 }}>{quantityEdit.name}</Text>
+                <TextInput
+                  style={styles.quantityInput}
+                  value={quantityEdit.value}
+                  onChangeText={(text) => setQuantityEdit((prev) => ({ ...prev, value: text.replace(/[^0-9]/g, '').slice(0, 3) }))}
+                  keyboardType="number-pad"
+                  autoFocus
+                  selectTextOnFocus
+                  onSubmitEditing={applyQuantity}
+                />
+                <View style={{ gap: 10, marginTop: 14 }}>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={applyQuantity}>
+                    <Ionicons name="checkmark" size={18} color="white" />
+                    <Text style={styles.filterCardButtonText}>Ustaw ilość</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setQuantityEdit(null)}>
+                    <Text style={styles.filterCardButtonText}>Anuluj</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           )}
 
@@ -2132,6 +2247,20 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '500',
+  },
+  pieceCountEditable: {
+    textDecorationLine: 'underline',
+  },
+  quantityInput: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    paddingVertical: 10,
   },
   sessionBar: {
     flexDirection: 'row',
