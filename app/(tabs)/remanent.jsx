@@ -1609,19 +1609,24 @@ const Remanent = () => {
         visible={comparisonModalVisible}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setComparisonModalVisible(false)}
       >
         <SafeAreaView style={[styles.modalContainer]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              Porównanie Remanent vs Stan
-              {hasActiveFilters && ` - ${activeFilterLabels.join(' · ')}`}
-            </Text>
+          {/* Nagłówek jak w innych ekranach: powrót po lewej, krótki tytuł, filtry w drugiej linii */}
+          <View style={styles.comparisonHeader}>
             <TouchableOpacity
               onPress={() => setComparisonModalVisible(false)}
-              style={styles.closeButton}
+              style={styles.comparisonBackButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={24} color="white" />
+              <Ionicons name="arrow-back" size={24} color="white" />
             </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.comparisonTitle} numberOfLines={1}>Remanent vs stan</Text>
+              {hasActiveFilters ? (
+                <Text style={styles.comparisonSubtitle} numberOfLines={2}>Filtry: {activeFilterLabels.join(' · ')}</Text>
+              ) : null}
+            </View>
           </View>
 
           {comparisonResults ? (
@@ -2311,6 +2316,33 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   // Styles for comparison modal
+  comparisonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#232533',
+  },
+  comparisonBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+  },
+  comparisonTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  comparisonSubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: '#000000',
