@@ -18,6 +18,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import tokenService from "../services/tokenService";
+import useLiveRefresh from "../services/useLiveRefresh"; // zmiany produktów na żywo (także z panelu)
 import { getApiUrl, API_CONFIG } from "../config/api";
 
 const ProductsList = () => {
@@ -281,9 +282,12 @@ const ProductsList = () => {
     }
   };
 
-  const fetchProducts = async () => {
+  // Zmiana produktu gdziekolwiek (panel, inny telefon) od razu odświeża listę produktów
+  useLiveRefresh(["goods"], () => fetchProducts({ silent: true }));
+
+  const fetchProducts = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true); // odświeżanie na żywo nie chowa listy
       const url = getApiUrl("/excel/goods/get-all-goods");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -298,7 +302,7 @@ const ProductsList = () => {
       }
     } catch (error) {
       console.error("Error fetching products:", error);
-      Alert.alert("Błąd", "Nie udało się pobrać listy produktów");
+      if (!silent) Alert.alert("Błąd", "Nie udało się pobrać listy produktów");
     } finally {
       setLoading(false);
     }
