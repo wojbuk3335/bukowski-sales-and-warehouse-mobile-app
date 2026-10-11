@@ -193,7 +193,7 @@ const WarehouseMobile = () => {
   }, [isLoggedIn, isStatesMode, isAllStatesMode, targetSymbol, targetUserRole, targetUserId]);
 
   // Zmiana cennika lub produktów gdziekolwiek (panel, inny telefon) od razu odświeża ten ekran
-  useLiveRefresh(["pricelists", "goods"], () => fetchTableData(), { enabled: Boolean(isLoggedIn && isFocused) });
+  useLiveRefresh(["pricelists", "goods", "states"], () => fetchTableData(), { enabled: Boolean(isLoggedIn && isFocused) });
 
   // Ensure data loads on screen focus for both magazyn and stany
   useEffect(() => {
@@ -402,8 +402,12 @@ const WarehouseMobile = () => {
             })
           : data;
         
-        // Sort by createdAt descending (newest first)
+        // Najnowsza sztuka na górze: kolejność dodania (czas zapisany w identyfikatorze MongoDB), potem data
+        const idOf = (row) => String(row.id || row._id || "");
         const sortedData = [...filteredData].sort((a, b) => {
+          const idA = idOf(a);
+          const idB = idOf(b);
+          if (idA && idB && idA !== idB) return idB.localeCompare(idA);
           const dateA = new Date(a.createdAt || a.date || 0);
           const dateB = new Date(b.createdAt || b.date || 0);
           return dateB - dateA;
