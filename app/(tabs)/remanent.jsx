@@ -1938,12 +1938,12 @@ const Remanent = () => {
                       </Text>
                       <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
                     </TouchableOpacity>
-                    {isOpen && field.options.length > 8 && (
+                    {isOpen && field.key !== "category" && (
                       <View style={styles.selectSearchBox}>
                         <Ionicons name="search" size={16} color="#94A3B8" />
                         <TextInput
                           style={styles.selectSearchInput}
-                          placeholder={`Szukaj: ${field.title.split(' ')[0].toLowerCase()}`}
+                          placeholder={`Szukaj: ${({ items: 'model, rodzaj', models: 'model', colors: 'kolor', sizes: 'rozmiar' })[field.key] || field.title.split(' ')[0].toLowerCase()}`}
                           placeholderTextColor="#64748B"
                           value={selectSearch[field.key] || ""}
                           onChangeText={(text) => setSelectSearch((prev) => ({ ...prev, [field.key]: text }))}
