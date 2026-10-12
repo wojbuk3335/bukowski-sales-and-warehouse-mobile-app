@@ -57,6 +57,12 @@ const Remanent = () => {
   // Ponowny skan kodu, który jest już policzony: pytamy, czy to ta sama metka, czy kolejna sztuka
   const [duplicatePrompt, setDuplicatePrompt] = useState(null); // { code, name, count }
   const lastAcceptedCodeRef = useRef(''); // kod ostatnio dodanej sztuki (pytamy tylko przy skanie POD RZĄD)
+  // Ręczne dodawanie, gdy kamera nie odczyta metki (deszcz, mróz, zniszczona metka)
+  const [manualCodeOpen, setManualCodeOpen] = useState(false);
+  const [manualCode, setManualCode] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerGood, setPickerGood] = useState(null); // kurtka czekająca na wybór rozmiaru
   // Wpisanie ilości jedną liczbą (czapki, paski: skan jednej sztuki + ilość z wieszaka)
   const [quantityEdit, setQuantityEdit] = useState(null); // { code, name, value }
   const [confirmClearOpen, setConfirmClearOpen] = useState(false); // potwierdzenie „Wyczyść wszystko”
@@ -200,6 +206,13 @@ const Remanent = () => {
   };
 
   // { category, item, color, size } dla kodu kreskowego sztuki
+  // Cyfra kontrolna EAN-13 (ostatnia cyfra metki) - chroni ręcznie wpisany kod przed literówką
+  const ean13Checksum = (digits12) => {
+    const sum = String(digits12).split("").reduce((acc, digit, index) => acc + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
+    return String((10 - (sum % 10)) % 10);
+  };
+  const isValidEan13 = (code) => /^\d{13}$/.test(code) && ean13Checksum(code.slice(0, 12)) === code[12];
+
   const describeBarcode = (barcode) => {
     const code = String(barcode || "").trim();
     if (!/^\d{13}$/.test(code)) return { category: "", item: "", color: "", size: "" };
@@ -399,6 +412,7 @@ const Remanent = () => {
     name: item.name,
     code: item.code,
     quantity: 1,
+    manual: Boolean(item.manual),
     value: item.value || 0,
     location: user?.symbol,
     scannedAt: item.scannedAt,
@@ -515,12 +529,15 @@ const Remanent = () => {
     }
     scanBusyRef.current = true;
     lastScanRef.current = { code: data, time: now };
-    
 
     // Disable scanning temporarily
     setScanningEnabled(false);
-    
+    await processCode(data, false);
+  };
 
+  // Wspólna ścieżka dla skanu i kodu dodanego ręcznie: nazwa, obcy kod, filtry, powtórka pod rząd, dodanie.
+  // Wywołujący ustawia scanBusyRef = true; ta funkcja zwalnia blokadę po zakończeniu.
+  const processCode = async (data, manual) => {
     // Get jacket name from barcode (błąd nie może zablokować skanera na stałe)
     let jacketName = '';
     try {
@@ -575,11 +592,11 @@ const Remanent = () => {
       remanentData.filter((item) => item.code === data).length;
     if (alreadyCounted > 0 && lastAcceptedCodeRef.current === data) {
       scanFeedback("warn");
-      setDuplicatePrompt({ code: data, name: jacketName || data, count: alreadyCounted });
+      setDuplicatePrompt({ code: data, name: jacketName || data, count: alreadyCounted, manual });
       return; // skanowanie wznawia się po wyborze w okienku
     }
 
-    addScannedPiece(data, jacketName, alreadyCounted);
+    addScannedPiece(data, jacketName, alreadyCounted, manual);
     scanFeedback();
 
     // Re-enable scanning after short delay
@@ -590,16 +607,70 @@ const Remanent = () => {
   };
 
   // Dodaje jedną sztukę do listy skanera
-  const addScannedPiece = (code, name, alreadyCounted = 0) => {
+  const addScannedPiece = (code, name, alreadyCounted = 0, manual = false) => {
     lastAcceptedCodeRef.current = code;
     setScannedJackets(prev => [...prev, {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       code,
       name,
+      manual,
       scannedAt: new Date().toLocaleTimeString()
     }]);
     const pieceNumber = alreadyCounted + 1;
-    showScanToast(`Dodano: ${name || code}${pieceNumber > 1 ? ` (${pieceNumber}. sztuka)` : ""}`);
+    showScanToast(`${manual ? "Dodano ręcznie" : "Dodano"}: ${name || code}${pieceNumber > 1 ? ` (${pieceNumber}. sztuka)` : ""}`);
+  };
+
+  // „Wpisz kod”: 13 cyfr z metki wpisane z klawiatury, sprawdzane cyfrą kontrolną
+  const manualCodeValid = isValidEan13(manualCode);
+  const manualCodePreview = manualCodeValid ? getProductNameFromBarcode(manualCode) : "";
+  const submitManualCode = async () => {
+    if (!manualCodeValid || scanBusyRef.current) return;
+    const code = manualCode;
+    setManualCodeOpen(false);
+    setManualCode('');
+    scanBusyRef.current = true;
+    setScanningEnabled(false);
+    lastScanRef.current = { code, time: Date.now() };
+    await processCode(code, true);
+  };
+
+  // „Z bazy”: produkt z kart produktów (cała baza, nie tylko stan punktu); kurtka wymaga wyboru rozmiaru
+  const pickerResults = React.useMemo(() => {
+    const query = pickerSearch.trim().toLowerCase();
+    const words = query.split(/\s+/).filter(Boolean);
+    return goodsList
+      .filter((good) => good?.fullName && good?.code)
+      .filter((good) => words.every((word) => `${good.fullName} ${good.category || ""}`.toLowerCase().includes(word)))
+      .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), "pl"))
+      .slice(0, 60);
+  }, [goodsList, pickerSearch]);
+  const pickerSizes = React.useMemo(
+    () => stableList(sizes, "sizes", lastSizesRef)
+      .filter((size) => size?.Roz_Kod && size?.Roz_Opis && !/NIEOKRE/i.test(size.Roz_Opis))
+      .sort((a, b) => compareSizes(a.Roz_Opis, b.Roz_Opis)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sizes]
+  );
+  const addFromPicker = async (code) => {
+    if (scanBusyRef.current) return;
+    setPickerOpen(false);
+    setPickerGood(null);
+    setPickerSearch('');
+    scanBusyRef.current = true;
+    setScanningEnabled(false);
+    lastScanRef.current = { code, time: Date.now() };
+    await processCode(code, true);
+  };
+  const choosePickerGood = (good) => {
+    if (good.category === "Kurtki kożuchy futra") {
+      setPickerGood(good); // kod kurtki = model+kolor z karty + rozmiar + 0000 + cyfra kontrolna
+      return;
+    }
+    addFromPicker(String(good.code));
+  };
+  const choosePickerSize = (size) => {
+    const base = `${String(pickerGood.code).slice(0, 5)}${String(size.Roz_Kod).padStart(3, "0")}0000`;
+    addFromPicker(`${base}${ean13Checksum(base)}`);
   };
 
   // Wybór w okienku powtórnego skanu
@@ -607,7 +678,7 @@ const Remanent = () => {
     const prompt = duplicatePrompt;
     setDuplicatePrompt(null);
     if (prompt && addAnother) {
-      addScannedPiece(prompt.code, prompt.name, prompt.count);
+      addScannedPiece(prompt.code, prompt.name, prompt.count, Boolean(prompt.manual));
     } else if (prompt) {
       showScanToast(`Pominięto - ta metka jest już policzona (${prompt.count} szt.)`, "warn");
     }
@@ -656,6 +727,7 @@ const Remanent = () => {
         name: jacket.name,
         code: jacket.code,
         quantity: 1,
+        manual: Boolean(jacket.manual),
         scannedAt: new Date().toISOString()
       }));
 
@@ -799,6 +871,9 @@ const Remanent = () => {
     setScannerVisible(false);
     setDuplicatePrompt(null);
     setQuantityEdit(null);
+    setManualCodeOpen(false);
+    setPickerOpen(false);
+    setPickerGood(null);
     scanBusyRef.current = false;
     setScannedJackets([]);
     setScanningEnabled(true);
@@ -921,6 +996,7 @@ const Remanent = () => {
         setComparisonResults({
           currentStateCount: currentState.length,
           remanentCount: filteredRemanentData.length,
+          manualCount: filteredRemanentData.filter((item) => item.manual).length,
           missingCount: missingItems.reduce((sum, item) => sum + (item.missingCount || 0), 0),
           excessCount: extraItems.reduce((sum, item) => sum + (item.excessCount || 0), 0),
           missingItems: missingItems,
@@ -1007,7 +1083,10 @@ const Remanent = () => {
   const renderRemanentItem = ({ item }) => (
     <View style={styles.remanentItem}>
       <View style={[styles.itemHeader, { marginBottom: 0 }]}>
-        <Text style={[styles.itemName, { flex: 1, marginRight: 8 }]}>{item.name || 'Produkt'}</Text>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.itemName}>{item.name || 'Produkt'}</Text>
+          {item.manual ? <Text style={styles.manualBadge}>wpisane ręcznie</Text> : null}
+        </View>
         <View style={styles.itemHeaderRight}>
           <Text style={styles.itemCode}>{item.code || 'N/A'}</Text>
           <TouchableOpacity
@@ -1352,8 +1431,119 @@ const Remanent = () => {
             </View>
           )}
 
+          {manualCodeOpen && (
+            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+              <View style={styles.filterCard}>
+                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Wpisz kod z metki</Text>
+                <Text style={{ color: '#CBD5E1', fontSize: 14, textAlign: 'center', marginBottom: 12 }}>13 cyfr spod kodu kreskowego</Text>
+                <TextInput
+                  style={[styles.quantityInput, { fontSize: 22, letterSpacing: 2 }]}
+                  value={manualCode}
+                  onChangeText={(text) => setManualCode(text.replace(/[^0-9]/g, '').slice(0, 13))}
+                  keyboardType="number-pad"
+                  autoFocus
+                  maxLength={13}
+                  onSubmitEditing={submitManualCode}
+                />
+                <Text style={{ color: manualCodeValid ? '#10B981' : '#94A3B8', fontSize: 14, textAlign: 'center', marginTop: 10, minHeight: 20 }}>
+                  {manualCode.length < 13
+                    ? `${manualCode.length}/13 cyfr`
+                    : manualCodeValid
+                      ? manualCodePreview
+                      : 'Błędna cyfra kontrolna - sprawdź wpisane cyfry'}
+                </Text>
+                <View style={{ gap: 10, marginTop: 14 }}>
+                  <TouchableOpacity
+                    style={[styles.dialogStackButton, styles.filterCardButtonPrimary, !manualCodeValid && { opacity: 0.5 }]}
+                    onPress={submitManualCode}
+                    disabled={!manualCodeValid}
+                  >
+                    <Ionicons name="add" size={18} color="white" />
+                    <Text style={styles.filterCardButtonText}>Dodaj sztukę</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => { setManualCodeOpen(false); setManualCode(''); }}>
+                    <Text style={styles.filterCardButtonText}>Anuluj</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {pickerOpen && (
+            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+              <View style={[styles.filterCard, { maxHeight: '85%' }]}>
+                <View style={styles.filterCardHeader}>
+                  <Text style={styles.filterCardTitle}>{pickerGood ? 'Wybierz rozmiar' : 'Wybierz z bazy produktów'}</Text>
+                  <TouchableOpacity onPress={() => (pickerGood ? setPickerGood(null) : setPickerOpen(false))} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Ionicons name={pickerGood ? 'arrow-back' : 'close'} size={24} color="white" />
+                  </TouchableOpacity>
+                </View>
+                {pickerGood ? (
+                  <>
+                    <Text style={{ color: '#CBD5E1', fontSize: 15, marginBottom: 10 }}>{pickerGood.fullName}</Text>
+                    <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+                      <View style={styles.pickerSizeGrid}>
+                        {pickerSizes.map((size) => (
+                          <TouchableOpacity key={size.Roz_Kod} style={styles.pickerSizeChip} onPress={() => choosePickerSize(size)}>
+                            <Text style={styles.pickerSizeText}>{size.Roz_Opis}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </>
+                ) : (
+                  <>
+                    <View style={[styles.selectSearchBox, { marginBottom: 8 }]}>
+                      <Ionicons name="search" size={16} color="#94A3B8" />
+                      <TextInput
+                        style={styles.selectSearchInput}
+                        placeholder="Szukaj: np. amanda czarny, aps 056"
+                        placeholderTextColor="#64748B"
+                        value={pickerSearch}
+                        onChangeText={setPickerSearch}
+                        autoFocus
+                        autoCorrect={false}
+                      />
+                      {pickerSearch ? (
+                        <TouchableOpacity onPress={() => setPickerSearch('')}>
+                          <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                    <FlatList
+                      data={pickerResults}
+                      keyExtractor={(good) => String(good._id || good.code)}
+                      keyboardShouldPersistTaps="handled"
+                      style={{ maxHeight: 380 }}
+                      ListEmptyComponent={<Text style={{ color: '#94A3B8', textAlign: 'center', padding: 16 }}>{goodsList.length === 0 ? 'Karty produktów jeszcze się wczytują…' : 'Brak produktów dla tego wyszukiwania'}</Text>}
+                      renderItem={({ item: good }) => (
+                        <TouchableOpacity style={styles.pickerRow} onPress={() => choosePickerGood(good)}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.pickerRowTitle}>{good.fullName}</Text>
+                            <Text style={styles.pickerRowSub}>{good.category || ''}{good.category === 'Kurtki kożuchy futra' ? ' · wybierz rozmiar' : ''}</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Action buttons */}
           <View style={styles.scannerFooter}>
+            <View style={styles.manualRow}>
+              <TouchableOpacity style={styles.manualButton} onPress={() => { setManualCode(''); setManualCodeOpen(true); }}>
+                <Ionicons name="keypad-outline" size={18} color="white" />
+                <Text style={styles.manualButtonText}>Wpisz kod</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.manualButton} onPress={() => { setPickerSearch(''); setPickerGood(null); setPickerOpen(true); }}>
+                <Ionicons name="list-outline" size={18} color="white" />
+                <Text style={styles.manualButtonText}>Z bazy</Text>
+              </TouchableOpacity>
+            </View>
             {scannedJackets.length > 0 && (
               <TouchableOpacity 
                 onPress={confirmScannedJackets}
@@ -1407,6 +1597,9 @@ const Remanent = () => {
                 <View style={styles.historyMeta}>
                   <Text style={styles.historyMetaText}>Rozpoczęto: {formatHistoryDate(historyDetail.session.startedAt)} ({historyDetail.session.startedBy || '-'})</Text>
                   <Text style={styles.historyMetaText}>Zakończono: {formatHistoryDate(historyDetail.session.closedAt)} ({historyDetail.session.closedBy || '-'})</Text>
+                  {historyDetail.session.result.manualCount > 0 ? (
+                    <Text style={[styles.historyMetaText, { color: '#F59E0B' }]}>Wpisane ręcznie (bez skanu): {historyDetail.session.result.manualCount} szt.</Text>
+                  ) : null}
                 </View>
                 <View style={styles.statsContainer}>
                   <View style={styles.statItem}>
@@ -2375,6 +2568,67 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#232533',
+    gap: 10,
+  },
+  manualRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  manualButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#343a40',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  manualButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  manualBadge: {
+    color: '#F59E0B',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  pickerRowTitle: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  pickerRowSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  pickerSizeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pickerSizeChip: {
+    minWidth: 64,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#1E293B',
+  },
+  pickerSizeText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
   },
   confirmButton: {
     backgroundColor: '#28a745',
