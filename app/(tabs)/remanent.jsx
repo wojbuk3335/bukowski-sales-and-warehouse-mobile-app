@@ -622,7 +622,6 @@ const Remanent = () => {
 
   // „Wpisz kod”: 13 cyfr z metki wpisane z klawiatury, sprawdzane cyfrą kontrolną
   const manualCodeValid = isValidEan13(manualCode);
-  const manualCodePreview = manualCodeValid ? getProductNameFromBarcode(manualCode) : "";
   const submitManualCode = async () => {
     if (!manualCodeValid || scanBusyRef.current) return;
     const code = manualCode;
@@ -1449,7 +1448,7 @@ const Remanent = () => {
                   {manualCode.length < 13
                     ? `${manualCode.length}/13 cyfr`
                     : manualCodeValid
-                      ? manualCodePreview
+                      ? getProductNameFromBarcode(manualCode)
                       : 'Błędna cyfra kontrolna - sprawdź wpisane cyfry'}
                 </Text>
                 <View style={{ gap: 10, marginTop: 14 }}>
