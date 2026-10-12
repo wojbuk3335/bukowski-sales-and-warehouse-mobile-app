@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Modal,
   TextInput,
   StatusBar,
@@ -19,6 +18,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const SalesReport = () => {
   const { user } = useContext(GlobalStateContext);
@@ -129,7 +129,7 @@ const SalesReport = () => {
       }
     } catch (error) {
       console.error('Error loading sales:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać danych sprzedaży');
+      appAlert('Błąd', 'Nie udało się pobrać danych sprzedaży');
     } finally {
       setLoading(false);
     }

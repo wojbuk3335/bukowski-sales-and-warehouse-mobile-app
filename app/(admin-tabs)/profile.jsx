@@ -1,6 +1,5 @@
 import React, { useContext, useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +15,7 @@ import { router } from "expo-router";
 import { GlobalStateContext } from "../../context/GlobalState";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
+import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
   const { user, setUser, setIsLoggedIn } = useContext(GlobalStateContext);
@@ -29,7 +29,7 @@ const Profile = () => {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
+    appAlert(
       "Wylogowanie",
       "Czy na pewno chcesz się wylogować?",
       [

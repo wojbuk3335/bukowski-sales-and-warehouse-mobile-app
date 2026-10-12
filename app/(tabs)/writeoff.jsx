@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from "../../config/api";
@@ -9,6 +9,7 @@ import tokenService from "../../services/tokenService";
 import Logger from "../../services/logger"; // Import logger service
 import AuthFix from "../../components/AuthFix";
 import LogoutButton from "../../components/LogoutButton";
+import { appAlert } from '../../services/appAlert';
 
 const WriteOff = () => {
     const insets = useSafeAreaInsets(); // Get safe area insets
@@ -390,12 +391,12 @@ const fetchSales = async () => {
 
     const initiateTransfer = async (toSymbol, reason = null, advance = null) => {
         if (!selectedItem) {
-            Alert.alert("Error", "No item selected for transfer.");
+            appAlert("Error", "No item selected for transfer.");
             return;
         }
 
         if (!user || !user.symbol) {
-            Alert.alert("Błąd", "Brak danych zalogowanego użytkownika");
+            appAlert("Błąd", "Brak danych zalogowanego użytkownika");
             return;
         }
 
@@ -426,15 +427,15 @@ const fetchSales = async () => {
 
         // Walidacja danych przed wysłaniem
         if (!transferModel.transfer_from) {
-            Alert.alert("Błąd", "Brak danych użytkownika (transfer_from)");
+            appAlert("Błąd", "Brak danych użytkownika (transfer_from)");
             return;
         }
         if (!transferModel.transfer_to) {
-            Alert.alert("Błąd", "Brak docelowego użytkownika (transfer_to)");
+            appAlert("Błąd", "Brak docelowego użytkownika (transfer_to)");
             return;
         }
         if (!transferModel.productId) {
-            Alert.alert("Błąd", "Brak ID produktu");
+            appAlert("Błąd", "Brak ID produktu");
             return;
         }
 
@@ -450,7 +451,7 @@ const fetchSales = async () => {
             if (!response.ok) {
                 // Sprawdź czy to błąd duplikatu
                 if (response.status === 400 && responseData.error && responseData.error.includes("E11000 duplicate key")) {
-                    Alert.alert(
+                    appAlert(
                         "Kurtka już przeniesiona", 
                         "Ta kurtka została już wcześniej przeniesiona dzisiaj. Spróbuj jutro."
                     );
@@ -461,7 +462,7 @@ const fetchSales = async () => {
                 
                 // Wyświetl szczegółowy błąd z backendu
                 const errorMessage = responseData.message || responseData.error || `HTTP ${response.status}: Failed to create transfer`;
-                Alert.alert("Błąd transferu", errorMessage);
+                appAlert("Błąd transferu", errorMessage);
                 return;
             }
 
@@ -478,7 +479,7 @@ const fetchSales = async () => {
             setAdvanceAmount("");
             setSelectedCurrency("PLN");
         } catch (error) {
-            Alert.alert("Error", "An unexpected error occurred while creating the transfer.");
+            appAlert("Error", "An unexpected error occurred while creating the transfer.");
         }
     };
 
@@ -493,7 +494,7 @@ const fetchSales = async () => {
 
     const handleCustomReasonSubmit = () => {
         if (!customReason.trim()) {
-            Alert.alert("Error", "Proszę podać powód.");
+            appAlert("Error", "Proszę podać powód.");
             return;
         }
         
@@ -502,13 +503,13 @@ const fetchSales = async () => {
 
     const handleFinalSubmit = () => {
         if (!selectedReason) {
-            Alert.alert("Error", "Proszę wybrać powód.");
+            appAlert("Error", "Proszę wybrać powód.");
             return;
         }
 
         // Sprawdź czy to custom reason i czy tekst został podany
         if (selectedReason === 'custom' && !customReason.trim()) {
-            Alert.alert("Error", "Proszę podać powód.");
+            appAlert("Error", "Proszę podać powód.");
             return;
         }
 
@@ -530,19 +531,19 @@ const fetchSales = async () => {
         if (domUser) {
             initiateTransfer(domUser.symbol, finalReason, advanceData);
         } else {
-            Alert.alert("Error", "Nie znaleziono użytkownika Dom.");
+            appAlert("Error", "Nie znaleziono użytkownika Dom.");
         }
     };
 
     const handleMagazynFinalSubmit = () => {
         if (!selectedReason) {
-            Alert.alert("Error", "Proszę wybrać powód.");
+            appAlert("Error", "Proszę wybrać powód.");
             return;
         }
 
         // Sprawdź czy to custom reason i czy tekst został podany
         if (selectedReason === 'custom' && !customReason.trim()) {
-            Alert.alert("Error", "Proszę podać powód.");
+            appAlert("Error", "Proszę podać powód.");
             return;
         }
 
@@ -559,12 +560,12 @@ const fetchSales = async () => {
 
     const handleExchange = async (toSymbol) => {
         if (!selectedItem) {
-            Alert.alert("Error", "No item selected for exchange.");
+            appAlert("Error", "No item selected for exchange.");
             return;
         }
 
         if (!user || !user.symbol) {
-            Alert.alert("Błąd", "Brak danych zalogowanego użytkownika");
+            appAlert("Błąd", "Brak danych zalogowanego użytkownika");
             return;
         }
 
@@ -607,7 +608,7 @@ const fetchSales = async () => {
             if (!exchangeResponse.ok) {
                 const errorData = await exchangeResponse.json();
                 Logger.error('Exchange creation failed:', errorData);
-                Alert.alert("Błąd", errorData.message || "Nie udało się zapisać wymiany");
+                appAlert("Błąd", errorData.message || "Nie udało się zapisać wymiany");
                 return;
             }
 
@@ -629,7 +630,7 @@ const fetchSales = async () => {
                         method: "DELETE",
                     });
                 }
-                Alert.alert("Błąd", transferError.message || "Nie udało się zapisać transferu");
+                appAlert("Błąd", transferError.message || "Nie udało się zapisać transferu");
                 return;
             }
 
@@ -646,18 +647,18 @@ const fetchSales = async () => {
             setExchangeModalVisible(false);
         } catch (error) {
             Logger.error('Unexpected error during exchange:', error);
-            Alert.alert("Error", "Wystąpił nieoczekiwany błąd podczas zapisywania wymiany.");
+            appAlert("Error", "Wystąpił nieoczekiwany błąd podczas zapisywania wymiany.");
         }
     };
 
     const confirmPanKazekTransfer = async () => {
         if (!selectedItem) {
-            Alert.alert("Error", "No item selected for transfer.");
+            appAlert("Error", "No item selected for transfer.");
             return;
         }
 
         if (!user || !user.symbol) {
-            Alert.alert("Błąd", "Brak danych zalogowanego użytkownika");
+            appAlert("Błąd", "Brak danych zalogowanego użytkownika");
             return;
         }
 
@@ -682,7 +683,7 @@ const fetchSales = async () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                Alert.alert("Błąd", errorData.message || "Nie udało się dodać produktu do Pana Kazka");
+                appAlert("Błąd", errorData.message || "Nie udało się dodać produktu do Pana Kazka");
                 return;
             }
 
@@ -694,7 +695,7 @@ const fetchSales = async () => {
             setModalVisible(false);
             setPanKazekModalVisible(false);
         } catch (error) {
-            Alert.alert("Error", "Wystąpił nieoczekiwany błąd podczas dodawania produktu do Pana Kazka.");
+            appAlert("Error", "Wystąpił nieoczekiwany błąd podczas dodawania produktu do Pana Kazka.");
         }
     };
 

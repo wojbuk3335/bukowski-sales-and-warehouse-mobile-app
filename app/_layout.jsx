@@ -9,6 +9,7 @@ import axios from 'axios';
 import { API_CONFIG } from '../config/api';
 import { GlobalStateProvider } from "../context/GlobalState"; // Import global state provider
 import { AuthProvider } from '../context/AuthContext'; // Import auth provider
+import AppDialogHost from '../components/AppDialogHost'; // wspólne okienka zamiast Alert.alert
 
 // Configure axios baseURL globally
 axios.defaults.baseURL = API_CONFIG.BASE_URL;
@@ -121,6 +122,7 @@ const RootLayout = () => {
             <Stack.Screen name="pan-kazek" options={{ headerShown: false }} />
             <Stack.Screen name="print-labels" options={{ headerShown: false }} />
           </Stack>
+          <AppDialogHost />
         </GlobalStateProvider>
       </AuthProvider>
     </SafeAreaProvider>

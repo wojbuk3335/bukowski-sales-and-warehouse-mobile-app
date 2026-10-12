@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, TextInput, FlatList, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, TextInput, FlatList, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { GlobalStateContext } from '../../context/GlobalState';
@@ -7,6 +7,7 @@ import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
+import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -470,74 +471,74 @@ const Profile = () => {
     // Validate product selection (real-time validation already handles this)
     if (!selectedProduct || productValidationError) {
       if (!productValidationError) setProductValidationError(true);
-      Alert.alert('Błąd', 'Proszę wybrać poprawny produkt z listy');
+      appAlert('Błąd', 'Proszę wybrać poprawny produkt z listy');
       hasErrors = true;
     }
     
     // Validate color selection (real-time validation already handles this)
     if (!selectedColor || colorValidationError) {
       if (!colorValidationError) setColorValidationError(true);
-      Alert.alert('Błąd', 'Proszę wybrać poprawny kolor z listy');
+      appAlert('Błąd', 'Proszę wybrać poprawny kolor z listy');
       hasErrors = true;
     }
     
     // Validate size selection (real-time validation already handles this)
     if (!selectedSize || sizeValidationError) {
       if (!sizeValidationError) setSizeValidationError(true);
-      Alert.alert('Błąd', 'Proszę wybrać poprawny rozmiar z listy');
+      appAlert('Błąd', 'Proszę wybrać poprawny rozmiar z listy');
       hasErrors = true;
     }
     
     if (hasErrors) return false;
     if (!customerName.trim()) {
-      Alert.alert('Błąd', 'Proszę podać imię i nazwisko');
+      appAlert('Błąd', 'Proszę podać imię i nazwisko');
       return false;
     }
     if (!phoneNumber.trim()) {
-      Alert.alert('Błąd', 'Proszę podać numer telefonu');
+      appAlert('Błąd', 'Proszę podać numer telefonu');
       return false;
     }
     if (phoneNumberError) {
-      Alert.alert('Błąd', 'Proszę podać prawidłowy numer telefonu');
+      appAlert('Błąd', 'Proszę podać prawidłowy numer telefonu');
       return false;
     }
     
     // Validate address fields based on delivery option
     if (deliveryOption === 'shipping') {
       if (!postalCode.trim()) {
-        Alert.alert('Błąd', 'Kod pocztowy jest wymagany dla wysyłki');
+        appAlert('Błąd', 'Kod pocztowy jest wymagany dla wysyłki');
         return false;
       }
       if (!citySearchText.trim()) {
-        Alert.alert('Błąd', 'Miejscowość jest wymagana dla wysyłki');
+        appAlert('Błąd', 'Miejscowość jest wymagana dla wysyłki');
         return false;
       }
     }
     
     if (deliveryOption === 'delivery') {
       if (!citySearchText.trim()) {
-        Alert.alert('Błąd', 'Miejscowość jest wymagana dla dostawy');
+        appAlert('Błąd', 'Miejscowość jest wymagana dla dostawy');
         return false;
       }
       if (!houseNumber.trim()) {
-        Alert.alert('Błąd', 'Numer domu jest wymagany dla dostawy');
+        appAlert('Błąd', 'Numer domu jest wymagany dla dostawy');
         return false;
       }
     }
     if (!totalPrice.trim()) {
-      Alert.alert('Błąd', 'Proszę podać cenę całkowitą');
+      appAlert('Błąd', 'Proszę podać cenę całkowitą');
       return false;
     }
     if (documentType === 'invoice' && !nip.trim()) {
-      Alert.alert('Błąd', 'Dla faktury wymagany jest numer NIP');
+      appAlert('Błąd', 'Dla faktury wymagany jest numer NIP');
       return false;
     }
     if (documentType === 'invoice' && nipError) {
-      Alert.alert('Błąd', 'Proszę podać prawidłowy numer NIP');
+      appAlert('Błąd', 'Proszę podać prawidłowy numer NIP');
       return false;
     }
     if (email && emailError) {
-      Alert.alert('Błąd', 'Proszę podać prawidłowy adres email');
+      appAlert('Błąd', 'Proszę podać prawidłowy adres email');
       return false;
     }
     return true;
@@ -615,7 +616,7 @@ const Profile = () => {
       }
     } catch (error) {
       Logger.error('❌ Submit error:', error);
-      Alert.alert(
+      appAlert(
         'Błąd', 
         `Nie udało się złożyć zamówienia.\n\nSzczegóły: ${error.message}\n\nSpróbuj ponownie.`
       );

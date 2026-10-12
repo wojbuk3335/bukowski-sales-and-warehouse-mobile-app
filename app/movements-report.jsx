@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   TextInput,
   RefreshControl,
   Platform,
@@ -19,6 +18,7 @@ import { router, Stack } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import tokenService from '../services/tokenService';
 import { getApiUrl } from '../config/api';
+import { appAlert } from '../services/appAlert';
 
 const MovementsReport = () => {
   const [startDate, setStartDate] = useState(new Date());
@@ -143,7 +143,7 @@ const MovementsReport = () => {
         })));
       }
     } catch (error) {
-      Alert.alert('Błąd', 'Nie udało się pobrać danych');
+      appAlert('Błąd', 'Nie udało się pobrać danych');
     } finally {
       setLoading(false);
     }
@@ -199,10 +199,10 @@ const MovementsReport = () => {
         setFilteredData(data.movements);
       } else {
         setFilteredData([]);
-        Alert.alert('Info', 'Brak danych dla wybranego okresu');
+        appAlert('Info', 'Brak danych dla wybranego okresu');
       }
     } catch (error) {
-      Alert.alert('Błąd', `Nie udało się pobrać przepływów: ${error.message}`);
+      appAlert('Błąd', `Nie udało się pobrać przepływów: ${error.message}`);
     } finally {
       setLoading(false);
     }

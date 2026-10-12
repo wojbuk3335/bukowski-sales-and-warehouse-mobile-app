@@ -9,7 +9,6 @@ import {
   Modal,
   ActivityIndicator,
   ScrollView,
-  Alert,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Picker } from "@react-native-picker/picker";
@@ -17,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import { appAlert } from '../services/appAlert';
 
 const BagsSubcategoryList = () => {
   const insets = useSafeAreaInsets();
@@ -156,7 +156,7 @@ const BagsSubcategoryList = () => {
   };
 
   const handleDelete = (item) => {
-    Alert.alert(
+    appAlert(
       "Potwierdzenie",
       `Czy na pewno chcesz usunąć podkategorię "${item.Kat_1_Opis_1}"?`,
       [

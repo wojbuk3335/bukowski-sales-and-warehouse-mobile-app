@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   FlatList,
@@ -21,6 +20,7 @@ import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
+import { appAlert } from '../../services/appAlert';
 
 const Dashboard = () => {
   const { user, users, fetchUsers } = useContext(GlobalStateContext);
@@ -92,7 +92,7 @@ const Dashboard = () => {
 
   const startVerification = async () => {
     if (!selectedUserId || !selectedDate) {
-      Alert.alert("Uwaga", "Wybierz najpierw użytkownika i datę");
+      appAlert("Uwaga", "Wybierz najpierw użytkownika i datę");
       return;
     }
 
@@ -117,12 +117,12 @@ const Dashboard = () => {
         }
       } else {
         const errorText = await response.text();
-        Alert.alert("Błąd", "Nie udało się pobrać danych");
+        appAlert("Błąd", "Nie udało się pobrać danych");
         setExpectedJackets([]);
         setTotalExpected(0);
       }
     } catch (error) {
-      Alert.alert("Błąd", "Wystąpił błąd podczas pobierania danych");
+      appAlert("Błąd", "Wystąpił błąd podczas pobierania danych");
     } finally {
       setLoading(false);
     }
@@ -166,19 +166,19 @@ const Dashboard = () => {
 
   const openQRScanner = async () => {
     if (!selectedUserId || !selectedDate) {
-      Alert.alert("Uwaga", "Wybierz najpierw użytkownika i datę");
+      appAlert("Uwaga", "Wybierz najpierw użytkownika i datę");
       return;
     }
 
     if (totalExpected === 0) {
-      Alert.alert("Uwaga", "Brak kurtek do zweryfikowania dla wybranego użytkownika i daty");
+      appAlert("Uwaga", "Brak kurtek do zweryfikowania dla wybranego użytkownika i daty");
       return;
     }
 
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert("Błąd", "Brak uprawnień do kamery");
+        appAlert("Błąd", "Brak uprawnień do kamery");
         return;
       }
     }
@@ -198,7 +198,7 @@ const Dashboard = () => {
     
     // WAŻNE: Jeśli nie ma listy oczekiwanych kurtek, nie skanuj
     if (!expectedJackets || expectedJackets.length === 0) {
-      Alert.alert(
+      appAlert(
         "Brak listy weryfikacji", 
         "Najpierw pobierz listę kurtek do weryfikacji, klikając 'Rozpocznij weryfikację'"
       );
@@ -373,7 +373,7 @@ const Dashboard = () => {
       });
       setComparisonModalVisible(true);
     } catch (error) {
-      Alert.alert("Błąd", "Wystąpił błąd podczas sprawdzania");
+      appAlert("Błąd", "Wystąpił błąd podczas sprawdzania");
     }
   };
 

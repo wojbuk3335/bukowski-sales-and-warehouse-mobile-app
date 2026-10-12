@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
-  Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import { appAlert } from '../services/appAlert';
 
 const monthNames = [
   "",
@@ -103,7 +103,7 @@ const PanKazek = () => {
         filteredStats: data.filteredStats || { total: 0, pending: 0, paid: 0 },
       });
     } catch (error) {
-      Alert.alert("Błąd", "Nie udało się pobrać listy Pana Kazka");
+      appAlert("Błąd", "Nie udało się pobrać listy Pana Kazka");
     } finally {
       setLoading(false);
     }
@@ -127,7 +127,7 @@ const PanKazek = () => {
   };
 
   const handleDelete = (productId) => {
-    Alert.alert("Usuń produkt", "Czy na pewno chcesz usunąć ten produkt?", [
+    appAlert("Usuń produkt", "Czy na pewno chcesz usunąć ten produkt?", [
       { text: "Anuluj", style: "cancel" },
       {
         text: "Usuń",
@@ -143,7 +143,7 @@ const PanKazek = () => {
             }
             await loadProducts();
           } catch (error) {
-            Alert.alert("Błąd", "Nie udało się usunąć produktu");
+            appAlert("Błąd", "Nie udało się usunąć produktu");
           }
         },
       },
@@ -152,12 +152,12 @@ const PanKazek = () => {
 
   const handlePayAll = async () => {
     if (!paidBy.trim()) {
-      Alert.alert("Błąd", "Podaj kto rozlicza");
+      appAlert("Błąd", "Podaj kto rozlicza");
       return;
     }
     const amount = parseFloat(paidAmount);
     if (!amount || amount <= 0) {
-      Alert.alert("Błąd", "Podaj poprawną kwotę");
+      appAlert("Błąd", "Podaj poprawną kwotę");
       return;
     }
 
@@ -177,10 +177,10 @@ const PanKazek = () => {
       setShowPayModal(false);
       setPaidBy("");
       setPaidAmount("");
-      Alert.alert("Sukces", data.message || "Rozliczono");
+      appAlert("Sukces", data.message || "Rozliczono");
       await loadProducts();
     } catch (error) {
-      Alert.alert("Błąd", error.message || "Nie udało się rozliczyć");
+      appAlert("Błąd", error.message || "Nie udało się rozliczyć");
     } finally {
       setProcessing(false);
     }

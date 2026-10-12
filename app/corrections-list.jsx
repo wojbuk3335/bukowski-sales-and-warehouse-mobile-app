@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -17,6 +16,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const CorrectionsList = () => {
   const { user } = useContext(GlobalStateContext);
@@ -82,7 +82,7 @@ const CorrectionsList = () => {
       });
     } catch (error) {
       console.error('Error loading corrections:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać korekt');
+      appAlert('Błąd', 'Nie udało się pobrać korekt');
     } finally {
       setLoading(false);
     }
@@ -180,11 +180,11 @@ const CorrectionsList = () => {
 
         await loadCorrections();
       } else {
-        Alert.alert('Błąd', 'Nie udało się zaktualizować statusu korekty');
+        appAlert('Błąd', 'Nie udało się zaktualizować statusu korekty');
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      Alert.alert('Błąd', 'Nie udało się zaktualizować statusu korekty');
+      appAlert('Błąd', 'Nie udało się zaktualizować statusu korekty');
     }
   };
 
@@ -226,7 +226,7 @@ const CorrectionsList = () => {
       
     } catch (error) {
       console.error('Error finding product:', error);
-      Alert.alert('Błąd', 'Nie udało się znaleźć produktu');
+      appAlert('Błąd', 'Nie udało się znaleźć produktu');
     } finally {
       setSearchingProduct(false);
     }
@@ -241,7 +241,7 @@ const CorrectionsList = () => {
         ?.items[0];
         
       if (!itemToWriteOff) {
-        Alert.alert('Błąd', 'Nie znaleziono produktu do odpisania');
+        appAlert('Błąd', 'Nie znaleziono produktu do odpisania');
         setShowProductModal(false);
         return;
       }
@@ -275,7 +275,7 @@ const CorrectionsList = () => {
       
     } catch (error) {
       console.error('Error preparing write-off:', error);
-      Alert.alert('Błąd', 'Nie udało się przygotować odpisania');
+      appAlert('Błąd', 'Nie udało się przygotować odpisania');
     }
   };
 
@@ -327,12 +327,12 @@ const CorrectionsList = () => {
         setAvailableLocations(updatedLocations);
       } else {
         const errorData = await writeOffResponse.json();
-        Alert.alert('Błąd', errorData.message || 'Nie udało się odpisać produktu');
+        appAlert('Błąd', errorData.message || 'Nie udało się odpisać produktu');
       }
       
     } catch (error) {
       console.error('Error writing off:', error);
-      Alert.alert('Błąd', 'Nie udało się odpisać produktu');
+      appAlert('Błąd', 'Nie udało się odpisać produktu');
     }
   };
 

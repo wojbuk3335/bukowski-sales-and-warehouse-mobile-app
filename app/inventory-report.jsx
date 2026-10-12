@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Modal,
   TextInput,
   StatusBar,
@@ -20,6 +19,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const InventoryReport = () => {
   const { user } = useContext(GlobalStateContext);
@@ -164,7 +164,7 @@ const InventoryReport = () => {
       await loadInventoryData();
     } catch (error) {
       console.error('Error loading initial data:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać danych');
+      appAlert('Błąd', 'Nie udało się pobrać danych');
     } finally {
       setLoading(false);
     }
@@ -192,11 +192,11 @@ const InventoryReport = () => {
         setInventoryData(data.inventory);
       } else {
         setInventoryData([]);
-        Alert.alert('Info', 'Brak danych dla wybranej daty');
+        appAlert('Info', 'Brak danych dla wybranej daty');
       }
     } catch (error) {
       console.error('Error loading inventory:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać stanów magazynowych');
+      appAlert('Błąd', 'Nie udało się pobrać stanów magazynowych');
     } finally {
       setLoading(false);
     }

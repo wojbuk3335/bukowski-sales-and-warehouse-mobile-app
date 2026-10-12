@@ -9,7 +9,6 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
-  Alert,
   ScrollView,
   Image,
 } from "react-native";
@@ -20,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import tokenService from "../services/tokenService";
 import useLiveRefresh from "../services/useLiveRefresh"; // zmiany produktów na żywo (także z panelu)
 import { getApiUrl, API_CONFIG } from "../config/api";
+import { appAlert } from '../services/appAlert';
 
 const ProductsList = () => {
   const insets = useSafeAreaInsets();
@@ -302,7 +302,7 @@ const ProductsList = () => {
       }
     } catch (error) {
       console.error("Error fetching products:", error);
-      if (!silent) Alert.alert("Błąd", "Nie udało się pobrać listy produktów");
+      if (!silent) appAlert("Błąd", "Nie udało się pobrać listy produktów");
     } finally {
       setLoading(false);
     }
@@ -312,7 +312,7 @@ const ProductsList = () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (permissionResult.granted === false) {
-      Alert.alert("Błąd", "Brak uprawnień do dostępu do galerii");
+      appAlert("Błąd", "Brak uprawnień do dostępu do galerii");
       return;
     }
 
@@ -573,7 +573,7 @@ const ProductsList = () => {
 
   const handleAddPriceException = () => {
     if (sizes.length === 0) {
-      Alert.alert("Błąd", "Brak dostępnych rozmiarów");
+      appAlert("Błąd", "Brak dostępnych rozmiarów");
       return;
     }
     setPriceExceptions([...priceExceptions, { size: sizes[0]._id, value: 0 }]);

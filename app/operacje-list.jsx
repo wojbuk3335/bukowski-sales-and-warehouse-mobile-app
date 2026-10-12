@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -19,6 +18,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const OperacjeList = () => {
   const { user } = useContext(GlobalStateContext);
@@ -68,7 +68,7 @@ const OperacjeList = () => {
       await fetchOperations();
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać danych');
+      appAlert('Błąd', 'Nie udało się pobrać danych');
     } finally {
       setLoading(false);
     }
@@ -96,7 +96,7 @@ const OperacjeList = () => {
       setOperations(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching operations:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać operacji');
+      appAlert('Błąd', 'Nie udało się pobrać operacji');
     }
   };
 

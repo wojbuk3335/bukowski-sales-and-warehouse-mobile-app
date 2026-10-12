@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  Alert,
   TextInput,
   RefreshControl,
   AppState,
@@ -20,6 +19,7 @@ import { GlobalStateContext } from "../../context/GlobalState";
 import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import LogoutButton from "../../components/LogoutButton";
+import { appAlert } from '../../services/appAlert';
 
 const Users = () => {
   const insets = useSafeAreaInsets();
@@ -787,7 +787,7 @@ const Users = () => {
       
     } catch (error) {
       console.error("Error fetching items to pick:", error);
-      Alert.alert("Błąd", "Nie udało się pobrać danych");
+      appAlert("Błąd", "Nie udało się pobrać danych");
     } finally {
       setLoading(false);
     }
@@ -956,7 +956,7 @@ const Users = () => {
     // Get selected user data
     const selectedUserData = users.find(u => u._id === selectedUserId);
     if (!selectedUserData) {
-      Alert.alert("Błąd", "Nie można znaleźć danych użytkownika");
+      appAlert("Błąd", "Nie można znaleźć danych użytkownika");
       return;
     }
 
@@ -996,7 +996,7 @@ const Users = () => {
     );
     
     if (!matchedPair) {
-      Alert.alert("Błąd", "Nie znaleziono pary dla tego elementu");
+      appAlert("Błąd", "Nie znaleziono pary dla tego elementu");
       return;
     }
     
@@ -1036,7 +1036,7 @@ const Users = () => {
     const effectiveDate = processingDateOverride || selectedDate;
 
     if (transfers.length === 0 && blueItems.length === 0 && yellowTransfers.length === 0) {
-      Alert.alert("Informacja", "Brak elementów do przetworzenia");
+      appAlert("Informacja", "Brak elementów do przetworzenia");
       return;
     }
 
@@ -1442,7 +1442,7 @@ const Users = () => {
       }
     } catch (error) {
       console.error('Error processing items:', error);
-      Alert.alert("Błąd", "Wystąpił błąd podczas przetwarzania");
+      appAlert("Błąd", "Wystąpił błąd podczas przetwarzania");
     } finally {
       setProcessing(false);
     }
@@ -1586,11 +1586,11 @@ const Users = () => {
       } else {
         const errorText = await response.text();
         console.error('Undo error:', errorText);
-        Alert.alert("Błąd", "Nie udało się cofnąć transakcji");
+        appAlert("Błąd", "Nie udało się cofnąć transakcji");
       }
     } catch (error) {
       console.error('Error undoing transaction:', error);
-      Alert.alert("Błąd", "Wystąpił błąd podczas cofania transakcji");
+      appAlert("Błąd", "Wystąpił błąd podczas cofania transakcji");
     } finally {
       setProcessing(false);
     }

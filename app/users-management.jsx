@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   RefreshControl,
@@ -18,6 +17,7 @@ import axios from 'axios';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const UsersManagement = () => {
   const { user } = useContext(GlobalStateContext);
@@ -322,7 +322,7 @@ const UsersManagement = () => {
       }
     }
 
-    Alert.alert(
+    appAlert(
       'Potwierdź usunięcie',
       `Czy na pewno chcesz usunąć użytkownika ${userToDelete.email}?`,
       [

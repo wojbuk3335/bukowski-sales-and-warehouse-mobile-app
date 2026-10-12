@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View, Text, ScrollView, Dimensions, Alert, Image } from "react-native";
+import { View, Text, ScrollView, Dimensions, Image } from "react-native";
 import { createUser } from "../../lib/appwrite";
 
 import { images } from "../../constants";
 import CustomButton from "../../components/CustomButton";
 import FormField from "../../components/FormField";
+import { appAlert } from '../../services/appAlert';
 
 const SignUp = () => {
 
@@ -19,7 +20,7 @@ const SignUp = () => {
 
   const submit = async () => {
     if (form.username === "" || form.email === "" || form.password === "") {
-      Alert.alert("Error", "Please fill in all fields");
+      appAlert("Error", "Please fill in all fields");
     }
 
     setSubmitting(true);
@@ -27,7 +28,7 @@ const SignUp = () => {
       const result = await createUser(form.email, form.password, form.username);
       alert("User created successfully", result);
     } catch (error) {
-      Alert.alert("Error", error.message);
+      appAlert("Error", error.message);
     } finally {
       setSubmitting(false);
     }

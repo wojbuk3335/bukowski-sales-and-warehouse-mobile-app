@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
 import React, { useContext, useEffect, useState } from 'react';
-import { Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'; // Import SafeAreaView for safe area handling
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 import { getApiUrl, API_CONFIG } from "../../config/api"; // Import API configuration
@@ -10,6 +10,7 @@ import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
+import { appAlert } from '../../services/appAlert';
 
 const Home = () => {
   const { user, logout } = React.useContext(GlobalStateContext); // Access global state and logout function
@@ -311,7 +312,7 @@ const Home = () => {
       }
     } catch (error) {
       Logger.error('Error fetching currency rates:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać kursów walut');
+      appAlert('Błąd', 'Nie udało się pobrać kursów walut');
       setCurrencyRates([]);
     } finally {
       setLoadingCurrencyRates(false);
@@ -322,12 +323,12 @@ const Home = () => {
     const amount = parseFloat(calculatorAmount);
     
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Błąd', 'Wprowadź prawidłową kwotę');
+      appAlert('Błąd', 'Wprowadź prawidłową kwotę');
       return;
     }
 
     if (currencyRates.length === 0) {
-      Alert.alert('Błąd', 'Brak dostępnych kursów walut');
+      appAlert('Błąd', 'Brak dostępnych kursów walut');
       return;
     }
 
@@ -346,7 +347,7 @@ const Home = () => {
     if (calculatorFromCurrency === 'PLN') {
       const toRate = currencyRates.find(rate => rate.currency.code === calculatorToCurrency);
       if (!toRate) {
-        Alert.alert('Błąd', 'Nie znaleziono kursu dla wybranej waluty');
+        appAlert('Błąd', 'Nie znaleziono kursu dla wybranej waluty');
         return;
       }
       const multiplier = getMultiplier(toRate);
@@ -359,7 +360,7 @@ const Home = () => {
     else if (calculatorToCurrency === 'PLN') {
       const fromRate = currencyRates.find(rate => rate.currency.code === calculatorFromCurrency);
       if (!fromRate) {
-        Alert.alert('Błąd', 'Nie znaleziono kursu dla wybranej waluty');
+        appAlert('Błąd', 'Nie znaleziono kursu dla wybranej waluty');
         return;
       }
       const multiplier = getMultiplier(fromRate);
@@ -374,7 +375,7 @@ const Home = () => {
       const toRate = currencyRates.find(rate => rate.currency.code === calculatorToCurrency);
       
       if (!fromRate || !toRate) {
-        Alert.alert('Błąd', 'Nie znaleziono kursu dla wybranych walut');
+        appAlert('Błąd', 'Nie znaleziono kursu dla wybranych walut');
         return;
       }
       
@@ -1214,12 +1215,12 @@ const Home = () => {
 
   const confirmPanKazekTransfer = async () => {
     if (!selectedItem) {
-      Alert.alert("Error", "No item selected for transfer.");
+      appAlert("Error", "No item selected for transfer.");
       return;
     }
 
     if (!user || !user.symbol) {
-      Alert.alert("Błąd", "Brak danych zalogowanego użytkownika");
+      appAlert("Błąd", "Brak danych zalogowanego użytkownika");
       return;
     }
 
@@ -1267,7 +1268,7 @@ const Home = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        Alert.alert("Błąd", errorData.message || "Nie udało się dodać produktu do Pana Kazka");
+        appAlert("Błąd", errorData.message || "Nie udało się dodać produktu do Pana Kazka");
         return;
       }
 
@@ -1283,14 +1284,14 @@ const Home = () => {
       setModalVisible(false);
       setPanKazekModalVisible(false);
     } catch (error) {
-      Alert.alert("Error", "Wystąpił nieoczekiwany błąd podczas dodawania produktu do Pana Kazka.");
+      appAlert("Error", "Wystąpił nieoczekiwany błąd podczas dodawania produktu do Pana Kazka.");
     }
   };
 
   // Handle removing item from Pan Kazek list
   const handleRemoveFromPanKazek = async () => {
     if (!selectedItem) {
-      Alert.alert("Error", "No item selected.");
+      appAlert("Error", "No item selected.");
       return;
     }
 
@@ -1301,7 +1302,7 @@ const Home = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        Alert.alert("Błąd", errorData.message || "Nie udało się usunąć produktu z listy Pana Kazka");
+        appAlert("Błąd", errorData.message || "Nie udało się usunąć produktu z listy Pana Kazka");
         return;
       }
 
@@ -1314,7 +1315,7 @@ const Home = () => {
 
       setModalVisible(false);
     } catch (error) {
-      Alert.alert("Error", "Wystąpił nieoczekiwany błąd podczas usuwania produktu z listy Pana Kazka.");
+      appAlert("Error", "Wystąpił nieoczekiwany błąd podczas usuwania produktu z listy Pana Kazka.");
     }
   };
 

@@ -1,11 +1,12 @@
 import axios from "axios"; // Import axios for HTTP requests
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useEffect, useState } from "react";
-import { Alert, FlatList, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, KeyboardAvoidingView, Platform } from "react-native";
+import { FlatList, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
+import { appAlert } from '../services/appAlert';
 
 const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags, wallets, currencyRates, getFilteredSellingPoints, isActive }) => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -565,7 +566,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       return advances;
     } catch (error) {
       Logger.error('❌ Błąd wyszukiwania zaliczek:', error);
-      Alert.alert('Błąd', 'Nie udało się wyszukać zaliczek');
+      appAlert('Błąd', 'Nie udało się wyszukać zaliczek');
       return [];
     }
   };
@@ -718,7 +719,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
         size: payload.size,
         from: payload.from
       });
-      Alert.alert("Błąd", "Brakuje wymaganych informacji o produkcie");
+      appAlert("Błąd", "Brakuje wymaganych informacji o produkcie");
       return;
     }
 
@@ -758,7 +759,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
         errorMessage = error.message;
       }
       
-      Alert.alert("Błąd", errorMessage);
+      appAlert("Błąd", errorMessage);
     }
 
     setModalVisible(false);

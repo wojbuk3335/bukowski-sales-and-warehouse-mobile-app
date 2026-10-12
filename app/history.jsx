@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   TextInput,
   Modal,
   RefreshControl,
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
 import tokenService from '../services/tokenService';
 import { getApiUrl } from '../config/api';
+import { appAlert } from '../services/appAlert';
 
 const History = () => {
   const [historyData, setHistoryData] = useState([]);
@@ -79,7 +79,7 @@ const History = () => {
       setHistoryData(historyArray);
     } catch (error) {
       console.error('Error loading history:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać historii');
+      appAlert('Błąd', 'Nie udało się pobrać historii');
     } finally {
       setLoading(false);
     }

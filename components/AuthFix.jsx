@@ -1,8 +1,9 @@
 // Simple auth fix - clear all tokens and force re-login
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { appAlert } from '../services/appAlert';
 
 const AuthFix = () => {
     const clearAllAuthData = async () => {
@@ -20,7 +21,7 @@ const AuthFix = () => {
             
             await AsyncStorage.multiRemove(keysToRemove);
             
-            Alert.alert(
+            appAlert(
                 'Tokens Cleared', 
                 'All authentication data cleared. Please login again.',
                 [
@@ -35,7 +36,7 @@ const AuthFix = () => {
             );
             
         } catch (error) {
-            Alert.alert('Error', 'Failed to clear tokens: ' + error.message);
+            appAlert('Error', 'Failed to clear tokens: ' + error.message);
         }
     };
 

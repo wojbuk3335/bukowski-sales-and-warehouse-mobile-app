@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -18,6 +17,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const OrdersList = () => {
   const { user } = useContext(GlobalStateContext);
@@ -70,7 +70,7 @@ const OrdersList = () => {
       }
     } catch (error) {
       console.error('Error loading orders:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać zamówień');
+      appAlert('Błąd', 'Nie udało się pobrać zamówień');
     } finally {
       setLoading(false);
     }
@@ -196,7 +196,7 @@ const OrdersList = () => {
 
   const completeOrder = async () => {
     if (!shippingDate) {
-      Alert.alert('Błąd', 'Proszę wybrać datę wysyłki');
+      appAlert('Błąd', 'Proszę wybrać datę wysyłki');
       return;
     }
 
@@ -225,11 +225,11 @@ const OrdersList = () => {
         setSuccessMessage('✅ Zamówienie zostało zrealizowane!\n\n📧 Klient otrzymał powiadomienie email z datą wysyłki.');
         setSuccessModalVisible(true);
       } else {
-        Alert.alert('Błąd', 'Nie udało się zrealizować zamówienia');
+        appAlert('Błąd', 'Nie udało się zrealizować zamówienia');
       }
     } catch (error) {
       console.error('Error completing order:', error);
-      Alert.alert('Błąd', 'Nie udało się zrealizować zamówienia');
+      appAlert('Błąd', 'Nie udało się zrealizować zamówienia');
     }
   };
 
@@ -257,11 +257,11 @@ const OrdersList = () => {
         setSuccessMessage('🔄 Zamówienie zostało przywrócone!\n\nStatus zamówienia został zmieniony na aktywny.');
         setSuccessModalVisible(true);
       } else {
-        Alert.alert('Błąd', 'Nie udało się przywrócić zamówienia');
+        appAlert('Błąd', 'Nie udało się przywrócić zamówienia');
       }
     } catch (error) {
       console.error('Error reverting order:', error);
-      Alert.alert('Błąd', 'Nie udało się przywrócić zamówienia');
+      appAlert('Błąd', 'Nie udało się przywrócić zamówienia');
     }
   };
 

@@ -1,17 +1,16 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Modal, 
-  TextInput, 
-  FlatList, 
-  Alert,
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  FlatList,
   ScrollView,
   RefreshControl,
   Platform,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +21,7 @@ import { getApiUrl } from '../../config/api';
 import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
+import { appAlert } from '../../services/appAlert';
 
 const Cudzych = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -166,7 +166,7 @@ const Cudzych = () => {
       ]);
     } catch (error) {
       Logger.error('Error loading initial data:', error);
-      Alert.alert('Błąd', 'Nie udało się załadować danych');
+      appAlert('Błąd', 'Nie udało się załadować danych');
     } finally {
       setLoading(false);
     }
@@ -260,29 +260,29 @@ const Cudzych = () => {
   const createTransaction = async (type) => {
     // Validate that a product is selected and text matches
     if (!selectedProduct) {
-      Alert.alert('Błąd', 'Proszę wybrać produkt z listy');
+      appAlert('Błąd', 'Proszę wybrać produkt z listy');
       return;
     }
 
     // Validate that the search text matches the selected product
     if (productSearchText !== selectedProduct.fullName) {
-      Alert.alert('Błąd', 'Proszę wybrać produkt z listy wyszukiwania');
+      appAlert('Błąd', 'Proszę wybrać produkt z listy wyszukiwania');
       return;
     }
 
     // Validate that a size is selected from the list
     if (!selectedSize || !size) {
-      Alert.alert('Błąd', 'Proszę wybrać rozmiar z listy');
+      appAlert('Błąd', 'Proszę wybrać rozmiar z listy');
       return;
     }
 
     if (!price) {
-      Alert.alert('Błąd', 'Proszę wypełnić wszystkie wymagane pola');
+      appAlert('Błąd', 'Proszę wypełnić wszystkie wymagane pola');
       return;
     }
 
     if (parseFloat(price) <= 0) {
-      Alert.alert('Błąd', 'Cena musi być większa od 0');
+      appAlert('Błąd', 'Cena musi być większa od 0');
       return;
     }
 
@@ -402,11 +402,11 @@ const Cudzych = () => {
         setZwrotModalVisible(false);
       } else {
         const errorData = await response.json();
-        Alert.alert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
+        appAlert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
       }
     } catch (error) {
       Logger.error('Error creating transaction:', error);
-      Alert.alert('Błąd', 'Nie udało się połączyć z serwerem');
+      appAlert('Błąd', 'Nie udało się połączyć z serwerem');
     } finally {
       setLoading(false);
     }
@@ -436,7 +436,7 @@ const Cudzych = () => {
       
       // If no productId found, alert user
       if (!productId) {
-        Alert.alert('Błąd', `Nie znaleziono produktu "${productName}" w bazie danych. Sprawdź czy produkt istnieje w systemie.`);
+        appAlert('Błąd', `Nie znaleziono produktu "${productName}" w bazie danych. Sprawdź czy produkt istnieje w systemie.`);
         return;
       }
       
@@ -543,11 +543,11 @@ const Cudzych = () => {
         
       } else {
         const errorData = await response.json();
-        Alert.alert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
+        appAlert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
       }
     } catch (error) {
       Logger.error('Error saving scanned transaction:', error);
-      Alert.alert('Błąd', 'Nie udało się połączyć z serwerem');
+      appAlert('Błąd', 'Nie udało się połączyć z serwerem');
     } finally {
       setLoading(false);
     }
@@ -556,7 +556,7 @@ const Cudzych = () => {
   // Create payment transaction (wpłata lub wypłata)
   const createPaymentTransaction = async (type) => {
     if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-      Alert.alert('Błąd', 'Proszę wpisać prawidłową kwotę');
+      appAlert('Błąd', 'Proszę wpisać prawidłową kwotę');
       return;
     }
 
@@ -595,11 +595,11 @@ const Cudzych = () => {
         setWyplataModalVisible(false);
       } else {
         const errorData = await response.json();
-        Alert.alert('Błąd', errorData.error || 'Nie udało się zapisać płatności');
+        appAlert('Błąd', errorData.error || 'Nie udało się zapisać płatności');
       }
     } catch (error) {
       Logger.error('❌ Error creating payment:', error);
-      Alert.alert('Błąd', 'Nie udało się połączyć z serwerem');
+      appAlert('Błąd', 'Nie udało się połączyć z serwerem');
     } finally {
       setLoading(false);
     }
@@ -1837,7 +1837,7 @@ const Cudzych = () => {
                       setScanned(false);
                     } else {
                       Logger.debug('DEBUG: No price available for product:', scannedProductData.name);
-                      Alert.alert("Błąd", `Brak ceny dla produktu ${scannedProductData.name} w cenniku Cudzich`);
+                      appAlert("Błąd", `Brak ceny dla produktu ${scannedProductData.name} w cenniku Cudzich`);
                     }
                   }}
                 >

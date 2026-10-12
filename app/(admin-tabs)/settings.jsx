@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -12,6 +11,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import LogoutButton from "../../components/LogoutButton";
+import { appAlert } from '../../services/appAlert';
 
 const Settings = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -27,7 +27,7 @@ const Settings = () => {
   };
 
   const handleClearCache = () => {
-    Alert.alert(
+    appAlert(
       "Wyczyść pamięć podręczną",
       "Czy na pewno chcesz wyczyścić pamięć podręczną?",
       [
@@ -38,14 +38,14 @@ const Settings = () => {
   };
 
   const handleExportData = () => {
-    Alert.alert(
+    appAlert(
       "Eksportuj dane",
       "Funkcja eksportu danych zostanie wkrótce dodana."
     );
   };
 
   const handleBackupNow = () => {
-    Alert.alert(
+    appAlert(
       "Kopia zapasowa",
       "Funkcja tworzenia kopii zapasowej zostanie wkrótce dodana."
     );

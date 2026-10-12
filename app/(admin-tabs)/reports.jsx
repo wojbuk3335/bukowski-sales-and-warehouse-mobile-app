@@ -5,13 +5,13 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Alert,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import LogoutButton from "../../components/LogoutButton";
+import { appAlert } from '../../services/appAlert';
 
 const Reports = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -107,7 +107,7 @@ const Reports = () => {
                 router.push('/movements-report');
               } else {
                 // TODO: Implement other reports
-                Alert.alert('Wkrótce', `Raport "${report.title}" będzie wkrótce dostępny`);
+                appAlert('Wkrótce', `Raport "${report.title}" będzie wkrótce dostępny`);
               }
             }}
             activeOpacity={0.7}

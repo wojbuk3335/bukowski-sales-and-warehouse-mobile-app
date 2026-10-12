@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   TextInput,
   RefreshControl,
   Modal,
@@ -18,6 +17,7 @@ import { router } from 'expo-router';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { AuthContext } from '../context/AuthContext';
+import { appAlert } from '../services/appAlert';
 
 const PrintLabels = () => {
   const authContext = useContext(AuthContext);
@@ -205,7 +205,7 @@ const PrintLabels = () => {
       }
     } catch (error) {
       console.error('Error loading initial data:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać danych');
+      appAlert('Błąd', 'Nie udało się pobrać danych');
     } finally {
       setLoading(false);
     }
@@ -279,7 +279,7 @@ const PrintLabels = () => {
       }
     } catch (error) {
       console.error('Error loading inventory:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać stanów magazynowych');
+      appAlert('Błąd', 'Nie udało się pobrać stanów magazynowych');
     }
   };
 
@@ -843,7 +843,7 @@ const PrintLabels = () => {
 
   const handlePrintAll = () => {
     if (filteredData.length === 0) {
-      Alert.alert('Brak danych', 'Nie ma produktów do wydrukowania');
+      appAlert('Brak danych', 'Nie ma produktów do wydrukowania');
       return;
     }
 

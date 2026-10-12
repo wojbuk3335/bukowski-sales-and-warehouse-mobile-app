@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -17,6 +16,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { appAlert } from '../services/appAlert';
 
 const CudzichList = () => {
   const { user } = useContext(GlobalStateContext);
@@ -60,7 +60,7 @@ const CudzichList = () => {
       setBalance(balanceData.balance || 0);
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Błąd', 'Nie udało się pobrać danych');
+      appAlert('Błąd', 'Nie udało się pobrać danych');
     } finally {
       setLoading(false);
     }
