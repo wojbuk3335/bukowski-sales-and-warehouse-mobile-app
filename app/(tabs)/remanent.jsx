@@ -432,7 +432,10 @@ const Remanent = () => {
         setRemanentData(current ? (current.items || []).map((item) => toRemanentItem(item, current._id)) : []);
       }
     } catch (error) {
-      Logger.error('Error fetching remanent session:', error);
+      // wylogowanie w trakcie pobierania to nie błąd (ekran i tak się zamyka)
+      if (!String(error?.message || '').includes('logout in progress')) {
+        Logger.error('Error fetching remanent session:', error);
+      }
     } finally {
       setLoading(false);
     }
