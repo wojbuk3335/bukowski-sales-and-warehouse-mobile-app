@@ -45,6 +45,9 @@ const OrdersList = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [revertConfirmModalVisible, setRevertConfirmModalVisible] = useState(false);
   const [orderToRevert, setOrderToRevert] = useState(null);
+  const [revertDate, setRevertDate] = useState(new Date()); // nowy termin realizacji (wymagany dla anulowanych)
+  const [showRevertDatePicker, setShowRevertDatePicker] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -243,33 +246,43 @@ const OrdersList = () => {
 
   const revertOrder = (order) => {
     setOrderToRevert(order);
+    setRevertDate(new Date());
     setRevertConfirmModalVisible(true);
   };
 
   const confirmRevertOrder = async () => {
+    if (reverting) return;
+    const wasCancelled = orderToRevert?.status === 'anulowane';
+    setReverting(true);
     try {
-      setRevertConfirmModalVisible(false);
-      
       const response = await tokenService.authenticatedFetch(
         getApiUrl(`/orders/${orderToRevert._id}/revert`),
         {
           method: 'PUT',
+          body: JSON.stringify(wasCancelled ? { realizationDate: localDateString(revertDate) } : {}),
         }
       );
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (data.success) {
+      if (response.ok && data.success) {
+        setRevertConfirmModalVisible(false);
         await loadOrders();
         setOrderToRevert(null);
-        setSuccessMessage('🔄 Zamówienie zostało przywrócone!\n\nStatus zamówienia został zmieniony na aktywny.');
+        setSuccessMessage(
+          '🔄 Zamówienie zostało przywrócone!\n\nStatus zamówienia został zmieniony na aktywny.'
+          + (wasCancelled ? `\n\nNowy termin realizacji: ${revertDate.toLocaleDateString('pl-PL')}.` : '')
+          + (data.depositRestored ? '\n\nZaliczka wróciła do rozliczeń, prowizje przeliczone.' : '')
+        );
         setSuccessModalVisible(true);
       } else {
-        appAlert('Błąd', 'Nie udało się przywrócić zamówienia');
+        appAlert('Błąd', data.message ? `Nie przywrócono zamówienia: ${data.message}` : 'Nie udało się przywrócić zamówienia');
       }
     } catch (error) {
       console.error('Error reverting order:', error);
-      appAlert('Błąd', 'Nie udało się przywrócić zamówienia');
+      appAlert('Błąd', 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+    } finally {
+      setReverting(false);
     }
   };
 
@@ -855,6 +868,28 @@ const OrdersList = () => {
                     📧 {orderToRevert.customer?.email}
                   </Text>
                 </View>
+                {orderToRevert.status === 'anulowane' && (
+                  <View style={{ width: '100%', marginTop: 12 }}>
+                    <Text style={styles.datePickerLabel}>📅 Nowy termin realizacji (stary jest nieaktualny):</Text>
+                    <TouchableOpacity style={styles.dateButton} onPress={() => setShowRevertDatePicker(true)} testID="revert-date-button">
+                      <Text style={styles.dateButtonText}>{revertDate.toLocaleDateString('pl-PL')}</Text>
+                      <Ionicons name="calendar" size={24} color="#fff" />
+                    </TouchableOpacity>
+                    {showRevertDatePicker && (
+                      <DateTimePicker
+                        value={revertDate}
+                        minimumDate={new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={(event, date) => {
+                          setShowRevertDatePicker(false);
+                          if (date) setRevertDate(date);
+                        }}
+                      />
+                    )}
+                    <Text style={styles.datePickerHint}>Zaliczka wróci do rozliczeń, prowizje zostaną przeliczone.</Text>
+                  </View>
+                )}
               </>
             )}
 
@@ -871,8 +906,9 @@ const OrdersList = () => {
               <TouchableOpacity
                 style={[styles.confirmButton, styles.confirmRevertButton]}
                 onPress={confirmRevertOrder}
+                disabled={reverting}
               >
-                <Text style={styles.confirmButtonText}>Przywróć</Text>
+                <Text style={styles.confirmButtonText}>{reverting ? 'Przywracam…' : 'Przywróć'}</Text>
               </TouchableOpacity>
             </View>
           </View>
