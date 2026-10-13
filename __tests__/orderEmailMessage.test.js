@@ -15,6 +15,7 @@ test('poczta nie działa: ostrzeżenie, ale zamówienie zapisane', () => {
   const text = orderEmailMessage({ customer: 'failed', business: 'failed' });
   expect(text).toContain('Nie udało się wysłać maila z potwierdzeniem do klienta.');
   expect(text).toContain('Zamówienie jest zapisane');
+  expect(text).toContain('tylko powiadomień');
   expect(text).not.toContain('został wysłany do klienta');
 });
 
@@ -26,4 +27,12 @@ test('klient bez e-maila: nic o mailu do klienta', () => {
 
 test('stary backend bez informacji o mailach: tylko „złożone”, bez obietnic', () => {
   expect(orderEmailMessage(undefined)).toBe('Zamówienie zostało złożone!');
+});
+
+test('SMS: wysłany / testowy / błąd / zły numer', () => {
+  expect(orderEmailMessage({ customer: 'skipped', business: 'sent' }, 'sent')).toContain('SMS z potwierdzeniem został wysłany do klienta.');
+  expect(orderEmailMessage({ customer: 'skipped', business: 'sent' }, 'test')).toContain('trybie testowym');
+  expect(orderEmailMessage({ customer: 'skipped', business: 'sent' }, 'failed')).toContain('Nie udało się wysłać SMS-a');
+  expect(orderEmailMessage({ customer: 'skipped', business: 'sent' }, 'invalid_phone')).toContain('sprawdź numer telefonu');
+  expect(orderEmailMessage({ customer: 'skipped', business: 'sent' }, 'skipped')).not.toContain('SMS');
 });

@@ -599,7 +599,7 @@ const Profile = () => {
         
         // Set success message and show modal
         setOrderNumber(backendOrderId);
-        setSuccessMessage(orderEmailMessage(result.emails)); // komunikat wg faktycznie wysłanych maili
+        setSuccessMessage(orderEmailMessage(result.emails, result.sms)); // komunikat wg faktycznie wysłanych maili
         setSuccessModalVisible(true);
         
         // Reset form after a short delay.
