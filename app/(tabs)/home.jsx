@@ -9,6 +9,7 @@ import tokenService from '../../services/tokenService';
 import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
@@ -2536,13 +2537,19 @@ const Home = () => {
               <View style={{ marginVertical: 24, paddingHorizontal: 8 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                   <View style={{ width: '100%' }}>
-                    <Text style={{ fontSize: 14, color: tc('text', "#f3f4f6"), marginBottom: 12 }}>
-                      Zalogowany jako: <Text style={{ fontWeight: 'bold' }}>{user?.email}</Text> | {new Date().toLocaleDateString('pl-PL', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                      })}
-                    </Text>
+                    <View style={styles.screenHeader}>
+                      <View style={styles.screenHeaderIcon}>
+                        <Ionicons name="cart" size={30} color="#fff" />
+                      </View>
+                      <Text style={styles.screenHeaderTitle}>Sprzedaż</Text>
+                      <Text style={styles.screenHeaderSubtitle}>
+                        {user?.email} · {new Date().toLocaleDateString('pl-PL', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                        })}
+                      </Text>
+                    </View>
                     {assignedSalespeople.length > 0 && (
                       <>
                         {assignedSalespeople.map((salesperson, index) => {
@@ -2555,27 +2562,17 @@ const Home = () => {
                           return (
                             <View 
                               key={salesperson._id} 
-                              style={{ 
-                                flexDirection: "row", 
-                                alignItems: "center", 
-                                marginBottom: 4,
-                                padding: 6,
-                                backgroundColor: todaysRecord ? '#007bff' : tc('surface2', '#374151'),
-                                borderRadius: 4,
-                                borderLeftWidth: todaysRecord ? 3 : 0,
-                                borderLeftColor: '#007bff',
-                                width: '100%'
-                              }}
+                              style={[styles.salespersonCard, todaysRecord && styles.salespersonCardActive]}
                             >
                               <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 13, color: "#ffffff" }}>
+                                <Text style={{ fontSize: 15, fontWeight: '600', color: tc('text', "#ffffff") }}>
                                   {index + 1}. {salesperson.firstName} {salesperson.lastName}
                                   {salesperson.employeeId && (
                                     <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 11 }}> (ID: {salesperson.employeeId})</Text>
                                   )}
                                 </Text>
                                 {todaysRecord && (
-                                  <Text style={{ color: tc('text', '#ffffff'), fontSize: 11, marginTop: 2 }}>
+                                  <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 12, marginTop: 2 }}>
                                     ⏰ {todaysRecord.startTime} - {todaysRecord.endTime} ({(todaysRecord.totalHours || 0).toFixed(1)}h)
                                   </Text>
                                 )}
@@ -2583,30 +2580,18 @@ const Home = () => {
                               
                               <TouchableOpacity 
                                 onPress={() => openWorkHoursModal(salesperson)}
-                                style={{ 
-                                  backgroundColor: todaysRecord ? '#0d9488' : '#0ea5e9',
-                                  paddingHorizontal: 8,
-                                  paddingVertical: 4,
-                                  borderRadius: 3,
-                                  marginLeft: 4
-                                }}
+                                accessibilityLabel="Godziny pracy"
+                                style={[styles.iconTile, { backgroundColor: todaysRecord ? '#0d948826' : '#0EA5E926' }]}
                               >
-                                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
-                                  {todaysRecord ? '⏱️' : '⏰'}
-                                </Text>
+                                <Ionicons name={todaysRecord ? 'time' : 'time-outline'} size={20} color={todaysRecord ? '#14B8A6' : '#0EA5E9'} />
                               </TouchableOpacity>
                               
                               <TouchableOpacity 
                                 onPress={() => removeSalesperson(salesperson._id)}
-                                style={{ 
-                                  backgroundColor: '#dc3545',
-                                  paddingHorizontal: 6,
-                                  paddingVertical: 2,
-                                  borderRadius: 3,
-                                  marginLeft: 4
-                                }}
+                                accessibilityLabel="Usuń sprzedawcę"
+                                style={[styles.iconTile, { backgroundColor: '#DC354526' }]}
                               >
-                                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>✕</Text>
+                                <Ionicons name="close" size={20} color="#EF4444" />
                               </TouchableOpacity>
                             </View>
                           );
@@ -2623,20 +2608,11 @@ const Home = () => {
                 }}>
                   <TouchableOpacity
                     testID="add-salesperson-button"
-                    style={{
-                      backgroundColor: '#007bff',
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: 'white',
-                      width: '100%',
-                      marginBottom: 8,
-                      alignItems: 'center',
-                    }}
+                    style={styles.primaryButton}
                     onPress={() => setSalespersonModalVisible(true)}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
+                    <Ionicons name="person-add" size={20} color="#fff" />
+                    <Text style={styles.primaryButtonText}>
                       Dodaj sprzedawców
                     </Text>
                   </TouchableOpacity>
@@ -2649,39 +2625,35 @@ const Home = () => {
                   const mainAmount = availableFunds[mainCurrency] || 0;
                   
                   return (
-                    <View style={{ 
-                      marginVertical: 12, 
-                      backgroundColor: tc('surface2', '#374151'), 
-                      padding: 10, 
-                      borderRadius: 6,
-                      marginHorizontal: 16
-                    }}>
-                      <Text style={{ 
-                        color: '#10b981', 
-                        fontSize: 14, 
-                        textAlign: 'center', 
-                        fontWeight: 'bold' 
+                    <View style={styles.fundsCard}>
+                      <View style={[styles.iconTileLarge, { backgroundColor: '#10B98126' }]}>
+                        <Ionicons name="wallet" size={24} color="#10B981" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                      <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13 }}>Dostępne środki</Text>
+                      <Text style={{
+                        color: '#10b981',
+                        fontSize: 20,
+                        fontWeight: 'bold'
                       }}>
-                        {`💰 Dostępne środki w ${mainCurrency}: ${mainAmount.toFixed(2)}`}
+                        {`${mainAmount.toFixed(2)} ${mainCurrency}`}
                       </Text>
                       {/* Show other currencies if available */}
                       {Object.entries(availableFunds).filter(([currency]) => currency !== mainCurrency).map(([currency, amount]) => (
-                        <Text key={currency} style={{ 
-                          color: tc('muted', '#9ca3af'), 
-                          fontSize: 12, 
-                          textAlign: 'center',
+                        <Text key={currency} style={{
+                          color: tc('muted', '#9ca3af'),
+                          fontSize: 12,
                           marginTop: 2
                         }}>
                           {currency}: {amount.toFixed(2)}
                         </Text>
                       ))}
+                      </View>
                     </View>
                   );
                 })()}
                 
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ color: tc('muted', "#d1d5db"), fontSize: 14, fontWeight: "bold", marginRight: 8 }}>Sprzedaż:</Text>
-                </View>
+                <Text style={styles.sectionLabel}>Sprzedaż dzisiaj</Text>
               </View>
             );
           }}
@@ -2812,7 +2784,7 @@ const Home = () => {
                           {index + 1}. {item.fullName} {item.size} - Przesłano z: {item.transfer_from}
                         </Text>
                         <TouchableOpacity style={styles.dotsButton}>
-                          <Text style={[styles.dotsText, { color: "black" }]}>⋮</Text>
+                          <Text style={styles.dotsText}>⋮</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -2886,8 +2858,8 @@ const Home = () => {
                           style={[
                             styles.deductionItem,
                             (item.type === 'addition' || item.amount > 0) 
-                              ? { backgroundColor: '#0d6efd' } // Blue background for additions
-                              : { backgroundColor: '#dc2626' } // Red background for deductions
+                              ? { borderLeftColor: '#0D6EFD' } // dopisanie - niebieski pasek
+                              : { borderLeftColor: '#DC2626' } // odpisanie - czerwony pasek
                           ]}
                         >
                           <Text style={styles.deductionItemTextLeft}>
@@ -3278,12 +3250,12 @@ const Home = () => {
                   <TouchableOpacity
                     testID="deduct-amount-button"
                     style={{
-                      backgroundColor: '#007bff',
+                      backgroundColor: '#0D6EFD',
                       paddingVertical: 12,
                       paddingHorizontal: 16,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       borderWidth: 1,
-                      borderColor: 'white',
+                      borderColor: 'transparent',
                       width: '100%',
                       marginBottom: 8,
                       alignItems: 'center',
@@ -3298,12 +3270,12 @@ const Home = () => {
                   <TouchableOpacity
                     testID="add-amount-button"
                     style={{
-                      backgroundColor: '#007bff',
+                      backgroundColor: '#0D6EFD',
                       paddingVertical: 12,
                       paddingHorizontal: 16,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       borderWidth: 1,
-                      borderColor: 'white',
+                      borderColor: 'transparent',
                       width: '100%',
                       marginBottom: 8,
                       alignItems: 'center',
@@ -3318,12 +3290,12 @@ const Home = () => {
                   <TouchableOpacity
                     testID="currency-rates-button"
                     style={{
-                      backgroundColor: '#007bff',
+                      backgroundColor: '#0D6EFD',
                       paddingVertical: 12,
                       paddingHorizontal: 16,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       borderWidth: 1,
-                      borderColor: 'white',
+                      borderColor: 'transparent',
                       width: '100%',
                       marginBottom: 8,
                       alignItems: 'center',
@@ -3338,12 +3310,12 @@ const Home = () => {
                   <TouchableOpacity
                     testID="currency-calculator-button"
                     style={{
-                      backgroundColor: '#007bff',
+                      backgroundColor: '#0D6EFD',
                       paddingVertical: 12,
                       paddingHorizontal: 16,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       borderWidth: 1,
-                      borderColor: 'white',
+                      borderColor: 'transparent',
                       width: '100%',
                       alignItems: 'center',
                     }}
@@ -3392,8 +3364,8 @@ const Home = () => {
                   <TextInput
                     style={{
                       borderWidth: 1,
-                      borderColor: "white",
-                      borderRadius: 5,
+                      borderColor: 'transparent',
+                      borderRadius: 10,
                       paddingHorizontal: 10,
                       paddingVertical: 8,
                       color: tc('text', "white"),
@@ -3411,8 +3383,8 @@ const Home = () => {
                   <TextInput
                     style={{
                       borderWidth: 1,
-                      borderColor: "white",
-                      borderRadius: 5,
+                      borderColor: 'transparent',
+                      borderRadius: 10,
                       paddingHorizontal: 10,
                       paddingVertical: 8,
                       color: tc('text', "white"),
@@ -3430,8 +3402,8 @@ const Home = () => {
                   <View
                     style={{
                       borderWidth: 1,
-                      borderColor: "white",
-                      borderRadius: 5,
+                      borderColor: 'transparent',
+                      borderRadius: 10,
                       paddingHorizontal: 10,
                       paddingVertical: 5,
                       marginBottom: 20,
@@ -3444,7 +3416,7 @@ const Home = () => {
                         justifyContent: "center",
                         alignItems: "center",
                         backgroundColor: tc('surface', "black"),
-                        borderRadius: 5,
+                        borderRadius: 10,
                       }}
                       onPress={() => {
                         const matchingSymbols = getMatchingSymbols();
@@ -3465,16 +3437,16 @@ const Home = () => {
 
                 {/* Cash Payment Section */}
                 <Text style={{ fontSize: 16, marginBottom: 10, textAlign: "center", color: tc('text', "white") }}>Płatność gotówką</Text>
-                <View style={{ width: "100%", borderWidth: 1, borderColor: "white", padding: 20 }}>
+                <View style={{ width: "100%", borderWidth: 1, borderColor: 'transparent', padding: 20 }}>
                   {cashPriceCurrencyPairs.map((pair, index) => (
                     <View key={`cash-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
                       <TextInput
                         style={{
                           flex: 1,
                           height: 40,
-                          borderColor: "white",
+                          borderColor: 'transparent',
                           borderWidth: 1,
-                          borderRadius: 5,
+                          borderRadius: 10,
                           paddingHorizontal: 10,
                           color: tc('text', "white"),
                           backgroundColor: tc('surface', "black"),
@@ -3495,9 +3467,9 @@ const Home = () => {
                           justifyContent: "center",
                           alignItems: "center",
                           backgroundColor: tc('surface', "black"),
-                          borderColor: "white",
+                          borderColor: 'transparent',
                           borderWidth: 1,
-                          borderRadius: 5,
+                          borderRadius: 10,
                         }}
                         onPress={() => openCurrencyModal(index, "cash")}
                       >
@@ -3510,7 +3482,7 @@ const Home = () => {
                             paddingVertical: 5,
                             paddingHorizontal: 10,
                             backgroundColor: "red",
-                            borderRadius: 5,
+                            borderRadius: 10,
                             justifyContent: "center",
                             alignItems: "center",
                           }}
@@ -3521,23 +3493,23 @@ const Home = () => {
                       )}
                     </View>
                   ))}
-                  <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 5, alignItems: "center" }} onPress={handleAddCashPair}>
+                  <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 10, alignItems: "center" }} onPress={handleAddCashPair}>
                     <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Dodaj parę</Text>
                   </Pressable>
                 </View>
 
                 {/* Card Payment Section */}
                 <Text style={{ fontSize: 16, marginBottom: 10, marginTop: 20, textAlign: "center", color: tc('text', "white") }}>Płatność kartą</Text>
-                <View style={{ width: "100%", borderWidth: 1, borderColor: "white", padding: 20 }}>
+                <View style={{ width: "100%", borderWidth: 1, borderColor: 'transparent', padding: 20 }}>
                   {cardPriceCurrencyPairs.map((pair, index) => (
                     <View key={`card-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
                       <TextInput
                         style={{
                           flex: 1,
                           height: 40,
-                          borderColor: "white",
+                          borderColor: 'transparent',
                           borderWidth: 1,
-                          borderRadius: 5,
+                          borderRadius: 10,
                           paddingHorizontal: 10,
                           color: tc('text', "white"),
                           backgroundColor: tc('surface', "black"),
@@ -3558,9 +3530,9 @@ const Home = () => {
                           justifyContent: "center",
                           alignItems: "center",
                           backgroundColor: tc('surface', "black"),
-                          borderColor: "white",
+                          borderColor: 'transparent',
                           borderWidth: 1,
-                          borderRadius: 5,
+                          borderRadius: 10,
                         }}
                         onPress={() => openCurrencyModal(index, "card")}
                       >
@@ -3573,7 +3545,7 @@ const Home = () => {
                             paddingVertical: 5,
                             paddingHorizontal: 10,
                             backgroundColor: "red",
-                            borderRadius: 5,
+                            borderRadius: 10,
                             justifyContent: "center",
                             alignItems: "center",
                           }}
@@ -3584,7 +3556,7 @@ const Home = () => {
                       )}
                     </View>
                   ))}
-                  <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 5, alignItems: "center" }} onPress={handleAddCardPair}>
+                  <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 10, alignItems: "center" }} onPress={handleAddCardPair}>
                     <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Dodaj parę</Text>
                   </Pressable>
                 </View>
@@ -3598,8 +3570,8 @@ const Home = () => {
                     marginBottom: 10,
                     padding: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
-                    borderRadius: 5,
+                    borderColor: 'transparent',
+                    borderRadius: 10,
                     backgroundColor: editData?.isPickup ? 'rgb(13, 110, 253)' : 'transparent',
                   }}
                   onPress={() => {
@@ -3610,8 +3582,8 @@ const Home = () => {
                     width: 24,
                     height: 24,
                     borderWidth: 2,
-                    borderColor: 'white',
-                    borderRadius: 4,
+                    borderColor: 'transparent',
+                    borderRadius: 10,
                     marginRight: 10,
                     backgroundColor: editData?.isPickup ? 'rgb(13, 110, 253)' : 'transparent',
                     alignItems: 'center',
@@ -3674,7 +3646,7 @@ const Home = () => {
               style={{
                 backgroundColor: tc('bg', "black"),
                 borderWidth: 1,
-                borderColor: "white",
+                borderColor: 'transparent',
               }}
             >
               <View
@@ -3691,7 +3663,7 @@ const Home = () => {
                     backgroundColor: "white",
                     color: "black",
                     padding: 10,
-                    borderRadius: 5,
+                    borderRadius: 10,
                     marginBottom: 10,
                   }}
                   value={newFromValue}
@@ -3704,7 +3676,7 @@ const Home = () => {
                     backgroundColor: "#0d6efd",
                     paddingVertical: 10,
                     paddingHorizontal: 20,
-                    borderRadius: 5,
+                    borderRadius: 10,
                     marginBottom: 10,
                   }}
                 >
@@ -3716,7 +3688,7 @@ const Home = () => {
                     backgroundColor: "#6c757d",
                     paddingVertical: 10,
                     paddingHorizontal: 20,
-                    borderRadius: 5,
+                    borderRadius: 10,
                   }}
                 >
                   <Text style={{ color: "white", fontWeight: "bold", textAlign: "center" }}>Anuluj</Text>
@@ -3926,7 +3898,7 @@ const Home = () => {
                     marginBottom: 15, 
                     backgroundColor: tc('surface2', '#374151'), 
                     padding: 10, 
-                    borderRadius: 6 
+                    borderRadius: 10 
                   }}>
                     <Text style={{ 
                       color: '#10b981', 
@@ -3964,7 +3936,7 @@ const Home = () => {
                     fontSize: 16,
                     color: tc('text', 'white'),
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     textAlign: 'center',
                   }}
                   placeholder="0.00"
@@ -3986,7 +3958,7 @@ const Home = () => {
                     borderRadius: 8,
                     alignItems: 'center',
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={() => setDeductionCurrencyModalVisible(true)}
                 >
@@ -4056,7 +4028,7 @@ const Home = () => {
                     height: 20,
                     borderRadius: 10,
                     borderWidth: 2,
-                    borderColor: '#fff',
+                    borderColor: 'transparent',
                     marginRight: 10,
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -4065,7 +4037,7 @@ const Home = () => {
                       <View style={{
                         width: 10,
                         height: 10,
-                        borderRadius: 5,
+                        borderRadius: 10,
                         backgroundColor: '#0d6efd',
                       }} />
                     )}
@@ -4087,7 +4059,7 @@ const Home = () => {
                     height: 20,
                     borderRadius: 10,
                     borderWidth: 2,
-                    borderColor: '#fff',
+                    borderColor: 'transparent',
                     marginRight: 10,
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -4096,7 +4068,7 @@ const Home = () => {
                       <View style={{
                         width: 10,
                         height: 10,
-                        borderRadius: 5,
+                        borderRadius: 10,
                         backgroundColor: '#0d6efd',
                       }} />
                     )}
@@ -4113,7 +4085,7 @@ const Home = () => {
                     style={{
                       backgroundColor: selectedEmployeeForAdvance ? '#10b981' : '#0d6efd',
                       borderWidth: 1,
-                      borderColor: 'white',
+                      borderColor: 'transparent',
                       borderRadius: 8,
                       padding: 12,
                       alignItems: 'center',
@@ -4143,7 +4115,7 @@ const Home = () => {
                     fontSize: 14,
                     color: tc('text', 'white'),
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     minHeight: 80,
                     textAlignVertical: 'top',
                   }}
@@ -4163,9 +4135,9 @@ const Home = () => {
                     backgroundColor: '#28a745',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={submitDeduction}
                   testID="submit-deduction-button"
@@ -4180,9 +4152,9 @@ const Home = () => {
                     backgroundColor: '#dc3545',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={() => {
                     setDeductionModalVisible(false);
@@ -4364,7 +4336,7 @@ const Home = () => {
                     borderRadius: 8,
                     alignItems: 'center',
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={() => setAddAmountCurrencyModalVisible(true)}
                 >
@@ -4458,7 +4430,7 @@ const Home = () => {
                           borderRadius: 8,
                           alignItems: 'center',
                           borderWidth: 1,
-                          borderColor: 'white',
+                          borderColor: 'transparent',
                           marginBottom: 10,
                         }}
                         onPress={() => {
@@ -4689,7 +4661,7 @@ const Home = () => {
                               borderRadius: 8,
                               padding: 12,
                               borderWidth: 1,
-                              borderColor: 'white',
+                              borderColor: 'transparent',
                               alignItems: 'center',
                             }}
                             onPress={() => setProductCurrencyModalVisible(true)}
@@ -4797,7 +4769,7 @@ const Home = () => {
                               marginTop: 8,
                               padding: 8,
                               backgroundColor: tc('surface', '#1a1a2e'),
-                              borderRadius: 6,
+                              borderRadius: 10,
                               borderWidth: 1,
                               borderColor: '#4ecdc4',
                             }}>
@@ -4901,9 +4873,9 @@ const Home = () => {
                     backgroundColor: '#0d6efd',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={submitAddAmount}
                   testID="submit-addition-button"
@@ -4918,9 +4890,9 @@ const Home = () => {
                     backgroundColor: '#dc3545',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={() => {
                     setAddAmountModalVisible(false);
@@ -5000,7 +4972,7 @@ const Home = () => {
                             height: 24,
                             borderRadius: 12,
                             borderWidth: 2,
-                            borderColor: '#ffffff',
+                            borderColor: 'transparent',
                             backgroundColor: isSelected ? '#ffffff' : 'transparent',
                             justifyContent: 'center',
                             alignItems: 'center'
@@ -5046,9 +5018,9 @@ const Home = () => {
                     backgroundColor: '#10b981',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     flex: 1,
                     marginRight: 8,
                     alignItems: 'center'
@@ -5069,9 +5041,9 @@ const Home = () => {
                     backgroundColor: '#ef4444',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     flex: 1,
                     marginLeft: 8,
                     alignItems: 'center'
@@ -5307,12 +5279,12 @@ const Home = () => {
               <View style={styles.workHoursModalButtonContainer}>
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#007bff',
+                    backgroundColor: '#0D6EFD',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={saveWorkHours}
                 >
@@ -5326,9 +5298,9 @@ const Home = () => {
                     backgroundColor: '#dc3545',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                   }}
                   onPress={() => {
                     closeWorkHoursModal();
@@ -5361,7 +5333,7 @@ const Home = () => {
               </Text>
               
               <TouchableOpacity
-                style={[styles.optionButton, { backgroundColor: '#007bff', marginTop: 20, width: '90%' }]}
+                style={[styles.optionButton, { backgroundColor: '#0D6EFD', marginTop: 20, width: '90%' }]}
                 onPress={() => setSuccessModalVisible(false)}
               >
                 <Text style={styles.optionText}>OK</Text>
@@ -5417,9 +5389,9 @@ const Home = () => {
                     backgroundColor: '#ef4444',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     flex: 1,
                     marginRight: 8,
                     alignItems: 'center'
@@ -5434,9 +5406,9 @@ const Home = () => {
                     backgroundColor: '#dc3545',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     flex: 1,
                     marginLeft: 8,
                     alignItems: 'center'
@@ -5463,7 +5435,7 @@ const Home = () => {
               
               <Text style={[styles.modalSubtitle, { marginBottom: 25, textAlign: 'center', lineHeight: 22 }]}>
                 Czy na pewno chcesz usunąć sprzedawcę{'\n'}
-                <Text style={{ fontWeight: 'bold', color: '#007bff' }}>
+                <Text style={{ fontWeight: 'bold', color: '#0D6EFD' }}>
                   {employeeToRemove?.firstName} {employeeToRemove?.lastName}
                 </Text>
                 {'\n'}z zespołu?
@@ -5475,9 +5447,9 @@ const Home = () => {
                     backgroundColor: '#dc3545',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     flex: 1,
                     marginRight: 8,
                     alignItems: 'center'
@@ -5494,9 +5466,9 @@ const Home = () => {
                     backgroundColor: '#ef4444',
                     paddingVertical: 8,
                     paddingHorizontal: 16,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     borderWidth: 1,
-                    borderColor: 'white',
+                    borderColor: 'transparent',
                     flex: 1,
                     marginLeft: 8,
                     alignItems: 'center'
@@ -5745,7 +5717,7 @@ const Home = () => {
                     <View style={{
                       backgroundColor: tc('surface2', '#333'),
                       padding: 10,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       marginBottom: 20,
                       width: '100%'
                     }}>
@@ -5773,7 +5745,7 @@ const Home = () => {
                         paddingHorizontal: 25,
                         borderRadius: 8,
                         borderWidth: 1,
-                        borderColor: 'white',
+                        borderColor: 'transparent',
                         minWidth: 100
                       }}
                       onPress={saveCurrencyRate}
@@ -5795,7 +5767,7 @@ const Home = () => {
                         paddingHorizontal: 25,
                         borderRadius: 8,
                         borderWidth: 1,
-                        borderColor: 'white',
+                        borderColor: 'transparent',
                         minWidth: 100
                       }}
                       onPress={cancelEditingRate}
@@ -5865,7 +5837,7 @@ const Home = () => {
                             borderRadius: 12,
                             backgroundColor: isSelected ? '#ffffff' : 'transparent',
                             borderWidth: 2,
-                            borderColor: '#ffffff',
+                            borderColor: 'transparent',
                             justifyContent: 'center',
                             alignItems: 'center'
                           }}>
@@ -6078,10 +6050,10 @@ const Home = () => {
                   <Text style={{ color: tc('text', 'white'), marginBottom: 15 }}>Brak dostępnych kursów walut</Text>
                   <TouchableOpacity
                     style={{
-                      backgroundColor: '#007bff',
+                      backgroundColor: '#0D6EFD',
                       paddingVertical: 10,
                       paddingHorizontal: 20,
-                      borderRadius: 6,
+                      borderRadius: 10,
                     }}
                     onPress={fetchCurrencyRates}
                   >
@@ -6094,7 +6066,7 @@ const Home = () => {
                     flexDirection: 'row',
                     backgroundColor: tc('surface2', '#374151'),
                     padding: 10,
-                    borderRadius: 5,
+                    borderRadius: 10,
                     marginBottom: 5,
                   }}>
                     <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1 }}>Waluta</Text>
@@ -6139,9 +6111,9 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     flex: 1,
-                    backgroundColor: '#007bff',
+                    backgroundColor: '#0D6EFD',
                     paddingVertical: 12,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     alignItems: 'center',
                   }}
                   onPress={fetchCurrencyRates}
@@ -6154,7 +6126,7 @@ const Home = () => {
                     flex: 1,
                     backgroundColor: '#6c757d',
                     paddingVertical: 12,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     alignItems: 'center',
                   }}
                   onPress={() => setCurrencyRatesModalVisible(false)}
@@ -6211,7 +6183,7 @@ const Home = () => {
                         backgroundColor: tc('surface2', '#374151'),
                         color: tc('text', 'white'),
                         padding: 12,
-                        borderRadius: 6,
+                        borderRadius: 10,
                         fontSize: 16,
                       }}
                       placeholder="Wprowadź kwotę"
@@ -6230,7 +6202,7 @@ const Home = () => {
                     <TouchableOpacity
                       style={{
                         backgroundColor: tc('surface2', '#374151'),
-                        borderRadius: 6,
+                        borderRadius: 10,
                         padding: 15,
                         flexDirection: 'row',
                         justifyContent: 'space-between',
@@ -6252,14 +6224,14 @@ const Home = () => {
                   <View style={{ alignItems: 'center', marginBottom: 15 }}>
                     <TouchableOpacity
                       style={{
-                        backgroundColor: '#007bff',
+                        backgroundColor: '#0D6EFD',
                         width: 50,
                         height: 50,
                         borderRadius: 25,
                         justifyContent: 'center',
                         alignItems: 'center',
                         borderWidth: 2,
-                        borderColor: 'white',
+                        borderColor: 'transparent',
                       }}
                       onPress={swapCurrencies}
                     >
@@ -6277,7 +6249,7 @@ const Home = () => {
                     <TouchableOpacity
                       style={{
                         backgroundColor: tc('surface2', '#374151'),
-                        borderRadius: 6,
+                        borderRadius: 10,
                         padding: 15,
                         flexDirection: 'row',
                         justifyContent: 'space-between',
@@ -6298,9 +6270,9 @@ const Home = () => {
                   {/* Convert Button */}
                   <TouchableOpacity
                     style={{
-                      backgroundColor: '#007bff',
+                      backgroundColor: '#0D6EFD',
                       paddingVertical: 12,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       alignItems: 'center',
                       marginBottom: 15,
                     }}
@@ -6316,7 +6288,7 @@ const Home = () => {
                     <View style={{
                       backgroundColor: tc('surface2', '#374151'),
                       padding: 15,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       marginBottom: 15,
                       alignItems: 'center',
                     }}>
@@ -6336,7 +6308,7 @@ const Home = () => {
                 style={{
                   backgroundColor: '#6c757d',
                   paddingVertical: 12,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   alignItems: 'center',
                 }}
                 onPress={() => {
@@ -6385,9 +6357,9 @@ const Home = () => {
                 {/* PLN Option */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: calculatorFromCurrency === 'PLN' ? '#007bff' : tc('surface2', '#374151'),
+                    backgroundColor: calculatorFromCurrency === 'PLN' ? '#0D6EFD' : tc('surface2', '#374151'),
                     padding: 15,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     marginBottom: 8,
                   }}
                   onPress={() => {
@@ -6409,9 +6381,9 @@ const Home = () => {
                   <TouchableOpacity
                     key={rate.currency.code}
                     style={{
-                      backgroundColor: calculatorFromCurrency === rate.currency.code ? '#007bff' : tc('surface2', '#374151'),
+                      backgroundColor: calculatorFromCurrency === rate.currency.code ? '#0D6EFD' : tc('surface2', '#374151'),
                       padding: 15,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       marginBottom: 8,
                     }}
                     onPress={() => {
@@ -6437,7 +6409,7 @@ const Home = () => {
                 style={{
                   backgroundColor: '#6c757d',
                   paddingVertical: 12,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   alignItems: 'center',
                   marginTop: 15,
                 }}
@@ -6483,9 +6455,9 @@ const Home = () => {
                 {/* PLN Option */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: calculatorToCurrency === 'PLN' ? '#007bff' : tc('surface2', '#374151'),
+                    backgroundColor: calculatorToCurrency === 'PLN' ? '#0D6EFD' : tc('surface2', '#374151'),
                     padding: 15,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     marginBottom: 8,
                   }}
                   onPress={() => {
@@ -6507,9 +6479,9 @@ const Home = () => {
                   <TouchableOpacity
                     key={rate.currency.code}
                     style={{
-                      backgroundColor: calculatorToCurrency === rate.currency.code ? '#007bff' : tc('surface2', '#374151'),
+                      backgroundColor: calculatorToCurrency === rate.currency.code ? '#0D6EFD' : tc('surface2', '#374151'),
                       padding: 15,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       marginBottom: 8,
                     }}
                     onPress={() => {
@@ -6535,7 +6507,7 @@ const Home = () => {
                 style={{
                   backgroundColor: '#6c757d',
                   paddingVertical: 12,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   alignItems: 'center',
                   marginTop: 15,
                 }}
@@ -6553,15 +6525,112 @@ const Home = () => {
 };
 
 const styles = createThemedStyles(() => StyleSheet.create({
+  // ---- wygląd jak w panelu admina ----
+  screenHeader: {
+    alignItems: "center",
+    paddingBottom: 16,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: tc('border', "#1E293B"),
+  },
+  screenHeaderIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#0D6EFD",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  screenHeaderTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: tc('text', "#fff"),
+    marginBottom: 4,
+  },
+  screenHeaderSubtitle: {
+    fontSize: 14,
+    color: tc('muted', "#94A3B8"),
+    textAlign: "center",
+  },
+  salespersonCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: tc('surface', "#161622"),
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: tc('border', "#1E293B"),
+    width: '100%',
+  },
+  salespersonCardActive: {
+    borderColor: "#0D6EFD",
+    borderLeftWidth: 4,
+  },
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  iconTileLarge: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#0D6EFD",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    width: '100%',
+    marginBottom: 8,
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  fundsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: tc('surface', "#161622"),
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tc('border', "#1E293B"),
+    marginVertical: 12,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: tc('text', "#fff"),
+    marginTop: 4,
+  },
   item: {
-    backgroundColor: "#0d6efd", // Blue color for items
-    padding: 3, // Reduced padding to match writeoff.jsx
-    borderRadius: 5,
+    backgroundColor: tc('surface', "#161622"),
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     width: "100%",
-    marginVertical: 3, // Reduced margin to match writeoff.jsx
-    flexDirection: "row", // Align content in a single row
+    marginVertical: 4,
+    flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center", // Center content vertically
+    alignItems: "center",
+    borderLeftColor: "#0D6EFD", // sprzedaż - niebieski pasek
   },
   itemText: {
     color: tc('text', "white"),
@@ -6581,19 +6650,24 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: "center",
   },
   receivedItem: {
-    backgroundColor: "yellow", // Yellow background for received items
-    padding: 3, // Reduced to match writeoff.jsx
-    borderRadius: 5,
+    backgroundColor: tc('surface', "#161622"),
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     width: "100%",
-    marginVertical: 3, // Reduced to match writeoff.jsx
+    marginVertical: 4,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderLeftColor: "#FACC15", // dopisać na konto - żółty pasek
   },
   itemTextLeft: {
-    color: "white",
-    fontSize: 12, // Reduced to match writeoff.jsx
-    fontWeight: "bold", // Standardized font weight
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
     textAlign: "left",
     flex: 1,
   },
@@ -6605,31 +6679,33 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
   },
   dotsButton: {
-    padding: 5, // Match writeoff.jsx
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   dotsText: {
-    color: tc('text', "white"),
-    fontSize: 20, // Reduced to match writeoff.jsx
+    color: tc('muted', "#94A3B8"),
+    fontSize: 22,
     textAlign: "center",
   },
   receivedItemText: {
-    color: "black", // Black text for received items
-    fontSize: 16, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    flex: 1, // Allow text to take available space
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "left",
+    flex: 1,
   },
   receivedItemTextLeft: {
-    color: "black", // Black text for left-aligned content
-    fontSize: 16, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    flex: 1, // Allow text to take available space
-    textAlign: "left", // Align text to the left
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "left",
+    flex: 1,
   },
   receivedItemTextRight: {
-    color: "black", // Black text for right-aligned content
-    fontSize: 16, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    textAlign: "right", // Align text to the right
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "right",
   },
   text: {
     color: tc('text', "white"), // White text for items
@@ -6651,28 +6727,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
   // Unified modal styles to match writeoff.jsx
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: tc('bg', '#000000'), // True black like main app background
-    borderRadius: 15,
-    padding: 25,
-    alignItems: 'center',
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '90%',
     maxHeight: '80%',
-    color: tc('text', '#fff'),
-    borderWidth: 2,
-    borderColor: '#0d6efd', // Main app color
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
+    alignItems: 'center',
   },
   modalTitle: {
     fontSize: 20,
@@ -6696,35 +6763,34 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingHorizontal: 10,
   },
   optionButton: {
-    backgroundColor: '#0d6efd',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginVertical: 6,
     borderWidth: 1,
-    borderColor: '#ffffff',
+    borderColor: tc('border', '#2f3340'),
     alignItems: 'center',
     width: '100%',
   },
   optionText: {
     fontSize: 16,
-    color: '#ffffff',
-    fontWeight: 'bold',
+    color: tc('text', '#ffffff'),
+    fontWeight: '600',
   },
   deleteButton: {
-    backgroundColor: '#dc3545', // Red color for delete action
+    backgroundColor: 'rgba(220, 53, 69, 0.15)',
+    borderColor: '#DC3545',
   },
   closeButton: {
-    backgroundColor: '#dc3545', // Red color for cancel/close
-    paddingVertical: 15,
+    backgroundColor: '#DC3545',
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#ffffff',
+    borderRadius: 12,
+    marginVertical: 6,
     alignItems: 'center',
     width: '100%',
-    marginTop: 20,
+    marginTop: 16,
   },
   closeText: {
     color: '#ffffff',
@@ -6732,48 +6798,60 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: 'bold',
   },
   advanceItem: {
-    marginBottom: 12,
-    padding: 8, // Reduced padding to make items more compact
-    backgroundColor: "#10b981", // Green background for advances
-    borderRadius: 8,
+    backgroundColor: tc('surface', "#161622"),
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    width: "100%",
+    marginVertical: 4,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderLeftColor: "#10B981", // zaliczka - zielony pasek
   },
   advanceItemTextLeft: {
-    color: "white", // White text for left-aligned content
-    fontSize: 13, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    flex: 1, // Allow text to take available space
-    textAlign: "left", // Align text to the left
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "left",
+    flex: 1,
   },
   advanceItemTextRight: {
-    color: "white", // White text for right-aligned content
-    fontSize: 13, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    textAlign: "right", // Align text to the right
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "right",
   },
   deductionItem: {
-    marginBottom: 12,
-    padding: 8, // Reduced padding to make items more compact
-    backgroundColor: tc('surface2', "#374151"), // Neutral gray background (will be overridden by inline styles)
-    borderRadius: 8,
+    backgroundColor: tc('surface', "#161622"),
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    width: "100%",
+    marginVertical: 4,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderLeftColor: "#0D6EFD",
   },
   deductionItemTextLeft: {
-    color: tc('text', "white"), // White text for left-aligned content
-    fontSize: 13, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    flex: 1, // Allow text to take available space
-    textAlign: "left", // Align text to the left
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "left",
+    flex: 1,
   },
   deductionItemTextRight: {
-    color: tc('text', "white"), // White text for right-aligned content
-    fontSize: 13, // Match font size from writeoff.jsx
-    fontWeight: "bold", // Bold text for emphasis
-    textAlign: "right", // Align text to the right
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "right",
   },
   // Style identyczne z QRScanner dla modal wyboru symboli
   currencyModalContainer: {
@@ -6783,22 +6861,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   currencyModalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 25,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '90%',
     maxHeight: '80%',
-    borderWidth: 2,
-    borderColor: '#0d6efd',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   currencyModalTitle: {
     fontSize: 20,
@@ -6849,21 +6918,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   salespersonModalContent: {
-    backgroundColor: tc('bg', '#000000'), // Prawdziwy czarny jak główne tło aplikacji
-    borderRadius: 15,
-    padding: 25,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '90%',
     maxHeight: '80%',
-    borderWidth: 2,
-    borderColor: '#0d6efd', // Główny kolor aplikacji
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   salespersonModalTitle: {
     fontSize: 20,
@@ -6873,19 +6934,20 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 5,
   },
   salespersonOptionButton: {
-    backgroundColor: '#0d6efd', // Główny kolor aplikacji
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginVertical: 6,
     borderWidth: 1,
-    borderColor: '#ffffff',
+    borderColor: tc('border', '#2f3340'),
     alignItems: 'center',
+    width: '100%',
   },
   salespersonOptionText: {
     color: tc('text', '#ffffff'),
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   salespersonModalButtonContainer: {
     flexDirection: 'row', // Z powrotem poziomo
@@ -6921,21 +6983,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   workHoursModalContent: {
-    backgroundColor: tc('bg', 'black'),
-    borderRadius: 10,
-    padding: 16,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 18,
     width: '90%',
     maxHeight: '85%',
     borderWidth: 1,
-    borderColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderColor: tc('border', '#232533'),
   },
   workHoursModalTitle: {
     fontSize: 16,
@@ -7067,21 +7121,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 30,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '85%',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#007bff',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   successIconContainer: {
     width: 60,
@@ -7119,21 +7165,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   errorModalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 30,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '85%',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#dc3545',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   errorIconContainer: {
     width: 60,
