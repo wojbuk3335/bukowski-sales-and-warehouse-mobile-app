@@ -2273,6 +2273,16 @@ const Users = () => {
 
         {/* User and Date Selection */}
         <View style={styles.section}>
+          {/* Informacja o cenniku wybranego użytkownika - sam tekst nad wyborem */}
+          {selectedUserId && (
+            <Text style={[styles.priceListInfoLine, { color: priceListLoading ? tc('muted', '#94A3B8') : hasPriceList ? '#10B981' : '#F59E0B' }]}>
+              {priceListLoading
+                ? 'Ładowanie cennika...'
+                : hasPriceList
+                  ? `Cennik: ${priceListCount} produktów - ceny z dedykowanego cennika`
+                  : 'Brak dedykowanego cennika - ceny z kart produktów'}
+            </Text>
+          )}
           <Text style={styles.label}>Użytkownik:</Text>
           <TouchableOpacity
             style={styles.selectButton}
@@ -2288,35 +2298,6 @@ const Users = () => {
             <Ionicons name="people" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
         </View>
-
-        {selectedUserId && (
-          <View style={styles.priceListInfoContainer}>
-            {priceListLoading ? (
-              <View style={styles.priceListInfoLoading}>
-                <ActivityIndicator size="small" color="rgb(0, 123, 255)" />
-                <Text style={styles.priceListInfoTitle}>Ładowanie cennika...</Text>
-              </View>
-            ) : (
-              <View style={hasPriceList ? styles.priceListInfoSuccess : styles.priceListInfoWarning}>
-                <Ionicons
-                  name={hasPriceList ? "checkmark-circle" : "information-circle"}
-                  size={24}
-                  color={hasPriceList ? "#22c55e" : "#f59e0b"}
-                />
-                <View style={styles.priceListInfoText}>
-                  <Text style={styles.priceListInfoTitle}>
-                    {hasPriceList ? `Cennik: ${priceListCount} produktów` : "Brak dedykowanego cennika"}
-                  </Text>
-                  <Text style={styles.priceListInfoSubtitle}>
-                    {hasPriceList
-                      ? "Ceny pobierane są z dedykowanego cennika."
-                      : "Ceny pobierane są z kart produktów."}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
 
         <View style={styles.section}>
           <Text style={styles.label}>Data:</Text>
@@ -4180,6 +4161,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', "#fff"),
     fontSize: 13,
     fontWeight: "600",
+  },
+  priceListInfoLine: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 10,
   },
   priceListInfoContainer: {
     paddingHorizontal: 16,
