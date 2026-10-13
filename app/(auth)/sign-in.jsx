@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useNavigation, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useContext, useEffect, useState } from "react";
-import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -142,13 +142,9 @@ const SignIn = () => {
   return (
     <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
       <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />
-      <ScrollView>
-        <View
-          style={[
-            styles.container,
-            { minHeight: Dimensions.get("window").height - 100 },
-          ]}
-        >
+      {/* Mieści się na ekranie bez przewijania; przewijanie tylko przy otwartej klawiaturze / małym ekranie */}
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.container}>
           <Image
             source={bukowskiLogo}
             resizeMode="contain"
@@ -253,21 +249,21 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: "100%",
     justifyContent: "center",
     paddingHorizontal: 16,
-    marginVertical: 24,
+    paddingVertical: 12,
     flex: 1,
   },
   logo: {
-    width: 200,
-    height: 58,
+    width: 180,
+    height: 50,
     alignSelf: "center",
-    marginBottom: 24,
+    marginBottom: 16,
   },
   card: {
     backgroundColor: tc('surface', "#161622"),
     borderRadius: 20,
     borderWidth: 1,
     borderColor: tc('border', "#232533"),
-    padding: 20,
+    padding: 16,
   },
   segment: {
     flexDirection: "row",
@@ -277,7 +273,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     borderColor: tc('border', "#334155"),
     padding: 4,
     gap: 4,
-    marginBottom: 20,
+    marginBottom: 14,
   },
   segmentOption: {
     flex: 1,
@@ -305,17 +301,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 8,
   },
   cardHeaderIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: "rgba(13, 110, 253, 0.15)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   cardTitle: {
     color: tc('text', "#fff"),
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
   },
   cardSubtitle: {
@@ -327,10 +323,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 12,
   },
   button: {
-    marginTop: 20,
-    marginBottom: 8,
+    marginTop: 16,
+    marginBottom: 4,
     width: "100%",
-    height: 56,
+    height: 54,
     justifyContent: "center",
   },
   errorContainer: {
