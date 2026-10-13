@@ -9,7 +9,8 @@ import axios from 'axios';
 import { API_CONFIG } from '../config/api';
 import { GlobalStateProvider } from "../context/GlobalState"; // Import global state provider
 import { AuthProvider } from '../context/AuthContext'; // Import auth provider
-import { DEFAULT_THEME, PALETTES, ThemeProvider } from '../context/ThemeContext'; // motyw: biały / szary / czarny
+import { DEFAULT_THEME, PALETTES, ThemeProvider } from '../context/ThemeContext';
+import { enableScreenCaptureProtection } from '../services/screenCapture'; // motyw: biały / szary / czarny
 import AppDialogHost from '../components/AppDialogHost'; // wspólne okienka zamiast Alert.alert
 
 // Configure axios baseURL globally
@@ -29,6 +30,11 @@ const RootLayout = () => {
     "Poppins-SemiBold": require("../assets/fonts/Poppins-SemiBold.ttf"),
     "Poppins-Thin": require("../assets/fonts/Poppins-Thin.ttf"),
   });
+
+  // Blokada zrzutów ekranu w całej aplikacji (od buildu z modułem natywnym; starsza wersja - pomijana)
+  useEffect(() => {
+    enableScreenCaptureProtection();
+  }, []);
 
   useEffect(() => {
     if (error) throw error;
