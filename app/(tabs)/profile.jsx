@@ -9,7 +9,6 @@ import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
-import ThemeSwitch from '../../components/ThemeSwitch';
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext';
 import { appAlert } from '../../services/appAlert';
 import { amountError, amountOrZero, formatAmount, parseAmount, validateOrderAmounts } from '../../utils/priceInput';
@@ -1058,7 +1057,6 @@ const Profile = () => {
             contentInsetAdjustmentBehavior="automatic"
             keyboardDismissMode="interactive"
           >
-          <ThemeSwitch style={{ marginTop: 56 }} />
           <View style={styles.container}>
             <Text style={styles.title}>Zamówienia</Text>
             

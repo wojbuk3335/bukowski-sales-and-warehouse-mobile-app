@@ -9,7 +9,8 @@ import { createThemedStyles, tc } from '../context/ThemeContext';
 // Kolory z motywu (biały / szary / czarny).
 
 /** Nagłówek ekranu: ikona w kółku, tytuł, podtytuł, przełącznik motywu i opcjonalna dodatkowa treść. */
-export const ScreenHeader = ({ icon, title, subtitle, children, showThemeSwitch = true }) => (
+// Przełącznik motywu tylko na pierwszej zakładce („Sprzedaż”) - na pozostałych ekranach domyślnie wyłączony
+export const ScreenHeader = ({ icon, title, subtitle, children, showThemeSwitch = false }) => (
   <View style={look.screenHeader}>
     <View style={look.screenHeaderIcon}>
       <Ionicons name={icon} size={30} color="#fff" />
