@@ -602,10 +602,14 @@ const Profile = () => {
         setSuccessMessage(orderEmailMessage(result.emails)); // komunikat wg faktycznie wysłanych maili
         setSuccessModalVisible(true);
         
-        // Reset form after a short delay
-        setTimeout(() => {
-          resetForm();
-        }, 500);
+        // Reset form after a short delay.
+        // Tylko w wersji deweloperskiej (Metro, __DEV__) formularz zostaje wypełniony - wygodne przy testach
+        // wysyłek. W aplikacji na telefonach pracowników (__DEV__ = false) czyści się jak dotąd.
+        if (!__DEV__) {
+          setTimeout(() => {
+            resetForm();
+          }, 500);
+        }
       } else {
         const errorData = await response.json();
         Logger.error('❌ Backend error:', errorData);
