@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { localDateString, orderCompletionMessage } from '../utils/orderCompletionMessage';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
@@ -38,6 +39,8 @@ const OrdersList = () => {
   const [orderToComplete, setOrderToComplete] = useState(null);
   const [shippingDate, setShippingDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState(''); // numer przesyłki (opcjonalny) - do maila i SMS-a
+  const [completing, setCompleting] = useState(false); // blokada podwójnego kliknięcia
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [revertConfirmModalVisible, setRevertConfirmModalVisible] = useState(false);
@@ -191,6 +194,7 @@ const OrdersList = () => {
   const openCompleteModal = (order) => {
     setOrderToComplete(order);
     setShippingDate(new Date());
+    setTrackingNumber('');
     setCompleteModalVisible(true);
   };
 
@@ -199,37 +203,39 @@ const OrdersList = () => {
       appAlert('Błąd', 'Proszę wybrać datę wysyłki');
       return;
     }
-
+    if (completing) return;
+    setCompleting(true);
     try {
-      // Convert Date to YYYY-MM-DD format
-      const formattedDate = shippingDate.toISOString().split('T')[0];
-      
       const response = await tokenService.authenticatedFetch(
         getApiUrl(`/orders/${orderToComplete._id}/complete`),
         {
           method: 'PUT',
           body: JSON.stringify({
-            shippingDate: formattedDate,
-            status: 'zrealizowano'
+            shippingDate: localDateString(shippingDate),
+            trackingNumber: trackingNumber.trim(),
           }),
         }
       );
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (data.success) {
+      if (response.ok && data.success) {
         await loadOrders();
         setCompleteModalVisible(false);
         setOrderToComplete(null);
         setShippingDate(new Date());
-        setSuccessMessage('✅ Zamówienie zostało zrealizowane!\n\n📧 Klient otrzymał powiadomienie email z datą wysyłki.');
+        setTrackingNumber('');
+        setSuccessMessage(orderCompletionMessage(data.notifications));
         setSuccessModalVisible(true);
       } else {
-        appAlert('Błąd', 'Nie udało się zrealizować zamówienia');
+        if (response.status === 409) await loadOrders(); // ktoś już zrealizował - pokaż aktualny stan
+        appAlert('Błąd', data.message ? `Nie zrealizowano zamówienia: ${data.message}` : 'Nie udało się zrealizować zamówienia');
       }
     } catch (error) {
       console.error('Error completing order:', error);
-      appAlert('Błąd', 'Nie udało się zrealizować zamówienia');
+      appAlert('Błąd', 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -732,7 +738,10 @@ const OrdersList = () => {
                       👤 Klient: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.name}</Text>
                     </Text>
                     <Text style={styles.completeOrderDetail}>
-                      📧 Email: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.email}</Text>
+                      📧 Email: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.email || 'brak (mail nie zostanie wysłany)'}</Text>
+                    </Text>
+                    <Text style={styles.completeOrderDetail}>
+                      📱 Telefon: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.phone}</Text>
                     </Text>
                   </View>
 
@@ -750,6 +759,7 @@ const OrdersList = () => {
                     {showDatePicker && (
                       <DateTimePicker
                         value={shippingDate}
+                        minimumDate={new Date()}
                         mode="date"
                         display="default"
                         onChange={(event, date) => {
@@ -761,9 +771,26 @@ const OrdersList = () => {
                       />
                     )}
                     <Text style={styles.datePickerHint}>
-                      💡 Klient otrzyma email z informacją o planowanej dacie wysyłki
+                      💡 Klient dostanie mail i SMS o wysyłce (przy odbiorze osobistym: „gotowe do odbioru”)
                     </Text>
                   </View>
+
+                  {orderToComplete.customer?.deliveryOption !== 'pickup' && (
+                    <View style={styles.datePickerGroup}>
+                      <Text style={styles.datePickerLabel}>📦 Numer przesyłki (opcjonalnie):</Text>
+                      <TextInput
+                        style={[styles.dateButton, styles.dateButtonText]}
+                        value={trackingNumber}
+                        onChangeText={setTrackingNumber}
+                        placeholder="np. 6200123456789"
+                        placeholderTextColor="#64748B"
+                        maxLength={60}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        testID="tracking-number-input"
+                      />
+                    </View>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -772,9 +799,9 @@ const OrdersList = () => {
               <TouchableOpacity
                 style={[styles.modalButtonFull, styles.completeButtonFull]}
                 onPress={completeOrder}
-                disabled={!shippingDate}
+                disabled={!shippingDate || completing}
               >
-                <Text style={styles.modalButtonText}>🚚 Potwierdź realizację</Text>
+                <Text style={styles.modalButtonText}>{completing ? 'Realizuję…' : '🚚 Potwierdź realizację'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButtonFull, styles.resetButton]}
