@@ -6,11 +6,12 @@ import { THEMES, THEME_LABELS, useAppTheme } from '../context/ThemeContext';
 // Przełącznik motywu: Biały / Szary / Czarny (jak w panelu). Używany w profilu admina i użytkownika.
 const ICONS = { light: 'sunny-outline', gray: 'cloudy-outline', dark: 'moon-outline' };
 
-export default function ThemeSwitch({ style }) {
+// compact: bez podpisu i marginesów (np. w nagłówku ekranu, jak przełącznik w panelu webowym)
+export default function ThemeSwitch({ style, compact = false }) {
   const { theme, colors, setTheme } = useAppTheme();
   return (
-    <View style={[styles.wrap, style]}>
-      <Text style={[styles.label, { color: colors.muted }]}>Motyw aplikacji</Text>
+    <View style={[compact ? null : styles.wrap, style]}>
+      {!compact && <Text style={[styles.label, { color: colors.muted }]}>Motyw aplikacji</Text>}
       <View style={[styles.row, { backgroundColor: colors.surface2, borderColor: colors.border }]} accessibilityRole="radiogroup">
         {THEMES.map((value) => {
           const active = theme === value;

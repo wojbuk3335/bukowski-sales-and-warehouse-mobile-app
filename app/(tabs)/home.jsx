@@ -10,6 +10,7 @@ import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import ThemeSwitch from '../../components/ThemeSwitch';
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
@@ -2549,6 +2550,7 @@ const Home = () => {
                           day: '2-digit',
                         })}
                       </Text>
+                      <ThemeSwitch compact style={{ marginTop: 14, alignSelf: 'stretch' }} />
                     </View>
                     {assignedSalespeople.length > 0 && (
                       <>
