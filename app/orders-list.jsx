@@ -111,8 +111,10 @@ const OrdersList = () => {
       filtered = filtered.filter(order => {
         if (statusFilter === 'completed') {
           return order.status === 'zrealizowano';
+        } else if (statusFilter === 'cancelled') {
+          return order.status === 'anulowane';
         } else if (statusFilter === 'pending') {
-          return order.status !== 'zrealizowano';
+          return order.status !== 'zrealizowano' && order.status !== 'anulowane';
         }
         return true;
       });
@@ -275,7 +277,9 @@ const OrdersList = () => {
     const urgency = getUrgencyStatus(order.realizationDate);
     const urgencyColor = getUrgencyColor(urgency);
     const isCompleted = order.status === 'zrealizowano';
-    
+    const isCancelled = order.status === 'anulowane';
+    const statusColor = isCompleted ? '#22C55E' : isCancelled ? '#94A3B8' : '#F59E0B';
+
     return (
       <TouchableOpacity
         key={order._id}
@@ -293,13 +297,13 @@ const OrdersList = () => {
           </View>
           <View style={[
             styles.statusBadge,
-            { backgroundColor: isCompleted ? '#22C55E20' : '#F59E0B20' }
+            { backgroundColor: `${statusColor}20` }
           ]}>
             <Text style={[
               styles.statusText,
-              { color: isCompleted ? '#22C55E' : '#F59E0B' }
+              { color: statusColor }
             ]}>
-              {isCompleted ? 'ZREALIZOWANO' : 'OCZEKUJE'}
+              {isCompleted ? 'ZREALIZOWANO' : isCancelled ? 'ANULOWANE' : 'OCZEKUJE'}
             </Text>
           </View>
         </View>
@@ -365,7 +369,7 @@ const OrdersList = () => {
           </View>
         </View>
 
-        {!isCompleted && (
+        {!isCompleted && !isCancelled && (
           <View style={styles.cardActions}>
             <TouchableOpacity
               style={[styles.actionButton, styles.completeButton]}
@@ -380,7 +384,7 @@ const OrdersList = () => {
           </View>
         )}
 
-        {isCompleted && (
+        {(isCompleted || isCancelled) && (
           <View style={styles.cardActions}>
             <TouchableOpacity
               style={[styles.actionButton, styles.revertButton]}
@@ -503,7 +507,8 @@ const OrdersList = () => {
                   {[
                     { value: 'all', label: 'Wszystkie' },
                     { value: 'pending', label: 'Oczekujące' },
-                    { value: 'completed', label: 'Zrealizowane' }
+                    { value: 'completed', label: 'Zrealizowane' },
+                    { value: 'cancelled', label: 'Anulowane' }
                   ].map(option => (
                     <TouchableOpacity
                       key={option.value}
@@ -584,9 +589,17 @@ const OrdersList = () => {
                     </Text>
                     <Text style={styles.detailsRow}>
                       <Text style={styles.detailsLabel}>Status: </Text>
-                      <Text style={[styles.detailsValue, { color: selectedOrder.status === 'zrealizowano' ? '#22C55E' : '#F59E0B' }]}>
-                        {selectedOrder.status === 'zrealizowano' ? 'ZREALIZOWANO' : 'OCZEKUJE'}
+                      <Text style={[styles.detailsValue, { color: selectedOrder.status === 'zrealizowano' ? '#22C55E' : selectedOrder.status === 'anulowane' ? '#94A3B8' : '#F59E0B' }]}>
+                        {selectedOrder.status === 'zrealizowano' ? 'ZREALIZOWANO' : selectedOrder.status === 'anulowane' ? 'ANULOWANE' : 'OCZEKUJE'}
                       </Text>
+                    </Text>
+                    {selectedOrder.status === 'anulowane' && selectedOrder.cancellation?.reason ? (
+                      <Text style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Powód anulowania: </Text>
+                        <Text style={styles.detailsValue}>{selectedOrder.cancellation.reason}</Text>
+                      </Text>
+                    ) : null}
+                    <Text style={{ height: 0 }}>
                     </Text>
                   </View>
 
@@ -688,7 +701,7 @@ const OrdersList = () => {
             </ScrollView>
 
             <View style={styles.modalFooterVertical}>
-              {selectedOrder && selectedOrder.status === 'zrealizowano' && (
+              {selectedOrder && (selectedOrder.status === 'zrealizowano' || selectedOrder.status === 'anulowane') && (
                 <TouchableOpacity
                   style={[styles.modalButtonFull, styles.applyButton]}
                   onPress={() => {
