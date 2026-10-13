@@ -7,6 +7,8 @@ import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext';
@@ -1033,22 +1035,6 @@ const Profile = () => {
           style={{ flex: 1 }}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <View style={{ marginVertical: 24, paddingHorizontal: 16 }}>
-            <View style={{ flexDirection: "row", justifyContent: "flex-start", alignItems: "center", marginBottom: 24 }}>
-              <View>
-                <Text style={{ fontSize: 14, color: tc('text', "#f3f4f6") }}>
-                  Zalogowany jako: <Text style={{ fontWeight: 'bold' }}>{user?.email}</Text>
-                </Text>
-                <Text style={{ fontSize: 14, color: tc('text', "#f3f4f6") }}>
-                  {new Date().toLocaleDateString('pl-PL', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                  })}
-                </Text>
-              </View>
-            </View>
-          </View>
           <ScrollView 
             style={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
@@ -1058,12 +1044,12 @@ const Profile = () => {
             keyboardDismissMode="interactive"
           >
           <View style={styles.container}>
-            <Text style={styles.title}>Zamówienia</Text>
-            
-            {/* Today's Date */}
-            <View style={styles.dateContainer}>
-              <Text style={styles.dateText}>{getTodayDate()}</Text>
-            </View>
+            <ScreenHeader icon="document-text" title="Zamówienia" subtitle={user?.email}>
+              <View style={look.chip}>
+                <Ionicons name="calendar-outline" size={16} color="#0D6EFD" />
+                <Text style={[look.chipText, { textTransform: 'capitalize' }]}>{getTodayDate()}</Text>
+              </View>
+            </ScreenHeader>
 
             {loading ? (
               <ActivityIndicator size="large" color="#0d6efd" style={styles.loader} />
@@ -1071,7 +1057,12 @@ const Profile = () => {
               <View style={styles.formContainer}>
                 {/* Product Section */}
                 <View style={styles.sectionContainer}>
-                  <Text style={styles.sectionTitle}>Produkt</Text>
+                  <View style={styles.sectionHeader}>
+                    <View style={[look.optionCardIcon, { backgroundColor: '#0D6EFD26' }]}>
+                      <Ionicons name="cube" size={20} color="#0D6EFD" />
+                    </View>
+                    <Text style={styles.sectionTitle}>Produkt</Text>
+                  </View>
                   
                   {/* Product Selection */}
                   <View style={styles.fieldContainer}>
@@ -1302,7 +1293,12 @@ const Profile = () => {
 
                 {/* Customer Data Section */}
                 <View style={styles.sectionContainer}>
-                  <Text style={styles.sectionTitle}>Dane klienta</Text>
+                  <View style={styles.sectionHeader}>
+                    <View style={[look.optionCardIcon, { backgroundColor: '#8B5CF626' }]}>
+                      <Ionicons name="person" size={20} color="#8B5CF6" />
+                    </View>
+                    <Text style={styles.sectionTitle}>Dane klienta</Text>
+                  </View>
                   
                   {/* Customer Name Field */}
                   <View style={styles.fieldContainer}>
@@ -1322,50 +1318,26 @@ const Profile = () => {
                   <View style={styles.fieldContainer}>
                     <Text style={styles.fieldLabel}>Sposób dostawy:</Text>
                     
-                    <TouchableOpacity
-                      style={[
-                        styles.deliveryOptionButton,
-                        deliveryOption === 'shipping' && styles.deliveryOptionSelected
-                      ]}
+                    <OptionCard
+                      icon="paper-plane-outline"
+                      label="Wysyłka"
+                      selected={deliveryOption === 'shipping'}
                       onPress={() => setDeliveryOption('shipping')}
-                    >
-                      <Text style={[
-                        styles.deliveryOptionText,
-                        deliveryOption === 'shipping' && styles.deliveryOptionTextSelected
-                      ]}>
-                        Wysyłka
-                      </Text>
-                    </TouchableOpacity>
+                    />
                     
-                    <TouchableOpacity
-                      style={[
-                        styles.deliveryOptionButton,
-                        deliveryOption === 'delivery' && styles.deliveryOptionSelected
-                      ]}
+                    <OptionCard
+                      icon="car-outline"
+                      label="Dostawa"
+                      selected={deliveryOption === 'delivery'}
                       onPress={() => setDeliveryOption('delivery')}
-                    >
-                      <Text style={[
-                        styles.deliveryOptionText,
-                        deliveryOption === 'delivery' && styles.deliveryOptionTextSelected
-                      ]}>
-                        Dostawa
-                      </Text>
-                    </TouchableOpacity>
+                    />
                     
-                    <TouchableOpacity
-                      style={[
-                        styles.deliveryOptionButton,
-                        deliveryOption === 'pickup' && styles.deliveryOptionSelected
-                      ]}
+                    <OptionCard
+                      icon="storefront-outline"
+                      label="Odbiór osobisty"
+                      selected={deliveryOption === 'pickup'}
                       onPress={() => setDeliveryOption('pickup')}
-                    >
-                      <Text style={[
-                        styles.deliveryOptionText,
-                        deliveryOption === 'pickup' && styles.deliveryOptionTextSelected
-                      ]}>
-                        Odbiór osobisty
-                      </Text>
-                    </TouchableOpacity>
+                    />
                   </View>
 
                   {/* Postal Code Field - only show when shipping is selected */}
@@ -1573,7 +1545,12 @@ const Profile = () => {
 
                 {/* Payment Section */}
                 <View style={styles.sectionContainer}>
-                  <Text style={styles.sectionTitle}>Rozliczenie</Text>
+                  <View style={styles.sectionHeader}>
+                    <View style={[look.optionCardIcon, { backgroundColor: '#10B98126' }]}>
+                      <Ionicons name="cash" size={20} color="#10B981" />
+                    </View>
+                    <Text style={styles.sectionTitle}>Rozliczenie</Text>
+                  </View>
                   
                   {/* Total Price Field */}
                   <View style={styles.fieldContainer}>
@@ -1741,6 +1718,7 @@ const Profile = () => {
                       <Text style={styles.datePickerText}>
                         {realizationDate.toLocaleDateString('pl-PL')}
                       </Text>
+                      <Ionicons name="calendar-outline" size={20} color={tc('muted', '#94A3B8')} />
                     </TouchableOpacity>
                     {showDatePicker && (
                       <DateTimePicker
@@ -1787,10 +1765,7 @@ const Profile = () => {
       >
         <View style={styles.successModalOverlay}>
           <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Text style={styles.successIcon}>✓</Text>
-            </View>
-            <Text style={styles.successModalTitle}>Sukces!</Text>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Zamówienie przyjęte" />
             <Text style={styles.successModalSubtitle}>Numer zamówienia:</Text>
             <Text style={styles.orderNumber}>{orderNumber}</Text>
             <Text style={styles.successModalMessage}>
@@ -1798,7 +1773,7 @@ const Profile = () => {
             </Text>
             
             <TouchableOpacity
-              style={[styles.submitButton, { marginTop: 20, width: '90%' }]}
+              style={[styles.submitButton, { marginTop: 20, alignSelf: 'stretch' }]}
               onPress={() => setSuccessModalVisible(false)}
             >
               <Text style={styles.submitButtonText}>OK</Text>
@@ -1820,7 +1795,7 @@ const Profile = () => {
           onPress={() => setDepositCurrencyModalVisible(false)}
         >
           <View style={styles.currencyModalContent} onStartShouldSetResponder={() => true}>
-            <Text style={styles.currencyModalTitle}>Wybierz walutę zaliczki</Text>
+            <ModalHeader icon="cash" color="#10B981" title="Wybierz walutę zaliczki" />
             {loadingCurrencyRates ? (
               <ActivityIndicator size="large" color="#0d6efd" style={{marginVertical: 40}} />
             ) : (
@@ -1854,7 +1829,7 @@ const Profile = () => {
           onPress={() => setRemainingCurrencyModalVisible(false)}
         >
           <View style={styles.currencyModalContent} onStartShouldSetResponder={() => true}>
-            <Text style={styles.currencyModalTitle}>Wybierz walutę dopłaty</Text>
+            <ModalHeader icon="cash" color="#10B981" title="Wybierz walutę dopłaty" />
             {loadingCurrencyRates ? (
               <ActivityIndicator size="large" color="#0d6efd" style={{marginVertical: 40}} />
             ) : (
@@ -1886,7 +1861,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingBottom: 100, // Extra padding to ensure content is not hidden behind keyboard
   },
   title: {
@@ -1915,23 +1890,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 50,
   },
   formContainer: {
-    gap: 20,
+    gap: 4,
   },
   fieldContainer: {
-    marginBottom: 8,
+    marginBottom: 12,
     position: 'relative',
   },
   fieldLabel: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    color: tc('muted', '#94A3B8'),
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   input: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
+    borderColor: tc('border', '#334155'),
     color: tc('text', 'white'),
     fontSize: 16,
     paddingHorizontal: 12,
@@ -1939,14 +1914,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     height: 50,
   },
   inputFocused: {
-    borderColor: '#0d6efd',
+    borderColor: '#0D6EFD',
     borderWidth: 2,
   },
   textArea: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
+    borderColor: tc('border', '#334155'),
     color: tc('text', 'white'),
     fontSize: 16,
     paddingHorizontal: 12,
@@ -1961,19 +1936,22 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 5,
   },
   sectionContainer: {
-    backgroundColor: tc('surface', '#0f0f0f'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
+    borderColor: tc('border', '#1E293B'),
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
   },
   sectionTitle: {
     color: tc('text', 'white'),
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
+    fontWeight: '600',
   },
   dropdownItemSubtext: {
     color: tc('muted', '#888'),
@@ -1997,9 +1975,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginLeft: 5,
   },
   calculatedField: {
-    backgroundColor: tc('surface', '#2a2a2a'),
+    backgroundColor: tc('surface', '#161622'),
     justifyContent: 'center',
-    borderColor: tc('border', '#555'),
+    borderColor: tc('border', '#1E293B'),
   },
   calculatedFieldText: {
     color: '#0d6efd',
@@ -2012,38 +1990,42 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   checkboxItem: {
     flex: 1,
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    borderColor: tc('border', '#334155'),
+    paddingVertical: 14,
     alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#0d6efd',
-    borderColor: '#0d6efd',
+    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+    borderColor: '#0D6EFD',
+    borderWidth: 2,
   },
   checkboxText: {
     color: tc('text', 'white'),
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   checkboxTextSelected: {
     fontWeight: 'bold',
+    color: '#0D6EFD',
   },
   datePickerButton: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
-    paddingVertical: 15,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
+    borderColor: tc('border', '#334155'),
+    paddingVertical: 14,
+    paddingHorizontal: 14,
   },
   datePickerText: {
     color: tc('text', 'white'),
     fontSize: 16,
+    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#0d6efd',
@@ -2059,7 +2041,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: '#666',
   },
   submitButtonText: {
-    color: tc('text', 'white'),
+    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -2145,19 +2127,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: tc('surface', '#1a1a1a'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 20,
-    padding: 30,
+    padding: 24,
     width: '85%',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   successIconContainer: {
     width: 80,
@@ -2180,33 +2156,36 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 10,
   },
   successModalSubtitle: {
-    fontSize: 14,
-    color: '#888',
-    marginBottom: 5,
+    fontSize: 13,
+    color: tc('muted', '#94A3B8'),
+    marginBottom: 4,
   },
   orderNumber: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
-    color: '#28a745',
-    marginBottom: 15,
+    color: '#10B981',
+    marginBottom: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   successModalMessage: {
     fontSize: 15,
-    color: '#ccc',
+    color: tc('muted', '#CBD5E1'),
     textAlign: 'center',
     lineHeight: 22,
   },
   // Currency Selection Styles
   currencySelect: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
-    paddingHorizontal: 12,
-    paddingVertical: 15,
-    height: 50,
-    justifyContent: 'center',
+    borderColor: tc('border', '#334155'),
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   currencySelectText: {
     color: tc('text', 'white'),
@@ -2226,11 +2205,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     justifyContent: 'flex-end',
   },
   currencyModalContent: {
-    backgroundColor: tc('surface', '#1a1a1a'),
+    backgroundColor: tc('surface', '#161622'),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: '70%',
+    maxHeight: '75%',
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   currencyModalTitle: {
     color: tc('text', 'white'),
@@ -2243,12 +2224,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexGrow: 0,
   },
   currencyOptionItem: {
-    backgroundColor: tc('surface', '#2a2a2a'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: tc('border', '#333'),
+    borderColor: tc('border', '#334155'),
   },
   currencyOptionRow: {
     flexDirection: 'row',
@@ -2273,14 +2254,16 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 2,
   },
   currencyModalCloseButton: {
-    backgroundColor: '#0d6efd',
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
     paddingVertical: 14,
-    marginTop: 16,
+    marginTop: 12,
     alignItems: 'center',
   },
   currencyModalCloseText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: 'bold',
   },}));
