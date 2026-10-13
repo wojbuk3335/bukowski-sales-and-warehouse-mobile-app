@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, TextInput, FlatList, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -68,6 +68,9 @@ const Profile = () => {
   const [postalCheck, setPostalCheck] = useState({ status: 'idle', localities: [] });
   // Walidacja całego adresu (Google Address Validation przez backend)
   const [addressCheck, setAddressCheck] = useState({ status: 'idle', suggestion: null });
+  // Podpowiedzi ulic (Google Places przez backend) - lista pod polem „Ulica”
+  const [streetSuggestions, setStreetSuggestions] = useState([]);
+  const chosenStreetRef = useRef(''); // ulica wybrana z listy - nie pytamy o nią ponownie
   const [cityInputFocused, setCityInputFocused] = useState(false);
   
   // Street data states
@@ -220,6 +223,53 @@ const Profile = () => {
     if (suggestion.street) setStreetSearchText(suggestion.street);
     if (suggestion.houseNumber) setHouseNumber(suggestion.houseNumber);
   };
+
+  // Podpowiedzi ulic: od 3 liter, tylko gdy pole jest aktywne; w zapytaniu miejscowość i kod
+  useEffect(() => {
+    const text = streetSearchText.trim();
+    if (!streetInputFocused || text.length < 3 || text === chosenStreetRef.current) {
+      setStreetSuggestions([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          q: text,
+          city: citySearchText.trim(),
+          postalCode: deliveryOption === 'shipping' && isPostalCodeFormatValid(postalCode) ? postalCode : '',
+        });
+        const response = await tokenService.authenticatedFetch(getApiUrl(`/orders/street-suggest?${params}`));
+        const data = await response.json();
+        if (!cancelled) setStreetSuggestions(response.ok && data.checked ? (data.streets || []) : []);
+      } catch (error) {
+        if (!cancelled) setStreetSuggestions([]);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [streetSearchText, streetInputFocused, citySearchText, postalCode, deliveryOption]);
+
+  const chooseStreet = (street) => {
+    chosenStreetRef.current = street;
+    setStreetSearchText(street);
+    setStreetSuggestions([]);
+  };
+
+  // Lista podpowiedzi pod polem „Ulica” (wysyłka i dostawa)
+  const renderStreetSuggestions = () => (
+    streetInputFocused && streetSuggestions.length > 0 ? (
+      <View style={postalHintStyles.suggestList} testID="street-suggestions">
+        {streetSuggestions.map((street) => (
+          <TouchableOpacity key={street} style={postalHintStyles.suggestItem} onPress={() => chooseStreet(street)}>
+            <Text style={postalHintStyles.suggestText}>{street}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    ) : null
+  );
 
   // Wynik sprawdzenia adresu - pod numerem domu (wysyłka i dostawa)
   const renderAddressHint = () => {
@@ -1335,9 +1385,11 @@ const Profile = () => {
                         value={streetSearchText}
                         onChangeText={setStreetSearchText}
                         onFocus={() => setStreetInputFocused(true)}
-                        onBlur={() => setStreetInputFocused(false)}
+                        onBlur={() => setTimeout(() => setStreetInputFocused(false), 250)}
                         placeholderTextColor="#666"
+                        testID="street-input"
                       />
+                      {renderStreetSuggestions()}
                     </View>
                   )}
 
@@ -1383,9 +1435,10 @@ const Profile = () => {
                           value={streetSearchText}
                           onChangeText={setStreetSearchText}
                           onFocus={() => setStreetInputFocused(true)}
-                          onBlur={() => setStreetInputFocused(false)}
+                          onBlur={() => setTimeout(() => setStreetInputFocused(false), 250)}
                           placeholderTextColor="#666"
                         />
+                        {renderStreetSuggestions()}
                       </View>
 
                       <View style={styles.fieldContainer}>
@@ -2182,4 +2235,7 @@ const postalHintStyles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   chip: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#1E293B', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   chipText: { color: '#F59E0B', fontSize: 13, fontWeight: '600' },
+  suggestList: { marginTop: 4, backgroundColor: '#1E293B', borderColor: '#334155', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  suggestItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomColor: '#334155', borderBottomWidth: 1 },
+  suggestText: { color: '#FFFFFF', fontSize: 15 },
 });
