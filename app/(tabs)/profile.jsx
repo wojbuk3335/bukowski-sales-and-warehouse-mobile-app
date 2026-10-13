@@ -120,6 +120,11 @@ const Profile = () => {
 
   // Submit states
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Blokada od pierwszego tapnięcia (stan Reacta aktualizuje się z opóźnieniem - dwa szybkie tapnięcia przechodziły)
+  const submittingRef = useRef(false);
+  // Jednorazowy identyfikator formularza: ponowione wysłanie (np. po zerwanym internecie) nie tworzy drugiego
+  // zamówienia ani drugiej zaliczki - backend odsyła już zapisane. Nowy identyfikator dopiero po udanym zapisie.
+  const clientRequestIdRef = useRef(null);
 
   // Handle postal code change with validation only (no API)
   const handlePostalCodeChange = (text) => {
@@ -755,12 +760,18 @@ const Profile = () => {
 
   // Submit order
   const handleSubmitOrder = async () => {
+    if (submittingRef.current) return;
     if (!validateForm()) return;
-    
+
+    submittingRef.current = true;
     setIsSubmitting(true);
-    
+    if (!clientRequestIdRef.current) {
+      clientRequestIdRef.current = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+
     try {
       const orderData = {
+        clientRequestId: clientRequestIdRef.current,
         product: {
           name: selectedProduct?.Tow_Opis || selectedProduct?.name,
           color: selectedColor?.Kol_Opis || selectedColor?.name,
@@ -803,10 +814,13 @@ const Profile = () => {
       if (response.ok) {
         const result = await response.json();
         const backendOrderId = result.orderId; // Use orderId from backend
-        
+        clientRequestIdRef.current = null; // kolejne zamówienie dostanie nowy identyfikator
+
         // Set success message and show modal
         setOrderNumber(backendOrderId);
-        setSuccessMessage(orderEmailMessage(result.emails, result.sms)); // komunikat wg faktycznie wysłanych maili
+        setSuccessMessage(result.duplicate
+          ? 'To zamówienie było już zapisane wcześniej (ponowione wysłanie) - nie utworzono drugiego.'
+          : orderEmailMessage(result.emails, result.sms)); // komunikat wg faktycznie wysłanych maili
         setSuccessModalVisible(true);
         
         // Reset form after a short delay.
@@ -829,6 +843,7 @@ const Profile = () => {
         `Nie udało się złożyć zamówienia.\n\nSzczegóły: ${error.message}\n\nSpróbuj ponownie.`
       );
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -986,6 +1001,7 @@ const Profile = () => {
 
   // Clear form function
   const clearForm = () => {
+    clientRequestIdRef.current = null; // nowy formularz = nowe zamówienie
     setSelectedProduct(null);
     setSelectedColor(null);
     setSelectedSize(null);
