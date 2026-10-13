@@ -7,7 +7,7 @@ import Logger from '../../services/logger'; // Import logger service
 import QRScannerSearch from '../QRScannerSearch';
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { BackButton, MenuCard, ScreenHeader, look } from '../../components/AdminLook';
+import { BackButton, MenuCard, PointPill, pointColorMap, ScreenHeader, look } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const SearchScreen = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -76,6 +76,9 @@ const SearchScreen = () => {
     return nameA.localeCompare(nameB, 'pl', { sensitivity: 'base' });
   }) || [];
 
+  // Kolor plakietki dla każdego punktu (różne kolory, magazyn pomarańczowy)
+  const colorOf = pointColorMap((stateData || []).map((entry) => entry.symbol));
+
   if (showQR) {
     return (
       <View style={{ flex: 1, backgroundColor: tc('bg', 'black') }}>
@@ -131,16 +134,14 @@ const SearchScreen = () => {
           onRefresh={handleRefresh} // Dodano funkcję odświeżania
           refreshing={isRefreshing} // Dodano stan odświeżania
           renderItem={({ item, index }) => (
-            <View style={look.itemCard}>
+            <View style={[look.itemCard, { borderLeftColor: colorOf(item.symbol) }]}>
               <View style={{ flex: 1 }}>
                 <Text style={look.itemCardText} numberOfLines={1}>
                   {index + 1}. {item.fullName}  {item.size}
                 </Text>
                 {!!item.barcode && <Text style={styles.barcodeText}>{item.barcode}</Text>}
               </View>
-              <View style={look.pill}>
-                <Text style={look.pillText}>{item.symbol}</Text>
-              </View>
+              <PointPill symbol={item.symbol} color={colorOf(item.symbol)} />
             </View>
           )}
           ListEmptyComponent={

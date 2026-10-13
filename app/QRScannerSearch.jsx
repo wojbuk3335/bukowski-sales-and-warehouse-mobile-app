@@ -3,7 +3,7 @@ import { useContext, useState } from "react";
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { GlobalStateContext } from "../context/GlobalState"; // Adjust the import path as necessary
-import { ModalHeader, look } from '../components/AdminLook';
+import { ModalHeader, PointPill, pointColorMap, look } from '../components/AdminLook';
 const QRScannerSearch = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [facing, setFacing] = useState("back");
@@ -88,6 +88,9 @@ const QRScannerSearch = () => {
     setModalVisible(true);
   };
 
+  // Kolor plakietki dla każdego punktu (różne kolory, magazyn pomarańczowy)
+  const colorOf = pointColorMap((stateData || []).map((entry) => entry.symbol));
+
   return (
     <View style={styles.container}>
       <CameraView
@@ -116,16 +119,14 @@ const QRScannerSearch = () => {
               keyExtractor={item => item.id}
               style={{ width: '100%' }}
               renderItem={({ item, index }) => (
-                <View style={look.itemCard}>
+                <View style={[look.itemCard, { borderLeftColor: colorOf(item.symbol) }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={look.itemCardText} numberOfLines={1}>
                       {index + 1}. {item.fullName}  {item.size}
                     </Text>
                     {!!item.barcode && <Text style={styles.barcodeText}>{item.barcode}</Text>}
                   </View>
-                  <View style={look.pill}>
-                    <Text style={look.pillText}>{item.symbol}</Text>
-                  </View>
+                  <PointPill symbol={item.symbol} color={colorOf(item.symbol)} />
                 </View>
               )}
               ListEmptyComponent={

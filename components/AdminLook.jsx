@@ -52,6 +52,45 @@ export const OptionCard = ({ selected, icon, label, onPress, color = '#0D6EFD', 
   </TouchableOpacity>
 );
 
+// Kolor punktu (użytkownika) na plakietkach: stały dla danego symbolu, magazyn zawsze pomarańczowy
+const POINT_COLORS = ['#0D6EFD', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#14B8A6', '#6366F1', '#F43F5E', '#84CC16', '#0EA5E9', '#A855F7', '#22C55E'];
+export const MAGAZYN_COLOR = '#F59E0B';
+export const pointColor = (symbol) => {
+  const key = String(symbol || '').trim().toLowerCase();
+  if (!key) return '#94A3B8';
+  if (key.includes('magazyn')) return MAGAZYN_COLOR;
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return POINT_COLORS[hash % POINT_COLORS.length];
+};
+
+/**
+ * Różne kolory dla wszystkich punktów z listy (bez powtórzeń do 12 punktów): kolejność alfabetyczna symboli,
+ * magazyn zawsze pomarańczowy. Zwraca funkcję symbol -> kolor.
+ */
+export const pointColorMap = (symbols) => {
+  const unique = [...new Set((symbols || []).map((sym) => String(sym || '').trim()).filter(Boolean))]
+    .filter((sym) => !sym.toLowerCase().includes('magazyn'))
+    .sort((x, y) => x.localeCompare(y, 'pl'));
+  const map = new Map(unique.map((sym, index) => [sym, POINT_COLORS[index % POINT_COLORS.length]]));
+  return (symbol) => {
+    const key = String(symbol || '').trim();
+    if (key.toLowerCase().includes('magazyn')) return MAGAZYN_COLOR;
+    return map.get(key) || pointColor(key);
+  };
+};
+
+/** Plakietka punktu: delikatne tło i ramka w kolorze punktu, kropka koloru przed symbolem. */
+export const PointPill = ({ symbol, color: forcedColor }) => {
+  const color = forcedColor || pointColor(symbol);
+  return (
+    <View style={[look.pill, { backgroundColor: `${color}26`, borderColor: `${color}80`, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+      <Text style={look.pillText}>{symbol}</Text>
+    </View>
+  );
+};
+
 /** Duża karta menu (jak w panelu admina): kafelek z ikoną, tytuł, opis, strzałka. */
 export const MenuCard = ({ icon, color = '#0D6EFD', title, subtitle, onPress, testID }) => (
   <TouchableOpacity testID={testID} style={look.menuCard} onPress={onPress}>
