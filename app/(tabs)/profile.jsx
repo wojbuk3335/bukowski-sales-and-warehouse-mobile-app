@@ -790,8 +790,7 @@ const Profile = () => {
           nip: documentType === 'invoice' ? nip : null
         },
         realizationDate: realizationDate.toISOString(),
-        createdAt: new Date().toISOString(),
-        createdBy: user?.symbol || user?.email // Symbol punktu sprzedaży dla operacji finansowych
+        // datę złożenia, sprzedawcę i punkt ustala backend z tokenu (nie z telefonu)
       };
 
       // Save to database
