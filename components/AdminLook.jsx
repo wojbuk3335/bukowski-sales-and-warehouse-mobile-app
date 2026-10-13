@@ -112,6 +112,41 @@ export const BackButton = ({ onPress, testID }) => (
   </TouchableOpacity>
 );
 
+/**
+ * Nagłówek podstrony (ekrany z „Różne” i inne ekrany z powrotem): kafelek „wstecz”, ikona i tytuł,
+ * opcjonalny podtytuł i przycisk po prawej (right). Bez onBack - bez kafelka wstecz (miejsce zostaje puste).
+ */
+export const PageHeader = ({ title, subtitle, icon, color = '#0D6EFD', onBack, right, testID }) => (
+  <View style={look.pageHeader} testID={testID}>
+    {onBack ? <BackButton onPress={onBack} testID="page-header-back" /> : <View style={look.pageHeaderSide} />}
+    <View style={look.pageHeaderCenter}>
+      <View style={look.pageHeaderTitleRow}>
+        {!!icon && (
+          <View style={[look.pageHeaderIcon, { backgroundColor: `${color}26` }]}>
+            <Ionicons name={icon} size={18} color={color} />
+          </View>
+        )}
+        <Text style={look.pageHeaderTitle} numberOfLines={1}>{title}</Text>
+      </View>
+      {!!subtitle && <Text style={look.pageHeaderSubtitle} numberOfLines={1}>{subtitle}</Text>}
+    </View>
+    {right ? <View style={look.pageHeaderRight}>{right}</View> : <View style={look.pageHeaderSide} />}
+  </View>
+);
+
+/** Mały kafelek-przycisk z ikoną (np. „dodaj” / „odśwież” w nagłówku podstrony). */
+export const IconButton = ({ icon, onPress, color = '#0D6EFD', accessibilityLabel, testID, disabled = false }) => (
+  <TouchableOpacity
+    testID={testID}
+    accessibilityLabel={accessibilityLabel}
+    disabled={disabled}
+    onPress={onPress}
+    style={[look.iconButton, { backgroundColor: `${color}26`, borderColor: `${color}66` }, disabled && look.disabled]}
+  >
+    <Ionicons name={icon} size={22} color={color} />
+  </TouchableOpacity>
+);
+
 /** Pozycja menu w okienku akcji: ikona w kolorze akcji, tytuł, strzałka. */
 export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, disabled = false }) => (
   <TouchableOpacity testID={testID} disabled={disabled} style={[look.actionItem, disabled && { opacity: 0.5 }]} onPress={onPress}>
@@ -198,6 +233,59 @@ export const look = createThemedStyles(() => StyleSheet.create({
   menuCardSubtitle: {
     fontSize: 13,
     color: tc('muted', '#94A3B8'),
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: tc('border', '#1E293B'),
+    backgroundColor: tc('bg', '#000000'),
+  },
+  pageHeaderSide: {
+    width: 48,
+    height: 48,
+  },
+  pageHeaderRight: {
+    minWidth: 48,
+    alignItems: 'flex-end',
+  },
+  pageHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  pageHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pageHeaderIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pageHeaderTitle: {
+    fontSize: 19,
+    fontWeight: 'bold',
+    color: tc('text', '#fff'),
+    flexShrink: 1,
+  },
+  pageHeaderSubtitle: {
+    fontSize: 12,
+    color: tc('muted', '#94A3B8'),
+    marginTop: 2,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   backButton: {
     width: 48,
