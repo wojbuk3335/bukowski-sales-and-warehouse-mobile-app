@@ -39,6 +39,11 @@ class AuthErrorHandler {
         );
     }
     
+    // Czy przed chwilą przekierowano do logowania (wygasła sesja)
+    static redirectedRecently(windowMs = 5000) {
+        return this.lastRedirectTime > 0 && (Date.now() - this.lastRedirectTime) < windowMs;
+    }
+
     // Check if response indicates authentication error
     static isAuthResponse(response) {
         if (!response) return false;

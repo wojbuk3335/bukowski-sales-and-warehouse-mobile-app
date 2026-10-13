@@ -19,6 +19,7 @@ import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
+import { isConnectionError, readJson, serverErrorMessage } from '../utils/readJson';
 
 const OrdersList = () => {
   const { user } = useContext(GlobalStateContext);
@@ -70,9 +71,9 @@ const OrdersList = () => {
       const response = await tokenService.authenticatedFetch(
         getApiUrl('/orders')
       );
-      const data = await response.json();
-      
-      if (data.success) {
+      const data = await readJson(response);
+
+      if (response.ok && data.success && Array.isArray(data.data)) {
         // Sort by urgency (closest realization date first)
         const sorted = data.data.sort((a, b) => {
           const dateA = new Date(a.realizationDate || a.createdAt);
@@ -80,10 +81,12 @@ const OrdersList = () => {
           return dateA - dateB;
         });
         setOrders(sorted);
+      } else {
+        appAlert('Błąd', `Nie udało się pobrać zamówień. ${serverErrorMessage(response, data, '')}`.trim());
       }
     } catch (error) {
       console.error('Error loading orders:', error);
-      appAlert('Błąd', 'Nie udało się pobrać zamówień');
+      if (!error?.isAuthError) appAlert('Błąd', 'Nie udało się pobrać zamówień');
     } finally {
       setLoading(false);
     }
@@ -150,9 +153,8 @@ const OrdersList = () => {
     });
   };
 
-  const formatPrice = (price) => {
-    return price ? `${price.toFixed(2)} zł` : '0.00 zł';
-  };
+  // Kwota może przyjść jako liczba, tekst albo w ogóle - nie wywracamy listy na .toFixed
+  const formatPrice = (price) => `${(Number(price) || 0).toFixed(2)} zł`;
 
   const getDeliveryOptionLabel = (option) => {
     switch (option) {
@@ -163,7 +165,9 @@ const OrdersList = () => {
     }
   };
 
-  const getUrgencyStatus = (realizationDate) => {
+  const getUrgencyStatus = (realizationDate, orderStatus) => {
+    // Zrealizowane i anulowane nie są „przeterminowane” - termin dotyczy tylko oczekujących
+    if (orderStatus === 'zrealizowano' || orderStatus === 'anulowane') return { status: 'closed', days: null };
     if (!realizationDate) return { status: 'unknown', days: null };
     
     const today = new Date();
@@ -203,6 +207,14 @@ const OrdersList = () => {
     }
   };
 
+  // Błąd połączenia przy akcjach: przy wygasłej sesji aplikacja już przechodzi do logowania - bez komunikatu
+  const showActionError = (error) => {
+    if (error?.isAuthError) return;
+    appAlert('Błąd', isConnectionError(error)
+      ? 'Brak odpowiedzi serwera. Odśwież listę i sprawdź, czy zmiana się zapisała, zanim spróbujesz ponownie.'
+      : 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+  };
+
   const openCompleteModal = (order) => {
     setOrderToComplete(order);
     setShippingDate(new Date());
@@ -229,7 +241,7 @@ const OrdersList = () => {
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const data = await readJson(response);
 
       if (response.ok && data.success) {
         await loadOrders();
@@ -241,11 +253,11 @@ const OrdersList = () => {
         setSuccessModalVisible(true);
       } else {
         if (response.status === 409) await loadOrders(); // ktoś już zrealizował - pokaż aktualny stan
-        appAlert('Błąd', data.message ? `Nie zrealizowano zamówienia: ${data.message}` : 'Nie udało się zrealizować zamówienia');
+        appAlert('Błąd', data.message ? `Nie zrealizowano zamówienia: ${data.message}` : serverErrorMessage(response, data, 'Nie udało się zrealizować zamówienia'));
       }
     } catch (error) {
       console.error('Error completing order:', error);
-      appAlert('Błąd', 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+      showActionError(error);
     } finally {
       setCompleting(false);
     }
@@ -280,7 +292,7 @@ const OrdersList = () => {
           }),
         }
       );
-      const data = await response.json().catch(() => ({}));
+      const data = await readJson(response);
       if (response.ok && data.success) {
         setRescheduleTarget(null);
         await loadOrders();
@@ -292,11 +304,11 @@ const OrdersList = () => {
         setSuccessMessage(message);
         setSuccessModalVisible(true);
       } else {
-        appAlert('Błąd', data.message ? `Nie zmieniono terminu: ${data.message}` : 'Nie udało się zmienić terminu');
+        appAlert('Błąd', data.message ? `Nie zmieniono terminu: ${data.message}` : serverErrorMessage(response, data, 'Nie udało się zmienić terminu'));
       }
     } catch (error) {
       console.error('Error rescheduling order:', error);
-      appAlert('Błąd', 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+      showActionError(error);
     } finally {
       setRescheduling(false);
     }
@@ -321,7 +333,7 @@ const OrdersList = () => {
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const data = await readJson(response);
 
       if (response.ok && data.success) {
         setRevertConfirmModalVisible(false);
@@ -334,18 +346,18 @@ const OrdersList = () => {
         );
         setSuccessModalVisible(true);
       } else {
-        appAlert('Błąd', data.message ? `Nie przywrócono zamówienia: ${data.message}` : 'Nie udało się przywrócić zamówienia');
+        appAlert('Błąd', data.message ? `Nie przywrócono zamówienia: ${data.message}` : serverErrorMessage(response, data, 'Nie udało się przywrócić zamówienia'));
       }
     } catch (error) {
       console.error('Error reverting order:', error);
-      appAlert('Błąd', 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+      showActionError(error);
     } finally {
       setReverting(false);
     }
   };
 
   const renderOrderCard = (order) => {
-    const urgency = getUrgencyStatus(order.realizationDate);
+    const urgency = getUrgencyStatus(order.realizationDate, order.status);
     const urgencyColor = getUrgencyColor(urgency);
     const isCompleted = order.status === 'zrealizowano';
     const isCancelled = order.status === 'anulowane';
@@ -432,11 +444,13 @@ const OrdersList = () => {
             <Text style={styles.realizationDate}>
               {formatDate(order.realizationDate)}
             </Text>
-            <View style={[styles.urgencyBadge, { backgroundColor: `${urgencyColor}20` }]}>
-              <Text style={[styles.urgencyText, { color: urgencyColor }]}>
-                {getUrgencyLabel(urgency)}
-              </Text>
-            </View>
+            {urgency.status !== 'closed' && (
+              <View style={[styles.urgencyBadge, { backgroundColor: `${urgencyColor}20` }]}>
+                <Text style={[styles.urgencyText, { color: urgencyColor }]}>
+                  {getUrgencyLabel(urgency)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

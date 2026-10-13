@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import AuthErrorHandler from '../utils/authErrorHandler';
 
 // Okienka w stylu aplikacji zamiast systemowych okienek telefonu.
 // appAlert ma TĘ SAMĄ sygnaturę co Alert.alert: (title, message, buttons, options),
@@ -19,6 +20,12 @@ export const registerAppAlertHost = (show) => {
 };
 
 export function appAlert(title, message, buttons, options) {
+  // Sesja wygasła i aplikacja właśnie przechodzi do logowania - komunikat ekranu z błędem tokenu
+  // („Token refresh failed”, „Authentication failed: 401”…) pokazałby się nad ekranem logowania
+  if (AuthErrorHandler.redirectedRecently()
+    && AuthErrorHandler.isAuthError({ message: `${title || ''} ${message || ''}` })) {
+    return;
+  }
   const request = { title, message, buttons, options };
   if (host) {
     host(request);

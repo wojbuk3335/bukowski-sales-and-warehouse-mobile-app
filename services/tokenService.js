@@ -399,7 +399,11 @@ class TokenService {
             }
             // Handle auth errors with automatic redirect (but not during logout)
             const wasHandled = !this.isLoggingOut ? await AuthErrorHandler.handleFetchError(error, 'Authenticated Fetch') : true;
-            
+            // Błąd sesji (przekierowanie do logowania już trwa) - ekrany nie pokazują wtedy własnego komunikatu
+            if (wasHandled && error && typeof error === 'object' && AuthErrorHandler.isAuthError(error)) {
+                error.isAuthError = true;
+            }
+
             // Suppress all errors during logout - they're just noise
             if (!this.isLoggingOut && typeof jest === 'undefined' && !wasHandled) {
                 Logger.error('authenticatedFetch error:', error);

@@ -11,6 +11,12 @@ import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { appAlert } from '../../services/appAlert';
 import { amountError, amountOrZero, formatAmount, parseAmount, validateOrderAmounts } from '../../utils/priceInput';
+import { formatPhoneNumber, isValidPolishPhone } from '../../utils/phoneNumber';
+import { isConnectionError, readJson, serverErrorMessage } from '../../utils/readJson';
+import { localDateString } from '../../utils/orderCompletionMessage';
+
+// Ponowne wysłanie tego samego formularza jest bezpieczne (clientRequestId) - backend odsyła już zapisane zamówienie
+const RETRY_SAFE_HINT = 'Zamówienie mogło zostać zapisane - naciśnij „Zatwierdź zamówienie” ponownie; nie powstanie duplikat.';
 
 const Profile = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -185,9 +191,14 @@ const Profile = () => {
       setAddressCheck({ status: 'idle', suggestion: null });
       return undefined;
     }
+    // Pytamy dopiero 900 ms po ostatnim znaku (ulica / numer / miejscowość / kod). W trakcie pisania
+    // chowamy poprzedni wynik bez „Sprawdzam adres…”, żeby ostrzeżenia nie migały przy każdej cyfrze numeru.
+    // Odpowiedź dla starszej wersji adresu jest ignorowana (cancelled ustawia sprzątanie efektu).
     let cancelled = false;
-    setAddressCheck({ status: 'checking', suggestion: null });
+    setAddressCheck({ status: 'idle', suggestion: null });
     const timer = setTimeout(async () => {
+      if (cancelled) return;
+      setAddressCheck({ status: 'checking', suggestion: null });
       try {
         const response = await tokenService.authenticatedFetch(getApiUrl('/orders/address-check'), {
           method: 'POST',
@@ -339,39 +350,7 @@ const Profile = () => {
     setCitySearchText(text);
   };
 
-  // Phone number validation and formatting
-  const validatePhoneNumber = (phone) => {
-    // Remove all non-digit characters
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    // Polish phone number patterns
-    const patterns = [
-      /^48[4-9]\d{8}$/, // +48 format (international)
-      /^[4-9]\d{8}$/, // 9 digits starting with 4-9 (national)
-    ];
-    
-    return patterns.some(pattern => pattern.test(cleanPhone));
-  };
-
-  const formatPhoneNumber = (phone) => {
-    // Remove all non-digit characters
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    // Format based on length
-    if (cleanPhone.length <= 3) {
-      return cleanPhone;
-    } else if (cleanPhone.length <= 6) {
-      return `${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3)}`;
-    } else if (cleanPhone.length <= 9) {
-      return `${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 6)} ${cleanPhone.slice(6)}`;
-    } else if (cleanPhone.length <= 11 && cleanPhone.startsWith('48')) {
-      // International format
-      return `+48 ${cleanPhone.slice(2, 5)} ${cleanPhone.slice(5, 8)} ${cleanPhone.slice(8)}`;
-    } else {
-      return `${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 6)} ${cleanPhone.slice(6, 9)}`;
-    }
-  };
-
+  // Walidacja i formatowanie numeru: utils/phoneNumber (komórkowe i stacjonarne, z +48 / 0048 lub bez)
   const handlePhoneNumberChange = (text) => {
     // Allow only digits, spaces, +, and - characters
     const filteredText = text.replace(/[^\d\s\+\-]/g, '');
@@ -380,9 +359,9 @@ const Profile = () => {
     const formattedPhone = formatPhoneNumber(filteredText);
     setPhoneNumber(formattedPhone);
     
-    // Validate and set error
-    if (filteredText.length > 0) {
-      const isValid = validatePhoneNumber(filteredText);
+    // Validate and set error (sprawdzamy to, co faktycznie zostanie wysłane)
+    if (filteredText.trim().length > 0) {
+      const isValid = isValidPolishPhone(formattedPhone);
       if (!isValid) {
         setPhoneNumberError('Nieprawidłowy numer telefonu');
       } else {
@@ -813,7 +792,8 @@ const Profile = () => {
           documentType,
           nip: documentType === 'invoice' ? nip : null
         },
-        realizationDate: realizationDate.toISOString(),
+        // data kalendarzowa „RRRR-MM-DD” (toISOString w UTC potrafił cofnąć termin o dzień)
+        realizationDate: localDateString(realizationDate),
         // datę złożenia, sprzedawcę i punkt ustala backend z tokenu (nie z telefonu)
       };
 
@@ -826,8 +806,8 @@ const Profile = () => {
         body: JSON.stringify(orderData)
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      const result = await readJson(response);
+      if (response.ok && result.orderId) {
         const backendOrderId = result.orderId; // Use orderId from backend
         clientRequestIdRef.current = null; // kolejne zamówienie dostanie nowy identyfikator
 
@@ -846,17 +826,31 @@ const Profile = () => {
             resetForm();
           }, 500);
         }
+      } else if (response.ok || response.status >= 500) {
+        // Serwer (albo pośrednik) mógł zapisać zamówienie, ale odpowiedź nie dotarła w całości.
+        // clientRequestId zostaje - ponowne wysłanie zwróci już zapisane zamówienie zamiast duplikatu.
+        Logger.error('❌ Backend error:', response.status, result);
+        appAlert(
+          'Błąd',
+          `${response.ok ? 'Serwer nie potwierdził zapisu zamówienia.' : serverErrorMessage(response, result)}\n\n${RETRY_SAFE_HINT}`
+        );
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        Logger.error('❌ Backend error:', errorData);
-        throw new Error(errorData.message || 'Błąd podczas zapisywania zamówienia');
+        Logger.error('❌ Backend error:', result);
+        throw new Error(serverErrorMessage(response, result, 'Błąd podczas zapisywania zamówienia'));
       }
     } catch (error) {
       Logger.error('❌ Submit error:', error);
-      appAlert(
-        'Błąd', 
-        `Nie udało się złożyć zamówienia.\n\nSzczegóły: ${error.message}\n\nSpróbuj ponownie.`
-      );
+      if (error?.isAuthError) {
+        // sesja wygasła - aplikacja już przechodzi do ekranu logowania, drugi komunikat jest zbędny
+      } else if (isConnectionError(error)) {
+        // clientRequestId zostaje do udanego zapisu - ponowienie jest bezpieczne
+        appAlert('Błąd', `Brak odpowiedzi serwera. ${RETRY_SAFE_HINT}`);
+      } else {
+        appAlert(
+          'Błąd', 
+          `Nie udało się złożyć zamówienia.\n\nSzczegóły: ${error.message}\n\nSpróbuj ponownie.`
+        );
+      }
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
