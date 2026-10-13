@@ -10,6 +10,7 @@ import LogoutButton from '../../components/LogoutButton';
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { appAlert } from '../../services/appAlert';
+import { amountError, amountOrZero, formatAmount, parseAmount, validateOrderAmounts } from '../../utils/priceInput';
 
 const Profile = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -417,11 +418,8 @@ const Profile = () => {
   };
 
   // Payment calculations
-  const parsePrice = (priceString) => {
-    // Remove all non-digit characters except decimal point
-    const cleanPrice = priceString.replace(/[^\d.,]/g, '').replace(',', '.');
-    return parseFloat(cleanPrice) || 0;
-  };
+  // „1.200,50” = 1200,50 (dawniej 1,20); błędny/niejednoznaczny zapis = 0 i blokada w validateForm
+  const parsePrice = (priceString) => amountOrZero(priceString);
 
   const formatPrice = (price) => {
     if (price === 0) return '';
@@ -473,12 +471,12 @@ const Profile = () => {
       return { rate: 1, multiplier: 1 };
     }
     const rate = currencyRates.find(item => item.currency.code === currency);
-    if (!rate) {
-      return { rate: 1, multiplier: 1 };
+    if (!rate || !(rate.buyRate > 0)) {
+      return { rate: null, multiplier: 1 }; // brak kursu - zamówienie z zaliczką w tej walucie jest blokowane
     }
     const name = rate.currency?.name || '';
     const multiplier = name.includes('(za 100)') || name.includes('za 100') ? 100 : 1;
-    return { rate: rate.buyRate || 1, multiplier };
+    return { rate: rate.buyRate, multiplier };
   };
 
   const getDepositRateLabel = (currency) => {
@@ -594,14 +592,29 @@ const Profile = () => {
     const total = parsePrice(totalPrice);
     const depositAmount = parsePrice(deposit);
     const { rate, multiplier } = getDepositRateInfo(depositCurrency);
-    const depositInPln = depositCurrency === 'PLN' ? depositAmount : (depositAmount / multiplier) * rate;
-    const remaining = total - depositInPln;
+    const depositInPln = depositCurrency === 'PLN' ? depositAmount : (rate ? (depositAmount / multiplier) * rate : 0);
+    const remaining = Math.round((total - depositInPln) * 100) / 100;
     
     if (remaining <= 0) return 0;
     
     // Add shipping cost only for 'shipping' option, not for 'delivery' or 'pickup'
     const shippingCost = deliveryOption === 'shipping' ? 20 : 0;
     return remaining + shippingCost;
+  };
+
+  const depositInPlnOrNull = () => {
+    const amount = parsePrice(deposit);
+    if (depositCurrency === 'PLN') return amount;
+    const { rate, multiplier } = getDepositRateInfo(depositCurrency);
+    return rate ? (amount / multiplier) * rate : null;
+  };
+
+  // Podgląd odczytanej kwoty pod polem (sprzedawca widzi, co zostanie zapisane) albo błąd zapisu
+  const renderAmountPreview = (text, label, currency = 'zł') => {
+    if (!String(text || '').trim()) return null;
+    const error = amountError(text, label);
+    if (error) return <Text style={postalHintStyles.warn}>⚠️ {error}</Text>;
+    return <Text style={postalHintStyles.muted}>= {formatAmount(parseAmount(text).value, currency)}</Text>;
   };
 
   const handleTotalPriceChange = (text) => {
@@ -739,8 +752,10 @@ const Profile = () => {
         return false;
       }
     }
-    if (!totalPrice.trim()) {
-      appAlert('Błąd', 'Proszę podać cenę całkowitą');
+    // Kwoty: poprawny zapis, cena > 0 i w limicie, zaliczka nie większa niż cena, kurs waluty zaliczki (backend sprawdza to samo)
+    const amountsError = validateOrderAmounts({ totalPrice, deposit, depositCurrency, depositInPln: depositInPlnOrNull() });
+    if (amountsError) {
+      appAlert('Błąd', amountsError);
       return false;
     }
     if (documentType === 'invoice' && !nip.trim()) {
@@ -1577,6 +1592,7 @@ const Profile = () => {
                       placeholderTextColor="#666"
                       keyboardType="numeric"
                     />
+                    {renderAmountPreview(totalPrice, 'Cena')}
                   </View>
 
                   {/* Deposit Field */}
@@ -1592,6 +1608,7 @@ const Profile = () => {
                       placeholderTextColor="#666"
                       keyboardType="numeric"
                     />
+                    {renderAmountPreview(deposit, 'Zaliczka', depositCurrency === 'PLN' ? 'zł' : depositCurrency)}
                   </View>
 
                   {/* Deposit Currency Selection */}
