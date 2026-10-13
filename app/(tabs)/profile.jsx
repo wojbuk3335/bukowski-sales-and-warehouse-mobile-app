@@ -70,6 +70,8 @@ const Profile = () => {
   const [addressCheck, setAddressCheck] = useState({ status: 'idle', suggestion: null });
   // Podpowiedzi ulic (Google Places przez backend) - lista pod polem „Ulica”
   const [streetSuggestions, setStreetSuggestions] = useState([]);
+  // Stan podpowiedzi pod polem: short | searching | results | none | unavailable | chosen
+  const [streetStatus, setStreetStatus] = useState('short');
   const chosenStreetRef = useRef(''); // ulica wybrana z listy - nie pytamy o nią ponownie
   const [cityInputFocused, setCityInputFocused] = useState(false);
   
@@ -229,9 +231,11 @@ const Profile = () => {
     const text = streetSearchText.trim();
     if (!streetInputFocused || text.length < 3 || text === chosenStreetRef.current) {
       setStreetSuggestions([]);
+      setStreetStatus(text === chosenStreetRef.current && text ? 'chosen' : 'short');
       return undefined;
     }
     let cancelled = false;
+    setStreetStatus('searching');
     const timer = setTimeout(async () => {
       try {
         const params = new URLSearchParams({
@@ -241,9 +245,19 @@ const Profile = () => {
         });
         const response = await tokenService.authenticatedFetch(getApiUrl(`/orders/street-suggest?${params}`));
         const data = await response.json();
-        if (!cancelled) setStreetSuggestions(response.ok && data.checked ? (data.streets || []) : []);
+        if (cancelled) return;
+        if (!response.ok || !data.checked) {
+          setStreetSuggestions([]);
+          setStreetStatus('unavailable');
+          return;
+        }
+        setStreetSuggestions(data.streets || []);
+        setStreetStatus((data.streets || []).length > 0 ? 'results' : 'none');
       } catch (error) {
-        if (!cancelled) setStreetSuggestions([]);
+        if (!cancelled) {
+          setStreetSuggestions([]);
+          setStreetStatus('unavailable');
+        }
       }
     }, 350);
     return () => {
@@ -256,20 +270,33 @@ const Profile = () => {
     chosenStreetRef.current = street;
     setStreetSearchText(street);
     setStreetSuggestions([]);
+    setStreetStatus('chosen');
   };
 
-  // Lista podpowiedzi pod polem „Ulica” (wysyłka i dostawa)
-  const renderStreetSuggestions = () => (
-    streetInputFocused && streetSuggestions.length > 0 ? (
-      <View style={postalHintStyles.suggestList} testID="street-suggestions">
-        {streetSuggestions.map((street) => (
-          <TouchableOpacity key={street} style={postalHintStyles.suggestItem} onPress={() => chooseStreet(street)}>
-            <Text style={postalHintStyles.suggestText}>{street}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    ) : null
-  );
+  // Lista podpowiedzi pod polem „Ulica” (wysyłka i dostawa) + informacja, co się dzieje
+  const renderStreetSuggestions = () => {
+    if (!streetInputFocused) return null;
+    if (streetStatus === 'results' && streetSuggestions.length > 0) {
+      return (
+        <View style={postalHintStyles.suggestList} testID="street-suggestions">
+          {streetSuggestions.map((street) => (
+            <TouchableOpacity key={street} style={postalHintStyles.suggestItem} onPress={() => chooseStreet(street)}>
+              <Text style={postalHintStyles.suggestText}>{street}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      );
+    }
+    const info = {
+      short: citySearchText.trim()
+        ? `Wpisz min. 3 litery ulicy - podpowiemy ulice w: ${citySearchText.trim()}`
+        : 'Wpisz najpierw miejscowość, potem min. 3 litery ulicy',
+      searching: 'Szukam ulic…',
+      none: `Brak ulic zaczynających się od „${streetSearchText.trim()}”${citySearchText.trim() ? ` w: ${citySearchText.trim()}` : ''}`,
+      unavailable: 'Podpowiedzi ulic niedostępne - wpisz ulicę ręcznie',
+    }[streetStatus];
+    return info ? <Text style={postalHintStyles.muted} testID="street-status">{info}</Text> : null;
+  };
 
   // Wynik sprawdzenia adresu - pod numerem domu (wysyłka i dostawa)
   const renderAddressHint = () => {
