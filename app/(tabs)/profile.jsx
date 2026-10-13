@@ -246,6 +246,11 @@ const Profile = () => {
         const response = await tokenService.authenticatedFetch(getApiUrl(`/orders/street-suggest?${params}`));
         const data = await response.json();
         if (cancelled) return;
+        if (response.ok && data.reason === 'too_short') {
+          setStreetSuggestions([]);
+          setStreetStatus('short'); // np. „os. Z” - po przedrostku za mało liter
+          return;
+        }
         if (!response.ok || !data.checked) {
           setStreetSuggestions([]);
           setStreetStatus('unavailable');
@@ -289,7 +294,7 @@ const Profile = () => {
     }
     const info = {
       short: citySearchText.trim()
-        ? `Wpisz min. 3 litery ulicy - podpowiemy ulice w: ${citySearchText.trim()}`
+        ? `Wpisz min. 3 litery nazwy ulicy (może być z „ul.”, „os.”) - podpowiemy ulice w: ${citySearchText.trim()}`
         : 'Wpisz najpierw miejscowość, potem min. 3 litery ulicy',
       searching: 'Szukam ulic…',
       none: `Brak ulic zaczynających się od „${streetSearchText.trim()}”${citySearchText.trim() ? ` w: ${citySearchText.trim()}` : ''}`,
