@@ -7,6 +7,7 @@
     "icon": "./assets/images/logo2.png",
     "scheme": "bukowski",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#2b2f36",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bukowski.inventory5.mobile2025",
@@ -74,7 +75,7 @@
           "image": "./assets/images/logo2.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#2b2f36"
         }
       ],
       "expo-web-browser",

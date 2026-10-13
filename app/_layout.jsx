@@ -3,13 +3,13 @@ import { SplashScreen, Stack } from 'expo-router';
 import React, { useEffect } from 'react';
 import "react-native-url-polyfill/auto";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import axios from 'axios';
 import { API_CONFIG } from '../config/api';
 import { GlobalStateProvider } from "../context/GlobalState"; // Import global state provider
 import { AuthProvider } from '../context/AuthContext'; // Import auth provider
-import { ThemeProvider } from '../context/ThemeContext'; // motyw: biały / szary / czarny
+import { DEFAULT_THEME, PALETTES, ThemeProvider } from '../context/ThemeContext'; // motyw: biały / szary / czarny
 import AppDialogHost from '../components/AppDialogHost'; // wspólne okienka zamiast Alert.alert
 
 // Configure axios baseURL globally
@@ -93,7 +93,7 @@ const RootLayout = () => {
   }
 
   if (!fontsLoaded && !error) {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: PALETTES[DEFAULT_THEME].bg }} />; // szare tło od pierwszej chwili
   }
 
   return (

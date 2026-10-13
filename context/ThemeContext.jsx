@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { View } from 'react-native';
 
 // Motyw aplikacji: 'dark' (czarny), 'gray' (szary - domyślny), 'light' (biały).
 // Zapamiętywany w telefonie (AsyncStorage). Ekrany biorą kolory z useAppTheme().colors.
@@ -78,7 +79,12 @@ export const ThemeProvider = ({ children }) => {
 
   currentTheme = theme; // przed renderem dzieci - style i tc() widzą już nowy motyw
   const contextValue = useMemo(() => ({ theme, colors: PALETTES[theme], setTheme }), [theme]);
-  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={contextValue}>
+      {/* tło w kolorze motywu pod ekranami - po starcie od razu szare (domyślny motyw), bez białego mignięcia */}
+      <View style={{ flex: 1, backgroundColor: PALETTES[theme].bg }}>{children}</View>
+    </ThemeContext.Provider>
+  );
 };
 
 export const useAppTheme = () => useContext(ThemeContext);

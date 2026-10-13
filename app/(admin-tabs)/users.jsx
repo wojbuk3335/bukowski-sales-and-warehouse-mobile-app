@@ -4165,6 +4165,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   priceListInfoLine: {
     fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
     marginBottom: 10,
   },
   priceListInfoContainer: {
