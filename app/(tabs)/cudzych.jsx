@@ -1715,7 +1715,12 @@ const Cudzych = () => {
               <Text style={look.formLabel}>Sprzedano produkt</Text>
               <TextInput
                 style={qrStyles.inputField}
-                value={scannedProductData.name}
+                value={
+                  // Kurtki: nazwa bez rozmiaru (do ceny z cennika), rozmiar osobno - pokazujemy oba
+                  scannedProductData.size && scannedProductData.size !== '-' && !String(scannedProductData.name || '').endsWith(` ${scannedProductData.size}`)
+                    ? `${scannedProductData.name} ${scannedProductData.size}`
+                    : scannedProductData.name
+                }
                 editable={false}
               />
               <Text style={look.formLabel}>Gdzie</Text>
