@@ -7,6 +7,7 @@ import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
+import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
@@ -598,11 +599,7 @@ const Profile = () => {
         
         // Set success message and show modal
         setOrderNumber(backendOrderId);
-        setSuccessMessage(
-          email 
-            ? 'Zamówienie zostało złożone!\n\nEmail z potwierdzeniem został wysłany na adres klienta.'
-            : 'Zamówienie zostało złożone!\n\nPowiadomienie zostało wysłane do sklepu.'
-        );
+        setSuccessMessage(orderEmailMessage(result.emails)); // komunikat wg faktycznie wysłanych maili
         setSuccessModalVisible(true);
         
         // Reset form after a short delay
