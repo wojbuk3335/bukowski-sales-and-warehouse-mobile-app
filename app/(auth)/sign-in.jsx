@@ -152,22 +152,28 @@ const SignIn = () => {
             title="Email"
             value={form.email}
             handleChangeText={(e) => {
-              setForm({ ...form, email: e.trim() });
+              // Aktualizacja funkcyjna: menedżer haseł (Bitwarden) wpisuje email i hasło
+              // jedno po drugim w tej samej chwili - `...form` z domknięcia skasowałby email
+              setForm((prev) => ({ ...prev, email: e.trim() }));
               if (error) setError(""); // Clear error when user starts typing
             }}
             otherStyles="mt-7"
             keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <FormField
             title="Hasło"
             value={form.password}
             handleChangeText={(e) => {
-              setForm({ ...form, password: e.trim() });
+              setForm((prev) => ({ ...prev, password: e.trim() }));
               if (error) setError(""); // Clear error when user starts typing
             }}
             otherStyles="mt-7"
             secureTextEntry={true} // Explicitly enable secure text entry
+            autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <CustomButton

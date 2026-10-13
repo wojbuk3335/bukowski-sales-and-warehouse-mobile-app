@@ -86,10 +86,12 @@ describe('TwoFactorScreen (mobile)', () => {
       auth: { login: jest.fn() },
     });
 
-    const inputs = screen.getAllByPlaceholderText('-');
-    ['1', '2', '3', '4', '5', '6'].forEach((digit, index) => {
-      fireEvent.changeText(inputs[index], digit);
+    const input = screen.getByTestId('otp-input');
+    ['1', '12', '123', '1234', '12345', '123456'].forEach((value) => {
+      fireEvent.changeText(input, value);
     });
+    // Wpisywanie cyfra po cyfrze nie wysyła automatycznie - dopiero przycisk
+    expect(global.fetch).not.toHaveBeenCalled();
 
     fireEvent.press(screen.getByText('Zweryfikuj kod'));
 
@@ -110,5 +112,77 @@ describe('TwoFactorScreen (mobile)', () => {
     expect(setUser).toHaveBeenCalled();
     expect(setIsLoggedIn).toHaveBeenCalledWith(true);
     expect(mockReplace).toHaveBeenCalledWith('/(admin-tabs)/dashboard');
+  });
+
+  const mockVerifyOk = () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true, accessToken: 'access-token', role: 'admin' }),
+    });
+  };
+
+  const expectVerifiedWith = async (code) => {
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:3000/api/user/verify-2fa',
+        expect.objectContaining({
+          body: JSON.stringify({ userId: 'user_1', verificationCode: code, rememberMe: false }),
+        })
+      );
+    });
+  };
+
+  beforeEach(() => {
+    mockUseParams.mockReturnValue({ userId: 'user_1', email: 'admin@test.pl', step: '2fa_verification' });
+  });
+
+  test('pasting a full code (with a space) shows it in the field and submits once', async () => {
+    mockVerifyOk();
+    const screen = renderWithProviders(<TwoFactorScreen />);
+
+    fireEvent.changeText(screen.getByTestId('otp-input'), '105 650');
+
+    await expectVerifiedWith('105650');
+    expect(screen.getByTestId('otp-input').props.value).toBe('105650');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('pasting into a partly filled field uses the newly pasted code', async () => {
+    mockVerifyOk();
+    const screen = renderWithProviders(<TwoFactorScreen />);
+    const input = screen.getByTestId('otp-input');
+
+    fireEvent.changeText(input, '9');
+    fireEvent.changeText(input, '9105650');
+
+    await expectVerifiedWith('105650');
+  });
+
+  test('after a rejected code the field is cleared and a new paste is used as-is', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({ success: false, message: 'Niepoprawny kod' }),
+    });
+    mockVerifyOk();
+    const screen = renderWithProviders(<TwoFactorScreen />);
+    const input = screen.getByTestId('otp-input');
+
+    fireEvent.changeText(input, '111111');
+    await waitFor(() => expect(screen.getByText('Niepoprawny kod')).toBeTruthy());
+    expect(input.props.value).toBe('');
+
+    fireEvent.changeText(input, '105650');
+    await expectVerifiedWith('105650');
+  });
+
+  test('pasting while the field is still full replaces the old code', async () => {
+    const screen = renderWithProviders(<TwoFactorScreen />);
+    const input = screen.getByTestId('otp-input');
+
+    ['1', '12', '123', '1234', '12345', '123456'].forEach((value) => fireEvent.changeText(input, value));
+    mockVerifyOk();
+    fireEvent.changeText(input, '123456105650');
+
+    await expectVerifiedWith('105650');
   });
 });

@@ -13,13 +13,16 @@ import tokenService from "../../services/tokenService";
 const TwoFactorScreen = () => {
   const params = useLocalSearchParams();
   const { userId, email, step = "2fa_verification" } = params || {};
-  const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""]);
+  // Cały kod w jednym polu tekstowym - wklejenie trafia w całości do jednego pola,
+  // bez przeskakiwania fokusu między okienkami (to powodowało nadpisywanie cyfr).
+  const [code, setCode] = useState("");
   const [setupSecret, setSetupSecret] = useState("");
   const [setupOtpAuthUrl, setSetupOtpAuthUrl] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const inputRefs = useRef([]);
+  const inputRef = useRef(null);
+  const submittingRef = useRef(false); // blokada podwójnego wysłania (auto-submit + przycisk)
 
   const { setUser, setIsLoggedIn } = useContext(GlobalStateContext);
   const authContext = useContext(AuthContext);
@@ -50,8 +53,11 @@ const TwoFactorScreen = () => {
     loadSetup();
   }, [step, userId]);
 
-  const handleSubmit = async () => {
-    const codeValue = verificationCode.join("");
+  // `codeArg` podawany przy auto-submicie po wklejeniu (stan jeszcze się nie odświeżył);
+  // przy kliknięciu przycisku CustomButton może przekazać zdarzenie - wtedy bierzemy stan
+  const handleSubmit = async (codeArg) => {
+    if (submittingRef.current) return;
+    const codeValue = typeof codeArg === "string" ? codeArg : code;
     if (!codeValue || codeValue.length !== 6) {
       setError("Wprowadź 6-cyfrowy kod weryfikacyjny");
       return;
@@ -62,6 +68,7 @@ const TwoFactorScreen = () => {
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     setError("");
 
@@ -80,6 +87,7 @@ const TwoFactorScreen = () => {
       const data = await response.json();
       if (!response.ok || !data?.success) {
         setError(data?.message || "Niepoprawny kod weryfikacyjny");
+        setCode(""); // czyste pole na kolejną próbę/wklejenie
         return;
       }
 
@@ -104,6 +112,7 @@ const TwoFactorScreen = () => {
     } catch {
       setError("Wystąpił błąd podczas weryfikacji. Spróbuj ponownie.");
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -119,6 +128,23 @@ const TwoFactorScreen = () => {
 
   const handleBack = () => {
     router.replace("/(auth)/sign-in");
+  };
+
+  const handleCodeChange = (value) => {
+    const allDigits = value.replace(/\D/g, "");
+    // Wklejenie do niepustego pola dokleja nowy kod na koniec (kursor zawsze na końcu),
+    // np. "123456" + "105650" - wtedy liczy się ostatnie 6 cyfr, czyli nowo wklejony kod
+    const digits = allDigits.length > 6 ? allDigits.slice(-6) : allDigits;
+    const addedAtOnce = allDigits.length - code.length;
+    setCode(digits);
+    if (error) setError("");
+
+    // Wklejony kompletny kod - wyślij od razu (jak w wersji webowej).
+    // Przy wpisywaniu cyfra po cyfrze użytkownik klika "Zweryfikuj kod".
+    if (digits.length === 6 && addedAtOnce > 1 && !(step === "2fa_setup" && !setupSecret)) {
+      inputRef.current?.blur();
+      handleSubmit(digits);
+    }
   };
 
 
@@ -157,46 +183,23 @@ const TwoFactorScreen = () => {
         )}
 
         <Text style={styles.tileLabel}>Kod weryfikacyjny</Text>
-        <View style={styles.tileContainer}>
-          {verificationCode.map((digit, index) => (
-            <TextInput
-              key={`otp-${index}`}
-              ref={(el) => (inputRefs.current[index] = el)}
-              value={digit}
-              onChangeText={(value) => {
-                const digits = value.replace(/\D/g, "");
-                if (!digits) {
-                  const next = [...verificationCode];
-                  next[index] = "";
-                  setVerificationCode(next);
-                  return;
-                }
-
-                const next = [...verificationCode];
-                for (let i = 0; i < digits.length && index + i < 6; i += 1) {
-                  next[index + i] = digits[i];
-                }
-                setVerificationCode(next);
-                if (error) setError("");
-
-                const nextIndex = Math.min(index + digits.length, 5);
-                inputRefs.current[nextIndex]?.focus();
-              }}
-              onKeyPress={({ nativeEvent }) => {
-                if (nativeEvent.key === "Backspace" && !verificationCode[index] && index > 0) {
-                  inputRefs.current[index - 1]?.focus();
-                }
-              }}
-              keyboardType="numeric"
-              maxLength={1}
-              placeholder="-"
-              placeholderTextColor="#6b7280"
-              style={styles.tileInput}
-              textAlign="center"
-              selectionColor="#0d6efd"
-            />
-          ))}
-        </View>
+        {/* Jedno zwykłe pole na cały kod: wklejanie (przytrzymaj -> Wklej) działa natywnie,
+            bez przeskakiwania fokusu między sześcioma okienkami */}
+        <TextInput
+          ref={inputRef}
+          value={code}
+          onChangeText={handleCodeChange}
+          keyboardType="number-pad"
+          autoFocus
+          autoComplete="off"
+          importantForAutofill="no"
+          placeholder="000000"
+          placeholderTextColor="#4b5563"
+          selectionColor="#0d6efd"
+          textAlign="center"
+          style={styles.codeInput}
+          testID="otp-input"
+        />
 
         {error ? (
           <View style={styles.errorContainer}>
@@ -291,21 +294,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 6,
   },
-  tileContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  tileInput: {
-    width: 46,
-    height: 56,
+  codeInput: {
+    height: 64,
     borderRadius: 12,
     backgroundColor: "#18181b",
     borderWidth: 2,
     borderColor: "#0d6efd",
     color: "#fff",
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: "700",
+    letterSpacing: 10,
+    marginBottom: 8,
   },
   manualKey: {
     color: "#e5e7eb",
