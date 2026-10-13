@@ -48,6 +48,13 @@ const OrdersList = () => {
   const [revertDate, setRevertDate] = useState(new Date()); // nowy termin realizacji (wymagany dla anulowanych)
   const [showRevertDatePicker, setShowRevertDatePicker] = useState(false);
   const [reverting, setReverting] = useState(false);
+  // Zmiana terminu realizacji (oczekujące): nowa data, powód, opcjonalne powiadomienie klienta
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState(new Date());
+  const [showRescheduleDatePicker, setShowRescheduleDatePicker] = useState(false);
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [rescheduleChannel, setRescheduleChannel] = useState('none'); // none | sms | email
+  const [rescheduling, setRescheduling] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -244,6 +251,57 @@ const OrdersList = () => {
     }
   };
 
+  const rescheduleMessage = (order, date, reason) => (
+    `Dzien dobry, termin realizacji Twojego zamowienia ${order.orderId} zmienil sie na ${date.toLocaleDateString('pl-PL')}${reason.trim() ? ` (${reason.trim()})` : ''}. Przepraszamy za niedogodnosci. Bukowski`
+  );
+
+  const openRescheduleModal = (order) => {
+    setRescheduleTarget(order);
+    setRescheduleDate(new Date());
+    setRescheduleReason('');
+    setRescheduleChannel('none');
+  };
+
+  const confirmReschedule = async () => {
+    if (rescheduling || !rescheduleTarget) return;
+    setRescheduling(true);
+    try {
+      const response = await tokenService.authenticatedFetch(
+        getApiUrl(`/orders/${rescheduleTarget._id}/reschedule`),
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            realizationDate: localDateString(rescheduleDate),
+            reason: rescheduleReason.trim(),
+            notify: {
+              channel: rescheduleChannel,
+              text: rescheduleChannel === 'none' ? '' : rescheduleMessage(rescheduleTarget, rescheduleDate, rescheduleReason),
+            },
+          }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success) {
+        setRescheduleTarget(null);
+        await loadOrders();
+        const what = rescheduleChannel === 'sms' ? 'SMS' : 'E-mail';
+        let message = `📅 Termin realizacji zmieniony na ${rescheduleDate.toLocaleDateString('pl-PL')}.`;
+        if (data.notification === 'sent') message += `\n\n${what} do klienta: wysłany.`;
+        if (data.notification === 'test') message += `\n\n${what} do klienta: sprawdzony w trybie testowym (nie wysłano).`;
+        if (data.notification === 'failed' || data.notification === 'invalid_phone') message += `\n\n⚠️ ${what} do klienta: nie udało się wysłać.`;
+        setSuccessMessage(message);
+        setSuccessModalVisible(true);
+      } else {
+        appAlert('Błąd', data.message ? `Nie zmieniono terminu: ${data.message}` : 'Nie udało się zmienić terminu');
+      }
+    } catch (error) {
+      console.error('Error rescheduling order:', error);
+      appAlert('Błąd', 'Nie udało się połączyć z serwerem. Spróbuj ponownie.');
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
   const revertOrder = (order) => {
     setOrderToRevert(order);
     setRevertDate(new Date());
@@ -393,6 +451,17 @@ const OrdersList = () => {
             >
               <Ionicons name="checkmark-circle" size={14} color="#fff" />
               <Text style={styles.actionButtonText}>Zrealizuj</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.rescheduleButton]}
+              onPress={(e) => {
+                e.stopPropagation();
+                openRescheduleModal(order);
+              }}
+              testID={`reschedule-${order._id}`}
+            >
+              <Ionicons name="calendar" size={14} color="#fff" />
+              <Text style={styles.actionButtonText}>Termin</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -840,6 +909,117 @@ const OrdersList = () => {
         </View>
       </Modal>
 
+      {/* Zmiana terminu realizacji */}
+      <Modal
+        visible={!!rescheduleTarget}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => !rescheduling && setRescheduleTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📅 Zmień termin realizacji</Text>
+              <TouchableOpacity onPress={() => !rescheduling && setRescheduleTarget(null)}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled">
+              {rescheduleTarget && (
+                <View>
+                  <View style={styles.completeOrderInfo}>
+                    <Text style={styles.completeOrderDetail}>
+                      📦 Zamówienie: <Text style={styles.completeOrderValue}>{rescheduleTarget.orderId}</Text>
+                    </Text>
+                    <Text style={styles.completeOrderDetail}>
+                      👤 Klient: <Text style={styles.completeOrderValue}>{rescheduleTarget.customer?.name}</Text>
+                    </Text>
+                    <Text style={styles.completeOrderDetail}>
+                      📅 Obecny termin: <Text style={styles.completeOrderValue}>{formatDate(rescheduleTarget.realizationDate)}</Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.datePickerGroup}>
+                    <Text style={styles.datePickerLabel}>📅 Nowy termin realizacji:</Text>
+                    <TouchableOpacity style={styles.dateButton} onPress={() => setShowRescheduleDatePicker(true)} testID="reschedule-date-button">
+                      <Text style={styles.dateButtonText}>{rescheduleDate.toLocaleDateString('pl-PL')}</Text>
+                      <Ionicons name="calendar" size={24} color="#fff" />
+                    </TouchableOpacity>
+                    {showRescheduleDatePicker && (
+                      <DateTimePicker
+                        value={rescheduleDate}
+                        minimumDate={new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={(event, date) => {
+                          setShowRescheduleDatePicker(false);
+                          if (date) setRescheduleDate(date);
+                        }}
+                      />
+                    )}
+                  </View>
+
+                  <View style={styles.datePickerGroup}>
+                    <Text style={styles.datePickerLabel}>📝 Powód (opcjonalnie, trafia do wiadomości):</Text>
+                    <TextInput
+                      style={[styles.dateButton, styles.dateButtonText]}
+                      value={rescheduleReason}
+                      onChangeText={setRescheduleReason}
+                      placeholder="np. przesunięta dostawa skór"
+                      placeholderTextColor="#64748B"
+                      maxLength={500}
+                      testID="reschedule-reason-input"
+                    />
+                  </View>
+
+                  <View style={styles.datePickerGroup}>
+                    <Text style={styles.datePickerLabel}>🔔 Powiadomić klienta?</Text>
+                    <View style={styles.filterOptions}>
+                      {[
+                        { value: 'none', label: 'Nie' },
+                        { value: 'sms', label: '📱 SMS' },
+                        { value: 'email', label: '✉️ E-mail', disabled: !rescheduleTarget.customer?.email },
+                      ].map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[styles.filterOption, rescheduleChannel === option.value && styles.filterOptionActive, option.disabled && { opacity: 0.4 }]}
+                          disabled={option.disabled}
+                          onPress={() => setRescheduleChannel(option.value)}
+                        >
+                          <Text style={[styles.filterOptionText, rescheduleChannel === option.value && styles.filterOptionTextActive]}>{option.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {rescheduleChannel !== 'none' && (
+                      <Text style={styles.datePickerHint}>
+                        Treść: „{rescheduleMessage(rescheduleTarget, rescheduleDate, rescheduleReason)}”
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooterVertical}>
+              <TouchableOpacity
+                style={[styles.modalButtonFull, styles.completeButtonFull]}
+                onPress={confirmReschedule}
+                disabled={rescheduling}
+              >
+                <Text style={styles.modalButtonText}>{rescheduling ? 'Zapisuję…' : (rescheduleChannel === 'none' ? '📅 Zmień termin' : '📅 Zmień termin i wyślij')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButtonFull, styles.resetButton]}
+                onPress={() => setRescheduleTarget(null)}
+                disabled={rescheduling}
+              >
+                <Text style={styles.modalButtonText}>❌ Anuluj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Revert Confirmation Modal */}
       <Modal
         visible={revertConfirmModalVisible}
@@ -1114,6 +1294,9 @@ const styles = StyleSheet.create({
   },
   revertButton: {
     backgroundColor: '#3B82F6',
+  },
+  rescheduleButton: {
+    backgroundColor: '#F59E0B',
   },
   actionButtonText: {
     color: '#fff',
