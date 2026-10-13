@@ -22,6 +22,7 @@ import { appAlert } from '../services/appAlert';
 import { isConnectionError, readJson, serverErrorMessage } from '../utils/readJson';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const OrdersList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -368,7 +369,7 @@ const OrdersList = () => {
     return (
       <TouchableOpacity
         key={order._id}
-        style={styles.card}
+        style={[styles.card, { borderLeftColor: statusColor }]}
         onPress={() => {
           setSelectedOrder(order);
           setDetailsModalVisible(true);
@@ -382,7 +383,7 @@ const OrdersList = () => {
           </View>
           <View style={[
             styles.statusBadge,
-            { backgroundColor: `${statusColor}20` }
+            { backgroundColor: `${statusColor}26`, borderColor: `${statusColor}80` }
           ]}>
             <Text style={[
               styles.statusText,
@@ -447,7 +448,7 @@ const OrdersList = () => {
               {formatDate(order.realizationDate)}
             </Text>
             {urgency.status !== 'closed' && (
-              <View style={[styles.urgencyBadge, { backgroundColor: `${urgencyColor}20` }]}>
+              <View style={[styles.urgencyBadge, { backgroundColor: `${urgencyColor}26`, borderColor: `${urgencyColor}80` }]}>
                 <Text style={[styles.urgencyText, { color: urgencyColor }]}>
                   {getUrgencyLabel(urgency)}
                 </Text>
@@ -465,7 +466,7 @@ const OrdersList = () => {
                 openCompleteModal(order);
               }}
             >
-              <Ionicons name="checkmark-circle" size={14} color="#fff" />
+              <Ionicons name="checkmark-circle" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Zrealizuj</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -476,7 +477,7 @@ const OrdersList = () => {
               }}
               testID={`reschedule-${order._id}`}
             >
-              <Ionicons name="calendar" size={14} color="#fff" />
+              <Ionicons name="calendar" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Termin</Text>
             </TouchableOpacity>
           </View>
@@ -491,7 +492,7 @@ const OrdersList = () => {
                 revertOrder(order);
               }}
             >
-              <Ionicons name="arrow-undo" size={14} color="#fff" />
+              <Ionicons name="arrow-undo" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Przywróć</Text>
             </TouchableOpacity>
           </View>
@@ -510,23 +511,12 @@ const OrdersList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Zamówienia',
-          headerStyle: {
-            backgroundColor: tc('bg', '#000000'),
-          },
-          headerTintColor: tc('text', '#fff'),
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-            </TouchableOpacity>
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Nagłówek podstrony */}
+      <PageHeader
+        title="Zamówienia"
+        icon="cart-outline"
+        onBack={() => router.back()}
       />
 
       {/* Stats and Search */}
@@ -554,7 +544,7 @@ const OrdersList = () => {
           <Ionicons 
             name={statusFilter !== 'all' ? 'funnel' : 'funnel-outline'} 
             size={20} 
-            color={statusFilter !== 'all' ? '#3B82F6' : '#fff'} 
+            color={statusFilter !== 'all' ? '#0D6EFD' : tc('text', '#fff')} 
           />
         </TouchableOpacity>
       </View>
@@ -589,18 +579,13 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filtry</Text>
-              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="funnel-outline" title="Filtry" />
 
             <ScrollView style={styles.modalBody}>
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Status:</Text>
+                <Text style={look.formLabel}>Status:</Text>
                 <View style={styles.filterOptions}>
                   {[
                     { value: 'all', label: 'Wszystkie' },
@@ -630,21 +615,21 @@ const OrdersList = () => {
               </View>
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.resetButton]}
+                style={look.neutralButton}
                 onPress={() => {
                   resetFilters();
                   setFilterModalVisible(false);
                 }}
               >
-                <Text style={styles.modalButtonText}>Resetuj</Text>
+                <Text style={look.neutralButtonText}>Resetuj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.applyButton]}
+                style={look.primaryButton}
                 onPress={() => setFilterModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>Zastosuj</Text>
+                <Text style={look.buttonText}>Zastosuj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -658,21 +643,19 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => setDetailsModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Szczegóły zamówienia</Text>
-              <TouchableOpacity onPress={() => setDetailsModalVisible(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="document-text-outline" title="Szczegóły zamówienia" />
 
             <ScrollView style={styles.modalBody}>
               {selectedOrder && (
                 <View>
                   {/* Order Info */}
                   <View style={styles.detailsSection}>
-                    <Text style={styles.detailsSectionTitle}>📋 Informacje o zamówieniu</Text>
+                    <View style={styles.detailsSectionHeader}>
+                      <Ionicons name="clipboard-outline" size={18} color="#0D6EFD" />
+                      <Text style={styles.detailsSectionTitle}>Informacje o zamówieniu</Text>
+                    </View>
                     <Text style={styles.detailsRow}>
                       <Text style={styles.detailsLabel}>Numer: </Text>
                       <Text style={styles.detailsValue}>{selectedOrder.orderId}</Text>
@@ -703,7 +686,10 @@ const OrdersList = () => {
 
                   {/* Product Info */}
                   <View style={styles.detailsSection}>
-                    <Text style={styles.detailsSectionTitle}>🛍️ Produkt</Text>
+                    <View style={styles.detailsSectionHeader}>
+                      <Ionicons name="pricetag-outline" size={18} color="#8B5CF6" />
+                      <Text style={styles.detailsSectionTitle}>Produkt</Text>
+                    </View>
                     <Text style={styles.detailsRow}>
                       <Text style={styles.detailsLabel}>Nazwa: </Text>
                       <Text style={styles.detailsValue}>
@@ -724,7 +710,10 @@ const OrdersList = () => {
 
                   {/* Customer Info */}
                   <View style={styles.detailsSection}>
-                    <Text style={styles.detailsSectionTitle}>👤 Dane klienta</Text>
+                    <View style={styles.detailsSectionHeader}>
+                      <Ionicons name="person-outline" size={18} color="#06B6D4" />
+                      <Text style={styles.detailsSectionTitle}>Dane klienta</Text>
+                    </View>
                     <Text style={styles.detailsRow}>
                       <Text style={styles.detailsLabel}>Imię i nazwisko: </Text>
                       <Text style={styles.detailsValue}>{selectedOrder.customer?.name}</Text>
@@ -743,7 +732,10 @@ const OrdersList = () => {
 
                   {/* Delivery Info */}
                   <View style={styles.detailsSection}>
-                    <Text style={styles.detailsSectionTitle}>🚚 Dostawa</Text>
+                    <View style={styles.detailsSectionHeader}>
+                      <Ionicons name="car-outline" size={18} color="#F59E0B" />
+                      <Text style={styles.detailsSectionTitle}>Dostawa</Text>
+                    </View>
                     <Text style={styles.detailsRow}>
                       <Text style={styles.detailsLabel}>Sposób: </Text>
                       <Text style={styles.detailsValue}>
@@ -766,7 +758,10 @@ const OrdersList = () => {
 
                   {/* Payment Info */}
                   <View style={styles.detailsSection}>
-                    <Text style={styles.detailsSectionTitle}>💰 Rozliczenie</Text>
+                    <View style={styles.detailsSectionHeader}>
+                      <Ionicons name="cash-outline" size={18} color="#10B981" />
+                      <Text style={styles.detailsSectionTitle}>Rozliczenie</Text>
+                    </View>
                     <Text style={styles.detailsRow}>
                       <Text style={styles.detailsLabel}>Cena całkowita: </Text>
                       <Text style={styles.detailsValue}>{formatPrice(selectedOrder.payment?.totalPrice)}</Text>
@@ -801,20 +796,21 @@ const OrdersList = () => {
             <View style={styles.modalFooterVertical}>
               {selectedOrder && (selectedOrder.status === 'zrealizowano' || selectedOrder.status === 'anulowane') && (
                 <TouchableOpacity
-                  style={[styles.modalButtonFull, styles.applyButton]}
+                  style={[look.primaryButton, styles.modalButtonFull]}
                   onPress={() => {
                     setDetailsModalVisible(false);
                     revertOrder(selectedOrder);
                   }}
                 >
-                  <Text style={styles.modalButtonText}>🔄 Przywróć do aktywnych</Text>
+                  <Ionicons name="arrow-undo" size={18} color="#fff" />
+                  <Text style={look.buttonText}>Przywróć do aktywnych</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.modalButtonFull, styles.resetButton]}
+                style={[look.neutralButton, styles.modalButtonFull]}
                 onPress={() => setDetailsModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>Zamknij</Text>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -828,44 +824,39 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => setCompleteModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>✅ Realizacja zamówienia</Text>
-              <TouchableOpacity onPress={() => setCompleteModalVisible(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="checkmark-circle-outline" color="#10B981" title="Realizacja zamówienia" />
 
             <ScrollView style={styles.modalBody}>
               {orderToComplete && (
                 <View>
                   <View style={styles.completeOrderInfo}>
-                    <Text style={styles.completeOrderTitle}>📋 Szczegóły zamówienia:</Text>
+                    <Text style={styles.completeOrderTitle}>Szczegóły zamówienia:</Text>
                     <Text style={styles.completeOrderDetail}>
-                      📦 Zamówienie: <Text style={styles.completeOrderValue}>{orderToComplete.orderId}</Text>
+                      Zamówienie: <Text style={styles.completeOrderValue}>{orderToComplete.orderId}</Text>
                     </Text>
                     <Text style={styles.completeOrderDetail}>
-                      👤 Klient: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.name}</Text>
+                      Klient: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.name}</Text>
                     </Text>
                     <Text style={styles.completeOrderDetail}>
-                      📧 Email: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.email || 'brak (mail nie zostanie wysłany)'}</Text>
+                      Email: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.email || 'brak (mail nie zostanie wysłany)'}</Text>
                     </Text>
                     <Text style={styles.completeOrderDetail}>
-                      📱 Telefon: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.phone}</Text>
+                      Telefon: <Text style={styles.completeOrderValue}>{orderToComplete.customer?.phone}</Text>
                     </Text>
                   </View>
 
                   <View style={styles.datePickerGroup}>
-                    <Text style={styles.datePickerLabel}>📅 Data planowanej wysyłki:</Text>
+                    <Text style={look.formLabel}>Data planowanej wysyłki:</Text>
                     <TouchableOpacity
-                      style={styles.dateButton}
+                      style={look.selectField}
                       onPress={() => setShowDatePicker(true)}
                     >
-                      <Text style={styles.dateButtonText}>
+                      <Text style={look.selectFieldText}>
                         {shippingDate.toLocaleDateString('pl-PL')}
                       </Text>
-                      <Ionicons name="calendar" size={24} color={tc('text', "#fff")} />
+                      <Ionicons name="calendar-outline" size={22} color={tc('muted', '#94A3B8')} />
                     </TouchableOpacity>
                     {showDatePicker && (
                       <DateTimePicker
@@ -882,19 +873,19 @@ const OrdersList = () => {
                       />
                     )}
                     <Text style={styles.datePickerHint}>
-                      💡 Klient dostanie mail i SMS o wysyłce (przy odbiorze osobistym: „gotowe do odbioru”)
+                      Klient dostanie mail i SMS o wysyłce (przy odbiorze osobistym: „gotowe do odbioru”)
                     </Text>
                   </View>
 
                   {orderToComplete.customer?.deliveryOption !== 'pickup' && (
                     <View style={styles.datePickerGroup}>
-                      <Text style={styles.datePickerLabel}>📦 Numer przesyłki (opcjonalnie):</Text>
+                      <Text style={look.formLabel}>Numer przesyłki (opcjonalnie):</Text>
                       <TextInput
-                        style={[styles.dateButton, styles.dateButtonText]}
+                        style={look.formInput}
                         value={trackingNumber}
                         onChangeText={setTrackingNumber}
                         placeholder="np. 6200123456789"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', '#64748B')}
                         maxLength={60}
                         autoCapitalize="characters"
                         autoCorrect={false}
@@ -908,17 +899,18 @@ const OrdersList = () => {
 
             <View style={styles.modalFooterVertical}>
               <TouchableOpacity
-                style={[styles.modalButtonFull, styles.completeButtonFull]}
+                style={[look.primaryButton, styles.modalButtonFull, styles.completeButtonFull, (!shippingDate || completing) && look.disabled]}
                 onPress={completeOrder}
                 disabled={!shippingDate || completing}
               >
-                <Text style={styles.modalButtonText}>{completing ? 'Realizuję…' : '🚚 Potwierdź realizację'}</Text>
+                {!completing && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
+                <Text style={look.buttonText}>{completing ? 'Realizuję…' : 'Potwierdź realizację'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButtonFull, styles.resetButton]}
+                style={[look.neutralButton, styles.modalButtonFull]}
                 onPress={() => setCompleteModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>❌ Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -932,34 +924,29 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => !rescheduling && setRescheduleTarget(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>📅 Zmień termin realizacji</Text>
-              <TouchableOpacity onPress={() => !rescheduling && setRescheduleTarget(null)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="calendar-outline" color="#F59E0B" title="Zmień termin realizacji" />
             <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled">
               {rescheduleTarget && (
                 <View>
                   <View style={styles.completeOrderInfo}>
                     <Text style={styles.completeOrderDetail}>
-                      📦 Zamówienie: <Text style={styles.completeOrderValue}>{rescheduleTarget.orderId}</Text>
+                      Zamówienie: <Text style={styles.completeOrderValue}>{rescheduleTarget.orderId}</Text>
                     </Text>
                     <Text style={styles.completeOrderDetail}>
-                      👤 Klient: <Text style={styles.completeOrderValue}>{rescheduleTarget.customer?.name}</Text>
+                      Klient: <Text style={styles.completeOrderValue}>{rescheduleTarget.customer?.name}</Text>
                     </Text>
                     <Text style={styles.completeOrderDetail}>
-                      📅 Obecny termin: <Text style={styles.completeOrderValue}>{formatDate(rescheduleTarget.realizationDate)}</Text>
+                      Obecny termin: <Text style={styles.completeOrderValue}>{formatDate(rescheduleTarget.realizationDate)}</Text>
                     </Text>
                   </View>
 
                   <View style={styles.datePickerGroup}>
-                    <Text style={styles.datePickerLabel}>📅 Nowy termin realizacji:</Text>
-                    <TouchableOpacity style={styles.dateButton} onPress={() => setShowRescheduleDatePicker(true)} testID="reschedule-date-button">
-                      <Text style={styles.dateButtonText}>{rescheduleDate.toLocaleDateString('pl-PL')}</Text>
-                      <Ionicons name="calendar" size={24} color="#fff" />
+                    <Text style={look.formLabel}>Nowy termin realizacji:</Text>
+                    <TouchableOpacity style={look.selectField} onPress={() => setShowRescheduleDatePicker(true)} testID="reschedule-date-button">
+                      <Text style={look.selectFieldText}>{rescheduleDate.toLocaleDateString('pl-PL')}</Text>
+                      <Ionicons name="calendar-outline" size={22} color={tc('muted', '#94A3B8')} />
                     </TouchableOpacity>
                     {showRescheduleDatePicker && (
                       <DateTimePicker
@@ -976,25 +963,25 @@ const OrdersList = () => {
                   </View>
 
                   <View style={styles.datePickerGroup}>
-                    <Text style={styles.datePickerLabel}>📝 Powód (opcjonalnie, trafia do wiadomości):</Text>
+                    <Text style={look.formLabel}>Powód (opcjonalnie, trafia do wiadomości):</Text>
                     <TextInput
-                      style={[styles.dateButton, styles.dateButtonText]}
+                      style={look.formInput}
                       value={rescheduleReason}
                       onChangeText={setRescheduleReason}
                       placeholder="np. przesunięta dostawa skór"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={tc('muted', '#64748B')}
                       maxLength={500}
                       testID="reschedule-reason-input"
                     />
                   </View>
 
                   <View style={styles.datePickerGroup}>
-                    <Text style={styles.datePickerLabel}>🔔 Powiadomić klienta?</Text>
+                    <Text style={look.formLabel}>Powiadomić klienta?</Text>
                     <View style={styles.filterOptions}>
                       {[
                         { value: 'none', label: 'Nie' },
-                        { value: 'sms', label: '📱 SMS' },
-                        { value: 'email', label: '✉️ E-mail', disabled: !rescheduleTarget.customer?.email },
+                        { value: 'sms', label: 'SMS' },
+                        { value: 'email', label: 'E-mail', disabled: !rescheduleTarget.customer?.email },
                       ].map((option) => (
                         <TouchableOpacity
                           key={option.value}
@@ -1018,18 +1005,19 @@ const OrdersList = () => {
 
             <View style={styles.modalFooterVertical}>
               <TouchableOpacity
-                style={[styles.modalButtonFull, styles.completeButtonFull]}
+                style={[look.primaryButton, styles.modalButtonFull, styles.completeButtonFull, rescheduling && look.disabled]}
                 onPress={confirmReschedule}
                 disabled={rescheduling}
               >
-                <Text style={styles.modalButtonText}>{rescheduling ? 'Zapisuję…' : (rescheduleChannel === 'none' ? '📅 Zmień termin' : '📅 Zmień termin i wyślij')}</Text>
+                {!rescheduling && <Ionicons name="calendar" size={18} color="#fff" />}
+                <Text style={look.buttonText}>{rescheduling ? 'Zapisuję…' : (rescheduleChannel === 'none' ? 'Zmień termin' : 'Zmień termin i wyślij')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButtonFull, styles.resetButton]}
+                style={[look.neutralButton, styles.modalButtonFull]}
                 onPress={() => setRescheduleTarget(null)}
                 disabled={rescheduling}
               >
-                <Text style={styles.modalButtonText}>❌ Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1043,12 +1031,9 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => setRevertConfirmModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.confirmModal}>
-            <View style={styles.confirmIcon}>
-              <Text style={styles.confirmIconText}>⚠️</Text>
-            </View>
-            <Text style={styles.confirmTitle}>Przywróć zamówienie</Text>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.confirmModal]}>
+            <ModalHeader icon="arrow-undo-outline" color="#F59E0B" title="Przywróć zamówienie" />
             
             {orderToRevert && (
               <>
@@ -1056,20 +1041,22 @@ const OrdersList = () => {
                   Czy na pewno chcesz przywrócić zamówienie do statusu aktywnego?
                 </Text>
                 <View style={styles.confirmOrderBox}>
-                  <Text style={styles.confirmOrderId}>📦 {orderToRevert.orderId}</Text>
-                  <Text style={styles.confirmOrderDetail}>
-                    👤 {orderToRevert.customer?.name}
-                  </Text>
-                  <Text style={styles.confirmOrderDetail}>
-                    📧 {orderToRevert.customer?.email}
-                  </Text>
+                  <Text style={styles.confirmOrderId}>{orderToRevert.orderId}</Text>
+                  <View style={styles.confirmOrderRow}>
+                    <Ionicons name="person-outline" size={15} color={tc('muted', '#94A3B8')} />
+                    <Text style={styles.confirmOrderDetail}>{orderToRevert.customer?.name}</Text>
+                  </View>
+                  <View style={styles.confirmOrderRow}>
+                    <Ionicons name="mail-outline" size={15} color={tc('muted', '#94A3B8')} />
+                    <Text style={styles.confirmOrderDetail}>{orderToRevert.customer?.email}</Text>
+                  </View>
                 </View>
                 {orderToRevert.status === 'anulowane' && (
-                  <View style={{ width: '100%', marginTop: 12 }}>
-                    <Text style={styles.datePickerLabel}>📅 Nowy termin realizacji (stary jest nieaktualny):</Text>
-                    <TouchableOpacity style={styles.dateButton} onPress={() => setShowRevertDatePicker(true)} testID="revert-date-button">
-                      <Text style={styles.dateButtonText}>{revertDate.toLocaleDateString('pl-PL')}</Text>
-                      <Ionicons name="calendar" size={24} color="#fff" />
+                  <View style={{ width: '100%', marginBottom: 16 }}>
+                    <Text style={look.formLabel}>Nowy termin realizacji (stary jest nieaktualny):</Text>
+                    <TouchableOpacity style={look.selectField} onPress={() => setShowRevertDatePicker(true)} testID="revert-date-button">
+                      <Text style={look.selectFieldText}>{revertDate.toLocaleDateString('pl-PL')}</Text>
+                      <Ionicons name="calendar-outline" size={22} color={tc('muted', '#94A3B8')} />
                     </TouchableOpacity>
                     {showRevertDatePicker && (
                       <DateTimePicker
@@ -1089,22 +1076,22 @@ const OrdersList = () => {
               </>
             )}
 
-            <View style={styles.confirmButtons}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmCancelButton]}
+                style={look.neutralButton}
                 onPress={() => {
                   setRevertConfirmModalVisible(false);
                   setOrderToRevert(null);
                 }}
               >
-                <Text style={styles.confirmButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmRevertButton]}
+                style={[look.primaryButton, reverting && look.disabled]}
                 onPress={confirmRevertOrder}
                 disabled={reverting}
               >
-                <Text style={styles.confirmButtonText}>{reverting ? 'Przywracam…' : 'Przywróć'}</Text>
+                <Text style={look.buttonText}>{reverting ? 'Przywracam…' : 'Przywróć'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1118,22 +1105,19 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => setSuccessModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.confirmModal, styles.successModal]}>
-            <View style={styles.confirmIcon}>
-              <Text style={styles.confirmIconText}>✅</Text>
-            </View>
-            <Text style={styles.confirmTitle}>Sukces!</Text>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.confirmModal]}>
+            <ModalHeader icon="checkmark-circle-outline" color="#10B981" title="Sukces!" />
             
             <View style={styles.successMessageBox}>
               <Text style={styles.successMessageText}>{successMessage}</Text>
             </View>
 
             <TouchableOpacity
-              style={[styles.confirmButton, styles.successCloseButton]}
+              style={[look.primaryButton, styles.successCloseButton]}
               onPress={() => setSuccessModalVisible(false)}
             >
-              <Text style={styles.confirmButtonText}>Zamknij</Text>
+              <Text style={look.buttonText}>Zamknij</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1168,22 +1152,26 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
     paddingHorizontal: 12,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     color: tc('text', '#fff'),
-    fontSize: 14,
-    paddingVertical: 10,
+    fontSize: 15,
+    paddingVertical: 12,
   },
   filterButton: {
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 8,
-    width: 44,
-    height: 44,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1213,11 +1201,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 16,
   },
   card: {
-    backgroundColor: tc('surface', '#1E293B'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#334155'),
+    borderColor: tc('border', '#1E293B'),
+    borderLeftWidth: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1225,7 +1214,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#334155'),
+    borderBottomColor: tc('border', '#1E293B'),
   },
   orderId: {
     fontSize: 16,
@@ -1239,8 +1228,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   statusText: {
     fontSize: 11,
@@ -1279,9 +1269,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   urgencyBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 999,
+    borderWidth: 1,
     marginLeft: 'auto',
   },
   urgencyText: {
@@ -1293,7 +1284,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     padding: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: tc('border', '#334155'),
+    borderTopColor: tc('border', '#1E293B'),
   },
   actionButton: {
     flex: 1,
@@ -1301,23 +1292,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
   },
   completeButton: {
     backgroundColor: '#22C55E',
   },
   revertButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#0D6EFD',
   },
   rescheduleButton: {
     backgroundColor: '#F59E0B',
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -1345,7 +1336,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   modalBody: {
-    padding: 20,
+    marginBottom: 16,
   },
   filterGroup: {
     marginBottom: 20,
@@ -1363,16 +1354,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   filterOption: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: tc('surface2', '#334155'),
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
   },
   filterOptionActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#0D6EFD',
+    borderColor: '#0D6EFD',
   },
   filterOptionText: {
-    fontSize: 12,
-    color: '#94A3B8',
+    fontSize: 13,
+    color: tc('text', '#fff'),
   },
   filterOptionTextActive: {
     color: '#fff',
@@ -1387,10 +1381,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   modalFooterVertical: {
     flexDirection: 'column',
-    padding: 20,
     gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: tc('border', '#334155'),
   },
   modalButton: {
     flex: 1,
@@ -1399,10 +1390,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonFull: {
+    flex: 0,
     width: '100%',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   resetButton: {
     backgroundColor: '#64748B',
@@ -1411,7 +1402,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
   completeButtonFull: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#10B981',
   },
   modalButtonText: {
     color: tc('text', '#fff'),
@@ -1419,16 +1410,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: '600',
   },
   detailsSection: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: tc('surface2', '#334155'),
+    marginBottom: 12,
+    padding: 14,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
     borderRadius: 12,
+  },
+  detailsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   detailsSectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: tc('text', '#fff'),
-    marginBottom: 12,
   },
   detailsRow: {
     fontSize: 14,
@@ -1443,7 +1441,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   completeOrderInfo: {
-    backgroundColor: tc('surface2', '#334155'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1451,7 +1453,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   completeOrderTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#F59E0B',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   completeOrderDetail: {
@@ -1464,7 +1466,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   datePickerGroup: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   datePickerLabel: {
     fontSize: 15,
@@ -1493,29 +1495,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 8,
   },
   confirmModal: {
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 20,
-    padding: 30,
-    width: '85%',
-    maxWidth: 400,
-  },
-  successModal: {
-    borderWidth: 3,
-    borderColor: '#22C55E',
-  },
-  confirmIcon: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  confirmIconText: {
-    fontSize: 48,
-  },
-  confirmTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: tc('text', '#fff'),
-    textAlign: 'center',
-    marginBottom: 16,
+    maxWidth: 420,
   },
   confirmText: {
     fontSize: 14,
@@ -1524,10 +1504,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 16,
   },
   confirmOrderBox: {
-    backgroundColor: tc('surface2', '#334155'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  confirmOrderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   confirmOrderId: {
     fontSize: 16,
@@ -1540,29 +1527,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#94A3B8'),
     marginBottom: 4,
   },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  confirmButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  confirmCancelButton: {
-    backgroundColor: '#64748B',
-  },
-  confirmRevertButton: {
-    backgroundColor: '#3B82F6',
-  },
-  confirmButtonText: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
   successMessageBox: {
-    backgroundColor: tc('surface2', '#334155'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
@@ -1574,7 +1542,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     lineHeight: 24,
   },
   successCloseButton: {
-    backgroundColor: '#22C55E',
     width: '100%',
     flex: 0,
   },

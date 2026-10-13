@@ -20,6 +20,7 @@ import { AuthContext } from '../context/AuthContext';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const PrintLabels = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const authContext = useContext(AuthContext);
@@ -916,7 +917,7 @@ const PrintLabels = () => {
           <Ionicons
             name={isActive ? 'chevron-up' : 'chevron-down'}
             size={20}
-            color={selectedValue ? '#fff' : '#64748B'}
+            color={selectedValue ? '#0D6EFD' : tc('muted', '#94A3B8')}
           />
         </TouchableOpacity>
 
@@ -1001,13 +1002,12 @@ const PrintLabels = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Wydruk etykiet</Text>
-        <View style={styles.backButton} />
-      </View>
+      {/* Nagłówek podstrony */}
+      <PageHeader
+        title="Wydruk etykiet"
+        icon="print-outline"
+        onBack={() => router.back()}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -1053,6 +1053,7 @@ const PrintLabels = () => {
 
           {(selectedLocalization || selectedSellingPoint !== 'all' || selectedCategory || selectedSize || selectedManufacturer || selectedProduct) && (
             <TouchableOpacity style={styles.clearFiltersButton} onPress={clearFilters}>
+              <Ionicons name="close-circle-outline" size={18} color="#DC3545" />
               <Text style={styles.clearFiltersText}>Wyczyść filtry</Text>
             </TouchableOpacity>
           )}
@@ -1125,12 +1126,12 @@ const PrintLabels = () => {
             >
               {printingAll ? (
                 <>
-                  <ActivityIndicator size="small" color={tc('text', "#fff")} />
+                  <ActivityIndicator size="small" color="#fff" />
                   <Text style={styles.printAllButtonText}>Drukowanie...</Text>
                 </>
               ) : (
                 <>
-                  <Ionicons name="print" size={20} color={tc('text', "#fff")} />
+                  <Ionicons name="print" size={20} color="#fff" />
                   <Text style={styles.printAllButtonText}>
                     Drukuj wszystkie ({countTotalLabels(filteredData)} etykiet)
                   </Text>
@@ -1285,27 +1286,24 @@ const PrintLabels = () => {
         animationType="fade"
         onRequestClose={() => setConfirmPrintModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.warningIconContainer}>
-              <Text style={styles.warningIcon}>⚠</Text>
-            </View>
-            <Text style={styles.modalTitle}>Masowy wydruk</Text>
-            <Text style={styles.modalMessage}>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.modalContent]}>
+            <ModalHeader icon="print-outline" color="#F59E0B" title="Masowy wydruk" />
+            <Text style={look.modalMessage}>
               Czy na pewno chcesz wydrukować {countTotalLabels(filteredData)} etykiet?
             </Text>
-            <View style={styles.modalButtonsContainer}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalCancelButton]}
+                style={look.neutralButton}
                 onPress={() => setConfirmPrintModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalConfirmButton]}
+                style={look.primaryButton}
                 onPress={executePrintAll}
               >
-                <Text style={styles.modalButtonText}>Drukuj</Text>
+                <Text style={look.buttonText}>Drukuj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1319,21 +1317,18 @@ const PrintLabels = () => {
         animationType="fade"
         onRequestClose={() => setPrintAllResult(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.successIconContainer}>
-              <Text style={styles.successIcon}>✓</Text>
-            </View>
-            <Text style={styles.modalTitle}>Wydruk zakończony</Text>
-            <Text style={styles.modalMessage}>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.modalContent]}>
+            <ModalHeader icon="checkmark-circle-outline" color="#10B981" title="Wydruk zakończony" />
+            <Text style={look.modalMessage}>
               Wydrukowano: {printAllResult?.successCount || 0}
               {"\n"}Błędy: {printAllResult?.errorCount || 0}
             </Text>
             <TouchableOpacity
-              style={styles.singleModalButton}
+              style={[look.neutralButton, styles.singleModalButton]}
               onPress={() => setPrintAllResult(null)}
             >
-              <Text style={styles.modalButtonText}>Zamknij</Text>
+              <Text style={look.neutralButtonText}>Zamknij</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1377,12 +1372,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: tc('surface', '#1a1a1a'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: tc('border', '#2a2a2a'),
+    borderColor: tc('border', '#1E293B'),
   },
   cardTitle: {
     color: tc('text', '#fff'),
@@ -1393,11 +1388,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tc('surface', '#2a2a2a'),
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: tc('border', '#3a3a3a'),
+    borderColor: tc('border', '#334155'),
   },
   searchIcon: {
     marginRight: 8,
@@ -1416,21 +1411,26 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingVertical: 8,
   },
   filterToggleText: {
-    color: '#0d6efd',
+    color: '#0D6EFD',
     fontSize: 16,
     fontWeight: '600',
   },
   clearFiltersButton: {
     marginTop: 12,
-    padding: 8,
-    backgroundColor: '#dc262620',
-    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    backgroundColor: '#DC354526',
+    borderWidth: 1,
+    borderColor: '#DC354566',
+    borderRadius: 12,
     alignItems: 'center',
   },
   clearFiltersText: {
-    color: '#dc2626',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#DC3545',
+    fontSize: 15,
+    fontWeight: '700',
   },
   filterContainer: {
     marginBottom: 12,
@@ -1441,43 +1441,44 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: tc('surface', '#2a2a2a'),
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: tc('border', '#3a3a3a'),
+    borderColor: tc('border', '#334155'),
   },
   filterButtonActive: {
-    backgroundColor: '#0d6efd',
-    borderColor: '#0d6efd',
+    backgroundColor: '#0D6EFD1F',
+    borderColor: '#0D6EFD',
   },
   filterButtonOpen: {
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
   filterButtonText: {
-    color: '#64748B',
+    color: tc('muted', '#94A3B8'),
     fontSize: 16,
   },
   filterButtonTextActive: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontWeight: '600',
   },
   dropdownContainer: {
-    backgroundColor: tc('surface', '#2a2a2a'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
     borderWidth: 1,
-    borderColor: tc('border', '#3a3a3a'),
+    borderColor: tc('border', '#334155'),
     borderTopWidth: 0,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
     overflow: 'hidden',
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#3a3a3a'),
+    borderBottomColor: tc('border', '#334155'),
   },
   dropdownScroll: {
     maxHeight: 200,
@@ -1486,12 +1487,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#3a3a3a'),
+    borderBottomColor: tc('border', '#334155'),
   },
   dropdownItemSelected: {
-    backgroundColor: '#0d6efd10',
+    backgroundColor: '#0D6EFD1F',
   },
   dropdownItemText: {
     color: tc('text', '#fff'),
@@ -1505,19 +1507,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#22c55e',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     gap: 8,
   },
   printAllButtonDisabled: {
-    backgroundColor: '#64748B',
+    opacity: 0.6,
   },
   printAllButtonText: {
-    color: tc('text', '#fff'),
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,
@@ -1526,21 +1528,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 30,
-    width: '85%',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#0d6efd',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    maxWidth: 420,
   },
   warningIconContainer: {
     width: 60,
@@ -1613,22 +1601,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: '100%',
   },
   singleModalButton: {
+    flex: 0,
     width: '100%',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0d6efd',
-    marginTop: 10,
   },
+  // pozycja listy: karta z niebieskim paskiem z lewej
   inventoryItem: {
-    backgroundColor: tc('surface', '#2a2a2a'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: tc('border', '#3a3a3a'),
+    borderColor: tc('border', '#334155'),
+    borderLeftWidth: 4,
+    borderLeftColor: '#0D6EFD',
   },
   inventoryItemHeader: {
     flexDirection: 'row',
@@ -1649,11 +1634,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 8,
   },
   printButton: {
-    backgroundColor: '#0d6efd20',
-    padding: 8,
-    borderRadius: 8,
+    backgroundColor: '#0D6EFD26',
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#0d6efd',
+    borderColor: '#0D6EFD66',
   },
   inventoryItemDetails: {
     gap: 4,
@@ -1664,7 +1652,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 6,
   },
   detailText: {
-    color: tc('muted', '#64748B'),
+    color: tc('muted', '#94A3B8'),
     fontSize: 14,
   },
   loadingContainer: {

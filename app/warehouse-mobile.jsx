@@ -23,6 +23,7 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import { GlobalStateContext } from "../context/GlobalState";
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const WarehouseMobile = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -1023,13 +1024,15 @@ const WarehouseMobile = () => {
 
     return (
       <View style={styles.card}>
-        {/* Card number */}
-        <Text style={styles.cardNumber}>{`#${index + 1}`}</Text>
-
-        {/* Product name - main content */}
-        <Text style={styles.cardProductName} numberOfLines={2}>
-          {safeString(item.fullName)}
-        </Text>
+        {/* Numer pozycji i nazwa produktu */}
+        <View style={styles.cardTopRow}>
+          <View style={styles.cardNumberBadge}>
+            <Text style={styles.cardNumber}>{`#${index + 1}`}</Text>
+          </View>
+          <Text style={styles.cardProductName} numberOfLines={2}>
+            {safeString(item.fullName)}
+          </Text>
+        </View>
 
         {/* Info rows */}
         <View style={styles.cardInfoRow}>
@@ -1078,7 +1081,7 @@ const WarehouseMobile = () => {
             style={[styles.actionButton, styles.editButton]}
             onPress={() => handleEditClick(item)}
           >
-            <Ionicons name="pencil" size={16} color="#FFC107" />
+            <Ionicons name="pencil" size={18} color="#F59E0B" />
             <Text style={styles.actionButtonText}>Edytuj</Text>
           </TouchableOpacity>
 
@@ -1086,7 +1089,7 @@ const WarehouseMobile = () => {
             style={[styles.actionButton, styles.printButton]}
             onPress={() => handlePrintLabel(item)}
           >
-            <Ionicons name="print" size={16} color="#0D6EFD" />
+            <Ionicons name="print" size={18} color="#0D6EFD" />
             <Text style={styles.actionButtonText}>Drukuj</Text>
           </TouchableOpacity>
 
@@ -1094,7 +1097,7 @@ const WarehouseMobile = () => {
             style={[styles.actionButton, styles.deleteButton]}
             onPress={() => deleteProduct(item.id || item._id)}
           >
-            <Ionicons name="trash" size={16} color="#FF6B6B" />
+            <Ionicons name="trash" size={18} color="#DC3545" />
             <Text style={styles.actionButtonText}>Usuń</Text>
           </TouchableOpacity>
         </View>
@@ -1105,26 +1108,25 @@ const WarehouseMobile = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: tc('bg', "#000000") }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{headerTitle}</Text>
-        <View style={styles.backButton} />
-      </View>
+      <PageHeader
+        title={headerTitle}
+        icon={isStatesMode ? "layers-outline" : "cube-outline"}
+        color={isStatesMode ? "#0D6EFD" : "#F59E0B"}
+        onBack={() => router.back()}
+      />
 
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         style={styles.content}
+        contentContainerStyle={styles.contentInner}
       >
         {/* Product Counter */}
         <View style={styles.productCounter}>
-          <Ionicons name="cube-outline" size={24} color="#0D6EFD" />
+          <View style={[styles.iconTile, { backgroundColor: "#0D6EFD26" }]}>
+            <Ionicons name="cube-outline" size={20} color="#0D6EFD" />
+          </View>
           <Text style={styles.productCounterText}>
             {counterLabel}: <Text style={styles.productCounterNumber}>{tableData.length}</Text>
           </Text>
@@ -1135,12 +1137,15 @@ const WarehouseMobile = () => {
           {/* Correction Mode Info */}
           {isStatesMode ? (
             <View style={styles.correctionAlert}>
-              <Text style={styles.correctionInfo}>
-                ℹ️ <Text style={{ fontWeight: "bold" }}>Panel korekt:</Text> Ten panel jest
-                przeznaczony dla korekt inwentaryzacyjnych. Wszystkie operacje
-                dodawania i usuwania produktów{" "}
-                <Text style={{ fontWeight: "bold" }}>będą uwzględniane w raportach</Text>.
-              </Text>
+              <View style={styles.correctionInfoRow}>
+                <Ionicons name="information-circle-outline" size={20} color="#0D6EFD" />
+                <Text style={styles.correctionInfo}>
+                  <Text style={styles.correctionInfoBold}>Panel korekt:</Text> Ten panel jest
+                  przeznaczony dla korekt inwentaryzacyjnych. Wszystkie operacje
+                  dodawania i usuwania produktów{" "}
+                  <Text style={styles.correctionInfoBold}>będą uwzględniane w raportach</Text>.
+                </Text>
+              </View>
             </View>
           ) : (
             <View style={styles.correctionAlert}>
@@ -1155,17 +1160,20 @@ const WarehouseMobile = () => {
                   ]}
                 >
                   {isCorrection && (
-                    <Text style={styles.checkmark}>✓</Text>
+                    <Ionicons name="checkmark" size={16} color="#fff" />
                   )}
                 </View>
                 <Text style={styles.correctionLabel}>Tryb korekty</Text>
               </Pressable>
-              <Text style={styles.correctionInfo}>
-                ℹ️ <Text style={{ fontWeight: "bold" }}>Informacja:</Text> Checkbox
-                jest przeznaczony dla korekt inwentaryzacyjnych. Wszystkie operacje
-                dodawania i usuwania produktów{" "}
-                <Text style={{ fontWeight: "bold" }}>będą uwzględniane w raportach</Text>.
-              </Text>
+              <View style={styles.correctionInfoRow}>
+                <Ionicons name="information-circle-outline" size={20} color="#0D6EFD" />
+                <Text style={styles.correctionInfo}>
+                  <Text style={styles.correctionInfoBold}>Informacja:</Text> Checkbox
+                  jest przeznaczony dla korekt inwentaryzacyjnych. Wszystkie operacje
+                  dodawania i usuwania produktów{" "}
+                  <Text style={styles.correctionInfoBold}>będą uwzględniane w raportach</Text>.
+                </Text>
+              </View>
             </View>
           )}
 
@@ -1253,6 +1261,7 @@ const WarehouseMobile = () => {
             <Text style={styles.dateText}>
               {selectedDate.toLocaleDateString("pl-PL")}
             </Text>
+            <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
           </TouchableOpacity>
 
           {showDatePicker && (
@@ -1274,7 +1283,10 @@ const WarehouseMobile = () => {
           keyExtractor={(item, idx) => item._id || idx.toString()}
           scrollEnabled={false}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Brak produktów w magazynie</Text>
+            <View style={look.emptyState}>
+              <Ionicons name="cube-outline" size={48} color={tc('muted', "#94A3B8")} />
+              <Text style={look.emptyStateText}>Brak produktów w magazynie</Text>
+            </View>
           }
         />
       </ScrollView>
@@ -1284,9 +1296,12 @@ const WarehouseMobile = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edytuj produkt</Text>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "white")} />
+              <ModalHeader icon="pencil" color="#F59E0B" title="Edytuj produkt" />
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Ionicons name="close" size={22} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -1339,6 +1354,7 @@ const WarehouseMobile = () => {
                 <Text style={styles.dateText}>
                   {editDate.toLocaleDateString("pl-PL")}
                 </Text>
+                <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
               </TouchableOpacity>
 
               {showDatePicker && (
@@ -1356,16 +1372,16 @@ const WarehouseMobile = () => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={look.neutralButton}
                 onPress={() => setShowEditModal(false)}
               >
-                <Text style={styles.modalButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
+                style={[look.primaryButton, styles.buttonSuccess]}
                 onPress={handleSaveEdit}
               >
-                <Text style={styles.modalButtonText}>Zapisz</Text>
+                <Text style={look.buttonText}>Zapisz</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1376,22 +1392,32 @@ const WarehouseMobile = () => {
       {notificationModal.visible && (
         <View style={styles.notificationOverlay}>
           <View style={styles.notificationModal}>
-            <View style={styles.notificationHeader}>
-              <Text style={styles.notificationTitle}>
-                {notificationModal.title}
-              </Text>
-            </View>
+            <ModalHeader
+              icon={
+                notificationModal.type === "success"
+                  ? "checkmark-circle"
+                  : notificationModal.type === "confirmation"
+                  ? "trash"
+                  : "alert-circle"
+              }
+              color={
+                notificationModal.type === "success"
+                  ? "#10B981"
+                  : notificationModal.type === "confirmation"
+                  ? "#DC3545"
+                  : "#F59E0B"
+              }
+              title={notificationModal.title}
+            />
 
-            <View style={styles.notificationContent}>
-              <Text style={styles.notificationMessage}>
-                {notificationModal.message}
-              </Text>
-            </View>
+            <Text style={look.modalMessage}>
+              {notificationModal.message}
+            </Text>
 
             <View style={styles.notificationFooter}>
               {notificationModal.type === "confirmation" && (
                 <TouchableOpacity
-                  style={styles.notificationButtonCancel}
+                  style={look.neutralButton}
                   onPress={() => {
                     if (notificationModal.onCancel) {
                       notificationModal.onCancel();
@@ -1399,19 +1425,19 @@ const WarehouseMobile = () => {
                     setNotificationModal({ ...notificationModal, visible: false });
                   }}
                 >
-                  <Text style={styles.notificationButtonText}>
+                  <Text style={look.neutralButtonText}>
                     {notificationModal.cancelText}
                   </Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 style={[
-                  styles.notificationButton,
+                  look.primaryButton,
                   notificationModal.type === "success"
-                    ? styles.notificationButtonSuccess
+                    ? styles.buttonSuccess
                     : notificationModal.type === "confirmation"
-                    ? styles.notificationButtonConfirm
-                    : styles.notificationButtonError,
+                    ? styles.buttonDanger
+                    : null,
                 ]}
                 onPress={() => {
                   if (notificationModal.onConfirm) {
@@ -1420,7 +1446,7 @@ const WarehouseMobile = () => {
                   setNotificationModal({ ...notificationModal, visible: false });
                 }}
               >
-                <Text style={styles.notificationButtonText}>
+                <Text style={look.buttonText}>
                   {notificationModal.confirmText}
                 </Text>
               </TouchableOpacity>
@@ -1435,50 +1461,38 @@ const WarehouseMobile = () => {
 const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: tc('bg', "black"),
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
     backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-    flex: 1,
-    textAlign: "center",
   },
   content: {
     flex: 1,
-    padding: 15,
+  },
+  contentInner: {
+    padding: 16,
+    paddingBottom: 24,
   },
   productCounter: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#1a1a1a"),
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#0D6EFD",
+    borderColor: tc('border', "#1E293B"),
     gap: 12,
   },
+  iconTile: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   productCounterText: {
-    color: tc('text', "white"),
+    color: tc('text', "#fff"),
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
+    flexShrink: 1,
   },
   productCounterNumber: {
     color: "#0D6EFD",
@@ -1486,162 +1500,158 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "bold",
   },
   formContainer: {
-    backgroundColor: tc('surface', "#1a1a1a"),
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 8,
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#333"),
+    borderColor: tc('border', "#1E293B"),
   },
   label: {
-    color: tc('text', "white"),
-    fontSize: 14,
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: 6,
     marginTop: 12,
   },
   input: {
-    backgroundColor: tc('surface', "black"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: tc('border', "#333"),
-    borderRadius: 6,
-    color: tc('text', "white"),
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    color: tc('text', "#fff"),
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
   },
+  // informacja o korektach: karta z niebieskim paskiem z lewej
   correctionAlert: {
-    backgroundColor: "#1a472a",
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: "#0D6EFD",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 10,
+    borderColor: tc('border', "#334155"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#0D6EFD",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 4,
   },
   checkboxContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 10,
   },
   checkbox: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     borderWidth: 2,
     borderColor: "#0D6EFD",
-    borderRadius: 4,
+    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 8,
+    marginRight: 10,
     backgroundColor: "transparent",
   },
   checkboxChecked: {
     backgroundColor: "#0D6EFD",
   },
-  checkmark: {
-    color: "white",
-    fontSize: 14,
+  correctionLabel: {
+    color: tc('text', "#fff"),
+    fontSize: 15,
     fontWeight: "bold",
   },
-  correctionLabel: {
-    color: tc('text', "white"),
-    fontSize: 13,
-    fontWeight: "bold",
+  correctionInfoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
   },
   correctionInfo: {
-    color: "#ccc",
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 3,
+    flex: 1,
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  correctionInfoBold: {
+    fontWeight: "bold",
+    color: tc('text', "#fff"),
   },
   dropdownContainer: {
     position: "relative",
     marginBottom: 0,
   },
   dropdownMenu: {
-    backgroundColor: tc('surface', "#222"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: tc('border', "#333"),
-    borderRadius: 6,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
     marginTop: 4,
     maxHeight: 150,
     zIndex: 1000,
   },
   dropdownItem: {
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#333"),
+    borderBottomColor: tc('border', "#334155"),
   },
   dropdownItemText: {
-    color: tc('text', "white"),
-    fontSize: 13,
+    color: tc('text', "#fff"),
+    fontSize: 14,
   },
   dateButton: {
-    backgroundColor: tc('surface', "black"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: tc('border', "#333"),
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   dateText: {
-    color: tc('text', "white"),
-    fontSize: 14,
-  },
-  addButton: {
-    backgroundColor: "#0D6EFD",
-    borderRadius: 6,
-    paddingVertical: 12,
-    marginTop: 8,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  addButtonDisabled: {
-    opacity: 0.6,
-  },
-  addButtonText: {
-    color: "white",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  tableHeader: {
-    flexDirection: "row",
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    marginBottom: 0,
-    marginTop: -8,
-  },
-  tableCell: {
-    color: tc('muted', "#888"),
-    fontSize: 11,
+    flex: 1,
+    color: tc('text', "#fff"),
+    fontSize: 16,
     fontWeight: "600",
   },
 
+  // karta produktu: niebieski pasek z lewej
   card: {
-    backgroundColor: tc('surface', "#1a1a1a"),
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: tc('border', "#333"),
+    borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#0D6EFD",
     marginBottom: 12,
     position: "relative",
   },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  cardNumberBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "#0D6EFD26",
+    borderWidth: 1,
+    borderColor: "#0D6EFD66",
+  },
   cardNumber: {
-    fontSize: 11,
-    color: tc('muted', "#888"),
-    marginBottom: 8,
-    fontWeight: "600",
+    fontSize: 12,
+    color: tc('text', "#fff"),
+    fontWeight: "700",
   },
   cardProductName: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 15,
     fontWeight: "bold",
     color: tc('text', "#fff"),
-    marginBottom: 12,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   cardInfoRow: {
     flexDirection: "row",
@@ -1650,71 +1660,56 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: "center",
   },
   cardInfoLabel: {
-    fontSize: 11,
-    color: tc('muted', "#888"),
+    fontSize: 13,
+    color: tc('muted', "#94A3B8"),
     fontWeight: "600",
     flex: 0.4,
   },
   cardInfoValue: {
-    fontSize: 12,
+    fontSize: 14,
     color: tc('text', "#fff"),
-    fontWeight: "500",
+    fontWeight: "600",
     flex: 0.6,
     textAlign: "right",
   },
   cardActionButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 12,
+    gap: 8,
+    marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: tc('border', "#333"),
+    borderTopColor: tc('border', "#1E293B"),
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginHorizontal: 4,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 10,
     borderWidth: 1,
   },
   editButton: {
-    borderColor: "#FFC107",
-    backgroundColor: "#3d3a00",
+    borderColor: "#F59E0B66",
+    backgroundColor: "#F59E0B1F",
   },
   printButton: {
-    borderColor: "#0D6EFD",
-    backgroundColor: "#0d1f36",
+    borderColor: "#0D6EFD66",
+    backgroundColor: "#0D6EFD1F",
   },
   deleteButton: {
-    borderColor: "#FF6B6B",
-    backgroundColor: tcl("#3d1a1a", '#ffe5e5'),
+    borderColor: "#DC354566",
+    backgroundColor: "#DC35451F",
   },
   actionButtonText: {
-    color: "white",
-    fontSize: 11,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-  cardDeleteButton: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    padding: 8,
-    backgroundColor: tc('surface', "#222"),
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#FF6B6B",
-  },
-  emptyText: {
-    color: tc('muted', "#666"),
-    textAlign: "center",
-    paddingVertical: 20,
+    color: tc('text', "#fff"),
     fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
   },
+  // okienko edycji: arkusz od dołu
   modalOverlay: {
     position: "absolute",
     top: 0,
@@ -1726,135 +1721,67 @@ const styles = createThemedStyles(() => StyleSheet.create({
     zIndex: 1000,
   },
   modal: {
-    backgroundColor: tc('surface', "#1a1a1a"),
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: tc('surface', "#161622"),
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: "90%",
-    borderTopWidth: 1,
-    borderTopColor: tc('border', "#333"),
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: tc('border', "#232533"),
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    position: "relative",
+    paddingHorizontal: 20,
+    paddingTop: 20,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#333"),
+    borderBottomColor: tc('border', "#232533"),
   },
-  modalTitle: {
-    color: tc('text', "white"),
-    fontSize: 18,
-    fontWeight: "bold",
+  modalCloseButton: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
   },
   modalContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
   modalFooter: {
     flexDirection: "row",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    gap: 8,
-    backgroundColor: tc('surface', "#1a1a1a"),
+    gap: 12,
+    backgroundColor: tc('surface', "#161622"),
     borderTopWidth: 1,
-    borderTopColor: tc('border', "#333"),
+    borderTopColor: tc('border', "#232533"),
   },
-  modalButton: {
-    flex: 1,
-    backgroundColor: tc('surface2', "#555"),
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: tc('border', "#666"),
+  buttonSuccess: {
+    backgroundColor: "#10B981",
   },
-  modalButtonSave: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#45a049",
+  buttonDanger: {
+    backgroundColor: "#DC3545",
   },
-  modalButtonText: {
-    color: tc('text', "white"),
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  // okienko komunikatu
   notificationModal: {
-    backgroundColor: tc('surface', "#1a1a1a"),
-    borderRadius: 16,
-    minWidth: 280,
-    maxWidth: "85%",
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 20,
+    padding: 24,
+    width: "90%",
+    maxWidth: 420,
     borderWidth: 1,
-    borderColor: tc('border', "#333"),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  notificationHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#333"),
-  },
-  notificationTitle: {
-    color: tc('text', "white"),
-    fontSize: 17,
-    fontWeight: "bold",
-  },
-  notificationContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  notificationMessage: {
-    color: tc('muted', "#ccc"),
-    fontSize: 14,
-    lineHeight: 20,
+    borderColor: tc('border', "#232533"),
   },
   notificationFooter: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 10,
-    justifyContent: "flex-end",
-  },
-  notificationButton: {
-    minWidth: 90,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-  notificationButtonSuccess: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#45a049",
-  },
-  notificationButtonConfirm: {
-    backgroundColor: "#0D6EFD",
-    borderColor: "#0a4fc4",
-  },
-  notificationButtonError: {
-    backgroundColor: tc('surface2', "#555"),
-    borderColor: tc('border', "#666"),
-  },
-  notificationButtonCancel: {
-    minWidth: 90,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    backgroundColor: tc('surface2', "#333"),
-    borderColor: tc('border', "#555"),
-  },
-  notificationButtonText: {
-    color: tc('text', "white"),
-    fontSize: 14,
-    fontWeight: "600",
+    gap: 12,
+    marginTop: 4,
   },
   notificationOverlay: {
     position: "absolute",

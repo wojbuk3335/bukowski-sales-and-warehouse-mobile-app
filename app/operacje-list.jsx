@@ -21,6 +21,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const OperacjeList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -178,11 +179,13 @@ const OperacjeList = () => {
     const remainingColor = operation.remainingAmount > 0 ? '#EF4444' : '#22C55E';
     
     return (
-      <View key={operation._id} style={styles.card}>
+      <View key={operation._id} style={[styles.card, { borderLeftColor: typeColor }]}>
         <View style={styles.cardHeader}>
           <View style={styles.typeSection}>
-            <Ionicons name={getOperationIcon(operation.type)} size={24} color={typeColor} />
-            <View style={[styles.typeBadge, { backgroundColor: `${typeColor}20` }]}>
+            <View style={[styles.typeIcon, { backgroundColor: `${typeColor}26` }]}>
+              <Ionicons name={getOperationIcon(operation.type)} size={20} color={typeColor} />
+            </View>
+            <View style={[styles.typeBadge, { backgroundColor: `${typeColor}26`, borderColor: `${typeColor}80` }]}>
               <Text style={[styles.typeText, { color: typeColor }]}>
                 {getOperationLabel(operation.type)}
               </Text>
@@ -285,34 +288,27 @@ const OperacjeList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Operacje',
-          headerStyle: {
-            backgroundColor: tc('bg', '#000000'),
-          },
-          headerTintColor: tc('text', '#fff'),
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-            </TouchableOpacity>
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Nagłówek podstrony */}
+      <PageHeader
+        title="Operacje"
+        icon="swap-vertical-outline"
+        onBack={() => router.back()}
       />
 
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, { borderColor: '#22C55E' }]}>
-          <Ionicons name="add-circle-outline" size={24} color="#22C55E" />
+        <View style={[styles.summaryCard, { borderTopColor: '#22C55E' }]}>
+          <View style={[styles.summaryIcon, { backgroundColor: '#22C55E26' }]}>
+            <Ionicons name="add-circle-outline" size={22} color="#22C55E" />
+          </View>
           <Text style={styles.summaryLabel}>Dodania</Text>
           <Text style={[styles.summaryValue, { color: '#22C55E' }]}>{additionCount}</Text>
         </View>
-        <View style={[styles.summaryCard, { borderColor: '#EF4444' }]}>
-          <Ionicons name="remove-circle-outline" size={24} color="#EF4444" />
+        <View style={[styles.summaryCard, { borderTopColor: '#EF4444' }]}>
+          <View style={[styles.summaryIcon, { backgroundColor: '#EF444426' }]}>
+            <Ionicons name="remove-circle-outline" size={22} color="#EF4444" />
+          </View>
           <Text style={styles.summaryLabel}>Odpisania</Text>
           <Text style={[styles.summaryValue, { color: '#EF4444' }]}>{deductionCount}</Text>
         </View>
@@ -349,8 +345,8 @@ const OperacjeList = () => {
             size={20} 
             color={
               selectedOperation !== 'all' || selectedUser
-                ? '#3B82F6'
-                : '#fff'
+                ? '#0D6EFD'
+                : tc('text', '#fff')
             } 
           />
         </TouchableOpacity>
@@ -386,33 +382,28 @@ const OperacjeList = () => {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filtry</Text>
-              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="funnel-outline" title="Filtry" />
 
             <ScrollView style={styles.modalBody}>
               {/* Date Filter */}
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Data:</Text>
+                <Text style={look.formLabel}>Data:</Text>
                 <TouchableOpacity
-                  style={styles.dateButton}
+                  style={look.selectField}
                   onPress={() => setShowDatePicker(true)}
                 >
-                  <Ionicons name="calendar-outline" size={20} color={tc('text', "#fff")} />
-                  <Text style={styles.dateButtonText}>
+                  <Text style={look.selectFieldText}>
                     {selectedDate.toLocaleDateString('pl-PL')}
                   </Text>
+                  <Ionicons name="calendar-outline" size={22} color={tc('muted', '#94A3B8')} />
                 </TouchableOpacity>
               </View>
 
               {/* Operation Type Filter */}
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Typ operacji:</Text>
+                <Text style={look.formLabel}>Typ operacji:</Text>
                 <View style={styles.filterOptions}>
                   {[
                     { value: 'all', label: 'Wszystkie' },
@@ -442,7 +433,7 @@ const OperacjeList = () => {
 
               {/* User Filter */}
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Użytkownik:</Text>
+                <Text style={look.formLabel}>Użytkownik:</Text>
                 <View style={styles.userPickerContainer}>
                   <TouchableOpacity
                     style={[
@@ -460,7 +451,7 @@ const OperacjeList = () => {
                       Wszyscy
                     </Text>
                   </TouchableOpacity>
-                  <ScrollView style={styles.usersList}>
+                  <ScrollView style={styles.usersList} contentContainerStyle={{ gap: 8 }}>
                     {users.map(u => (
                       <TouchableOpacity
                         key={u._id}
@@ -485,24 +476,24 @@ const OperacjeList = () => {
               </View>
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.resetButton]}
+                style={look.neutralButton}
                 onPress={() => {
                   resetFilters();
                   setFilterModalVisible(false);
                 }}
               >
-                <Text style={styles.modalButtonText}>Resetuj</Text>
+                <Text style={look.neutralButtonText}>Resetuj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.applyButton]}
+                style={look.primaryButton}
                 onPress={() => {
                   fetchOperations();
                   setFilterModalVisible(false);
                 }}
               >
-                <Text style={styles.modalButtonText}>Zastosuj</Text>
+                <Text style={look.buttonText}>Zastosuj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -544,10 +535,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: tc('surface', '#1E293B'),
-    padding: 16,
+    backgroundColor: tc('surface', '#161622'),
+    padding: 14,
     borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+    borderTopWidth: 3,
+    alignItems: 'center',
+  },
+  summaryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   summaryLabel: {
@@ -572,22 +572,26 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
     paddingHorizontal: 12,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     color: tc('text', '#fff'),
-    fontSize: 14,
-    paddingVertical: 10,
+    fontSize: 15,
+    paddingVertical: 12,
   },
   filterButton: {
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 8,
-    width: 44,
-    height: 44,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -617,16 +621,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 16,
   },
   card: {
-    backgroundColor: tc('surface', '#1E293B'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#334155'),
+    borderColor: tc('border', '#1E293B'),
+    borderLeftWidth: 4,
+    borderLeftColor: tc('border', '#1E293B'),
   },
   cardHeader: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#334155'),
+    borderBottomColor: tc('border', '#1E293B'),
   },
   typeSection: {
     flexDirection: 'row',
@@ -634,10 +640,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 12,
     marginBottom: 8,
   },
+  typeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   typeBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   typeText: {
     fontSize: 12,
@@ -691,7 +705,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#334155'),
+    borderBottomColor: tc('border', '#1E293B'),
   },
   modalTitle: {
     fontSize: 18,
@@ -699,7 +713,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   modalBody: {
-    padding: 20,
+    marginBottom: 16,
   },
   filterGroup: {
     marginBottom: 20,
@@ -750,6 +764,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   usersList: {
     maxHeight: 160,
+    marginTop: 8,
   },
   modalFooter: {
     flexDirection: 'row',

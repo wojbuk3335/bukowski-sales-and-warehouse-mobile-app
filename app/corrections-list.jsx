@@ -19,6 +19,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const CorrectionsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -395,14 +396,14 @@ const CorrectionsList = () => {
     const statusColor = getStatusColor(correction.status);
     
     return (
-      <View key={correction._id} style={styles.card}>
+      <View key={correction._id} style={[styles.card, { borderLeftColor: statusColor }]}>
         <View style={styles.cardHeader}>
-          <View style={[styles.operationBadge, { backgroundColor: `${operationColor}20` }]}>
+          <View style={[styles.operationBadge, { backgroundColor: `${operationColor}26`, borderColor: `${operationColor}80` }]}>
             <Text style={[styles.operationText, { color: operationColor }]}>
               {getOperationLabel(correction.attemptedOperation)}
             </Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}26`, borderColor: `${statusColor}80` }]}>
             <Text style={[styles.statusText, { color: statusColor }]}>
               {getStatusLabel(correction.status)}
             </Text>
@@ -458,22 +459,22 @@ const CorrectionsList = () => {
                   onPress={() => handleFindProduct(correction)}
                   disabled={searchingProduct}
                 >
-                  <Ionicons name="search" size={14} color="#fff" />
+                  <Ionicons name="search" size={16} color="#fff" />
                   <Text style={styles.actionButtonText}>Wskaż</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.resolveButton]}
                   onPress={() => handleStatusUpdate(correction._id, 'RESOLVED', correction)}
                 >
-                  <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                  <Ionicons name="checkmark-circle" size={16} color="#fff" />
                   <Text style={styles.actionButtonText}>Rozwiązano</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.ignoreButton]}
                   onPress={() => handleStatusUpdate(correction._id, 'IGNORED', correction)}
                 >
-                  <Ionicons name="close-circle" size={14} color={tc('text', "#fff")} />
-                  <Text style={styles.actionButtonText}>Zignoruj</Text>
+                  <Ionicons name="close-circle" size={16} color={tc('text', "#fff")} />
+                  <Text style={[styles.actionButtonText, styles.ignoreButtonText]}>Zignoruj</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -482,15 +483,15 @@ const CorrectionsList = () => {
                   style={[styles.actionButton, styles.resolveButton]}
                   onPress={() => handleStatusUpdate(correction._id, 'RESOLVED', correction)}
                 >
-                  <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                  <Ionicons name="checkmark-circle" size={16} color="#fff" />
                   <Text style={styles.actionButtonText}>Rozwiązano</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.ignoreButton]}
                   onPress={() => handleStatusUpdate(correction._id, 'IGNORED', correction)}
                 >
-                  <Ionicons name="close-circle" size={14} color={tc('text', "#fff")} />
-                  <Text style={styles.actionButtonText}>Zignoruj</Text>
+                  <Ionicons name="close-circle" size={16} color={tc('text', "#fff")} />
+                  <Text style={[styles.actionButtonText, styles.ignoreButtonText]}>Zignoruj</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -534,37 +535,27 @@ const CorrectionsList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Korekty Magazynowe',
-          headerStyle: {
-            backgroundColor: tc('bg', '#000000'),
-          },
-          headerTintColor: tc('text', '#fff'),
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-            </TouchableOpacity>
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Nagłówek podstrony */}
+      <PageHeader
+        title="Korekty Magazynowe"
+        icon="construct-outline"
+        color="#F59E0B"
+        onBack={() => router.back()}
       />
 
       {/* Stats */}
       <View style={styles.statsContainer}>
         <View style={[styles.statCard, styles.statUnresolved]}>
-          <Text style={styles.statNumber}>{stats.unresolved}</Text>
+          <Text style={[styles.statNumber, { color: '#F59E0B' }]}>{stats.unresolved}</Text>
           <Text style={styles.statLabel}>Nierozwiązane</Text>
         </View>
         <View style={[styles.statCard, styles.statResolved]}>
-          <Text style={styles.statNumber}>{stats.resolved}</Text>
+          <Text style={[styles.statNumber, { color: '#10B981' }]}>{stats.resolved}</Text>
           <Text style={styles.statLabel}>Rozwiązane</Text>
         </View>
         <View style={[styles.statCard, styles.statTotal]}>
-          <Text style={styles.statNumber}>{stats.total}</Text>
+          <Text style={[styles.statNumber, { color: '#0D6EFD' }]}>{stats.total}</Text>
           <Text style={styles.statLabel}>Łącznie</Text>
         </View>
       </View>
@@ -586,8 +577,8 @@ const CorrectionsList = () => {
             color={
               filters.status !== 'all' || filters.sellingPoint || filters.productName || 
               filters.size || filters.operationType !== 'all'
-                ? '#3B82F6'
-                : '#fff'
+                ? '#0D6EFD'
+                : tc('text', '#fff')
             } 
           />
           <Text style={styles.filterButtonText}>Filtry</Text>
@@ -618,19 +609,14 @@ const CorrectionsList = () => {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filtry</Text>
-              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="funnel-outline" title="Filtry" />
 
             <ScrollView style={styles.modalBody}>
               {/* Status Filter */}
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Status:</Text>
+                <Text style={look.formLabel}>Status:</Text>
                 <View style={styles.filterOptions}>
                   {[
                     { value: 'all', label: 'Wszystkie' },
@@ -661,7 +647,7 @@ const CorrectionsList = () => {
 
               {/* Operation Type Filter */}
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Typ operacji:</Text>
+                <Text style={look.formLabel}>Typ operacji:</Text>
                 <View style={styles.filterOptions}>
                   {[
                     { value: 'all', label: 'Wszystkie' },
@@ -694,9 +680,9 @@ const CorrectionsList = () => {
 
               {/* Text Filters */}
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Punkt sprzedaży:</Text>
+                <Text style={look.formLabel}>Punkt sprzedaży:</Text>
                 <TextInput
-                  style={styles.filterInput}
+                  style={look.formInput}
                   value={filters.sellingPoint}
                   onChangeText={(text) => setFilters({ ...filters, sellingPoint: text })}
                   placeholder="Wpisz nazwę punktu..."
@@ -705,9 +691,9 @@ const CorrectionsList = () => {
               </View>
 
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Produkt:</Text>
+                <Text style={look.formLabel}>Produkt:</Text>
                 <TextInput
-                  style={styles.filterInput}
+                  style={look.formInput}
                   value={filters.productName}
                   onChangeText={(text) => setFilters({ ...filters, productName: text })}
                   placeholder="Wpisz nazwę produktu..."
@@ -716,9 +702,9 @@ const CorrectionsList = () => {
               </View>
 
               <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Rozmiar:</Text>
+                <Text style={look.formLabel}>Rozmiar:</Text>
                 <TextInput
-                  style={styles.filterInput}
+                  style={look.formInput}
                   value={filters.size}
                   onChangeText={(text) => setFilters({ ...filters, size: text })}
                   placeholder="Wpisz rozmiar..."
@@ -727,21 +713,21 @@ const CorrectionsList = () => {
               </View>
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.resetButton]}
+                style={look.neutralButton}
                 onPress={() => {
                   resetFilters();
                   setFilterModalVisible(false);
                 }}
               >
-                <Text style={styles.modalButtonText}>Resetuj</Text>
+                <Text style={look.neutralButtonText}>Resetuj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.applyButton]}
+                style={look.primaryButton}
                 onPress={() => setFilterModalVisible(false)}
               >
-                <Text style={styles.modalButtonText}>Zastosuj</Text>
+                <Text style={look.buttonText}>Zastosuj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -755,14 +741,9 @@ const CorrectionsList = () => {
         transparent={true}
         onRequestClose={() => setShowProductModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Lokalizacje produktu</Text>
-              <TouchableOpacity onPress={() => setShowProductModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="location-outline" title="Lokalizacje produktu" />
 
             <ScrollView style={styles.modalBody}>
               {selectedCorrection && (
@@ -792,6 +773,9 @@ const CorrectionsList = () => {
                   {availableLocations.map((location) => (
                     <View key={location.symbol} style={styles.locationItem}>
                       <View style={styles.locationInfo}>
+                        <View style={styles.locationIcon}>
+                          <Ionicons name="storefront-outline" size={18} color="#0D6EFD" />
+                        </View>
                         <Text style={styles.locationSymbol}>{location.symbol}</Text>
                         <Text style={styles.locationCount}>({location.count} szt.)</Text>
                       </View>
@@ -799,6 +783,7 @@ const CorrectionsList = () => {
                         style={styles.writeOffButton}
                         onPress={() => handleWriteOffFromLocation(location.symbol)}
                       >
+                        <Ionicons name="trash-outline" size={16} color="#fff" />
                         <Text style={styles.writeOffButtonText}>Odpisz</Text>
                       </TouchableOpacity>
                     </View>
@@ -815,20 +800,20 @@ const CorrectionsList = () => {
 
             <View style={styles.modalFooterVertical}>
               <TouchableOpacity
-                style={[styles.modalButtonFull, styles.resetButton]}
+                style={[look.neutralButton, styles.modalButtonFull]}
                 onPress={() => setShowProductModal(false)}
               >
-                <Text style={styles.modalButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               {selectedCorrection && (
                 <TouchableOpacity
-                  style={[styles.modalButtonFull, styles.applyButton]}
+                  style={[look.primaryButton, styles.modalButtonFull, { backgroundColor: '#10B981' }]}
                   onPress={() => {
                     handleStatusUpdate(selectedCorrection._id, 'RESOLVED', selectedCorrection);
                     setShowProductModal(false);
                   }}
                 >
-                  <Text style={styles.modalButtonText}>Oznacz jako rozwiązane</Text>
+                  <Text style={look.buttonText}>Oznacz jako rozwiązane</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -843,12 +828,9 @@ const CorrectionsList = () => {
         transparent={true}
         onRequestClose={() => setShowConfirmModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.confirmModal}>
-            <View style={styles.confirmIcon}>
-              <Text style={styles.confirmIconText}>⚠️</Text>
-            </View>
-            <Text style={styles.confirmTitle}>Potwierdź odpisanie</Text>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.confirmModal]}>
+            <ModalHeader icon="warning-outline" color="#F59E0B" title="Potwierdź odpisanie" />
             
             {confirmModalData && (
               <>
@@ -874,18 +856,18 @@ const CorrectionsList = () => {
               </>
             )}
 
-            <View style={styles.confirmButtons}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmCancelButton]}
+                style={look.neutralButton}
                 onPress={() => setShowConfirmModal(false)}
               >
-                <Text style={styles.confirmButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmDeleteButton]}
+                style={[look.primaryButton, { backgroundColor: '#DC3545' }]}
                 onPress={confirmWriteOff}
               >
-                <Text style={styles.confirmButtonText}>Odpisz</Text>
+                <Text style={look.buttonText}>Odpisz</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -899,12 +881,13 @@ const CorrectionsList = () => {
         transparent={true}
         onRequestClose={() => setShowSuccessModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.confirmModal, successModalData?.success && styles.successModal]}>
-            <View style={styles.confirmIcon}>
-              <Text style={styles.confirmIconText}>{successModalData?.success ? '✅' : '❌'}</Text>
-            </View>
-            <Text style={styles.confirmTitle}>{successModalData?.title}</Text>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.confirmModal]}>
+            <ModalHeader
+              icon={successModalData?.success ? 'checkmark-circle-outline' : 'close-circle-outline'}
+              color={successModalData?.success ? '#10B981' : '#DC3545'}
+              title={successModalData?.title}
+            />
             
             {successModalData && (
               <>
@@ -964,10 +947,10 @@ const CorrectionsList = () => {
 
             <View style={styles.closeButtonContainer}>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.confirmCancelButton, styles.closeButton]}
+                style={[look.neutralButton, styles.closeButton]}
                 onPress={() => setShowSuccessModal(false)}
               >
-                <Text style={styles.confirmButtonText}>Zamknij</Text>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -999,20 +982,22 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: tc('surface', '#1E293B'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+    borderTopWidth: 3,
   },
   statUnresolved: {
-    borderColor: '#F59E0B',
+    borderTopColor: '#F59E0B',
   },
   statResolved: {
-    borderColor: '#22C55E',
+    borderTopColor: '#10B981',
   },
   statTotal: {
-    borderColor: '#3B82F6',
+    borderTopColor: '#0D6EFD',
   },
   statNumber: {
     fontSize: 24,
@@ -1033,14 +1018,16 @@ const styles = createThemedStyles(() => StyleSheet.create({
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tc('surface', '#1E293B'),
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 8,
   },
   filterButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1059,23 +1046,25 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 16,
   },
   card: {
-    backgroundColor: tc('surface', '#1E293B'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#334155'),
+    borderColor: tc('border', '#1E293B'),
+    borderLeftWidth: 4,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#334155'),
+    borderBottomColor: tc('border', '#1E293B'),
   },
   operationBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   operationText: {
     fontSize: 12,
@@ -1083,8 +1072,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   statusText: {
     fontSize: 12,
@@ -1123,7 +1113,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     padding: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: tc('border', '#334155'),
+    borderTopColor: tc('border', '#1E293B'),
   },
   actionButton: {
     flex: 1,
@@ -1131,26 +1121,31 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
   },
   findButton: {
     backgroundColor: '#F59E0B',
   },
   resolveButton: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#10B981',
   },
   ignoreButton: {
-    backgroundColor: '#64748B',
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
   },
   undoButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#0D6EFD',
   },
   actionButtonText: {
-    color: '#ff1',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  ignoreButtonText: {
+    color: tc('text', '#fff'),
   },
   modalOverlay: {
     flex: 1,
@@ -1178,7 +1173,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   modalBody: {
-    padding: 20,
+    marginBottom: 16,
   },
   filterGroup: {
     marginBottom: 20,
@@ -1195,17 +1190,20 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 8,
   },
   filterOption: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: tc('surface2', '#334155'),
+    borderRadius: 999,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
   },
   filterOptionActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#0D6EFD',
+    borderColor: '#0D6EFD',
   },
   filterOptionText: {
-    fontSize: 12,
-    color: '#94A3B8',
+    fontSize: 13,
+    color: tc('text', '#fff'),
   },
   filterOptionTextActive: {
     color: '#fff',
@@ -1227,10 +1225,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   modalFooterVertical: {
     flexDirection: 'column',
-    padding: 20,
     gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: tc('border', '#334155'),
   },
   modalButton: {
     flex: 1,
@@ -1239,10 +1234,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonFull: {
+    flex: 0,
     width: '100%',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
   },
   resetButton: {
     backgroundColor: '#64748B',
@@ -1256,7 +1249,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: '600',
   },
   productInfo: {
-    backgroundColor: tc('surface2', '#334155'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1286,8 +1283,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: tc('surface2', '#334155'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
     padding: 12,
     marginBottom: 8,
   },
@@ -1295,6 +1294,15 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+  },
+  locationIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#0D6EFD26',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   locationSymbol: {
     fontSize: 14,
@@ -1306,15 +1314,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#94A3B8'),
   },
   writeOffButton: {
-    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DC3545',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   writeOffButtonText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
   },
   noLocations: {
     padding: 20,
@@ -1326,29 +1337,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     textAlign: 'center',
   },
   confirmModal: {
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 20,
-    padding: 30,
-    width: '85%',
-    maxWidth: 400,
-  },
-  successModal: {
-    borderWidth: 3,
-    borderColor: '#22C55E',
-  },
-  confirmIcon: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  confirmIconText: {
-    fontSize: 48,
-  },
-  confirmTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: tc('text', '#fff'),
-    textAlign: 'center',
-    marginBottom: 16,
+    maxWidth: 420,
   },
   confirmText: {
     fontSize: 14,
@@ -1357,7 +1346,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 16,
   },
   confirmProductBox: {
-    backgroundColor: tc('surface2', '#334155'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -1373,7 +1364,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#94A3B8'),
   },
   confirmStatsBox: {
-    backgroundColor: tc('surface2', '#334155'),
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1383,22 +1376,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#94A3B8'),
     marginBottom: 8,
   },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  confirmButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  confirmCancelButton: {
-    backgroundColor: '#64748B',
-  },
-  confirmDeleteButton: {
-    backgroundColor: '#EF4444',
-  },
   closeButtonContainer: {
     alignItems: 'center',
     marginTop: 4,
@@ -1406,28 +1383,26 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   closeButton: {
     flex: 0,
-    minWidth: 200,
-    paddingHorizontal: 40,
-    paddingVertical: 14,
+    width: '100%',
   },
-  confirmButtonText: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  // podsumowanie: karta z kolorowym paskiem (punkt - niebieski, magazyn - pomarańczowy)
   successStatsCard: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderLeftWidth: 4,
+    borderLeftColor: '#0D6EFD',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
   },
   successStatsCardWarehouse: {
-    backgroundColor: '#F59E0B',
+    borderLeftColor: '#F59E0B',
   },
   successStatsTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -1437,29 +1412,31 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 8,
   },
   successStatRowFinal: {
-    borderTopWidth: 2,
-    borderTopColor: 'rgba(255, 255, 255, 0.5)',
+    borderTopWidth: 1,
+    borderTopColor: tc('border', '#334155'),
     paddingTop: 12,
     marginTop: 4,
   },
   successStatLabel: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: tc('muted', '#94A3B8'),
   },
   successStatValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
+    flexShrink: 1,
+    textAlign: 'right',
   },
   successStatLabelFinal: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   successStatValueFinal: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
 }));
 

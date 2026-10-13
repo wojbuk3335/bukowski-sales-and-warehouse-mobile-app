@@ -18,6 +18,7 @@ import { getApiUrl } from '../config/api';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 const History = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [historyData, setHistoryData] = useState([]);
@@ -191,12 +192,12 @@ const History = () => {
     return (
       <TouchableOpacity
         key={item._id || index}
-        style={styles.historyCard}
+        style={[styles.historyCard, { borderLeftColor: operationColor }]}
         onPress={() => openDetailsModal(item)}
         activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
-          <View style={[styles.operationBadge, { backgroundColor: `${operationColor}20` }]}>
+          <View style={[styles.operationBadge, { backgroundColor: `${operationColor}26`, borderColor: `${operationColor}80` }]}>
             <Text style={[styles.operationText, { color: operationColor }]}>
               {item.operation || 'N/A'}
             </Text>
@@ -253,43 +254,27 @@ const History = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Historia',
-          headerStyle: {
-            backgroundColor: tc('bg', '#000000'),
-          },
-          headerTintColor: tc('text', '#fff'),
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => setFilterModalVisible(true)}
-              style={styles.filterButton}
-            >
-              <Ionicons
-                name={
-                  filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                    ? 'funnel'
-                    : 'funnel-outline'
-                }
-                size={24}
-                color={
-                  filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                    ? '#3B82F6'
-                    : '#fff'
-                }
-              />
-            </TouchableOpacity>
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false }} />
+      <PageHeader
+        title="Historia"
+        icon="time"
+        onBack={() => router.back()}
+        right={
+          <IconButton
+            icon={
+              filters.collectionName || filters.operation || filters.from || filters.to || filters.user
+                ? 'funnel'
+                : 'funnel-outline'
+            }
+            color={
+              filters.collectionName || filters.operation || filters.from || filters.to || filters.user
+                ? '#0D6EFD'
+                : tc('muted', '#94A3B8')
+            }
+            onPress={() => setFilterModalVisible(true)}
+            accessibilityLabel="Filtry"
+          />
+        }
       />
 
       <View style={styles.statsBar}>
@@ -309,8 +294,8 @@ const History = () => {
             size={16}
             color={
               filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                ? '#3B82F6'
-                : '#94A3B8'
+                ? '#0D6EFD'
+                : tc('muted', '#94A3B8')
             }
           />
           <Text style={styles.filterActiveText}>
@@ -337,7 +322,7 @@ const History = () => {
 
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color="#0D6EFD" />
           <Text style={styles.loadingText}>Ładowanie historii...</Text>
         </View>
       ) : (
@@ -379,14 +364,13 @@ const History = () => {
         transparent={true}
         onRequestClose={() => setShowDetailsModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Szczegóły operacji</Text>
-              <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader
+              icon="document-text"
+              color={getOperationColor(selectedItem?.operation)}
+              title="Szczegóły operacji"
+            />
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               {selectedItem && (
@@ -461,6 +445,11 @@ const History = () => {
                 </>
               )}
             </ScrollView>
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowDetailsModal(false)}>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -472,14 +461,9 @@ const History = () => {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filtry</Text>
-              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="funnel" color="#0D6EFD" title="Filtry" />
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               <View style={styles.filterGroup}>
@@ -687,23 +671,25 @@ const History = () => {
                 </ScrollView>
               </View>
 
-              <TouchableOpacity
-                style={styles.clearFiltersButton}
-                onPress={() => {
-                  clearFilters();
-                  setFilterModalVisible(false);
-                }}
-              >
-                <Text style={styles.clearFiltersButtonText}>Wyczyść wszystkie filtry</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.applyFiltersButton}
-                onPress={() => setFilterModalVisible(false)}
-              >
-                <Text style={styles.applyFiltersButtonText}>Zastosuj filtry</Text>
-              </TouchableOpacity>
             </ScrollView>
+
+            <TouchableOpacity
+              style={[look.neutralButton, styles.clearFiltersButton]}
+              onPress={() => {
+                clearFilters();
+                setFilterModalVisible(false);
+              }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#DC3545" />
+              <Text style={styles.clearFiltersButtonText}>Wyczyść wszystkie filtry</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[look.primaryButton, styles.applyFiltersButton]}
+              onPress={() => setFilterModalVisible(false)}
+            >
+              <Text style={look.buttonText}>Zastosuj filtry</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -716,14 +702,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', '#000000'),
   },
-  backButton: {
-    marginLeft: 8,
-  },
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: tc('bg', '#000000'),
     borderBottomWidth: 1,
@@ -733,10 +716,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 14,
     color: tc('muted', '#94A3B8'),
   },
-  filterButton: {
-    padding: 8,
-    marginRight: 8,
-  },
   filterTextButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -744,16 +723,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   filterActiveText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: '#0D6EFD',
     marginLeft: 4,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tc('surface', '#1E293B'),
-    marginHorizontal: 20,
-    marginVertical: 16,
-    paddingHorizontal: 16,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+    marginHorizontal: 16,
+    marginVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 12,
     height: 50,
   },
@@ -767,7 +748,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -800,22 +781,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
   clearButton: {
     marginTop: 24,
     paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 8,
+    paddingVertical: 14,
+    backgroundColor: '#0D6EFD',
+    borderRadius: 12,
   },
   clearButtonText: {
-    color: '#3B82F6',
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   historyCard: {
-    backgroundColor: tc('surface', '#1E293B'),
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#334155'),
+    borderColor: tc('border', '#1E293B'),
+    borderLeftWidth: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -824,12 +806,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   operationBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   operationText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   cardBody: {
     gap: 8,
@@ -864,40 +847,22 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'flex-end',
     marginTop: 8,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#fff',
-    backgroundColor: tc('bg', '#000000'),
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: tc('text', '#fff'),
-  },
   modalBody: {
-    padding: 20,
-    backgroundColor: tc('bg', '#000000'),
+    flexGrow: 0,
+    marginBottom: 8,
   },
   detailRow: {
-    marginBottom: 16,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   detailLabel: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
     color: tc('muted', '#94A3B8'),
     marginBottom: 4,
   },
@@ -909,32 +874,40 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontFamily: 'monospace',
   },
   filterGroup: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   filterLabel: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
     color: tc('muted', '#94A3B8'),
-    marginBottom: 8,
+    marginBottom: 6,
   },
   optionsContainer: {
     maxHeight: 150,
-    backgroundColor: tc('surface2', '#334155'),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    padding: 4,
   },
   optionItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#1E293B'),
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    marginVertical: 1,
   },
   optionItemSelected: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#0D6EFD26',
+    borderColor: '#0D6EFD',
   },
   optionText: {
-    color: '#fff',
-    fontSize: 16,
+    color: tc('text', '#fff'),
+    fontSize: 15,
   },
   optionTextSelected: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   filterInput: {
     backgroundColor: tc('surface2', '#334155'),
@@ -943,28 +916,21 @@ const styles = createThemedStyles(() => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
   },
+  // przyciski okienka filtrów: na całą szerokość, jeden pod drugim
   clearFiltersButton: {
-    backgroundColor: tc('surface2', '#334155'),
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
+    flex: 0,
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 10,
   },
   clearFiltersButtonText: {
-    color: '#EF4444',
+    color: '#DC3545',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   applyFiltersButton: {
-    backgroundColor: '#3B82F6',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  applyFiltersButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    flex: 0,
   },
 }));
 

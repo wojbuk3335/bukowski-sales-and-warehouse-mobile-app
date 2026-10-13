@@ -17,6 +17,7 @@ import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
 const SalesView = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -148,7 +149,8 @@ const SalesView = () => {
 
     return (
       <TouchableOpacity
-        style={styles.saleCard}
+        // kolorowy pasek z lewej: zielony - gotówka, niebieski - tylko karta
+        style={[styles.saleCard, { borderLeftColor: cashAmount === 0 && cardAmount > 0 ? "#0D6EFD" : "#10B981" }]}
         onPress={() => {
           setSelectedSale(item);
           setShowDetailsModal(true);
@@ -199,17 +201,8 @@ const SalesView = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Podgląd sprzedaży</Text>
-        <View style={styles.backButton} />
-      </View>
+      {/* Nagłówek */}
+      <PageHeader title="Podgląd sprzedaży" icon="receipt-outline" color="#10B981" onBack={() => router.back()} />
 
       {/* Filters */}
       <View style={styles.filtersContainer}>
@@ -218,7 +211,9 @@ const SalesView = () => {
           style={styles.filterButton}
           onPress={() => setShowDatePicker(true)}
         >
-          <Ionicons name="calendar" size={20} color="#0D6EFD" />
+          <View style={[styles.filterIcon, { backgroundColor: "#0D6EFD26" }]}>
+            <Ionicons name="calendar" size={18} color="#0D6EFD" />
+          </View>
           <Text style={styles.filterButtonText}>{formatDate(selectedDate)}</Text>
           <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
         </TouchableOpacity>
@@ -228,8 +223,10 @@ const SalesView = () => {
           style={styles.filterButton}
           onPress={() => setShowUserPicker(true)}
         >
-          <Ionicons name="person" size={20} color="#10B981" />
-          <Text style={styles.filterButtonText}>
+          <View style={[styles.filterIcon, { backgroundColor: "#10B98126" }]}>
+            <Ionicons name="person" size={18} color="#10B981" />
+          </View>
+          <Text style={styles.filterButtonText} numberOfLines={1}>
             {selectedUser ? selectedUser.symbol : "Wybierz użytkownika"}
           </Text>
           <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
@@ -269,12 +266,12 @@ const SalesView = () => {
         </View>
       ) : !selectedUser ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="person-outline" size={64} color="#475569" />
+          <Ionicons name="person-outline" size={64} color={tc('muted', "#475569")} />
           <Text style={styles.emptyText}>Wybierz użytkownika</Text>
         </View>
       ) : sales.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="receipt-outline" size={64} color="#475569" />
+          <Ionicons name="receipt-outline" size={64} color={tc('muted', "#475569")} />
           <Text style={styles.emptyText}>Brak sprzedaży w tym dniu</Text>
         </View>
       ) : (
@@ -304,15 +301,11 @@ const SalesView = () => {
         animationType="slide"
         onRequestClose={() => setShowUserPicker(false)}
       >
-        <View style={styles.pickerModalOverlay}>
-          <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz użytkownika</Text>
-              <TouchableOpacity onPress={() => setShowUserPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.pickerModalContent]}>
+            <ModalHeader icon="person" color="#10B981" title="Wybierz użytkownika" />
             <FlatList
+              style={styles.pickerList}
               data={users}
               keyExtractor={(item) => item._id}
               renderItem={({ item }) => (
@@ -337,12 +330,19 @@ const SalesView = () => {
                       {item.sellingPoint} • {item.location}
                     </Text>
                   </View>
-                  {selectedUser?._id === item._id && (
-                    <Ionicons name="checkmark" size={24} color="#0D6EFD" />
-                  )}
+                  <Ionicons
+                    name={selectedUser?._id === item._id ? "checkmark-circle" : "ellipse-outline"}
+                    size={22}
+                    color={selectedUser?._id === item._id ? "#0D6EFD" : tc('muted', "#94A3B8")}
+                  />
                 </TouchableOpacity>
               )}
             />
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowUserPicker(false)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -354,14 +354,9 @@ const SalesView = () => {
         animationType="fade"
         onRequestClose={() => setShowDetailsModal(false)}
       >
-        <View style={styles.detailsModalOverlay}>
-          <View style={styles.detailsModalContent}>
-            <View style={styles.detailsModalHeader}>
-              <Text style={styles.detailsModalTitle}>Szczegóły sprzedaży</Text>
-              <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="receipt" color="#10B981" title="Szczegóły sprzedaży" />
 
             {selectedSale && (
               <ScrollView style={styles.detailsScrollView}>
@@ -442,12 +437,14 @@ const SalesView = () => {
               </ScrollView>
             )}
 
-            <TouchableOpacity
-              style={styles.closeDetailsButton}
-              onPress={() => setShowDetailsModal(false)}
-            >
-              <Text style={styles.closeDetailsButtonText}>Zamknij</Text>
-            </TouchableOpacity>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={look.neutralButton}
+                onPress={() => setShowDetailsModal(false)}
+              >
+                <Text style={look.neutralButtonText}>Zamknij</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -460,27 +457,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', "#000000"),
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-  },
   filtersContainer: {
     flexDirection: "row",
     gap: 12,
@@ -491,13 +467,20 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#0A0A0A"),
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: tc('surface', "#161622"),
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
     gap: 8,
+  },
+  filterIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
   },
   filterButtonText: {
     flex: 1,
@@ -506,7 +489,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "500",
   },
   summaryContainer: {
-    backgroundColor: tc('surface', "#0A0A0A"),
+    backgroundColor: tc('surface', "#161622"),
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 12,
@@ -544,7 +527,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   summaryDivider: {
     width: 1,
-    backgroundColor: tc('surface', "#1E293B"),
+    backgroundColor: tc('border', "#1E293B"),
   },
   summaryFooter: {
     flexDirection: "row",
@@ -581,12 +564,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingTop: 0,
   },
   saleCard: {
-    backgroundColor: tc('surface', "#0A0A0A"),
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
   },
   saleHeader: {
     flexDirection: "row",
@@ -640,10 +624,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: tc('surface', "#1E293B"),
+    backgroundColor: tc('surface2', "#1E293B"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 999,
   },
   paymentText: {
     fontSize: 12,
@@ -656,42 +642,27 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "bold",
     color: tc('text', "#fff"),
   },
-  pickerModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "flex-end",
-  },
   pickerModalContent: {
-    backgroundColor: tc('bg', "#0A0A0A"),
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "70%",
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    maxHeight: "80%",
   },
-  pickerModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  pickerModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
+  pickerList: {
+    flexGrow: 0,
   },
   pickerItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
   },
   pickerItemSelected: {
-    backgroundColor: "#0D6EFD15",
+    borderColor: "#0D6EFD",
+    backgroundColor: "#0D6EFD1F",
   },
   pickerItemText: {
     fontSize: 16,
@@ -709,44 +680,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#64748B"),
     marginTop: 2,
   },
-  detailsModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  detailsModalContent: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 16,
-    width: "90%",
-    maxHeight: "80%",
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-  },
-  detailsModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  detailsModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-  },
   detailsScrollView: {
-    padding: 20,
+    flexGrow: 0,
   },
   detailsSection: {
-    marginBottom: 20,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
   },
   detailsSectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#0D6EFD",
-    marginBottom: 12,
+    fontSize: 13,
+    fontWeight: "700",
+    color: tc('muted', "#94A3B8"),
+    textTransform: "uppercase",
+    marginBottom: 10,
   },
   detailsProductName: {
     fontSize: 18,
@@ -768,6 +718,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 14,
     color: tc('text', "#fff"),
     fontWeight: "500",
+    flexShrink: 1,
+    textAlign: "right",
+    marginLeft: 12,
   },
   paymentSection: {
     marginBottom: 8,
@@ -783,19 +736,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   priceBlue: {
     color: "#0D6EFD",
-  },
-  closeDetailsButton: {
-    backgroundColor: "#0D6EFD",
-    margin: 20,
-    marginTop: 0,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  closeDetailsButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-    textAlign: "center",
   },
 }));
 

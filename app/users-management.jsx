@@ -20,6 +20,16 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, OptionCard, PointPill, pointColorMap, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+
+// Kolor i ikona roli (tylko wygląd: pasek karty, plakietka, karta wyboru roli)
+const ROLE_LOOK = {
+  user: { color: '#0D6EFD', icon: 'storefront' },
+  admin: { color: '#8B5CF6', icon: 'shield-checkmark' },
+  magazyn: { color: '#F59E0B', icon: 'cube' },
+  dom: { color: '#10B981', icon: 'home' },
+};
+const roleLook = (role) => ROLE_LOOK[role] || ROLE_LOOK.user;
 const UsersManagement = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -371,9 +381,9 @@ const UsersManagement = () => {
   const renderUserForm = (isEditing = false) => (
     <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Email *</Text>
+        <Text style={look.formLabel}>Email *</Text>
         <TextInput
-          style={styles.input}
+          style={look.formInput}
           value={formData.email}
           onChangeText={(text) => setFormData({ ...formData, email: text })}
           placeholder="email@example.com"
@@ -384,9 +394,9 @@ const UsersManagement = () => {
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Symbol *</Text>
+        <Text style={look.formLabel}>Symbol *</Text>
         <TextInput
-          style={styles.input}
+          style={look.formInput}
           value={formData.symbol}
           onChangeText={(text) => setFormData({ ...formData, symbol: text })}
           placeholder="Symbol użytkownika"
@@ -395,10 +405,10 @@ const UsersManagement = () => {
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Hasło {!isEditing && '*'}</Text>
+        <Text style={look.formLabel}>Hasło {!isEditing && '*'}</Text>
         <View style={styles.passwordContainer}>
           <TextInput
-            style={[styles.input, styles.passwordInput]}
+            style={[look.formInput, styles.passwordInput]}
             value={formData.password}
             onChangeText={(text) => setFormData({ ...formData, password: text })}
             placeholder={isEditing ? 'Zostaw puste aby nie zmieniać' : 'Minimum 5 znaków'}
@@ -416,10 +426,10 @@ const UsersManagement = () => {
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Potwierdź hasło {!isEditing && '*'}</Text>
+        <Text style={look.formLabel}>Potwierdź hasło {!isEditing && '*'}</Text>
         <View style={styles.passwordContainer}>
           <TextInput
-            style={[styles.input, styles.passwordInput]}
+            style={[look.formInput, styles.passwordInput]}
             value={formData.confirmPassword}
             onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
             placeholder="Powtórz hasło"
@@ -437,35 +447,26 @@ const UsersManagement = () => {
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Rola *</Text>
-        <View style={styles.roleButtons}>
+        <Text style={look.formLabel}>Rola *</Text>
+        <View>
           {['user', 'admin', 'magazyn', 'dom'].map((role) => (
-            <TouchableOpacity
+            <OptionCard
               key={role}
-              style={[
-                styles.roleButton,
-                formData.role === role && styles.roleButtonActive,
-              ]}
+              selected={formData.role === role}
+              icon={roleLook(role).icon}
+              color={roleLook(role).color}
+              label={getRoleName(role)}
               onPress={() => setFormData({ ...formData, role })}
-            >
-              <Text
-                style={[
-                  styles.roleButtonText,
-                  formData.role === role && styles.roleButtonTextActive,
-                ]}
-              >
-                {getRoleName(role)}
-              </Text>
-            </TouchableOpacity>
+            />
           ))}
         </View>
       </View>
 
       {(formData.role === 'user' || formData.role === 'magazyn') && (
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Numer punktu *</Text>
+          <Text style={look.formLabel}>Numer punktu *</Text>
           <TextInput
-            style={styles.input}
+            style={look.formInput}
             value={formData.pointNumber}
             onChangeText={(text) => setFormData({ ...formData, pointNumber: text })}
             placeholder="np. 00, 01, 02..."
@@ -479,9 +480,9 @@ const UsersManagement = () => {
 
       {formData.role === 'user' && (
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Punkt sprzedaży *</Text>
+          <Text style={look.formLabel}>Punkt sprzedaży *</Text>
           <TextInput
-            style={styles.input}
+            style={look.formInput}
             value={formData.sellingPoint}
             onChangeText={(text) => setFormData({ ...formData, sellingPoint: text })}
             placeholder="Punkt sprzedaży"
@@ -492,7 +493,7 @@ const UsersManagement = () => {
 
       {(formData.role === 'user' || formData.role === 'magazyn') && (
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Lokalizacja *</Text>
+          <Text style={look.formLabel}>Lokalizacja *</Text>
           <ScrollView style={styles.locationPicker} nestedScrollEnabled>
             <TouchableOpacity
               style={[
@@ -538,26 +539,29 @@ const UsersManagement = () => {
       )}
 
       <TouchableOpacity
-        style={styles.submitButton}
+        style={[look.primaryButton, styles.fullButton]}
         onPress={isEditing ? handleUpdateUser : handleAddUser}
       >
-        <Text style={styles.submitButtonText}>
+        <Text style={look.buttonText}>
           {isEditing ? 'Zaktualizuj' : 'Dodaj'} użytkownika
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.cancelButton}
+        style={[look.neutralButton, styles.fullButton]}
         onPress={() => {
           isEditing ? setIsEditModalVisible(false) : setIsAddModalVisible(false);
           resetForm();
           setEditingUser(null);
         }}
       >
-        <Text style={styles.cancelButtonText}>Anuluj</Text>
+        <Text style={look.neutralButtonText}>Anuluj</Text>
       </TouchableOpacity>
     </ScrollView>
   );
+
+  // kolor plakietki punktu (symbolu) - różny dla każdego punktu z listy
+  const pointColorFor = pointColorMap(users.map((u) => u.symbol));
 
   if (loading) {
     return (
@@ -569,23 +573,11 @@ const UsersManagement = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Zarządzanie użytkownikami',
-          headerStyle: {
-            backgroundColor: tc('bg', '#000000'),
-          },
-          headerTintColor: tc('text', '#fff'),
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-            </TouchableOpacity>
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false }} />
+      <PageHeader
+        title="Zarządzanie użytkownikami"
+        icon="people"
+        onBack={() => router.back()}
       />
 
       <View style={styles.header}>
@@ -603,21 +595,31 @@ const UsersManagement = () => {
 
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {users.map((userItem, index) => (
-          <View key={userItem._id} style={styles.userCard}>
+          <View key={userItem._id} style={[styles.userCard, { borderLeftColor: roleLook(userItem.role).color }]}>
             <View style={styles.userCardHeader}>
+              <View style={[styles.userIcon, { backgroundColor: `${roleLook(userItem.role).color}26` }]}>
+                <Ionicons name={roleLook(userItem.role).icon} size={22} color={roleLook(userItem.role).color} />
+              </View>
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>{userItem.email}</Text>
                 <View style={styles.userBadges}>
-                  <View style={[styles.badge, styles.roleBadge]}>
+                  <View
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: `${roleLook(userItem.role).color}26`,
+                        borderColor: `${roleLook(userItem.role).color}80`,
+                      },
+                    ]}
+                  >
                     <Text style={styles.badgeText}>{getRoleName(userItem.role)}</Text>
                   </View>
                   {userItem.symbol && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{userItem.symbol}</Text>
-                    </View>
+                    <PointPill symbol={userItem.symbol} color={pointColorFor(userItem.symbol)} />
                   )}
                 </View>
               </View>
@@ -677,19 +679,9 @@ const UsersManagement = () => {
           resetForm();
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Dodaj użytkownika</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setIsAddModalVisible(false);
-                  resetForm();
-                }}
-              >
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.modalContainer]}>
+            <ModalHeader icon="person-add" color="#0D6EFD" title="Dodaj użytkownika" />
             {renderUserForm(false)}
           </View>
         </View>
@@ -706,20 +698,9 @@ const UsersManagement = () => {
           setEditingUser(null);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edytuj użytkownika</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setIsEditModalVisible(false);
-                  resetForm();
-                  setEditingUser(null);
-                }}
-              >
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.modalContainer]}>
+            <ModalHeader icon="create" color="#0D6EFD" title="Edytuj użytkownika" />
             {renderUserForm(true)}
           </View>
         </View>
@@ -732,19 +713,18 @@ const UsersManagement = () => {
         transparent={true}
         onRequestClose={() => setIsSuccessModalVisible(false)}
       >
-        <View style={styles.notificationOverlay}>
-          <View style={[styles.notificationContainer, styles.successContainer]}>
-            <View style={styles.notificationIcon}>
-              <Ionicons name="checkmark-circle" size={60} color="#28a745" />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Sukces!" />
+            <Text style={look.modalMessage}>{successMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                onPress={() => setIsSuccessModalVisible(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.notificationTitle}>Sukces!</Text>
-            <Text style={styles.notificationMessage}>{successMessage}</Text>
-            <TouchableOpacity
-              style={[styles.notificationButton, styles.successButton]}
-              onPress={() => setIsSuccessModalVisible(false)}
-            >
-              <Text style={styles.notificationButtonText}>OK</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -756,19 +736,18 @@ const UsersManagement = () => {
         transparent={true}
         onRequestClose={() => setIsErrorModalVisible(false)}
       >
-        <View style={styles.notificationOverlay}>
-          <View style={[styles.notificationContainer, styles.errorContainer]}>
-            <View style={styles.notificationIcon}>
-              <Ionicons name="close-circle" size={60} color="#dc3545" />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="close-circle" color="#DC3545" title="Błąd!" />
+            <Text style={look.modalMessage}>{errorMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: '#DC3545' }]}
+                onPress={() => setIsErrorModalVisible(false)}
+              >
+                <Text style={look.buttonText}>Zamknij</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.notificationTitle}>Błąd!</Text>
-            <Text style={styles.notificationMessage}>{errorMessage}</Text>
-            <TouchableOpacity
-              style={[styles.notificationButton, styles.errorButton]}
-              onPress={() => setIsErrorModalVisible(false)}
-            >
-              <Text style={styles.notificationButtonText}>Zamknij</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -787,46 +766,54 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: tc('bg', '#000000'),
   },
-  backButton: {
-    marginLeft: 10,
-    padding: 5,
-  },
   header: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#2a2a2a'),
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0d6efd',
-    padding: 12,
-    borderRadius: 10,
+    backgroundColor: '#0D6EFD',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     gap: 8,
   },
   addButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
   userCard: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    margin: 10,
-    marginBottom: 5,
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: tc('surface', '#161622'),
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#2a2a2a'),
+    borderColor: tc('border', '#1E293B'),
+    borderLeftWidth: 4,
   },
   userCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 10,
+  },
+  userIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   userInfo: {
     flex: 1,
@@ -840,26 +827,26 @@ const styles = createThemedStyles(() => StyleSheet.create({
   userBadges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 6,
   },
   badge: {
-    backgroundColor: tc('surface', '#2a2a2a'),
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-  },
-  roleBadge: {
-    backgroundColor: '#0d6efd',
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 2,
   },
   badgeText: {
     color: tc('text', '#fff'),
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   userNumber: {
-    color: tc('muted', '#666'),
+    color: tc('muted', '#94A3B8'),
     fontSize: 14,
     fontWeight: '600',
+    marginLeft: 8,
   },
   userDetails: {
     marginBottom: 12,
@@ -883,211 +870,78 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 6,
   },
   editButton: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: '#0D6EFD',
   },
   deleteButton: {
-    backgroundColor: '#dc2626',
+    backgroundColor: '#DC3545',
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: tc('bg', '#000'),
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-    borderWidth: 1,
-    borderColor: tc('border', '#2a2a2a'),
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#2a2a2a'),
-  },
-  modalTitle: {
-    color: tc('text', '#fff'),
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: 'bold',
   },
+  modalContainer: {
+    maxHeight: '90%',
+  },
+  // przewijana treść formularza w okienku
   modalContent: {
-    padding: 20,
+    flexGrow: 0,
   },
   formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    color: tc('muted', '#CDCDE0'),
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   helpText: {
-    color: tc('muted', '#888'),
+    color: tc('muted', '#94A3B8'),
     fontSize: 12,
     marginTop: 5,
-    fontStyle: 'italic',
-  },
-  input: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    color: tc('text', '#fff'),
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: tc('border', '#2a2a2a'),
   },
   passwordContainer: {
     position: 'relative',
+    justifyContent: 'center',
   },
   passwordInput: {
     paddingRight: 50,
   },
   eyeIcon: {
     position: 'absolute',
-    right: 15,
-    top: 15,
-  },
-  roleButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  roleButton: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: tc('surface', '#1a1a1a'),
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: tc('border', '#2a2a2a'),
-    alignItems: 'center',
-  },
-  roleButtonActive: {
-    backgroundColor: '#0d6efd',
-    borderColor: '#0d6efd',
-  },
-  roleButtonText: {
-    color: '#CDCDE0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  roleButtonTextActive: {
-    color: '#fff',
+    right: 14,
   },
   locationPicker: {
-    maxHeight: 150,
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 10,
+    maxHeight: 170,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#2a2a2a'),
+    borderColor: tc('border', '#334155'),
+    padding: 4,
   },
   locationOption: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#2a2a2a'),
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    marginVertical: 1,
   },
   locationOptionSelected: {
-    backgroundColor: '#0d6efd',
+    backgroundColor: '#0D6EFD26',
+    borderColor: '#0D6EFD',
   },
   locationOptionText: {
-    color: '#CDCDE0',
-    fontSize: 14,
+    color: tc('text', '#fff'),
+    fontSize: 15,
   },
   locationOptionTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  submitButton: {
-    backgroundColor: '#0d6efd',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
+  // przyciski formularza: na całą szerokość, jeden pod drugim
+  fullButton: {
+    flex: 0,
     marginTop: 10,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelButton: {
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  cancelButtonText: {
-    color: '#CDCDE0',
-    fontSize: 16,
-  },
-  notificationOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  notificationContainer: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderRadius: 20,
-    padding: 30,
-    width: '90%',
-    maxWidth: 400,
-    alignItems: 'center',
-    borderWidth: 2,
-  },
-  successContainer: {
-    borderColor: '#28a745',
-  },
-  errorContainer: {
-    borderColor: '#dc3545',
-  },
-  notificationIcon: {
-    marginBottom: 20,
-  },
-  notificationTitle: {
-    color: tc('text', '#fff'),
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  notificationMessage: {
-    color: tc('muted', '#CDCDE0'),
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 25,
-    lineHeight: 22,
-  },
-  notificationButton: {
-    paddingHorizontal: 40,
-    paddingVertical: 12,
-    borderRadius: 10,
-    minWidth: 120,
-  },
-  successButton: {
-    backgroundColor: '#28a745',
-  },
-  errorButton: {
-    backgroundColor: '#dc3545',
-  },
-  notificationButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 }));
 

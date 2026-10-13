@@ -19,6 +19,7 @@ import { getApiUrl } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const monthNames = [
   "",
   "Styczeń",
@@ -202,12 +203,13 @@ const PanKazek = () => {
 
   const renderItem = (item) => {
     const isPaid = item.status === "paid";
+    const statusColor = isPaid ? "#10B981" : "#F97316"; // rozliczone - zielony, do rozliczenia - pomarańczowy
     return (
-      <View key={item._id} style={styles.card}>
+      <View key={item._id} style={[styles.card, { borderLeftColor: statusColor }]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.fullName}</Text>
-          <View style={[styles.badge, isPaid ? styles.badgePaid : styles.badgePending]}>
-            <Text style={styles.badgeText}>{isPaid ? "Rozliczone" : "Do rozliczenia"}</Text>
+          <View style={[styles.badge, { backgroundColor: `${statusColor}26`, borderColor: `${statusColor}80` }]}>
+            <Text style={[styles.badgeText, { color: statusColor }]}>{isPaid ? "Rozliczone" : "Do rozliczenia"}</Text>
           </View>
         </View>
 
@@ -237,7 +239,7 @@ const PanKazek = () => {
           onPress={() => handleDelete(item.productId)}
           activeOpacity={0.7}
         >
-          <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
+          <Ionicons name="trash-outline" size={18} color="#DC3545" />
           <Text style={styles.deleteText}>Usuń</Text>
         </TouchableOpacity>
       </View>
@@ -254,16 +256,14 @@ const PanKazek = () => {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <View style={styles.headerIcon}>
-          <Ionicons name="cash-outline" size={28} color="#fff" />
-        </View>
-        <Text style={styles.title}>Pan Kazek</Text>
-        <Text style={styles.subtitle}>System rozliczania produktów</Text>
-      </View>
+      {/* Nagłówek podstrony */}
+      <PageHeader
+        title="Pan Kazek"
+        subtitle="System rozliczania produktów"
+        icon="cash-outline"
+        color="#10B981"
+        onBack={() => router.back()}
+      />
 
       <ScrollView
         style={styles.content}
@@ -272,17 +272,17 @@ const PanKazek = () => {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         <View style={styles.statsGrid}>
-          <View style={styles.statsCard}>
+          <View style={[styles.statsCard, { borderTopColor: "#0D6EFD" }]}>
             <Text style={styles.statsLabel}>Wszystkie</Text>
-            <Text style={styles.statsValue}>{stats.allTimeStats.total}</Text>
+            <Text style={[styles.statsValue, { color: "#0D6EFD" }]}>{stats.allTimeStats.total}</Text>
           </View>
-          <View style={styles.statsCard}>
+          <View style={[styles.statsCard, { borderTopColor: "#F97316" }]}>
             <Text style={styles.statsLabel}>Do rozliczenia</Text>
-            <Text style={styles.statsValue}>{stats.allTimeStats.pending}</Text>
+            <Text style={[styles.statsValue, { color: "#F97316" }]}>{stats.allTimeStats.pending}</Text>
           </View>
-          <View style={styles.statsCard}>
+          <View style={[styles.statsCard, { borderTopColor: "#10B981" }]}>
             <Text style={styles.statsLabel}>Rozliczone</Text>
-            <Text style={styles.statsValue}>{stats.allTimeStats.paid}</Text>
+            <Text style={[styles.statsValue, { color: "#10B981" }]}>{stats.allTimeStats.paid}</Text>
           </View>
         </View>
 
@@ -319,10 +319,13 @@ const PanKazek = () => {
               style={styles.selectBox}
               onPress={() => setShowYearModal(true)}
             >
-              <Text style={styles.selectLabel}>Rok</Text>
-              <Text style={styles.selectValue}>
-                {selectedYear === "all" ? "Wszystkie" : selectedYear}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.selectLabel}>Rok</Text>
+                <Text style={styles.selectValue}>
+                  {selectedYear === "all" ? "Wszystkie" : selectedYear}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.selectBox, selectedYear === "all" && styles.selectBoxDisabled]}
@@ -332,10 +335,13 @@ const PanKazek = () => {
                 }
               }}
             >
-              <Text style={styles.selectLabel}>Miesiąc</Text>
-              <Text style={styles.selectValue}>
-                {selectedMonth === "all" ? "Wszystkie" : monthNames[Number(selectedMonth)]}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.selectLabel}>Miesiąc</Text>
+                <Text style={styles.selectValue}>
+                  {selectedMonth === "all" ? "Wszystkie" : monthNames[Number(selectedMonth)]}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
             </TouchableOpacity>
           </View>
         </View>
@@ -351,7 +357,7 @@ const PanKazek = () => {
 
         {loading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#22C55E" />
+            <ActivityIndicator size="large" color="#10B981" />
             <Text style={styles.loadingText}>Ładowanie danych...</Text>
           </View>
         ) : items.length === 0 ? (
@@ -365,90 +371,93 @@ const PanKazek = () => {
       </ScrollView>
 
       <Modal visible={showYearModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Wybierz rok</Text>
-            <ScrollView style={{ maxHeight: 280 }}>
-              <TouchableOpacity
-                style={styles.modalOption}
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="calendar-outline" color="#10B981" title="Wybierz rok" />
+            <ScrollView style={{ maxHeight: 320 }}>
+              <OptionCard
+                color="#10B981"
+                selected={selectedYear === "all"}
+                label="Wszystkie lata"
                 onPress={() => {
                   setSelectedYear("all");
                   setShowYearModal(false);
                 }}
-              >
-                <Text style={styles.modalOptionText}>Wszystkie lata</Text>
-              </TouchableOpacity>
+              />
               {years.map((year) => (
-                <TouchableOpacity
+                <OptionCard
                   key={year}
-                  style={styles.modalOption}
+                  color="#10B981"
+                  selected={selectedYear === String(year)}
+                  label={String(year)}
                   onPress={() => {
                     setSelectedYear(String(year));
                     setShowYearModal(false);
                   }}
-                >
-                  <Text style={styles.modalOptionText}>{year}</Text>
-                </TouchableOpacity>
+                />
               ))}
             </ScrollView>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setShowYearModal(false)}>
-              <Text style={styles.modalCloseText}>Zamknij</Text>
-            </TouchableOpacity>
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowYearModal(false)}>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
       <Modal visible={showMonthModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Wybierz miesiąc</Text>
-            <ScrollView style={{ maxHeight: 280 }}>
-              <TouchableOpacity
-                style={styles.modalOption}
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="calendar-number-outline" color="#10B981" title="Wybierz miesiąc" />
+            <ScrollView style={{ maxHeight: 320 }}>
+              <OptionCard
+                color="#10B981"
+                selected={selectedMonth === "all"}
+                label="Wszystkie miesiące"
                 onPress={() => {
                   setSelectedMonth("all");
                   setShowMonthModal(false);
                 }}
-              >
-                <Text style={styles.modalOptionText}>Wszystkie miesiące</Text>
-              </TouchableOpacity>
+              />
               {monthsForYear.map((month) => (
-                <TouchableOpacity
+                <OptionCard
                   key={`${month.year}-${month.month}`}
-                  style={styles.modalOption}
+                  color="#10B981"
+                  selected={selectedMonth === String(month.month)}
+                  label={`${monthNames[month.month]} (${month.count})`}
                   onPress={() => {
                     setSelectedMonth(String(month.month));
                     setShowMonthModal(false);
                   }}
-                >
-                  <Text style={styles.modalOptionText}>
-                    {monthNames[month.month]} ({month.count})
-                  </Text>
-                </TouchableOpacity>
+                />
               ))}
             </ScrollView>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setShowMonthModal(false)}>
-              <Text style={styles.modalCloseText}>Zamknij</Text>
-            </TouchableOpacity>
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowMonthModal(false)}>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
       <Modal visible={showPayModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Rozlicz wszystkie</Text>
-            <Text style={styles.modalHint}>Podaj dane rozliczenia</Text>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="cash-outline" color="#10B981" title="Rozlicz wszystkie" subtitle="Podaj dane rozliczenia" />
 
+            <Text style={look.formLabel}>Kto rozlicza</Text>
             <TextInput
-              style={styles.input}
+              style={[look.formInput, styles.input]}
               placeholder="Kto rozlicza"
               placeholderTextColor={tc('muted', "#64748B")}
               value={paidBy}
               onChangeText={setPaidBy}
             />
+            <Text style={look.formLabel}>Kwota (PLN)</Text>
             <TextInput
-              style={styles.input}
+              style={[look.formInput, styles.input]}
               placeholder="Kwota (PLN)"
               placeholderTextColor={tc('muted', "#64748B")}
               value={paidAmount}
@@ -456,19 +465,20 @@ const PanKazek = () => {
               onChangeText={setPaidAmount}
             />
 
-            <TouchableOpacity
-              style={[styles.payConfirmButton, processing && styles.payConfirmButtonDisabled]}
-              onPress={handlePayAll}
-              disabled={processing}
-            >
-              <Text style={styles.payConfirmText}>
-                {processing ? "Rozliczam..." : "Potwierdź"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalClose} onPress={() => setShowPayModal(false)}>
-              <Text style={styles.modalCloseText}>Anuluj</Text>
-            </TouchableOpacity>
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowPayModal(false)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[look.primaryButton, styles.payConfirmButton, processing && styles.payConfirmButtonDisabled]}
+                onPress={handlePayAll}
+                disabled={processing}
+              >
+                <Text style={look.buttonText}>
+                  {processing ? "Rozliczam..." : "Potwierdź"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -520,9 +530,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   statsCard: {
     flex: 1,
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderTopWidth: 3,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 8,
@@ -534,13 +545,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#94A3B8"),
   },
   statsValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: tc('text', "#fff"),
     marginTop: 6,
   },
   filterCard: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
@@ -560,20 +571,20 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 12,
   },
   filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    backgroundColor: tc('surface', "#0B1220"),
+    borderColor: tc('border', "#334155"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
   },
   filterButtonActive: {
-    borderColor: "#16A34A",
-    backgroundColor: "#16A34A",
+    borderColor: "#10B981",
+    backgroundColor: "#10B981",
   },
   filterButtonText: {
-    color: "#CBD5F5",
-    fontSize: 12,
+    color: tc('text', "#fff"),
+    fontSize: 13,
     fontWeight: "600",
   },
   filterButtonTextActive: {
@@ -585,38 +596,43 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   selectBox: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    backgroundColor: tc('surface', "#0B1220"),
+    borderColor: tc('border', "#334155"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
   },
   selectBoxDisabled: {
     opacity: 0.6,
   },
   selectLabel: {
-    fontSize: 11,
-    color: "#94A3B8",
+    fontSize: 12,
+    color: tc('muted', "#94A3B8"),
   },
   selectValue: {
     color: tc('text', "#fff"),
-    marginTop: 4,
-    fontSize: 14,
+    marginTop: 2,
+    fontSize: 15,
+    fontWeight: "600",
   },
   payAllButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#16A34A",
-    padding: 14,
+    backgroundColor: "#10B981",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
     marginBottom: 16,
     justifyContent: "center",
   },
   payAllText: {
     color: "#fff",
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   loadingBox: {
     alignItems: "center",
@@ -638,10 +654,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 12,
   },
   card: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
     padding: 16,
     marginBottom: 12,
   },
@@ -662,6 +679,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
+    borderWidth: 1,
   },
   badgePending: {
     backgroundColor: "#F97316",
@@ -670,8 +688,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: "#16A34A",
   },
   badgeText: {
-    color: "#fff",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   row: {
@@ -680,23 +697,32 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 6,
   },
   label: {
-    color: "#94A3B8",
-    fontSize: 12,
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
   },
   value: {
     color: tc('text', "#fff"),
-    fontSize: 12,
+    fontSize: 13,
+    flexShrink: 1,
+    textAlign: "right",
+    marginLeft: 8,
   },
   deleteButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     marginTop: 10,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DC354566",
+    backgroundColor: "#DC354526",
   },
   deleteText: {
-    color: "#FCA5A5",
-    fontWeight: "600",
+    color: "#DC3545",
+    fontSize: 15,
+    fontWeight: "700",
   },
   modalOverlay: {
     flex: 1,
@@ -741,19 +767,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "600",
   },
   input: {
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderRadius: 12,
-    padding: 12,
-    color: "#fff",
-    marginBottom: 12,
-    backgroundColor: tc('surface', "#0B1220"),
+    marginBottom: 14,
   },
   payConfirmButton: {
-    backgroundColor: "#16A34A",
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
+    backgroundColor: "#10B981",
   },
   payConfirmButtonDisabled: {
     opacity: 0.7,

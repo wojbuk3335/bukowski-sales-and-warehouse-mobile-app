@@ -1,16 +1,13 @@
 import React from "react";
 import {
   StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, MenuCard } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const SubcategoriesMenu = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const subcategories = [
@@ -72,37 +69,27 @@ const SubcategoriesMenu = () => {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tabela podkategorii</Text>
-        <View style={styles.backButton} />
-      </View>
+      {/* Nagłówek podstrony */}
+      <PageHeader
+        title="Tabela podkategorii"
+        icon="git-branch-outline"
+        onBack={() => router.back()}
+      />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentInner}
+        showsVerticalScrollIndicator={false}
+      >
         {subcategories.map((item) => (
-          <TouchableOpacity
+          <MenuCard
             key={item.id}
-            style={styles.menuItem}
+            icon={item.icon}
+            color={item.color}
+            title={item.title}
+            subtitle={item.subtitle}
             onPress={() => handleSubcategoryPress(item.route)}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[styles.menuIcon, { backgroundColor: `${item.color}20` }]}
-            >
-              <Ionicons name={item.icon} size={28} color={item.color} />
-            </View>
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>{item.title}</Text>
-              <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
-          </TouchableOpacity>
+          />
         ))}
       </ScrollView>
     </SafeAreaView>
@@ -115,72 +102,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', "#000000"),
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: tc('surface', "#1E293B"),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-    flex: 1,
-    textAlign: "center",
-  },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
   },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: tc('bg', "#000000"),
-    paddingVertical: 16,
+  contentInner: {
     paddingHorizontal: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  menuIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  menuText: {
-    flex: 1,
-  },
-  menuTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-    marginBottom: 4,
-  },
-  menuSubtitle: {
-    fontSize: 13,
-    color: tc('muted', "#94A3B8"),
+    paddingTop: 16,
+    paddingBottom: 24,
   },
 }));
 

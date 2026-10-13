@@ -18,6 +18,7 @@ import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
 const FILTERS_KEY = "payrollFilters";
 
 const Payroll = () => {
@@ -414,13 +415,7 @@ const Payroll = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Wypłaty</Text>
-        <View style={styles.backButton} />
-      </View>
+      <PageHeader title="Wypłaty" icon="wallet" color="#10B981" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(120, insets.bottom + 120) }]}>
         <View style={styles.sectionCard}>
@@ -492,7 +487,7 @@ const Payroll = () => {
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.resetButton} onPress={handleResetFilters}>
-                <Ionicons name="close" size={18} color={tc('muted', "#94A3B8")} />
+                <Ionicons name="close" size={22} color={tc('muted', "#94A3B8")} />
               </TouchableOpacity>
             </View>
           </View>
@@ -611,7 +606,7 @@ const Payroll = () => {
               keyExtractor={(item, index) => `${item.type}-${index}`}
               scrollEnabled={false}
               renderItem={({ item }) => (
-                <View style={styles.historyCard}>
+                <View style={[styles.historyCard, styles[`stripe_${item.type}`]]}>
                   <View style={styles.historyHeader}>
                     <Text style={styles.historyDate}>{formatDate(item.date)}</Text>
                     <View style={[styles.typeBadge, styles[`badge_${item.type}`]]}>
@@ -708,14 +703,9 @@ const Payroll = () => {
         animationType="slide"
         onRequestClose={() => setShowPaymentModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Rozlicz wypłatę</Text>
-              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="card" color="#10B981" title="Rozlicz wypłatę" />
             <View style={styles.modalBody}>
               <Text style={styles.modalText}>Pracownik: {getSelectedEmployeeName()}</Text>
               <Text style={styles.modalText}>
@@ -726,9 +716,9 @@ const Payroll = () => {
               </Text>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Kwota wypłacana</Text>
+                <Text style={look.formLabel}>Kwota wypłacana</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={look.formInput}
                   keyboardType="numeric"
                   value={paymentAmount}
                   onChangeText={setPaymentAmount}
@@ -738,23 +728,23 @@ const Payroll = () => {
                 <Text style={styles.formHint}>Możesz wypłacić całą kwotę lub część.</Text>
               </View>
             </View>
-            <View style={styles.modalActions}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={look.neutralButton}
                 onPress={() => setShowPaymentModal(false)}
                 disabled={paymentLoading}
               >
-                <Text style={styles.cancelButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton, (!paymentAmount || paymentLoading) && styles.buttonDisabled]}
+                style={[look.primaryButton, { backgroundColor: "#10B981" }, (!paymentAmount || paymentLoading) && look.disabled]}
                 onPress={handlePaymentSubmit}
                 disabled={!paymentAmount || paymentLoading}
               >
                 {paymentLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Zatwierdź wypłatę</Text>
+                  <Text style={look.buttonText}>Zatwierdź wypłatę</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -769,36 +759,36 @@ const Payroll = () => {
         animationType="slide"
         onRequestClose={() => setShowEmployeeModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentFull}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Wybierz pracownika</Text>
-              <TouchableOpacity onPress={() => setShowEmployeeModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="person" color="#0D6EFD" title="Wybierz pracownika" />
+            <FlatList
+              style={styles.optionList}
+              data={employees}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.optionRow, selectedEmployee === item._id && styles.optionRowSelected]}
+                  onPress={() => {
+                    setSelectedEmployee(item._id);
+                    setShowEmployeeModal(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.optionTitle}>{item.firstName} {item.lastName}</Text>
+                    <Text style={styles.optionSubtitle}>ID: {item.employeeId}</Text>
+                  </View>
+                  {selectedEmployee === item._id && <Ionicons name="checkmark-circle" size={22} color="#0D6EFD" />}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>Brak pracowników</Text>
+              }
+            />
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowEmployeeModal(false)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <FlatList
-                data={employees}
-                keyExtractor={(item) => item._id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.optionRow}
-                    onPress={() => {
-                      setSelectedEmployee(item._id);
-                      setShowEmployeeModal(false);
-                    }}
-                  >
-                    <View>
-                      <Text style={styles.optionTitle}>{item.firstName} {item.lastName}</Text>
-                      <Text style={styles.optionSubtitle}>ID: {item.employeeId}</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={styles.emptyText}>Brak pracowników</Text>
-                }
-              />
             </View>
           </View>
         </View>
@@ -811,29 +801,31 @@ const Payroll = () => {
         animationType="slide"
         onRequestClose={() => setShowMonthModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentFull}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Wybierz miesiąc</Text>
-              <TouchableOpacity onPress={() => setShowMonthModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="calendar" color="#0D6EFD" title="Wybierz miesiąc" />
             <FlatList
+              style={styles.optionList}
               data={months}
               keyExtractor={(item) => item.value}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.optionRow}
+                  style={[styles.optionRow, selectedMonth === item.value && styles.optionRowSelected]}
                   onPress={() => {
                     setSelectedMonth(item.value);
                     setShowMonthModal(false);
                   }}
                 >
                   <Text style={styles.optionTitle}>{item.label}</Text>
+                  {selectedMonth === item.value && <Ionicons name="checkmark-circle" size={22} color="#0D6EFD" />}
                 </TouchableOpacity>
               )}
             />
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowMonthModal(false)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -845,29 +837,31 @@ const Payroll = () => {
         animationType="slide"
         onRequestClose={() => setShowYearModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentFull}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Wybierz rok</Text>
-              <TouchableOpacity onPress={() => setShowYearModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="calendar-outline" color="#0D6EFD" title="Wybierz rok" />
             <FlatList
+              style={styles.optionList}
               data={years}
               keyExtractor={(item) => item}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.optionRow}
+                  style={[styles.optionRow, selectedYear === item && styles.optionRowSelected]}
                   onPress={() => {
                     setSelectedYear(item);
                     setShowYearModal(false);
                   }}
                 >
                   <Text style={styles.optionTitle}>{item}</Text>
+                  {selectedYear === item && <Ionicons name="checkmark-circle" size={22} color="#0D6EFD" />}
                 </TouchableOpacity>
               )}
             />
+            <View style={look.buttonRow}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setShowYearModal(false)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -879,15 +873,10 @@ const Payroll = () => {
         animationType="fade"
         onRequestClose={() => setSelectedCommissionDetails(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContentLarge}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Szczegóły prowizji</Text>
-              <TouchableOpacity onPress={() => setSelectedCommissionDetails(null)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalBody}>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="trending-up" color="#06B6D4" title="Szczegóły prowizji" />
+            <ScrollView style={styles.modalScroll}>
               {selectedCommissionDetails && (
                 <>
                   <Text style={styles.modalText}>Pracownik: {selectedCommissionDetails.employeeName}</Text>
@@ -912,12 +901,12 @@ const Payroll = () => {
                 </>
               )}
             </ScrollView>
-            <View style={styles.modalActions}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={look.neutralButton}
                 onPress={() => setSelectedCommissionDetails(null)}
               >
-                <Text style={styles.cancelButtonText}>Zamknij</Text>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -931,19 +920,18 @@ const Payroll = () => {
         animationType="fade"
         onRequestClose={() => setShowSuccessModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Sukces!" />
+            <Text style={look.modalMessage}>{successMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: "#10B981" }]}
+                onPress={() => setShowSuccessModal(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.successTitle}>Sukces!</Text>
-            <Text style={styles.successMessage}>{successMessage}</Text>
-            <TouchableOpacity
-              style={styles.successButton}
-              onPress={() => setShowSuccessModal(false)}
-            >
-              <Text style={styles.successButtonText}>OK</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -955,19 +943,18 @@ const Payroll = () => {
         animationType="fade"
         onRequestClose={() => setShowErrorModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="close-circle" size={64} color="#DC2626" />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="close-circle" color="#DC3545" title="Błąd" />
+            <Text style={look.modalMessage}>{errorMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: "#DC3545" }]}
+                onPress={() => setShowErrorModal(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.successTitle}>Błąd</Text>
-            <Text style={styles.successMessage}>{errorMessage}</Text>
-            <TouchableOpacity
-              style={[styles.successButton, { backgroundColor: "#DC2626" }]}
-              onPress={() => setShowErrorModal(false)}
-            >
-              <Text style={styles.successButtonText}>OK</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -980,34 +967,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', "#000000"),
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 20,
-    fontWeight: "bold",
-  },
   content: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
   },
   sectionCard: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 16,
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
     padding: 16,
@@ -1038,7 +1004,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 16,
   },
   filterBlock: {
-    gap: 8,
+    gap: 6,
   },
   filterBlockRow: {
     flexDirection: "row",
@@ -1046,18 +1012,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   filterBlockSmall: {
     flex: 1,
-    gap: 8,
+    gap: 6,
   },
   filterLabel: {
-    color: tc('text', "#fff"),
+    color: tc('muted', "#94A3B8"),
     fontSize: 13,
     fontWeight: "600",
   },
   selectField: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    backgroundColor: tc('surface', "#000000"),
+    borderColor: tc('border', "#334155"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: "row",
@@ -1066,12 +1032,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   selectText: {
     color: tc('text', "#fff"),
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "600",
     flex: 1,
   },
   selectPlaceholder: {
     color: tc('muted', "#64748B"),
-    fontSize: 14,
+    fontSize: 15,
     flex: 1,
   },
   actionsRow: {
@@ -1085,41 +1052,44 @@ const styles = createThemedStyles(() => StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#0D6EFD",
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     flex: 1,
   },
   primaryButtonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   resetButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: tc('surface', "#0A0A0A"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   infoBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: tc('surface', "#0A0A0A"),
+    backgroundColor: tc('surface', "#161622"),
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#38BDF8",
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
   },
   infoText: {
     color: tc('text', "#E2E8F0"),
-    fontSize: 12,
+    fontSize: 13,
     flex: 1,
   },
   summaryGrid: {
@@ -1129,20 +1099,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 12,
   },
   summaryCard: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
     padding: 12,
-    flexBasis: "48%",
+    flexBasis: "47%",
+    flexGrow: 1,
   },
   summaryCardWide: {
     flexBasis: "100%",
+    borderLeftWidth: 4,
+    borderLeftColor: "#10B981",
   },
   summaryValue: {
     color: tc('text', "#fff"),
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   summaryLabel: {
     color: tc('muted', "#94A3B8"),
@@ -1170,26 +1143,28 @@ const styles = createThemedStyles(() => StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#10B981",
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     marginTop: 16,
   },
   payButtonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   toggleAllButton: {
-    backgroundColor: tc('surface', "#0A0A0A"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
     borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     alignSelf: "flex-start",
   },
   toggleAllText: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
   },
   filterChips: {
     flexDirection: "row",
@@ -1199,30 +1174,45 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   filterChip: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 7,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    backgroundColor: tc('surface', "#0A0A0A"),
+    borderColor: tc('border', "#334155"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
   },
   filterChipActive: {
-    backgroundColor: "#0D6EFD",
+    backgroundColor: "#0D6EFD26",
     borderColor: "#0D6EFD",
   },
   filterChipText: {
-    color: "#94A3B8",
-    fontSize: 12,
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
+    fontWeight: "600",
   },
   filterChipTextActive: {
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   historyCard: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
+    borderLeftWidth: 4,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  // kolorowy pasek z lewej wg typu operacji
+  stripe_work_hours: {
+    borderLeftColor: "#2563EB",
+  },
+  stripe_advance: {
+    borderLeftColor: "#EF4444",
+  },
+  stripe_payment: {
+    borderLeftColor: "#F59E0B",
+  },
+  stripe_commission: {
+    borderLeftColor: "#06B6D4",
   },
   historyHeader: {
     flexDirection: "row",
@@ -1235,26 +1225,31 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 12,
   },
   typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   typeBadgeText: {
     color: tc('text', "#fff"),
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   badge_work_hours: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#2563EB26",
+    borderColor: "#2563EB80",
   },
   badge_advance: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "#EF444426",
+    borderColor: "#EF444480",
   },
   badge_payment: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: "#F59E0B26",
+    borderColor: "#F59E0B80",
   },
   badge_commission: {
-    backgroundColor: "#06B6D4",
+    backgroundColor: "#06B6D426",
+    borderColor: "#06B6D480",
   },
   historyDescription: {
     color: tc('text', "#fff"),
@@ -1265,7 +1260,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 6,
   },
   historyAmount: {
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 15,
   },
   amountPositive: {
     color: "#10B981",
@@ -1278,90 +1274,63 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 12,
   },
   detailsButton: {
-    marginTop: 8,
+    marginTop: 10,
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: "#0D6EFD",
-    borderRadius: 8,
+    borderRadius: 12,
   },
   detailsButtonText: {
     color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "bold",
   },
   summaryRow: {
     gap: 8,
     marginTop: 8,
   },
   inlineSummary: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 10,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
     padding: 10,
   },
   inlineSummaryText: {
     color: tc('text', "#E2E8F0"),
-    fontSize: 12,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "flex-end",
-  },
-  modalContentFull: {
-    backgroundColor: tc('bg', "#0A0A0A"),
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    maxHeight: "92%",
-  },
-  modalContent: {
-    backgroundColor: tc('bg', "#0A0A0A"),
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    paddingBottom: 40,
-  },
-  modalContentLarge: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 20,
-    marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    maxHeight: "85%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  modalTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: "600",
   },
   modalBody: {
-    padding: 20,
+    marginBottom: 8,
+  },
+  modalScroll: {
+    flexGrow: 0,
+    marginBottom: 8,
+  },
+  optionList: {
+    flexGrow: 0,
   },
   optionRow: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  optionRowSelected: {
+    borderColor: "#0D6EFD",
+    backgroundColor: "#0D6EFD1F",
+  },
   optionTitle: {
     color: tc('text', "#fff"),
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   optionSubtitle: {
@@ -1369,9 +1338,15 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  emptyText: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 14,
+    textAlign: "center",
+    paddingVertical: 16,
+  },
   modalText: {
     color: tc('text', "#E2E8F0"),
-    fontSize: 13,
+    fontSize: 14,
     marginBottom: 6,
   },
   modalSectionTitle: {
@@ -1384,60 +1359,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
   formGroup: {
     marginTop: 12,
   },
-  formLabel: {
-    color: tc('text', "#fff"),
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  formInput: {
-    backgroundColor: tc('surface', "#000000"),
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    color: tc('text', "#fff"),
-  },
   formHint: {
     color: tc('muted', "#64748B"),
     fontSize: 12,
     marginTop: 6,
   },
-  modalActions: {
-    flexDirection: "row",
-    padding: 20,
-    paddingBottom: 30,
-    marginBottom: 20,
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: tc('surface', "#111827"),
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-  },
-  cancelButtonText: {
-    color: tc('text', "#E2E8F0"),
-    fontWeight: "600",
-  },
-  saveButton: {
-    backgroundColor: "#10B981",
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
   detailCard: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#06B6D4",
     padding: 12,
     marginBottom: 10,
   },
@@ -1451,46 +1384,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginBottom: 4,
-  },
-  successModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  successModalContent: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 20,
-    padding: 24,
-    width: "85%",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-  },
-  successIconContainer: {
-    marginBottom: 12,
-  },
-  successTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-    marginBottom: 8,
-  },
-  successMessage: {
-    fontSize: 14,
-    color: tc('muted', "#94A3B8"),
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  successButton: {
-    backgroundColor: "#0D6EFD",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  successButtonText: {
-    color: "#fff",
-    fontWeight: "600",
   },
 }));
 

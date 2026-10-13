@@ -17,6 +17,7 @@ import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 const StockList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -143,9 +144,9 @@ const StockList = () => {
         <TouchableOpacity
           style={styles.editButton}
           onPress={() => handleEditStock(item)}
+          accessibilityLabel="Edytuj"
         >
-          <Ionicons name="pencil" size={18} color="#fff" />
-          <Text style={styles.editButtonText}>Edytuj</Text>
+          <Ionicons name="pencil" size={18} color="#0D6EFD" />
         </TouchableOpacity>
       </View>
     );
@@ -153,17 +154,13 @@ const StockList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tabela asortymentu</Text>
-        <View style={styles.backButton} />
-      </View>
+      {/* Nagłówek */}
+      <PageHeader
+        title="Tabela asortymentu"
+        icon="cube-outline"
+        color="#0D6EFD"
+        onBack={() => router.back()}
+      />
 
       {/* Search */}
       <View style={styles.searchContainer}>
@@ -218,23 +215,16 @@ const StockList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Edytuj asortyment
-              </Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="create-outline" color="#0D6EFD" title="Edytuj asortyment" />
 
             <ScrollView style={styles.modalBody}>
               {/* Kod asortymentu */}
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Kod asortymentu *</Text>
+                <Text style={look.formLabel}>Kod asortymentu *</Text>
                 <TextInput
-                  style={[styles.formInput, editingStock && styles.formInputDisabled]}
+                  style={[look.formInput, editingStock && styles.formInputDisabled]}
                   placeholder="Wpisz kod (np. 001)"
                   placeholderTextColor={tc('muted', "#64748B")}
                   value={towKod}
@@ -249,9 +239,9 @@ const StockList = () => {
 
               {/* Nazwa asortymentu */}
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nazwa asortymentu *</Text>
+                <Text style={look.formLabel}>Nazwa asortymentu *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={look.formInput}
                   placeholder="Wpisz nazwę"
                   placeholderTextColor={tc('muted', "#64748B")}
                   value={towOpis}
@@ -261,19 +251,19 @@ const StockList = () => {
               </View>
             </ScrollView>
 
-            <View style={styles.modalActions}>
+            <View style={[look.buttonRow, styles.modalActions]}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={look.neutralButton}
                 onPress={() => setShowModal(false)}
               >
-                <Text style={styles.cancelButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
                 onPress={handleSaveStock}
               >
-                <Text style={styles.saveButtonText}>Zapisz</Text>
+                <Text style={look.buttonText}>Zapisz</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -287,19 +277,18 @@ const StockList = () => {
         animationType="fade"
         onRequestClose={() => setShowSuccessModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Sukces!" />
+            <Text style={look.modalMessage}>{successMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                onPress={() => setShowSuccessModal(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.successTitle}>Sukces!</Text>
-            <Text style={styles.successMessage}>{successMessage}</Text>
-            <TouchableOpacity
-              style={styles.successButton}
-              onPress={() => setShowSuccessModal(false)}
-            >
-              <Text style={styles.successButtonText}>OK</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -311,19 +300,18 @@ const StockList = () => {
         animationType="fade"
         onRequestClose={() => setShowErrorModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="close-circle" size={64} color="#DC2626" />
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="close-circle" color="#DC2626" title="Błąd" />
+            <Text style={look.modalMessage}>{errorMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: '#DC2626' }]}
+                onPress={() => setShowErrorModal(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.successTitle}>Błąd</Text>
-            <Text style={styles.successMessage}>{errorMessage}</Text>
-            <TouchableOpacity
-              style={[styles.successButton, { backgroundColor: '#DC2626' }]}
-              onPress={() => setShowErrorModal(false)}
-            >
-              <Text style={styles.successButtonText}>OK</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -338,47 +326,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', "#000000"),
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#0D6EFD",
-    borderRadius: 20,
-  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#0A0A0A"),
-    marginHorizontal: 20,
-    marginVertical: 16,
-    paddingHorizontal: 16,
+    backgroundColor: tc('surface', "#161622"),
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
-    gap: 12,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
@@ -386,12 +345,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', "#fff"),
   },
   countContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 8,
   },
   countText: {
-    fontSize: 14,
-    color: tc('muted', "#64748B"),
+    fontSize: 13,
+    fontWeight: "600",
+    color: tc('muted', "#94A3B8"),
   },
   loadingContainer: {
     flex: 1,
@@ -406,24 +366,31 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: tc('muted', "#64748B"),
+    fontWeight: "600",
+    color: tc('muted', "#94A3B8"),
     marginTop: 16,
     textAlign: "center",
   },
   listContainer: {
-    padding: 20,
+    paddingHorizontal: 16,
     paddingTop: 0,
   },
   stockCard: {
-    backgroundColor: tc('surface', "#0A0A0A"),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#0D6EFD",
   },
   stockHeader: {
-    marginBottom: 12,
+    flex: 1,
   },
   stockInfo: {
     flex: 1,
@@ -439,56 +406,20 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#64748B"),
   },
   editButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-    backgroundColor: "#0D6EFD",
-  },
-  editButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: tc('bg', "#0A0A0A"),
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "90%",
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
+    backgroundColor: "#0D6EFD26",
+    borderWidth: 1,
+    borderColor: "#0D6EFD66",
   },
   modalBody: {
-    padding: 20,
+    flexGrow: 0,
   },
   formGroup: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-    marginBottom: 8,
+    marginBottom: 16,
   },
   formInput: {
     backgroundColor: tc('surface', "#000000"),
@@ -501,85 +432,16 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', "#fff"),
   },
   formInputDisabled: {
-    backgroundColor: tc('bg', "#0A0A0A"),
-    color: tc('muted', "#64748B"),
+    opacity: 0.6,
+    color: tc('muted', "#94A3B8"),
   },
   formHint: {
     fontSize: 12,
     color: tc('muted', "#64748B"),
-    marginTop: 4,
+    marginTop: 6,
   },
   modalActions: {
-    flexDirection: "row",
-    padding: 20,
-    paddingTop: 0,
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: tc('surface', "#1E293B"),
-  },
-  saveButton: {
-    backgroundColor: "#0D6EFD",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  successModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  successModalContent: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    width: "80%",
-    maxWidth: 400,
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-  },
-  successIconContainer: {
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-    marginBottom: 12,
-  },
-  successMessage: {
-    fontSize: 16,
-    color: tc('muted', "#94A3B8"),
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  successButton: {
-    backgroundColor: "#10B981",
-    paddingHorizontal: 48,
-    paddingVertical: 14,
-    borderRadius: 12,
-    width: "100%",
-  },
-  successButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-    textAlign: "center",
+    marginTop: 4,
   },
 }));
 

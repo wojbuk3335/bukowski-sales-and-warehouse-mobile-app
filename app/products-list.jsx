@@ -22,6 +22,21 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+
+// Nagłówek dolnego okienka wyboru: kolorowy kafelek z ikoną, tytuł i przycisk zamknięcia
+const SheetHeader = ({ icon, title, onClose, color = '#0D6EFD' }) => (
+  <View style={styles.pickerModalHeader}>
+    <View style={[styles.sheetHeaderIcon, { backgroundColor: `${color}26` }]}>
+      <Ionicons name={icon} size={20} color={color} />
+    </View>
+    <Text style={styles.pickerModalTitle} numberOfLines={1}>{title}</Text>
+    <TouchableOpacity style={styles.sheetCloseButton} onPress={onClose}>
+      <Ionicons name="close" size={24} color={tc('text', "#fff")} />
+    </TouchableOpacity>
+  </View>
+);
+
 const ProductsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -924,21 +939,12 @@ const ProductsList = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lista produktów</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleAddProduct}
-        >
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      <PageHeader
+        title="Lista produktów"
+        icon="pricetags"
+        onBack={() => router.back()}
+        right={<IconButton icon="add" onPress={handleAddProduct} accessibilityLabel="Dodaj produkt" />}
+      />
 
       {/* Search */}
       <View style={styles.searchContainer}>
@@ -1006,14 +1012,11 @@ const ProductsList = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingProduct ? "Edytuj produkt" : "Dodaj produkt"}
-              </Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader
+              icon={editingProduct ? "create-outline" : "add-circle-outline"}
+              title={editingProduct ? "Edytuj produkt" : "Dodaj produkt"}
+              onClose={() => setShowModal(false)}
+            />
 
             <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
               {/* 1. Kategoria */}
@@ -1938,17 +1941,17 @@ const ProductsList = () => {
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={look.neutralButton}
                 onPress={() => setShowModal(false)}
               >
-                <Text style={styles.cancelButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={look.primaryButton}
                 onPress={handleSaveProduct}
               >
-                <Text style={styles.saveButtonText}>Zapisz</Text>
+                <Text style={look.buttonText}>Zapisz</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1956,13 +1959,10 @@ const ProductsList = () => {
 
         {/* Pytanie o nadpisanie cen w cennikach punktów (w stylu aplikacji) */}
         {priceSyncQuestion && (
-          <View style={[StyleSheet.absoluteFill, styles.successModalOverlay]}>
-            <View style={styles.successModalContent}>
-              <View style={styles.successIconContainer}>
-                <Ionicons name="pricetags" size={56} color="#F59E0B" />
-              </View>
-              <Text style={styles.successTitle}>Zmiana ceny produktu</Text>
-              <Text style={styles.successMessage}>
+          <View style={[StyleSheet.absoluteFill, look.modalOverlay]}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="pricetags" color="#F59E0B" title="Zmiana ceny produktu" />
+              <Text style={look.modalMessage}>
                 {`Zmieniono: ${priceSyncQuestion.text}.
 
 Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni się tylko karta produktu.`}
@@ -1972,19 +1972,19 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
                   style={[styles.priceSyncButton, styles.deleteConfirmButton]}
                   onPress={() => { setPriceSyncQuestion(null); handleSaveProduct(true); }}
                 >
-                  <Text style={styles.successButtonText}>Tak, nadpisz cenniki</Text>
+                  <Text style={look.buttonText}>Tak, nadpisz cenniki</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.priceSyncButton, styles.priceSyncKeepButton]}
                   onPress={() => { setPriceSyncQuestion(null); handleSaveProduct(false); }}
                 >
-                  <Text style={styles.successButtonText}>Nie, tylko karta produktu</Text>
+                  <Text style={look.buttonText}>Nie, tylko karta produktu</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.priceSyncButton, styles.cancelConfirmButton]}
+                  style={[look.neutralButton, styles.priceSyncButton]}
                   onPress={() => setPriceSyncQuestion(null)}
                 >
-                  <Text style={styles.successButtonText}>Anuluj</Text>
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2001,12 +2001,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz kategorię</Text>
-              <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="grid-outline" title="Wybierz kategorię" onClose={() => setShowCategoryPicker(false)} />
             <FlatList
               data={["Kurtki kożuchy futra", "Torebki", "Portfele", "Pozostałe"]}
               keyExtractor={(item) => item}
@@ -2117,12 +2112,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz produkt</Text>
-              <TouchableOpacity onPress={() => setShowStockPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="shirt-outline" title="Wybierz produkt" onClose={() => setShowStockPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2179,12 +2169,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz kolor</Text>
-              <TouchableOpacity onPress={() => setShowColorPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="color-palette-outline" title="Wybierz kolor" onClose={() => setShowColorPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2249,12 +2234,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
-              <TouchableOpacity onPress={() => setShowSubcategoryPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="albums-outline" title="Wybierz podkategorię" onClose={() => setShowSubcategoryPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2311,12 +2291,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz grupę</Text>
-              <TouchableOpacity onPress={() => setShowManufacturerPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="business-outline" title="Wybierz grupę" onClose={() => setShowManufacturerPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2373,12 +2348,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz rozmiar</Text>
-              <TouchableOpacity onPress={() => setShowSizePicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="resize-outline" title="Wybierz rozmiar" onClose={() => setShowSizePicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2429,12 +2399,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
-              <TouchableOpacity onPress={() => setShowBagsCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="albums-outline" title="Wybierz podkategorię" onClose={() => setShowBagsCategoryPicker(false)} />
             <FlatList
               data={bagsCategories}
               keyExtractor={(item) => item._id}
@@ -2479,12 +2444,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz torebkę</Text>
-              <TouchableOpacity onPress={() => setShowBagsPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="bag-handle-outline" title="Wybierz torebkę" onClose={() => setShowBagsPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2545,12 +2505,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
-              <TouchableOpacity onPress={() => setShowWalletsCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="albums-outline" title="Wybierz podkategorię" onClose={() => setShowWalletsCategoryPicker(false)} />
             <FlatList
               data={walletsCategories}
               keyExtractor={(item) => item._id}
@@ -2595,12 +2550,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz portfel</Text>
-              <TouchableOpacity onPress={() => setShowWalletsPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="wallet-outline" title="Wybierz portfel" onClose={() => setShowWalletsPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2661,12 +2611,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
-              <TouchableOpacity onPress={() => setShowRemainingCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="albums-outline" title="Wybierz podkategorię" onClose={() => setShowRemainingCategoryPicker(false)} />
             <FlatList
               data={remainingCategories}
               keyExtractor={(item) => item._id}
@@ -2750,12 +2695,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz podpodkategorię</Text>
-              <TouchableOpacity onPress={() => setShowRemainingSubcategoryPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="git-branch-outline" title="Wybierz podpodkategorię" onClose={() => setShowRemainingSubcategoryPicker(false)} />
             <FlatList
               data={remainingSubcategories}
               keyExtractor={(item) => item._id}
@@ -2799,12 +2739,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
       >
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
-            <View style={styles.pickerModalHeader}>
-              <Text style={styles.pickerModalTitle}>Wybierz produkt</Text>
-              <TouchableOpacity onPress={() => setShowRemainingPicker(false)}>
-                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+            <SheetHeader icon="cube-outline" title="Wybierz produkt" onClose={() => setShowRemainingPicker(false)} />
             <View style={styles.pickerSearchContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
@@ -2898,18 +2833,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="fade"
         onRequestClose={() => setShowSuccessModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
-            </View>
-            <Text style={styles.successTitle}>Sukces!</Text>
-            <Text style={styles.successMessage}>{successMessage}</Text>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Sukces!" />
+            <Text style={look.modalMessage}>{successMessage}</Text>
             <TouchableOpacity
               style={styles.successButton}
               onPress={() => setShowSuccessModal(false)}
             >
-              <Text style={styles.successButtonText}>OK</Text>
+              <Text style={look.buttonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2922,18 +2854,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="fade"
         onRequestClose={() => setShowErrorModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="close-circle" size={64} color="#DC2626" />
-            </View>
-            <Text style={styles.successTitle}>Błąd</Text>
-            <Text style={styles.successMessage}>{errorMessage}</Text>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="close-circle" color="#DC3545" title="Błąd" />
+            <Text style={look.modalMessage}>{errorMessage}</Text>
             <TouchableOpacity
-              style={[styles.successButton, { backgroundColor: '#DC2626' }]}
+              style={[styles.successButton, { backgroundColor: '#DC3545' }]}
               onPress={() => setShowErrorModal(false)}
             >
-              <Text style={styles.successButtonText}>OK</Text>
+              <Text style={look.buttonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2946,28 +2875,25 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="fade"
         onRequestClose={() => setShowConfirmModal(false)}
       >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="warning" size={64} color="#F59E0B" />
-            </View>
-            <Text style={styles.successTitle}>Potwierdź</Text>
-            <Text style={styles.successMessage}>{confirmMessage}</Text>
-            <View style={styles.confirmButtons}>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="warning" color="#F59E0B" title="Potwierdź" />
+            <Text style={look.modalMessage}>{confirmMessage}</Text>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.cancelConfirmButton]}
+                style={look.neutralButton}
                 onPress={() => {
                   setShowConfirmModal(false);
                   setProductToDelete(null);
                 }}
               >
-                <Text style={styles.successButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButton, styles.deleteConfirmButton]}
+                style={[look.primaryButton, styles.deleteConfirmButton]}
                 onPress={confirmDelete}
               >
-                <Text style={styles.successButtonText}>Usuń</Text>
+                <Text style={look.buttonText}>Usuń</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2982,44 +2908,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', "#000000"),
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-    flex: 1,
-    textAlign: "center",
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#0D6EFD",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#000000"),
-    margin: 20,
+    backgroundColor: tc('surface', "#161622"),
+    marginHorizontal: 16,
+    marginTop: 16,
     marginBottom: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
@@ -3032,11 +2928,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', "#fff"),
   },
   countContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
   countText: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "600",
     color: tc('muted', "#94A3B8"),
   },
   loadingContainer: {
@@ -3051,21 +2948,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     padding: 40,
   },
   emptyText: {
-    fontSize: 16,
-    color: tc('muted', "#64748B"),
-    marginTop: 16,
+    fontSize: 15,
+    color: tc('muted', "#94A3B8"),
+    marginTop: 12,
   },
   listContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 20,
   },
   productCard: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#0D6EFD",
   },
   productHeader: {
     flexDirection: "row",
@@ -3082,11 +2981,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginRight: 12,
   },
   productImageContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+    width: 64,
+    height: 64,
+    borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: tc('surface', "#1E293B"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
     borderColor: tc('border', "#334155"),
   },
@@ -3099,7 +2998,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: tc('surface', "#1E293B"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
   },
   productName: {
     fontSize: 16,
@@ -3111,8 +3010,15 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#94A3B8"),
   },
   productCategory: {
-    fontSize: 12,
+    alignSelf: "flex-start",
+    fontSize: 11,
+    fontWeight: "700",
     color: "#0D6EFD",
+    backgroundColor: "#0D6EFD26",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: "hidden",
     marginTop: 4,
   },
   productDetails: {
@@ -3140,16 +3046,16 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   productActions: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
   },
   editButton: {
     backgroundColor: "#0D6EFD",
@@ -3158,39 +3064,29 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: "#DC3545",
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "bold",
     color: "#fff",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: tc('bg', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
     maxHeight: "90%",
   },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-  },
   modalForm: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   formGroupHalf: {
     flex: 1,
@@ -3200,17 +3096,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 12,
   },
   formLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: tc('text', "#fff"),
-    marginBottom: 8,
+    color: tc('muted', "#94A3B8"),
+    marginBottom: 6,
   },
   formInput: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     color: tc('text', "#fff"),
@@ -3221,7 +3117,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   modalActions: {
     flexDirection: "row",
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
     paddingBottom: 40,
     gap: 12,
     borderTopWidth: 1,
@@ -3232,22 +3129,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: tc('surface', "#1E293B"),
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-  },
-  saveButton: {
-    backgroundColor: "#0D6EFD",
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
   },
   imageModalOverlay: {
     flex: 1,
@@ -3294,9 +3175,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: tc('surface', "#000000"),
-    borderWidth: 2,
-    borderColor: "#0D6EFD",
+    backgroundColor: "#0D6EFD1F",
+    borderWidth: 1,
+    borderColor: "#0D6EFD66",
     borderRadius: 12,
     borderStyle: "dashed",
   },
@@ -3314,14 +3195,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: 150,
     height: 150,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: tc('border', "#1E293B"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
   },
   removeImageButton: {
     position: "absolute",
     top: -8,
     right: -8,
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
   },
   pickerContainer: {
@@ -3340,7 +3221,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   pickerButtonText: {
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   chipButton: {
     paddingVertical: 8,
@@ -3357,7 +3238,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   chipButtonText: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontWeight: "500",
   },
   chipButtonTextActive: {
@@ -3380,7 +3261,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   genderButtonText: {
     fontSize: 16,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontWeight: "500",
   },
   genderButtonTextActive: {
@@ -3392,64 +3273,87 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   selectButtonText: {
     fontSize: 16,
+    fontWeight: "600",
     color: tc('text', "#fff"),
     flex: 1,
   },
   readonlyInput: {
-    backgroundColor: tc('bg', "#0A0A0A"),
+    backgroundColor: tc('surface3', "#11111A"),
     color: tc('muted', "#94A3B8"),
   },
   characterCount: {
     fontSize: 12,
-    color: tc('muted', "#64748B"),
+    color: tc('muted', "#94A3B8"),
     textAlign: "right",
     marginTop: 4,
   },
   // Picker modal styles
   pickerModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "flex-end",
   },
   pickerModalContent: {
-    backgroundColor: tc('bg', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
     maxHeight: "80%",
   },
   pickerModalHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: tc('border', "#1E293B"),
   },
+  sheetHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+  },
   pickerModalTitle: {
-    fontSize: 20,
+    flex: 1,
+    fontSize: 19,
     fontWeight: "bold",
     color: tc('text', "#fff"),
   },
   pickerSearchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#0A0A0A"),
-    margin: 20,
-    marginBottom: 0,
-    paddingHorizontal: 16,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
     gap: 10,
   },
   pickerSearchInput: {
@@ -3461,16 +3365,22 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 8,
   },
   pickerItemSelected: {
-    backgroundColor: "#0D6EFD15",
+    backgroundColor: "#0D6EFD1F",
+    borderColor: "#0D6EFD",
   },
   pickerItemText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: "600",
     color: tc('text', "#fff"),
     flex: 1,
   },
@@ -3479,8 +3389,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "600",
   },
   pickerEmptyText: {
-    fontSize: 16,
-    color: tc('muted', "#64748B"),
+    fontSize: 15,
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     padding: 40,
   },
@@ -3495,6 +3405,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#0D6EFD1F",
   },
   addExceptionText: {
     fontSize: 14,
@@ -3503,20 +3417,24 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   noExceptionsText: {
     fontSize: 14,
-    color: tc('muted', "#64748B"),
+    color: tc('muted', "#94A3B8"),
     fontStyle: "italic",
     padding: 16,
     textAlign: "center",
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
   },
   exceptionItem: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 8,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#334155"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#0D6EFD",
   },
   exceptionRow: {
     flexDirection: "row",
@@ -3528,6 +3446,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   exceptionLabel: {
     fontSize: 12,
+    fontWeight: "600",
     color: tc('muted', "#94A3B8"),
     marginBottom: 6,
   },
@@ -3535,114 +3454,67 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderRadius: 6,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   exceptionSelectText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "600",
     color: tc('text', "#fff"),
     flex: 1,
   },
   exceptionInput: {
-    backgroundColor: tc('surface', "#000000"),
+    backgroundColor: tc('surface', "#161622"),
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderRadius: 6,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 15,
     color: tc('text', "#fff"),
   },
   removeExceptionButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#DC262615",
-    borderRadius: 6,
-    marginBottom: 2,
-  },
-  successModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  successModalContent: {
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    width: "80%",
-    maxWidth: 400,
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-  },
-  successIconContainer: {
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-    marginBottom: 12,
-  },
-  successMessage: {
-    fontSize: 16,
-    color: tc('muted', "#94A3B8"),
-    textAlign: "center",
-    marginBottom: 24,
+    backgroundColor: "#DC354526",
+    borderRadius: 12,
   },
   successButton: {
     backgroundColor: "#10B981",
-    paddingHorizontal: 48,
+    paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 12,
+    alignItems: "center",
     width: "100%",
-  },
-  successButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-    textAlign: "center",
-  },
-  confirmButtons: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
-    marginTop: 8,
-  },
-  confirmButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  cancelConfirmButton: {
-    backgroundColor: "#64748B",
   },
   deleteConfirmButton: {
-    backgroundColor: "#DC2626",
+    backgroundColor: "#DC3545",
   },
   priceSyncButtons: {
     width: "100%",
     gap: 10,
-    marginTop: 8,
+    marginTop: 4,
   },
   priceSyncButton: {
+    flex: 0,
     width: "100%",
     paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
+    alignItems: "center",
   },
   priceSyncKeepButton: {
     backgroundColor: "#0D6EFD",
   },
   productSubcategory: {
     fontSize: 13,
-    color: tc('muted', "#64748B"),
+    color: tc('muted', "#94A3B8"),
     marginTop: 2,
   },
   exceptionsContainer: {
@@ -3663,11 +3535,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 4,
   },
   exceptionSize: {
-    fontSize: 12,
-    color: tc('muted', "#64748B"),
+    fontSize: 13,
+    color: tc('muted', "#94A3B8"),
   },
   exceptionValue: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#0D6EFD",
     fontWeight: "600",
   },
