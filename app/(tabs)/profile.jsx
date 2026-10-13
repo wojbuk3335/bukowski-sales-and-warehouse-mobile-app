@@ -9,6 +9,8 @@ import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
+import ThemeSwitch from '../../components/ThemeSwitch';
+import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext';
 import { appAlert } from '../../services/appAlert';
 import { amountError, amountOrZero, formatAmount, parseAmount, validateOrderAmounts } from '../../utils/priceInput';
 import { formatPhoneNumber, isValidPolishPhone } from '../../utils/phoneNumber';
@@ -20,6 +22,7 @@ const RETRY_SAFE_HINT = 'Zamówienie mogło zostać zapisane - naciśnij „Zatw
 
 const Profile = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
+  const { colors: themeColors } = useAppTheme(); // 'colors' to już słownik kolorów produktów
   const { logout, user } = useContext(GlobalStateContext); // Access logout function
   
   // States for order form
@@ -1024,7 +1027,7 @@ const Profile = () => {
 
   return (
     <>
-      <SafeAreaView style={{ backgroundColor: "#000", flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
+      <SafeAreaView style={{ backgroundColor: themeColors.bg, flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
         <LogoutButton position="top-right" />
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1034,10 +1037,10 @@ const Profile = () => {
           <View style={{ marginVertical: 24, paddingHorizontal: 16 }}>
             <View style={{ flexDirection: "row", justifyContent: "flex-start", alignItems: "center", marginBottom: 24 }}>
               <View>
-                <Text style={{ fontSize: 14, color: "#f3f4f6" }}>
+                <Text style={{ fontSize: 14, color: tc('text', "#f3f4f6") }}>
                   Zalogowany jako: <Text style={{ fontWeight: 'bold' }}>{user?.email}</Text>
                 </Text>
-                <Text style={{ fontSize: 14, color: "#f3f4f6" }}>
+                <Text style={{ fontSize: 14, color: tc('text', "#f3f4f6") }}>
                   {new Date().toLocaleDateString('pl-PL', {
                     year: 'numeric',
                     month: '2-digit',
@@ -1055,6 +1058,7 @@ const Profile = () => {
             contentInsetAdjustmentBehavior="automatic"
             keyboardDismissMode="interactive"
           >
+          <ThemeSwitch style={{ marginTop: 56 }} />
           <View style={styles.container}>
             <Text style={styles.title}>Zamówienia</Text>
             
@@ -1109,7 +1113,7 @@ const Profile = () => {
                       if (productSearchText.length > 0) setProductDropdownVisible(true);
                     }}
                     onBlur={() => setProductInputFocused(false)}
-                    placeholderTextColor="#666"
+                    placeholderTextColor={tc('muted', "#666")}
                   />
                   {/* Product dropdown */}
                   {productDropdownVisible && (
@@ -1177,7 +1181,7 @@ const Profile = () => {
                       if (colorSearchText.length > 0) setColorDropdownVisible(true);
                     }}
                     onBlur={() => setColorInputFocused(false)}
-                    placeholderTextColor="#666"
+                    placeholderTextColor={tc('muted', "#666")}
                   />
                   {/* Color dropdown */}
                   {colorDropdownVisible && (
@@ -1245,7 +1249,7 @@ const Profile = () => {
                       if (sizeSearchText.length > 0) setSizeDropdownVisible(true);
                     }}
                     onBlur={() => setSizeInputFocused(false)}
-                    placeholderTextColor="#666"
+                    placeholderTextColor={tc('muted', "#666")}
                   />
                   {/* Size dropdown */}
                   {sizeDropdownVisible && (
@@ -1289,7 +1293,7 @@ const Profile = () => {
                     }}
                     onFocus={() => setDescriptionInputFocused(true)}
                     onBlur={() => setDescriptionInputFocused(false)}
-                    placeholderTextColor="#666"
+                    placeholderTextColor={tc('muted', "#666")}
                     multiline={true}
                     numberOfLines={4}
                     textAlignVertical="top"
@@ -1312,7 +1316,7 @@ const Profile = () => {
                       onChangeText={setCustomerName}
                       onFocus={() => setCustomerNameFocused(true)}
                       onBlur={() => setCustomerNameFocused(false)}
-                      placeholderTextColor="#666"
+                      placeholderTextColor={tc('muted', "#666")}
                     />
                   </View>
 
@@ -1377,7 +1381,7 @@ const Profile = () => {
                         onChangeText={handlePostalCodeChange}
                         onFocus={() => setPostalCodeFocused(true)}
                         onBlur={() => setPostalCodeFocused(false)}
-                        placeholderTextColor="#666"
+                        placeholderTextColor={tc('muted', "#666")}
                         keyboardType="numeric"
                         maxLength={6}
                         testID="postal-code-input"
@@ -1408,7 +1412,7 @@ const Profile = () => {
                         onChangeText={handleCityChange}
                         onFocus={() => setCityInputFocused(true)}
                         onBlur={() => setCityInputFocused(false)}
-                        placeholderTextColor="#666"
+                        placeholderTextColor={tc('muted', "#666")}
                         testID="city-input"
                       />
                       {postalHint === 'mismatch' && (
@@ -1440,7 +1444,7 @@ const Profile = () => {
                         onChangeText={setStreetSearchText}
                         onFocus={() => setStreetInputFocused(true)}
                         onBlur={() => setTimeout(() => setStreetInputFocused(false), 250)}
-                        placeholderTextColor="#666"
+                        placeholderTextColor={tc('muted', "#666")}
                         testID="street-input"
                       />
                       {renderStreetSuggestions()}
@@ -1458,7 +1462,7 @@ const Profile = () => {
                         onChangeText={setHouseNumber}
                         onFocus={() => setHouseNumberFocused(true)}
                         onBlur={() => setHouseNumberFocused(false)}
-                        placeholderTextColor="#666"
+                        placeholderTextColor={tc('muted', "#666")}
                         autoCapitalize="characters"
                       />
                       {renderAddressHint()}
@@ -1477,7 +1481,7 @@ const Profile = () => {
                           onChangeText={setCitySearchText}
                           onFocus={() => setCityInputFocused(true)}
                           onBlur={() => setCityInputFocused(false)}
-                          placeholderTextColor="#666"
+                          placeholderTextColor={tc('muted', "#666")}
                         />
                       </View>
 
@@ -1490,7 +1494,7 @@ const Profile = () => {
                           onChangeText={setStreetSearchText}
                           onFocus={() => setStreetInputFocused(true)}
                           onBlur={() => setTimeout(() => setStreetInputFocused(false), 250)}
-                          placeholderTextColor="#666"
+                          placeholderTextColor={tc('muted', "#666")}
                         />
                         {renderStreetSuggestions()}
                       </View>
@@ -1504,7 +1508,7 @@ const Profile = () => {
                           onChangeText={setHouseNumber}
                           onFocus={() => setHouseNumberFocused(true)}
                           onBlur={() => setHouseNumberFocused(false)}
-                          placeholderTextColor="#666"
+                          placeholderTextColor={tc('muted', "#666")}
                           autoCapitalize="characters"
                         />
                         {renderAddressHint()}
@@ -1526,7 +1530,7 @@ const Profile = () => {
                       onChangeText={handlePhoneNumberChange}
                       onFocus={() => setPhoneNumberFocused(true)}
                       onBlur={() => setPhoneNumberFocused(false)}
-                      placeholderTextColor="#666"
+                      placeholderTextColor={tc('muted', "#666")}
                       keyboardType="phone-pad"
                       autoComplete="tel"
                     />
@@ -1553,7 +1557,7 @@ const Profile = () => {
                       onChangeText={handleEmailChange}
                       onFocus={() => setEmailFocused(true)}
                       onBlur={() => setEmailFocused(false)}
-                      placeholderTextColor="#666"
+                      placeholderTextColor={tc('muted', "#666")}
                       keyboardType="email-address"
                       autoComplete="email"
                       autoCapitalize="none"
@@ -1583,7 +1587,7 @@ const Profile = () => {
                       onChangeText={handleTotalPriceChange}
                       onFocus={() => setTotalPriceFocused(true)}
                       onBlur={() => setTotalPriceFocused(false)}
-                      placeholderTextColor="#666"
+                      placeholderTextColor={tc('muted', "#666")}
                       keyboardType="numeric"
                     />
                     {renderAmountPreview(totalPrice, 'Cena')}
@@ -1599,7 +1603,7 @@ const Profile = () => {
                       onChangeText={handleDepositChange}
                       onFocus={() => setDepositFocused(true)}
                       onBlur={() => setDepositFocused(false)}
-                      placeholderTextColor="#666"
+                      placeholderTextColor={tc('muted', "#666")}
                       keyboardType="numeric"
                     />
                     {renderAmountPreview(deposit, 'Zaliczka', depositCurrency === 'PLN' ? 'zł' : depositCurrency)}
@@ -1715,7 +1719,7 @@ const Profile = () => {
                         onChangeText={handleNipChange}
                         onFocus={() => setNipFocused(true)}
                         onBlur={() => setNipFocused(false)}
-                        placeholderTextColor="#666"
+                        placeholderTextColor={tc('muted', "#666")}
                         keyboardType="numeric"
                         maxLength={13}
                       />
@@ -1764,7 +1768,7 @@ const Profile = () => {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={tc('text', "#fff")} />
                   ) : (
                     <Text style={styles.submitButtonText}>Zatwierdź zamówienie</Text>
                   )}
@@ -1878,7 +1882,7 @@ const Profile = () => {
 
 export default Profile;
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   scrollContainer: {
     flex: 1,
   },
@@ -1888,19 +1892,19 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Extra padding to ensure content is not hidden behind keyboard
   },
   title: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
   },
   dateContainer: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     padding: 16,
     borderRadius: 8,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
   },
   dateText: {
     color: '#0d6efd',
@@ -1920,17 +1924,17 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   fieldLabel: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
-    color: 'white',
+    borderColor: tc('border', '#333'),
+    color: tc('text', 'white'),
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 15,
@@ -1941,11 +1945,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   textArea: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
-    color: 'white',
+    borderColor: tc('border', '#333'),
+    color: tc('text', 'white'),
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 15,
@@ -1953,28 +1957,28 @@ const styles = StyleSheet.create({
     maxHeight: 150,
   },
   charCounter: {
-    color: '#666',
+    color: tc('muted', '#666'),
     fontSize: 12,
     textAlign: 'right',
     marginTop: 5,
   },
   sectionContainer: {
-    backgroundColor: '#0f0f0f',
+    backgroundColor: tc('surface', '#0f0f0f'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
   },
   sectionTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
   },
   dropdownItemSubtext: {
-    color: '#888',
+    color: tc('muted', '#888'),
     fontSize: 12,
     marginTop: 2,
   },
@@ -1989,15 +1993,15 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   helperText: {
-    color: '#888',
+    color: tc('muted', '#888'),
     fontSize: 12,
     marginTop: 5,
     marginLeft: 5,
   },
   calculatedField: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     justifyContent: 'center',
-    borderColor: '#555',
+    borderColor: tc('border', '#555'),
   },
   calculatedFieldText: {
     color: '#0d6efd',
@@ -2010,10 +2014,10 @@ const styles = StyleSheet.create({
   },
   checkboxItem: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: 'center',
@@ -2023,7 +2027,7 @@ const styles = StyleSheet.create({
     borderColor: '#0d6efd',
   },
   checkboxText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: '500',
   },
@@ -2031,16 +2035,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   datePickerButton: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
     paddingVertical: 15,
     paddingHorizontal: 12,
     justifyContent: 'center',
   },
   datePickerText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
   },
   submitButton: {
@@ -2057,7 +2061,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#666',
   },
   submitButtonText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -2066,10 +2070,10 @@ const styles = StyleSheet.create({
     top: 75,
     left: 0,
     right: 0,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
     maxHeight: 200,
     zIndex: 1000,
   },
@@ -2079,14 +2083,14 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: tc('border', '#333'),
   },
   dropdownItemText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
   },
   noDataText: {
-    color: '#666',
+    color: tc('muted', '#666'),
     fontSize: 14,
     padding: 12,
     textAlign: 'center',
@@ -2097,7 +2101,7 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: tc('border', '#333'),
   },
   closeDropdownText: {
     color: 'white',
@@ -2113,8 +2117,8 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#2a2a2a',
+    borderColor: tc('border', '#333'),
+    backgroundColor: tc('surface', '#2a2a2a'),
     alignItems: 'center',
   },
   deliveryOptionSelected: {
@@ -2143,7 +2147,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 20,
     padding: 30,
     width: '85%',
@@ -2174,7 +2178,7 @@ const styles = StyleSheet.create({
   successModalTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 10,
   },
   successModalSubtitle: {
@@ -2197,17 +2201,17 @@ const styles = StyleSheet.create({
   },
   // Currency Selection Styles
   currencySelect: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
     paddingHorizontal: 12,
     paddingVertical: 15,
     height: 50,
     justifyContent: 'center',
   },
   currencySelectText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -2224,14 +2228,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   currencyModalContent: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
     maxHeight: '70%',
   },
   currencyModalTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
@@ -2241,12 +2245,12 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   currencyOptionItem: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderRadius: 8,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
   },
   currencyOptionRow: {
     flexDirection: 'row',
@@ -2254,14 +2258,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   currencyOptionCode: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 18,
     fontWeight: 'bold',
     marginRight: 12,
     minWidth: 50,
   },
   currencyOptionName: {
-    color: '#ccc',
+    color: tc('muted', '#ccc'),
     fontSize: 14,
     flex: 1,
   },
@@ -2281,17 +2285,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-  },});
+  },}));
 
 // Podpowiedzi pod kodem pocztowym / miejscowością
-const postalHintStyles = StyleSheet.create({
-  muted: { color: '#94A3B8', fontSize: 13, marginTop: 6 },
-  ok: { color: '#22C55E', fontSize: 13, marginTop: 6, fontWeight: '600' },
-  warn: { color: '#F59E0B', fontSize: 13, marginTop: 6, fontWeight: '600' },
+const postalHintStyles = createThemedStyles(() => StyleSheet.create({
+  muted: { color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 6 },
+  ok: { color: tcl('#22C55E', '#15803d'), fontSize: 13, marginTop: 6, fontWeight: '600' },
+  warn: { color: tcl('#F59E0B', '#b45309'), fontSize: 13, marginTop: 6, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#1E293B', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  chip: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: tc('surface2', '#1E293B'), borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   chipText: { color: '#F59E0B', fontSize: 13, fontWeight: '600' },
-  suggestList: { marginTop: 4, backgroundColor: '#1E293B', borderColor: '#334155', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
-  suggestItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomColor: '#334155', borderBottomWidth: 1 },
-  suggestText: { color: '#FFFFFF', fontSize: 15 },
-});
+  suggestList: { marginTop: 4, backgroundColor: tc('surface2', '#1E293B'), borderColor: tc('border', '#334155'), borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  suggestItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomColor: tc('border', '#334155'), borderBottomWidth: 1 },
+  suggestText: { color: tc('text', '#FFFFFF'), fontSize: 15 },
+}));

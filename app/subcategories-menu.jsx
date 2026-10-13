@@ -10,7 +10,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const SubcategoriesMenu = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const subcategories = [
     {
       id: "coats",
@@ -76,7 +78,7 @@ const SubcategoriesMenu = () => {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tabela podkategorii</Text>
         <View style={styles.backButton} />
@@ -99,7 +101,7 @@ const SubcategoriesMenu = () => {
               <Text style={styles.menuTitle}>{item.title}</Text>
               <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#64748B" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -108,10 +110,10 @@ const SubcategoriesMenu = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
@@ -119,22 +121,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
     textAlign: "center",
   },
@@ -146,13 +148,13 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -173,13 +175,13 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   menuSubtitle: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
-});
+}));
 
 export default SubcategoriesMenu;

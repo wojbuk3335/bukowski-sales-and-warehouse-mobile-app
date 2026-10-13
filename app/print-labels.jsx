@@ -19,7 +19,9 @@ import tokenService from '../services/tokenService';
 import { AuthContext } from '../context/AuthContext';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const PrintLabels = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const authContext = useContext(AuthContext);
   const authData = authContext?.authData;
   
@@ -921,17 +923,17 @@ const PrintLabels = () => {
         {isActive && (
           <View style={styles.dropdownContainer}>
             <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color="#64748B" style={styles.searchIcon} />
+              <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={filterSearch}
                 onChangeText={setFilterSearch}
               />
               {filterSearch.length > 0 && (
                 <TouchableOpacity onPress={() => setFilterSearch('')}>
-                  <Ionicons name="close-circle" size={20} color="#64748B" />
+                  <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1001,7 +1003,7 @@ const PrintLabels = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Wydruk etykiet</Text>
         <View style={styles.backButton} />
@@ -1016,17 +1018,17 @@ const PrintLabels = () => {
         {/* Search */}
         <View style={styles.card}>
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#64748B" style={styles.searchIcon} />
+            <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Szukaj produktu, kodu..."
-              placeholderTextColor="#64748B"
+              placeholderTextColor={tc('muted', "#64748B")}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#64748B" />
+                <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
               </TouchableOpacity>
             )}
           </View>
@@ -1123,12 +1125,12 @@ const PrintLabels = () => {
             >
               {printingAll ? (
                 <>
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={tc('text', "#fff")} />
                   <Text style={styles.printAllButtonText}>Drukowanie...</Text>
                 </>
               ) : (
                 <>
-                  <Ionicons name="print" size={20} color="#fff" />
+                  <Ionicons name="print" size={20} color={tc('text', "#fff")} />
                   <Text style={styles.printAllButtonText}>
                     Drukuj wszystkie ({countTotalLabels(filteredData)} etykiet)
                   </Text>
@@ -1151,7 +1153,7 @@ const PrintLabels = () => {
             </View>
           ) : filteredData.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="cube-outline" size={48} color="#64748B" />
+              <Ionicons name="cube-outline" size={48} color={tc('muted', "#64748B")} />
               <Text style={styles.emptyText}>Brak danych dla wybranych filtrów</Text>
             </View>
           ) : (
@@ -1226,24 +1228,24 @@ const PrintLabels = () => {
                 
                 <View style={styles.inventoryItemDetails}>
                   <View style={styles.detailRow}>
-                    <Ionicons name="barcode-outline" size={16} color="#64748B" />
+                    <Ionicons name="barcode-outline" size={16} color={tc('muted', "#64748B")} />
                     <Text style={styles.detailText}>{barcode || '-'}</Text>
                   </View>
                   
                   <View style={styles.detailRow}>
-                    <Ionicons name="resize-outline" size={16} color="#64748B" />
+                    <Ionicons name="resize-outline" size={16} color={tc('muted', "#64748B")} />
                     <Text style={styles.detailText}>{sizeLabel}</Text>
                   </View>
                   
                   {locationLabel && (
                     <View style={styles.detailRow}>
-                      <Ionicons name="location-outline" size={16} color="#64748B" />
+                      <Ionicons name="location-outline" size={16} color={tc('muted', "#64748B")} />
                       <Text style={styles.detailText}>{locationLabel}</Text>
                     </View>
                   )}
                   
                   <View style={styles.detailRow}>
-                    <Ionicons name="storefront-outline" size={16} color="#64748B" />
+                    <Ionicons name="storefront-outline" size={16} color={tc('muted', "#64748B")} />
                     <Text style={styles.detailText}>{sellingPointLabel}</Text>
                   </View>
                   
@@ -1256,7 +1258,7 @@ const PrintLabels = () => {
                   ) : (
                     <>
                       <View style={styles.detailRow}>
-                        <Ionicons name="pricetag-outline" size={16} color="#64748B" />
+                        <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#64748B")} />
                         <Text style={styles.detailText}>Cena: {regularPrice}</Text>
                       </View>
                       
@@ -1340,10 +1342,10 @@ const PrintLabels = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   header: {
     flexDirection: 'row',
@@ -1352,7 +1354,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1f2937',
+    borderBottomColor: tc('border', '#1f2937'),
   },
   backButton: {
     width: 40,
@@ -1363,7 +1365,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 20,
     fontWeight: '700',
   },
@@ -1375,15 +1377,15 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   cardTitle: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
@@ -1391,18 +1393,18 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderRadius: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: tc('border', '#3a3a3a'),
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
     paddingVertical: 12,
   },
@@ -1439,11 +1441,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: tc('border', '#3a3a3a'),
   },
   filterButtonActive: {
     backgroundColor: '#0d6efd',
@@ -1462,9 +1464,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dropdownContainer: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: tc('border', '#3a3a3a'),
     borderTopWidth: 0,
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
@@ -1475,7 +1477,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#3a3a3a',
+    borderBottomColor: tc('border', '#3a3a3a'),
   },
   dropdownScroll: {
     maxHeight: 200,
@@ -1486,13 +1488,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#3a3a3a',
+    borderBottomColor: tc('border', '#3a3a3a'),
   },
   dropdownItemSelected: {
     backgroundColor: '#0d6efd10',
   },
   dropdownItemText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
   },
   dropdownItemTextSelected: {
@@ -1512,7 +1514,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#64748B',
   },
   printAllButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -1524,7 +1526,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -1571,7 +1573,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -1621,12 +1623,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   inventoryItem: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: tc('border', '#3a3a3a'),
   },
   inventoryItemHeader: {
     flexDirection: 'row',
@@ -1638,7 +1640,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginRight: 8,
   },
   headerActions: {
@@ -1662,7 +1664,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   detailText: {
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     fontSize: 14,
   },
   loadingContainer: {
@@ -1671,7 +1673,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   loadingText: {
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 12,
     fontSize: 14,
   },
@@ -1681,11 +1683,11 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   emptyText: {
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 12,
     fontSize: 14,
     textAlign: 'center',
   },
-});
+}));
 
 export default PrintLabels;

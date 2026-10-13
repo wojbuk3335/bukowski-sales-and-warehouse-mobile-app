@@ -2,7 +2,9 @@ import React, { useContext } from 'react';
 import { TouchableOpacity, Text, View } from 'react-native';
 import { GlobalStateContext } from '../context/GlobalState';
 
+import { tc, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const LogoutButton = ({ position = 'top-right', style = {} }) => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, logout } = useContext(GlobalStateContext);
 
   const handleLogout = async () => {
@@ -72,7 +74,7 @@ const LogoutButton = ({ position = 'top-right', style = {} }) => {
     >
       <Text style={{ 
         fontSize: 12, 
-        color: "#fff", 
+        color: tc('text', "#fff"), 
         fontWeight: "bold",
         textAlign: 'center'
       }}>

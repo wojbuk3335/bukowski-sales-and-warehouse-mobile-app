@@ -21,7 +21,9 @@ import { getApiUrl } from "../../config/api";
 import LogoutButton from "../../components/LogoutButton";
 import { appAlert } from '../../services/appAlert';
 
+import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Users = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const { users, fetchUsers } = useContext(GlobalStateContext);
   
@@ -1807,14 +1809,14 @@ const Users = () => {
                 handlePrintLabel(enrichedItem);
               }}
             >
-              <Ionicons name="print" size={20} color="#fff" />
+              <Ionicons name="print" size={20} color={tc('text', "#fff")} />
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.returnButton}
               onPress={() => handleUnpairMatchedItem(item)}
             >
-              <Ionicons name="arrow-undo" size={20} color="#fff" />
+              <Ionicons name="arrow-undo" size={20} color={tc('text', "#fff")} />
             </TouchableOpacity>
             </View>
           </View>
@@ -1890,7 +1892,7 @@ const Users = () => {
                 handlePrintLabel(enrichedItem);
               }}
             >
-              <Ionicons name="print" size={20} color="#fff" />
+              <Ionicons name="print" size={20} color={tc('text', "#fff")} />
             </TouchableOpacity>
             
             {fromWarehouse && (
@@ -1898,7 +1900,7 @@ const Users = () => {
                 style={styles.returnButton}
                 onPress={() => handleReturnToWarehouse(item)}
               >
-                <Ionicons name="arrow-back" size={20} color="#fff" />
+                <Ionicons name="arrow-back" size={20} color={tc('text', "#fff")} />
               </TouchableOpacity>
             )}
             </View>
@@ -1977,7 +1979,7 @@ const Users = () => {
                 handlePrintLabel(enrichedItem);
               }}
             >
-              <Ionicons name="print" size={20} color="#fff" />
+              <Ionicons name="print" size={20} color={tc('text', "#fff")} />
             </TouchableOpacity>
             
             <View style={styles.yellowBadge}>
@@ -2279,7 +2281,7 @@ const Users = () => {
                   filteredUsers.find(u => u._id === selectedUserId)?.email
                 : "Wybierz użytkownika..."}
             </Text>
-            <Ionicons name="people" size={24} color="#fff" />
+            <Ionicons name="people" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
         </View>
 
@@ -2321,7 +2323,7 @@ const Users = () => {
             <Text style={styles.selectButtonText}>
               {selectedDate.toLocaleDateString("pl-PL")}
             </Text>
-            <Ionicons name="calendar" size={24} color="#fff" />
+            <Ionicons name="calendar" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
           {showDatePicker && (
             <DateTimePicker
@@ -2371,17 +2373,17 @@ const Users = () => {
               <Text style={styles.sectionSubtitle}>Dostępne produkty w magazynie</Text>
 
               <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#94A3B8" />
+                <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Szukaj w magazynie..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={warehouseSearch}
                   onChangeText={setWarehouseSearch}
                 />
                 {warehouseSearch !== '' && (
                   <TouchableOpacity onPress={() => setWarehouseSearch('')}>
-                    <Ionicons name="close-circle" size={20} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -2510,10 +2512,10 @@ const Users = () => {
                 disabled={processing || (blueItems.length === 0 && transfers.length === 0 && yellowTransfers.length === 0)}
               >
                 {processing ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={tc('text', "#fff")} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-done" size={24} color="#fff" />
+                    <Ionicons name="checkmark-done" size={24} color={tc('text', "#fff")} />
                     <Text style={styles.processButtonText}>Przetwórz</Text>
                   </>
                 )}
@@ -2526,7 +2528,7 @@ const Users = () => {
                   onPress={() => setShowUndoConfirmModal(true)}
                   disabled={processing}
                 >
-                  <Ionicons name="arrow-undo" size={24} color="#fff" />
+                  <Ionicons name="arrow-undo" size={24} color={tc('text', "#fff")} />
                   <Text style={styles.undoButtonText}>Cofnij ostatnią transakcję</Text>
                 </TouchableOpacity>
               )}
@@ -2554,7 +2556,7 @@ const Users = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Wybierz użytkownika</Text>
               <TouchableOpacity onPress={() => setShowUserModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -3036,7 +3038,7 @@ const Users = () => {
                   setPendingProcessingDate(null);
                 }}
               >
-                <Ionicons name="close-circle" size={24} color="#94A3B8" />
+                <Ionicons name="close-circle" size={24} color={tc('muted', "#94A3B8")} />
                 <Text style={styles.printCancelButtonText}>Nie - Anuluj</Text>
               </TouchableOpacity>
             </View>
@@ -3082,7 +3084,7 @@ const Users = () => {
                   });
                 }}
               >
-                <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                <Ionicons name="checkmark-circle" size={22} color={tc('text', "#fff")} />
                 <Text style={styles.printConfirmButtonText}>Tak, przypisz do {onlyOrangeData?.lastPrintedDate || onlyOrangeData?.date}</Text>
               </TouchableOpacity>
 
@@ -3094,7 +3096,7 @@ const Users = () => {
                   setShowDatePicker(true);
                 }}
               >
-                <Ionicons name="calendar" size={22} color="#94A3B8" />
+                <Ionicons name="calendar" size={22} color={tc('muted', "#94A3B8")} />
                 <Text style={styles.printCancelButtonText}>Nie, wybierz inną datę</Text>
               </TouchableOpacity>
             </View>
@@ -3204,17 +3206,17 @@ const Users = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     alignItems: "center",
     paddingVertical: 20,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   iconContainer: {
     width: 64,
@@ -3228,7 +3230,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   subtitle: {
@@ -3245,39 +3247,39 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   selectButton: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
   },
   selectButtonText: {
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 12,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
@@ -3286,7 +3288,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   warehouseList: {
     maxHeight: 400,
@@ -3299,15 +3301,15 @@ const styles = StyleSheet.create({
     maxHeight: 'auto',
   },
   warehouseCard: {
-    backgroundColor: "#000",
+    backgroundColor: tc('surface', "#000"),
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
   },
   warehouseCardMatched: {
-    backgroundColor: "#374151",
+    backgroundColor: tc('surface2', "#374151"),
     opacity: 0.6,
   },
   warehouseContent: {
@@ -3322,20 +3324,20 @@ const styles = StyleSheet.create({
   warehouseName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   warehouseSize: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 2,
   },
   warehouseBarcode: {
     fontSize: 12,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   matchedText: {
-    color: "#9CA3AF",
+    color: tc('muted', "#9CA3AF"),
   },
   warehouseButton: {
     backgroundColor: "rgb(0, 123, 255)",
@@ -3349,7 +3351,7 @@ const styles = StyleSheet.create({
   warehouseButtonText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   transferCard: {
     borderRadius: 12,
@@ -3383,7 +3385,7 @@ const styles = StyleSheet.create({
   transferIndicator: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginTop: 4,
   },
   transferActions: {
@@ -3412,7 +3414,7 @@ const styles = StyleSheet.create({
   matchedBadgeText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   buttonContainer: {
     paddingHorizontal: 20,
@@ -3430,7 +3432,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   processButtonDisabled: {
-    backgroundColor: "#374151",
+    backgroundColor: tc('surface2', "#374151"),
   },
   processButtonText: {
     fontSize: 18,
@@ -3447,12 +3449,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   undoButtonDisabled: {
-    backgroundColor: "#374151",
+    backgroundColor: tc('surface2', "#374151"),
   },
   undoButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   loadingContainer: {
     padding: 40,
@@ -3460,7 +3462,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginTop: 12,
   },
   emptyContainer: {
@@ -3469,7 +3471,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     textAlign: "center",
     marginTop: 16,
   },
@@ -3479,7 +3481,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "80%",
@@ -3490,12 +3492,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: tc('border', "#334155"),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   userItem: {
     flexDirection: "row",
@@ -3503,7 +3505,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: tc('border', "#334155"),
   },
   userItemSelected: {
     backgroundColor: "rgba(0, 123, 255, 0.2)",
@@ -3520,11 +3522,11 @@ const styles = StyleSheet.create({
   userItemName: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   userItemSymbol: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginTop: 2,
   },
   controlModalOverlay: {
@@ -3548,7 +3550,7 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   controlModalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 18,
     padding: 20,
     maxHeight: "100%",
@@ -3564,11 +3566,11 @@ const styles = StyleSheet.create({
   controlModalTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#ffffff",
+    color: tc('text', "#ffffff"),
     textAlign: "center",
   },
   controlModalBody: {
-    backgroundColor: "#0f0f0f",
+    backgroundColor: tc('surface', "#0f0f0f"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -3578,11 +3580,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#2a2a2a",
+    borderBottomColor: tc('border', "#2a2a2a"),
   },
   userLabel: {
     fontSize: 11,
-    color: "#888888",
+    color: tc('muted', "#888888"),
     textTransform: "uppercase",
     letterSpacing: 1,
     fontWeight: "600",
@@ -3594,7 +3596,7 @@ const styles = StyleSheet.create({
     color: "rgb(0, 123, 255)",
   },
   warningBox: {
-    backgroundColor: "#3a2a1a",
+    backgroundColor: tcl("#3a2a1a", '#fff2e6'),
     padding: 14,
     borderRadius: 8,
     borderLeftWidth: 4,
@@ -3625,7 +3627,7 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     justifyContent: "flex-start",
     alignItems: "flex-start",
-    backgroundColor: "#242424",
+    backgroundColor: tc('surface', "#242424"),
     padding: 12,
     borderRadius: 8,
     marginBottom: 10,
@@ -3656,7 +3658,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#3a1a1a",
+    backgroundColor: tcl("#3a1a1a", '#ffe6e6'),
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
@@ -3677,7 +3679,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#3a3a1a",
+    backgroundColor: tcl("#3a3a1a", '#ffffe6'),
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
@@ -3698,7 +3700,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1a3a1a",
+    backgroundColor: tcl("#1a3a1a", '#e6ffe6'),
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
@@ -3716,23 +3718,23 @@ const styles = StyleSheet.create({
     color: "#44ff66",
   },
   statRowGray: {
-    backgroundColor: "#222222",
+    backgroundColor: tc('surface', "#222222"),
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#333333",
+    borderColor: tc('border', "#333333"),
     marginBottom: 10,
   },
   statLabelGray: {
     fontSize: 12,
-    color: "#999999",
+    color: tc('muted', "#999999"),
     textAlign: "center",
   },
   statRowOrange: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#3a2a1a",
+    backgroundColor: tcl("#3a2a1a", '#fff2e6'),
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
@@ -3771,30 +3773,30 @@ const styles = StyleSheet.create({
     color: "#dc2626",
   },
   calculationBox: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     padding: 14,
     borderRadius: 8,
     marginVertical: 12,
     borderWidth: 1,
-    borderColor: "#333333",
+    borderColor: tc('border', "#333333"),
   },
   calculationLabel: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#888888",
+    color: tc('muted', "#888888"),
     letterSpacing: 1,
     marginBottom: 6,
   },
   calculationText: {
     fontSize: 13,
-    color: "#cccccc",
+    color: tc('muted', "#cccccc"),
     lineHeight: 20,
   },
   resultRow: {
     flexDirection: "column",
     justifyContent: "flex-start",
     alignItems: "flex-start",
-    backgroundColor: "#242424",
+    backgroundColor: tc('surface', "#242424"),
     padding: 12,
     borderRadius: 8,
     marginTop: 8,
@@ -3820,7 +3822,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   discrepancyBox: {
-    backgroundColor: "#3a1a1a",
+    backgroundColor: tcl("#3a1a1a", '#ffe6e6'),
     padding: 10,
     borderRadius: 8,
     borderLeftWidth: 3,
@@ -3849,7 +3851,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   warehouseStateBox: {
-    backgroundColor: "#3a2a1a",
+    backgroundColor: tcl("#3a2a1a", '#fff2e6'),
     padding: 14,
     borderRadius: 8,
     borderLeftWidth: 4,
@@ -3887,7 +3889,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   confirmModalContent: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     borderRadius: 16,
     padding: 24,
     width: "100%",
@@ -3902,13 +3904,13 @@ const styles = StyleSheet.create({
   confirmModalTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#ffffff",
+    color: tc('text', "#ffffff"),
     marginTop: 12,
     marginBottom: 8,
   },
   confirmModalMessage: {
     fontSize: 16,
-    color: "#cbd5e1",
+    color: tc('muted', "#cbd5e1"),
     textAlign: "center",
     lineHeight: 24,
   },
@@ -3918,7 +3920,7 @@ const styles = StyleSheet.create({
   },
   confirmModalCancelButton: {
     flex: 1,
-    backgroundColor: "#374151",
+    backgroundColor: tc('surface2', "#374151"),
     padding: 14,
     borderRadius: 10,
     alignItems: "center",
@@ -3926,7 +3928,7 @@ const styles = StyleSheet.create({
   confirmModalCancelText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#e5e7eb",
+    color: tc('text', "#e5e7eb"),
   },
   confirmModalConfirmButton: {
     flex: 1,
@@ -3942,7 +3944,7 @@ const styles = StyleSheet.create({
   },
   confirmModalSubtext: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 20,
@@ -3965,13 +3967,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 12,
     padding: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
     width: '100%',
   },
   printStatsText: {
     fontSize: 16,
-    color: '#cbd5e1',
+    color: tc('muted', '#cbd5e1'),
     textAlign: 'center',
     fontWeight: '600',
   },
@@ -4006,7 +4008,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   printCancelButton: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
@@ -4014,12 +4016,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
   },
   printCancelButtonText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   printErrorButton: {
     backgroundColor: "#ef4444",
@@ -4039,10 +4041,10 @@ const styles = StyleSheet.create({
   },
   pendingDaysBox: {
     width: '100%',
-    backgroundColor: '#111827',
+    backgroundColor: tc('surface', '#111827'),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: tc('border', '#374151'),
     padding: 12,
     marginBottom: 12,
   },
@@ -4053,7 +4055,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pendingDaysItem: {
-    color: '#E5E7EB',
+    color: tc('text', '#E5E7EB'),
     fontSize: 13,
     marginBottom: 4,
   },
@@ -4063,7 +4065,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   topWarning: {
-    backgroundColor: "#3a2a1a",
+    backgroundColor: tcl("#3a2a1a", '#fff2e6'),
     padding: 16,
     borderRadius: 12,
     borderLeftWidth: 6,
@@ -4078,7 +4080,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   topSuccess: {
-    backgroundColor: "#1a3a1a",
+    backgroundColor: tcl("#1a3a1a", '#e6ffe6'),
     padding: 16,
     borderRadius: 12,
     borderLeftWidth: 6,
@@ -4150,9 +4152,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "#0f172a",
+    backgroundColor: tc('surface', "#0f172a"),
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: tc('border', "#1e293b"),
   },
   priceListInfoSuccess: {
     flexDirection: "row",
@@ -4160,7 +4162,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "#13261a",
+    backgroundColor: tcl("#13261a", '#e8fff1'),
     borderLeftWidth: 5,
     borderLeftColor: "#22c55e",
   },
@@ -4170,7 +4172,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "#2d2415",
+    backgroundColor: tcl("#2d2415", '#fff6e7'),
     borderLeftWidth: 5,
     borderLeftColor: "#f59e0b",
   },
@@ -4180,22 +4182,22 @@ const styles = StyleSheet.create({
   priceListInfoTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#e2e8f0",
+    color: tc('text', "#e2e8f0"),
     marginBottom: 4,
   },
   priceListInfoSubtitle: {
     fontSize: 12,
-    color: "#cbd5e1",
+    color: tc('muted', "#cbd5e1"),
   },
   warehouseFoundText: {
     fontSize: 12,
-    color: "#e2e8f0",
+    color: tc('text', "#e2e8f0"),
     marginTop: 6,
     marginBottom: 2,
   },
   warehouseSummaryText: {
     fontSize: 12,
-    color: "#cbd5e1",
+    color: tc('muted', "#cbd5e1"),
     marginBottom: 10,
   },
   yellowBadge: {
@@ -4213,10 +4215,10 @@ const styles = StyleSheet.create({
   processingSummaryBox: {
     marginTop: 16,
     padding: 12,
-    backgroundColor: '#1f2937',
+    backgroundColor: tc('surface', '#1f2937'),
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   summaryLine: {
     fontSize: 13,
@@ -4233,7 +4235,7 @@ const styles = StyleSheet.create({
     color: '#fb923c',
   },
   summaryMuted: {
-    color: '#94a3b8',
+    color: tc('muted', '#94a3b8'),
   },
   correctionIconContainer: {
     backgroundColor: '#FEF3C7',
@@ -4251,7 +4253,7 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   correctionItem: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -4281,23 +4283,23 @@ const styles = StyleSheet.create({
   correctionItemText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     marginBottom: 4,
   },
   correctionItemSize: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     fontWeight: '500',
   },
   correctionItemBarcode: {
     fontSize: 13,
-    color: '#64748b',
+    color: tc('muted', '#64748b'),
     fontFamily: 'monospace',
     marginTop: 4,
     paddingLeft: 36,
   },
   correctionsFooter: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 16,
     borderRadius: 12,
     marginHorizontal: 20,
@@ -4359,15 +4361,15 @@ const styles = StyleSheet.create({
   balanceSummary: {
     marginTop: 16,
     padding: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   balanceSummaryTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   balanceRow: {
@@ -4378,12 +4380,12 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   balanceValue: {
     fontSize: 16,
     fontWeight: '700',
   },
-});
+}));
 
 export default Users;

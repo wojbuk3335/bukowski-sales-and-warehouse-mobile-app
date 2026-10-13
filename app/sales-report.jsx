@@ -20,7 +20,9 @@ import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
 const SalesReport = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
 
   // State management
@@ -295,11 +297,11 @@ const SalesReport = () => {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+        <StatusBar barStyle={statusBarContent()} backgroundColor={tc('bg', "#000000")} />
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Raport Sprzedaży</Text>
           <View style={styles.headerRightSpace} />
@@ -335,17 +337,17 @@ const SalesReport = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Wyszukiwanie i filtry</Text>
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#64748B" />
+            <Ionicons name="search" size={20} color={tc('muted', "#64748B")} />
             <TextInput
               style={styles.searchInput}
               placeholder="Szukaj produktu, kodu..."
-              placeholderTextColor="#64748B"
+              placeholderTextColor={tc('muted', "#64748B")}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#64748B" />
+                <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
               </TouchableOpacity>
             )}
           </View>
@@ -380,7 +382,7 @@ const SalesReport = () => {
               </View>
             </TouchableOpacity>
 
-            <Ionicons name="arrow-forward" size={20} color="#64748B" />
+            <Ionicons name="arrow-forward" size={20} color={tc('muted', "#64748B")} />
 
             <TouchableOpacity
               style={styles.dateButton}
@@ -461,7 +463,7 @@ const SalesReport = () => {
               </Text>
               {filteredData.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Ionicons name="cart-outline" size={48} color="#64748B" />
+                  <Ionicons name="cart-outline" size={48} color={tc('muted', "#64748B")} />
                   <Text style={styles.emptyStateText}>
                     Brak sprzedaży w wybranym okresie
                   </Text>
@@ -481,7 +483,7 @@ const SalesReport = () => {
                         </Text>
                       </View>
                       <View style={styles.saleDetailRow}>
-                        <Ionicons name="calendar" size={14} color="#64748B" />
+                        <Ionicons name="calendar" size={14} color={tc('muted', "#64748B")} />
                         <Text style={styles.saleDetailText}>
                           {sale.date
                             ? new Date(sale.date).toLocaleDateString('pl-PL')
@@ -489,7 +491,7 @@ const SalesReport = () => {
                         </Text>
                       </View>
                       <View style={styles.saleDetailRow}>
-                        <Ionicons name="barcode" size={14} color="#64748B" />
+                        <Ionicons name="barcode" size={14} color={tc('muted', "#64748B")} />
                         <Text style={styles.saleDetailText}>
                           {sale.barcode || 'Brak'}
                         </Text>
@@ -586,7 +588,7 @@ const SalesReport = () => {
                   setShowFilters(false);
                 }
               }}>
-                <Ionicons name={activeFilter ? "arrow-back" : "close"} size={28} color="#fff" />
+                <Ionicons name={activeFilter ? "arrow-back" : "close"} size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -609,7 +611,7 @@ const SalesReport = () => {
                         )}
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={24} color="#64748B" />
+                    <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -627,7 +629,7 @@ const SalesReport = () => {
                         )}
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={24} color="#64748B" />
+                    <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
                   </TouchableOpacity>
 
                   {/* Rozmiar tylko dla kategorii "Kurtki kożuchy futra" */}
@@ -647,7 +649,7 @@ const SalesReport = () => {
                           )}
                         </View>
                       </View>
-                      <Ionicons name="chevron-forward" size={24} color="#64748B" />
+                      <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
                     </TouchableOpacity>
                   )}
 
@@ -666,25 +668,25 @@ const SalesReport = () => {
                         )}
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={24} color="#64748B" />
+                    <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
                   </TouchableOpacity>
                 </>
               ) : (
                 // Dropdown z opcjami dla wybranego filtra
                 <>
                   <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={18} color="#64748B" />
+                    <Ionicons name="search" size={18} color={tc('muted', "#64748B")} />
                     <TextInput
                       style={styles.searchInput}
                       placeholder="Szukaj..."
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={tc('muted', "#64748B")}
                       value={filterSearch}
                       onChangeText={setFilterSearch}
                       autoFocus
                     />
                     {filterSearch !== '' && (
                       <TouchableOpacity onPress={() => setFilterSearch('')}>
-                        <Ionicons name="close-circle" size={18} color="#64748B" />
+                        <Ionicons name="close-circle" size={18} color={tc('muted', "#64748B")} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -901,10 +903,10 @@ const SalesReport = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   header: {
     flexDirection: 'row',
@@ -912,9 +914,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   backButton: {
     width: 40,
@@ -925,7 +927,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     flex: 1,
     textAlign: 'center',
   },
@@ -943,7 +945,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   quickFiltersRow: {
@@ -951,32 +953,32 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   quickFilterButton: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   quickFilterText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '500',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
     gap: 8,
     marginBottom: 12,
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
   },
   filterButton: {
@@ -1002,22 +1004,22 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
     gap: 8,
   },
   dateTextContainer: {
     flex: 1,
   },
   dateLabel: {
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     fontSize: 12,
   },
   dateValue: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1025,12 +1027,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 16,
     borderRadius: 8,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1038,22 +1040,22 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     flex: 1,
   },
   statLabel: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   topProductItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   topProductRank: {
     width: 32,
@@ -1071,28 +1073,28 @@ const styles = StyleSheet.create({
   },
   topProductName: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '500',
   },
   topProductCount: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 12,
   },
   topProductCountText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 12,
     fontWeight: 'bold',
   },
   saleCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 12,
     borderRadius: 8,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   saleHeader: {
     flexDirection: 'row',
@@ -1101,7 +1103,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   saleProduct: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
@@ -1136,14 +1138,14 @@ const styles = StyleSheet.create({
   paymentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
     gap: 4,
   },
   paymentText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1153,7 +1155,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   loadingText: {
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginTop: 12,
     fontSize: 14,
   },
@@ -1163,7 +1165,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyStateText: {
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginTop: 12,
     fontSize: 14,
   },
@@ -1188,14 +1190,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: tc('border', '#1E293B'),
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1203,12 +1205,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   modalBody: {
     padding: 20,
@@ -1220,11 +1222,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   filterHeaderLeft: {
     flexDirection: 'row',
@@ -1232,7 +1234,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   filterHeaderTitle: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1256,10 +1258,10 @@ const styles = StyleSheet.create({
   },
   filterDropdown: {
     marginTop: 8,
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
     overflow: 'hidden',
     maxHeight: 300,
   },
@@ -1268,13 +1270,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     padding: 12,
-    backgroundColor: '#0f172a',
+    backgroundColor: tc('surface', '#0f172a'),
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 15,
     padding: 0,
   },
@@ -1287,13 +1289,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   filterOptionActive: {
     backgroundColor: '#0d6efd15',
   },
   filterOptionText: {
-    color: '#E2E8F0',
+    color: tc('text', '#E2E8F0'),
     fontSize: 15,
     flex: 1,
   },
@@ -1306,8 +1308,8 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-    backgroundColor: '#000000',
+    borderTopColor: tc('border', '#1E293B'),
+    backgroundColor: tc('bg', '#000000'),
   },
   clearFiltersButton: {
     flex: 1,
@@ -1339,9 +1341,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: tc('surface', '#0F172A'),
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: tc('border', '#1E293B'),
     borderRadius: 8,
     marginBottom: 12,
   },
@@ -1357,16 +1359,16 @@ const styles = StyleSheet.create({
   filterSelectTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 4,
   },
   filterSelectValue: {
     fontSize: 13,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
   },
   filterOptionsContainer: {
     maxHeight: 400,
   },
-});
+}));
 
 export default SalesReport;

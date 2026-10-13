@@ -7,7 +7,9 @@ import Logger from '../../services/logger'; // Import logger service
 import QRScannerSearch from '../QRScannerSearch';
 import LogoutButton from '../../components/LogoutButton';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const SearchScreen = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const [modalVisible, setModalVisible] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -78,7 +80,7 @@ const SearchScreen = () => {
 
   if (showQR) {
     return (
-      <View style={{ flex: 1, backgroundColor: 'black' }}>
+      <View style={{ flex: 1, backgroundColor: tc('bg', 'black') }}>
         <QRScannerSearch
           stateData={stateData}
           user={user}
@@ -107,7 +109,7 @@ const SearchScreen = () => {
           <TextInput
             style={styles.searchBar}
             placeholder="Szukaj..."
-            placeholderTextColor="#888"
+            placeholderTextColor={tc('muted', "#888")}
             value={searchText}
             onChangeText={setSearchText}
             autoFocus
@@ -212,10 +214,10 @@ const SearchScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: tc('bg', 'black'),
   },
   modalOverlay: {
     flex: 1,
@@ -224,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#000000', // Prawdziwy czarny jak główne tło aplikacji
+    backgroundColor: tc('bg', '#000000'), // Prawdziwy czarny jak główne tło aplikacji
     borderRadius: 15,
     padding: 25,
     width: '90%',
@@ -244,7 +246,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -275,7 +277,7 @@ const styles = StyleSheet.create({
   },
   searchBarContainer: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: tc('bg', 'black'),
     justifyContent: 'flex-start',
     paddingTop: 40,
     paddingHorizontal: 0, // Changed from 16 to 0 to match writeoff.jsx
@@ -288,25 +290,25 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
-    backgroundColor: 'black',
-    color: '#fff',
+    backgroundColor: tc('surface', 'black'),
+    color: tc('text', '#fff'),
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: tc('border', '#333'),
   },
   listItem: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: tc('border', '#333'),
   },
   listItemText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 13,
   },
   emptyText: {
-    color: '#888',
+    color: tc('muted', '#888'),
     textAlign: 'center',
     marginTop: 24,
     fontSize: 13,
@@ -334,11 +336,11 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   dotsText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 12, // Smaller font for symbol
     fontWeight: "bold",
   },
   
-});
+}));
 
 export default SearchScreen;

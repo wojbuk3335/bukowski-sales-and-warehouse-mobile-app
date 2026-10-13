@@ -17,9 +17,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const FILTERS_KEY = "payrollFilters";
 
 const Payroll = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState("");
@@ -414,7 +416,7 @@ const Payroll = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Wypłaty</Text>
         <View style={styles.backButton} />
@@ -440,7 +442,7 @@ const Payroll = () => {
                     ? `${getSelectedEmployeeName()} (${employees.find((emp) => emp._id === selectedEmployee)?.employeeId || ""})`
                     : "Wybierz pracownika"}
                 </Text>
-                <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+                <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
               </TouchableOpacity>
             </View>
 
@@ -455,7 +457,7 @@ const Payroll = () => {
                   <Text style={selectedMonth ? styles.selectText : styles.selectPlaceholder}>
                     {selectedMonthLabel || "Wybierz miesiąc"}
                   </Text>
-                  <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+                  <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
                 </TouchableOpacity>
               </View>
 
@@ -469,7 +471,7 @@ const Payroll = () => {
                   <Text style={selectedYear ? styles.selectText : styles.selectPlaceholder}>
                     {selectedYear || "Wybierz rok"}
                   </Text>
-                  <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+                  <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -490,7 +492,7 @@ const Payroll = () => {
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.resetButton} onPress={handleResetFilters}>
-                <Ionicons name="close" size={18} color="#94A3B8" />
+                <Ionicons name="close" size={18} color={tc('muted', "#94A3B8")} />
               </TouchableOpacity>
             </View>
           </View>
@@ -711,7 +713,7 @@ const Payroll = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rozlicz wypłatę</Text>
               <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -731,7 +733,7 @@ const Payroll = () => {
                   value={paymentAmount}
                   onChangeText={setPaymentAmount}
                   placeholder="Wprowadź kwotę wypłaty"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
                 <Text style={styles.formHint}>Możesz wypłacić całą kwotę lub część.</Text>
               </View>
@@ -772,7 +774,7 @@ const Payroll = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Wybierz pracownika</Text>
               <TouchableOpacity onPress={() => setShowEmployeeModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -814,7 +816,7 @@ const Payroll = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Wybierz miesiąc</Text>
               <TouchableOpacity onPress={() => setShowMonthModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -848,7 +850,7 @@ const Payroll = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Wybierz rok</Text>
               <TouchableOpacity onPress={() => setShowYearModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -882,7 +884,7 @@ const Payroll = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Szczegóły prowizji</Text>
               <TouchableOpacity onPress={() => setSelectedCommissionDetails(null)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
@@ -973,10 +975,10 @@ const Payroll = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
@@ -984,9 +986,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -995,7 +997,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 20,
     fontWeight: "bold",
   },
@@ -1004,10 +1006,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   sectionCard: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 16,
     marginBottom: 16,
   },
@@ -1022,13 +1024,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 6,
   },
   sectionSubtitle: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   filtersRow: {
@@ -1047,15 +1049,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterLabel: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 13,
     fontWeight: "600",
   },
   selectField: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
-    backgroundColor: "#000000",
+    borderColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface', "#000000"),
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: "row",
@@ -1063,12 +1065,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   selectText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     flex: 1,
   },
   selectPlaceholder: {
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     fontSize: 14,
     flex: 1,
   },
@@ -1096,10 +1098,10 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -1108,15 +1110,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
   },
   infoText: {
-    color: "#E2E8F0",
+    color: tc('text', "#E2E8F0"),
     fontSize: 12,
     flex: 1,
   },
@@ -1127,10 +1129,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   summaryCard: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 12,
     flexBasis: "48%",
   },
@@ -1138,17 +1140,17 @@ const styles = StyleSheet.create({
     flexBasis: "100%",
   },
   summaryValue: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
   },
   summaryLabel: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginTop: 4,
   },
   summaryLabelStrong: {
-    color: "#E2E8F0",
+    color: tc('text', "#E2E8F0"),
     fontSize: 12,
     marginTop: 4,
     fontWeight: "600",
@@ -1177,16 +1179,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   toggleAllButton: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     paddingVertical: 6,
     paddingHorizontal: 12,
     alignSelf: "flex-start",
   },
   toggleAllText: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   filterChips: {
@@ -1200,8 +1202,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#1E293B",
-    backgroundColor: "#0A0A0A",
+    borderColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface', "#0A0A0A"),
   },
   filterChipActive: {
     backgroundColor: "#0D6EFD",
@@ -1215,10 +1217,10 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   historyCard: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 12,
     marginBottom: 12,
   },
@@ -1229,7 +1231,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   historyDate: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   typeBadge: {
@@ -1238,7 +1240,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   typeBadgeText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 11,
     fontWeight: "600",
   },
@@ -1255,7 +1257,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#06B6D4",
   },
   historyDescription: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     marginBottom: 8,
   },
@@ -1272,7 +1274,7 @@ const styles = StyleSheet.create({
     color: "#EF4444",
   },
   historyDetails: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   detailsButton: {
@@ -1293,14 +1295,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   inlineSummary: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 10,
   },
   inlineSummaryText: {
-    color: "#E2E8F0",
+    color: tc('text', "#E2E8F0"),
     fontSize: 12,
   },
   modalOverlay: {
@@ -1309,27 +1311,27 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContentFull: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('bg', "#0A0A0A"),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     maxHeight: "92%",
   },
   modalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('bg', "#0A0A0A"),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     paddingBottom: 40,
   },
   modalContentLarge: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 20,
     marginHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     maxHeight: "85%",
   },
   modalHeader: {
@@ -1338,10 +1340,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   modalTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "600",
   },
@@ -1352,28 +1354,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   optionTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     fontWeight: "600",
   },
   optionSubtitle: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginTop: 4,
   },
   modalText: {
-    color: "#E2E8F0",
+    color: tc('text', "#E2E8F0"),
     fontSize: 13,
     marginBottom: 6,
   },
   modalSectionTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     fontWeight: "600",
     marginTop: 12,
@@ -1383,22 +1385,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   formLabel: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 13,
     fontWeight: "600",
     marginBottom: 6,
   },
   formInput: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   formHint: {
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     fontSize: 12,
     marginTop: 6,
   },
@@ -1416,12 +1418,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   cancelButtonText: {
-    color: "#E2E8F0",
+    color: tc('text', "#E2E8F0"),
     fontWeight: "600",
   },
   saveButton: {
@@ -1432,21 +1434,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   detailCard: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 12,
     marginBottom: 10,
   },
   detailTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 6,
   },
   detailLine: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginBottom: 4,
   },
@@ -1457,13 +1459,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   successModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 20,
     padding: 24,
     width: "85%",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   successIconContainer: {
     marginBottom: 12,
@@ -1471,12 +1473,12 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 8,
   },
   successMessage: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     marginBottom: 20,
   },
@@ -1490,6 +1492,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
-});
+}));
 
 export default Payroll;

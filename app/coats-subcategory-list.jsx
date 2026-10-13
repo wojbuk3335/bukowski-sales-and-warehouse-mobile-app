@@ -18,7 +18,9 @@ import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const CoatsSubcategoryList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [subcategories, setSubcategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -239,7 +241,7 @@ const CoatsSubcategoryList = () => {
       <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Kurtki Kożuchy Futra</Text>
         <TouchableOpacity style={styles.addButtonSmall} onPress={handleAdd}>
@@ -248,17 +250,17 @@ const CoatsSubcategoryList = () => {
       </View>
 
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Szukaj..."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={tc('muted', "#64748B")}
           value={searchTerm}
           onChangeText={setSearchTerm}
         />
         {searchTerm !== "" && (
           <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
           </TouchableOpacity>
         )}
       </View>
@@ -270,7 +272,7 @@ const CoatsSubcategoryList = () => {
         contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="folder-open-outline" size={64} color="#64748B" />
+            <Ionicons name="folder-open-outline" size={64} color={tc('muted', "#64748B")} />
             <Text style={styles.emptyText}>Brak podkategorii</Text>
           </View>
         }
@@ -285,7 +287,7 @@ const CoatsSubcategoryList = () => {
                 {editingItem ? "Edytuj podkategorię" : "Dodaj podkategorię"}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -295,7 +297,7 @@ const CoatsSubcategoryList = () => {
                 <TextInput
                   style={styles.input}
                   placeholder="Np. Kurtka damska"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={kat1Opis1}
                   onChangeText={setKat1Opis1}
                 />
@@ -372,10 +374,10 @@ const CoatsSubcategoryList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   loadingContainer: {
     flex: 1,
@@ -384,7 +386,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   header: {
@@ -393,9 +395,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -406,7 +408,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
     textAlign: "center",
   },
@@ -415,7 +417,7 @@ const styles = StyleSheet.create({
   },
   title: {
     display: "none",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 5,
   },
   subtitle: {
@@ -424,14 +426,14 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     marginHorizontal: 20,
     marginVertical: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     gap: 12,
   },
   searchIcon: {
@@ -439,7 +441,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   addButtonSmall: {
@@ -455,12 +457,12 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   itemCard: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   itemContent: {
     marginBottom: 12,
@@ -472,7 +474,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   itemMeta: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 13,
     marginTop: 2,
   },
@@ -516,7 +518,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     fontSize: 16,
     marginTop: 10,
   },
@@ -527,7 +529,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     width: "90%",
     maxHeight: "80%",
     borderRadius: 20,
@@ -539,12 +541,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: tc('border', "#334155"),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   modalBody: {
     padding: 20,
@@ -553,29 +555,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 14,
     marginBottom: 8,
     fontWeight: "500",
   },
   input: {
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
     borderRadius: 12,
     padding: 15,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   pickerContainer: {
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
     borderRadius: 12,
     overflow: "hidden",
   },
   picker: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     height: 50,
   },
   modalFooter: {
@@ -583,7 +585,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: "#334155",
+    borderTopColor: tc('border', "#334155"),
   },
   button: {
     flex: 1,
@@ -602,24 +604,24 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   buttonText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
   },
   smallModalContent: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     padding: 30,
     borderRadius: 20,
     alignItems: "center",
     width: "80%",
   },
   modalMessage: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     textAlign: "center",
     marginTop: 15,
     marginBottom: 5,
   },
-});
+}));
 
 export default CoatsSubcategoryList;

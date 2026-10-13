@@ -21,7 +21,9 @@ import useLiveRefresh from "../services/useLiveRefresh"; // zmiany produktów na
 import { getApiUrl, API_CONFIG } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const ProductsList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -927,7 +929,7 @@ const ProductsList = () => {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Lista produktów</Text>
         <TouchableOpacity
@@ -940,17 +942,17 @@ const ProductsList = () => {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" />
+        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
         <TextInput
           style={styles.searchInput}
           placeholder="Szukaj produktu..."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={tc('muted', "#64748B")}
           value={searchTerm}
           onChangeText={setSearchTerm}
         />
         {searchTerm.length > 0 && (
           <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
           </TouchableOpacity>
         )}
       </View>
@@ -1009,7 +1011,7 @@ const ProductsList = () => {
                 {editingProduct ? "Edytuj produkt" : "Dodaj produkt"}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -1025,7 +1027,7 @@ const ProductsList = () => {
                   <Text style={styles.selectButtonText}>
                     {category || "Wybierz kategorię"}
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                  <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                 </TouchableOpacity>
               </View>
 
@@ -1044,7 +1046,7 @@ const ProductsList = () => {
                           ? subcategories.find(s => s._id === selectedSubcategory)?.Kat_1_Opis_1 || "Wybierz"
                           : "Wybierz podkategorię"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1060,7 +1062,7 @@ const ProductsList = () => {
                           ? manufacturers.find(m => m._id === selectedManufacturer)?.Prod_Opis || "Wybierz"
                           : "Wybierz grupę"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1076,7 +1078,7 @@ const ProductsList = () => {
                           ? stocks.find(s => s._id === selectedStock)?.Tow_Opis || "Wybierz"
                           : "Wybierz produkt"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1092,7 +1094,7 @@ const ProductsList = () => {
                           ? colors.find(c => c._id === selectedColor)?.Kol_Opis || "Wybierz"
                           : "Wybierz kolor"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1112,7 +1114,7 @@ const ProductsList = () => {
                     <TextInput
                       style={[styles.formInput, styles.formTextArea]}
                       placeholder="Opcjonalny opis produktu (max 200 znaków)"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={tc('muted', "#64748B")}
                       value={description}
                       onChangeText={setDescription}
                       multiline
@@ -1169,7 +1171,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={price}
                         onChangeText={setPrice}
                         keyboardType="decimal-pad"
@@ -1181,7 +1183,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={discountPrice}
                         onChangeText={setDiscountPrice}
                         keyboardType="decimal-pad"
@@ -1222,7 +1224,7 @@ const ProductsList = () => {
                                 <Text style={styles.exceptionSelectText}>
                                   {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
                                 </Text>
-                                <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
                               </TouchableOpacity>
                             </View>
 
@@ -1231,7 +1233,7 @@ const ProductsList = () => {
                               <TextInput
                                 style={styles.exceptionInput}
                                 placeholder="0.00"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={tc('muted', "#64748B")}
                                 value={exception.value?.toString() || ""}
                                 onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
                                 keyboardType="decimal-pad"
@@ -1267,7 +1269,7 @@ const ProductsList = () => {
                           ? `${bagsCategories.find(c => c._id === selectedBagsCategoryId)?.Kat_1_Opis_1 || "Wybierz"} (${bagsCategories.find(c => c._id === selectedBagsCategoryId)?.Plec || ""})`
                           : "Wybierz podkategorię"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1283,7 +1285,7 @@ const ProductsList = () => {
                           ? manufacturers.find(m => m._id === selectedManufacturer)?.Prod_Opis || "Wybierz"
                           : "Wybierz grupę"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1297,7 +1299,7 @@ const ProductsList = () => {
                       <Text style={styles.selectButtonText}>
                         {selectedBagCode || "Wybierz torebkę"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1313,7 +1315,7 @@ const ProductsList = () => {
                           ? colors.find(c => c._id === selectedColor)?.Kol_Opis || "Wybierz"
                           : "Wybierz kolor"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1333,7 +1335,7 @@ const ProductsList = () => {
                     <TextInput
                       style={[styles.formInput, styles.formTextArea]}
                       placeholder="Opcjonalny opis produktu (max 200 znaków)"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={tc('muted', "#64748B")}
                       value={description}
                       onChangeText={setDescription}
                       multiline
@@ -1390,7 +1392,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={price}
                         onChangeText={setPrice}
                         keyboardType="decimal-pad"
@@ -1402,7 +1404,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={discountPrice}
                         onChangeText={setDiscountPrice}
                         keyboardType="decimal-pad"
@@ -1443,7 +1445,7 @@ const ProductsList = () => {
                                 <Text style={styles.exceptionSelectText}>
                                   {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
                                 </Text>
-                                <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
                               </TouchableOpacity>
                             </View>
 
@@ -1452,7 +1454,7 @@ const ProductsList = () => {
                               <TextInput
                                 style={styles.exceptionInput}
                                 placeholder="0.00"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={tc('muted', "#64748B")}
                                 value={exception.value?.toString() || ""}
                                 onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
                                 keyboardType="decimal-pad"
@@ -1488,7 +1490,7 @@ const ProductsList = () => {
                           ? `${walletsCategories.find(c => c._id === selectedWalletsCategoryId)?.Kat_1_Opis_1 || "Wybierz"} (${walletsCategories.find(c => c._id === selectedWalletsCategoryId)?.Plec || ""})`
                           : "Wybierz podkategorię"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1504,7 +1506,7 @@ const ProductsList = () => {
                           ? manufacturers.find(m => m._id === selectedManufacturer)?.Prod_Opis || "Wybierz"
                           : "Wybierz grupę"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1518,7 +1520,7 @@ const ProductsList = () => {
                       <Text style={styles.selectButtonText}>
                         {selectedWalletCode || "Wybierz portfel"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1534,7 +1536,7 @@ const ProductsList = () => {
                           ? colors.find(c => c._id === selectedColor)?.Kol_Opis || "Wybierz"
                           : "Wybierz kolor"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1554,7 +1556,7 @@ const ProductsList = () => {
                     <TextInput
                       style={[styles.formInput, styles.formTextArea]}
                       placeholder="Opcjonalny opis produktu (max 200 znaków)"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={tc('muted', "#64748B")}
                       value={description}
                       onChangeText={setDescription}
                       multiline
@@ -1611,7 +1613,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={price}
                         onChangeText={setPrice}
                         keyboardType="decimal-pad"
@@ -1623,7 +1625,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={discountPrice}
                         onChangeText={setDiscountPrice}
                         keyboardType="decimal-pad"
@@ -1664,7 +1666,7 @@ const ProductsList = () => {
                                 <Text style={styles.exceptionSelectText}>
                                   {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
                                 </Text>
-                                <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
                               </TouchableOpacity>
                             </View>
 
@@ -1673,7 +1675,7 @@ const ProductsList = () => {
                               <TextInput
                                 style={styles.exceptionInput}
                                 placeholder="0.00"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={tc('muted', "#64748B")}
                                 value={exception.value?.toString() || ""}
                                 onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
                                 keyboardType="decimal-pad"
@@ -1709,7 +1711,7 @@ const ProductsList = () => {
                           ? remainingCategories.find(c => c._id === selectedRemainingCategoryId)?.Rem_Kat_1_Opis_1 || "Wybierz"
                           : "Wybierz podkategorię"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1726,7 +1728,7 @@ const ProductsList = () => {
                           ? remainingSubcategories.find(s => s._id === selectedRemainingSubcategoryId)?.Sub_Opis || "Wybierz"
                           : "Wybierz podpodkategorię"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1742,7 +1744,7 @@ const ProductsList = () => {
                           ? manufacturers.find(m => m._id === selectedManufacturer)?.Prod_Opis || "Wybierz"
                           : "Wybierz grupę"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1756,7 +1758,7 @@ const ProductsList = () => {
                       <Text style={styles.selectButtonText}>
                         {selectedRemainingProductCode || "Wybierz produkt"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1772,7 +1774,7 @@ const ProductsList = () => {
                           ? colors.find(c => c._id === selectedColor)?.Kol_Opis || "Wybierz"
                           : "Wybierz kolor"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                   </View>
 
@@ -1792,7 +1794,7 @@ const ProductsList = () => {
                     <TextInput
                       style={[styles.formInput, styles.formTextArea]}
                       placeholder="Opcjonalny opis produktu (max 200 znaków)"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={tc('muted', "#64748B")}
                       value={description}
                       onChangeText={setDescription}
                       multiline
@@ -1849,7 +1851,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={price}
                         onChangeText={setPrice}
                         keyboardType="decimal-pad"
@@ -1861,7 +1863,7 @@ const ProductsList = () => {
                       <TextInput
                         style={styles.formInput}
                         placeholder="0.00"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={discountPrice}
                         onChangeText={setDiscountPrice}
                         keyboardType="decimal-pad"
@@ -1902,7 +1904,7 @@ const ProductsList = () => {
                                 <Text style={styles.exceptionSelectText}>
                                   {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
                                 </Text>
-                                <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
                               </TouchableOpacity>
                             </View>
 
@@ -1911,7 +1913,7 @@ const ProductsList = () => {
                               <TextInput
                                 style={styles.exceptionInput}
                                 placeholder="0.00"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={tc('muted', "#64748B")}
                                 value={exception.value?.toString() || ""}
                                 onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
                                 keyboardType="decimal-pad"
@@ -2002,7 +2004,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz kategorię</Text>
               <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -2118,15 +2120,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz produkt</Text>
               <TouchableOpacity onPress={() => setShowStockPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj produktu..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={stockSearch}
                 onChangeText={setStockSearch}
               />
@@ -2180,15 +2182,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz kolor</Text>
               <TouchableOpacity onPress={() => setShowColorPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj koloru..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={colorSearch}
                 onChangeText={setColorSearch}
               />
@@ -2250,15 +2252,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
               <TouchableOpacity onPress={() => setShowSubcategoryPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={subcategorySearch}
                 onChangeText={setSubcategorySearch}
               />
@@ -2312,15 +2314,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz grupę</Text>
               <TouchableOpacity onPress={() => setShowManufacturerPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={manufacturerSearch}
                 onChangeText={setManufacturerSearch}
               />
@@ -2374,15 +2376,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz rozmiar</Text>
               <TouchableOpacity onPress={() => setShowSizePicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={sizeSearch}
                 onChangeText={setSizeSearch}
               />
@@ -2430,7 +2432,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
               <TouchableOpacity onPress={() => setShowBagsCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -2480,15 +2482,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz torebkę</Text>
               <TouchableOpacity onPress={() => setShowBagsPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={bagsSearch}
                 onChangeText={setBagsSearch}
               />
@@ -2546,7 +2548,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
               <TouchableOpacity onPress={() => setShowWalletsCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -2596,15 +2598,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz portfel</Text>
               <TouchableOpacity onPress={() => setShowWalletsPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={walletsSearch}
                 onChangeText={setWalletsSearch}
               />
@@ -2662,7 +2664,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz podkategorię</Text>
               <TouchableOpacity onPress={() => setShowRemainingCategoryPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -2751,7 +2753,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz podpodkategorię</Text>
               <TouchableOpacity onPress={() => setShowRemainingSubcategoryPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -2800,15 +2802,15 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz produkt</Text>
               <TouchableOpacity onPress={() => setShowRemainingPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={remainingProductsSearch}
                 onChangeText={setRemainingProductsSearch}
               />
@@ -2870,7 +2872,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
                 style={styles.imageCloseButton}
                 onPress={() => setEnlargedImage(null)}
               >
-                <Ionicons name="close-circle" size={40} color="#fff" />
+                <Ionicons name="close-circle" size={40} color={tc('text', "#fff")} />
               </TouchableOpacity>
               {enlargedImage ? (
                 <Image
@@ -2975,10 +2977,10 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
@@ -2986,9 +2988,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -2999,7 +3001,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
     textAlign: "center",
   },
@@ -3014,20 +3016,20 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     margin: 20,
     marginBottom: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     gap: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   countContainer: {
     paddingHorizontal: 20,
@@ -3035,7 +3037,7 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   loadingContainer: {
     flex: 1,
@@ -3050,7 +3052,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 16,
   },
   listContainer: {
@@ -3058,12 +3060,12 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   productCard: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   productHeader: {
     flexDirection: "row",
@@ -3072,7 +3074,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   productInfo: {
     flex: 1,
@@ -3084,9 +3086,9 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
     overflow: "hidden",
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
   },
   productImage: {
     width: "100%",
@@ -3097,16 +3099,16 @@ const styles = StyleSheet.create({
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
   },
   productName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   productCode: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   productCategory: {
     fontSize: 12,
@@ -3126,12 +3128,12 @@ const styles = StyleSheet.create({
   },
   priceLabel: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   priceValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   discountPrice: {
     color: "#10B981",
@@ -3166,7 +3168,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "90%",
@@ -3177,12 +3179,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   modalForm: {
     padding: 20,
@@ -3200,18 +3202,18 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   formTextArea: {
     minHeight: 100,
@@ -3223,7 +3225,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1E293B",
+    borderTopColor: tc('border', "#1E293B"),
   },
   modalButton: {
     flex: 1,
@@ -3232,12 +3234,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   saveButton: {
     backgroundColor: "#0D6EFD",
@@ -3282,7 +3284,7 @@ const styles = StyleSheet.create({
   },
   noImageText: {
     fontSize: 18,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   // New styles for image picker and form elements
   imagePickerButton: {
@@ -3292,7 +3294,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 2,
     borderColor: "#0D6EFD",
     borderRadius: 12,
@@ -3313,21 +3315,21 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   removeImageButton: {
     position: "absolute",
     top: -8,
     right: -8,
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 12,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 8,
     padding: 8,
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
   },
   pickerButton: {
     flexDirection: "row",
@@ -3345,9 +3347,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginRight: 8,
     borderRadius: 20,
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
   },
   chipButtonActive: {
     backgroundColor: "#0D6EFD",
@@ -3367,9 +3369,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: tc('border', "#334155"),
     alignItems: "center",
   },
   genderButtonActive: {
@@ -3390,25 +3392,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   selectButtonText: {
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
   },
   readonlyInput: {
-    backgroundColor: "#0A0A0A",
-    color: "#94A3B8",
+    backgroundColor: tc('bg', "#0A0A0A"),
+    color: tc('muted', "#94A3B8"),
   },
   characterCount: {
     fontSize: 12,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     textAlign: "right",
     marginTop: 4,
   },
@@ -3419,7 +3421,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   pickerModalContent: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "80%",
@@ -3430,30 +3432,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   pickerModalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerSearchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     margin: 20,
     marginBottom: 0,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     gap: 10,
   },
   pickerSearchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerItem: {
     flexDirection: "row",
@@ -3462,14 +3464,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   pickerItemSelected: {
     backgroundColor: "#0D6EFD15",
   },
   pickerItemText: {
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
   },
   pickerItemTextSelected: {
@@ -3478,7 +3480,7 @@ const styles = StyleSheet.create({
   },
   pickerEmptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     textAlign: "center",
     padding: 40,
   },
@@ -3501,20 +3503,20 @@ const styles = StyleSheet.create({
   },
   noExceptionsText: {
     fontSize: 14,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     fontStyle: "italic",
     padding: 16,
     textAlign: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 8,
   },
   exceptionItem: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   exceptionRow: {
     flexDirection: "row",
@@ -3526,34 +3528,34 @@ const styles = StyleSheet.create({
   },
   exceptionLabel: {
     fontSize: 12,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 6,
   },
   exceptionSelect: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   exceptionSelectText: {
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
   },
   exceptionInput: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   removeExceptionButton: {
     width: 40,
@@ -3571,14 +3573,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   successModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
     width: "80%",
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   successIconContainer: {
     marginBottom: 20,
@@ -3586,12 +3588,12 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   successMessage: {
     fontSize: 16,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     marginBottom: 24,
   },
@@ -3605,7 +3607,7 @@ const styles = StyleSheet.create({
   successButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     textAlign: "center",
   },
   confirmButtons: {
@@ -3640,18 +3642,18 @@ const styles = StyleSheet.create({
   },
   productSubcategory: {
     fontSize: 13,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 2,
   },
   exceptionsContainer: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1E293B",
+    borderTopColor: tc('border', "#1E293B"),
   },
   exceptionsTitle: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 6,
     fontWeight: "600",
   },
@@ -3662,7 +3664,7 @@ const styles = StyleSheet.create({
   },
   exceptionSize: {
     fontSize: 12,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   exceptionValue: {
     fontSize: 12,
@@ -3684,6 +3686,6 @@ const styles = StyleSheet.create({
     elevation: 5,
     zIndex: 1000,
   },
-});
+}));
 
 export default ProductsList;

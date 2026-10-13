@@ -5,7 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const AuthFix = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const clearAllAuthData = async () => {
         try {
             // Clear ALL possible auth keys
@@ -60,7 +62,7 @@ const AuthFix = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
     container: {
         flex: 1,
         justifyContent: 'center',
@@ -78,7 +80,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginBottom: 30,
         textAlign: 'center',
-        color: '#666',
+        color: tc('muted', '#666'),
         lineHeight: 24,
     },
     button: {
@@ -93,6 +95,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 16,
     },
-});
+}));
 
 export default AuthFix;

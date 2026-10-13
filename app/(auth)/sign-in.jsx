@@ -9,11 +9,13 @@ import CustomButton from "../../components/CustomButton";
 import FormField from "../../components/FormField";
 import { GlobalStateContext } from "../../context/GlobalState";
 import { checkAndApplyUpdate, getVersionLabel } from "../../services/appUpdates";
+import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../../context/ThemeContext'; // kolory zależne od motywu
 import Logger from "../../services/logger"; // Import logger service
 import tokenService from "../../services/tokenService"; // Import token service
 import bukowskiLogo from "./bukowski.png"; // Import the image
 
 const SignIn = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const params = useLocalSearchParams();
   const [form, setForm] = useState({
     email: "",
@@ -137,8 +139,8 @@ const SignIn = () => {
   };
 
   return (
-    <SafeAreaView style={{ backgroundColor: "#000", flex: 1 }}>
-      <StatusBar backgroundColor="black" style="light" />
+    <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
+      <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />
       <ScrollView>
         <View
           style={[
@@ -185,7 +187,7 @@ const SignIn = () => {
 
           {updateStage ? (
             <View style={styles.updateContainer}>
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={tc('text', "#fff")} />
               <Text style={styles.updateText}>
                 {updateStage === "downloading" ? "Pobieranie aktualizacji…" : "Sprawdzanie aktualizacji…"}
               </Text>
@@ -226,7 +228,7 @@ const SignIn = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     width: "100%",
     justifyContent: "center",
@@ -278,7 +280,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   panelInfoText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
@@ -291,16 +293,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   updateText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
   },
   versionText: {
-    color: "#6b7280",
+    color: tc('muted', "#6b7280"),
     fontSize: 11,
     textAlign: "center",
     marginBottom: 8,
   },
-});
+}));
 
 export default SignIn;
 

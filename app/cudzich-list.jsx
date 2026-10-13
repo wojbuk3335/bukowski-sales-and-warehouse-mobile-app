@@ -18,7 +18,9 @@ import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const CudzichList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
@@ -177,7 +179,7 @@ const CudzichList = () => {
         <View style={styles.cardBody}>
           {transaction.productName && (
             <View style={styles.infoRow}>
-              <Ionicons name="pricetag-outline" size={16} color="#94A3B8" />
+              <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Produkt:</Text>
               <Text style={styles.infoValue} numberOfLines={1}>
                 {transaction.productName}
@@ -187,7 +189,7 @@ const CudzichList = () => {
 
           {transaction.size && (
             <View style={styles.infoRow}>
-              <Ionicons name="resize-outline" size={16} color="#94A3B8" />
+              <Ionicons name="resize-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Rozmiar:</Text>
               <Text style={styles.infoValue}>{transaction.size}</Text>
             </View>
@@ -195,7 +197,7 @@ const CudzichList = () => {
 
           {transaction.amount && (
             <View style={styles.infoRow}>
-              <Ionicons name="cash-outline" size={16} color="#94A3B8" />
+              <Ionicons name="cash-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Kwota:</Text>
               <Text style={[styles.infoValue, styles.amountValue]}>
                 {transaction.amount} {transaction.currency || 'PLN'}
@@ -205,7 +207,7 @@ const CudzichList = () => {
 
           {transaction.note && (
             <View style={styles.infoRow}>
-              <Ionicons name="document-text-outline" size={16} color="#94A3B8" />
+              <Ionicons name="document-text-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Notatka:</Text>
               <Text style={styles.infoValue} numberOfLines={2}>
                 {transaction.note}
@@ -232,15 +234,15 @@ const CudzichList = () => {
           headerShown: true,
           headerTitle: 'Cudzich',
           headerStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: tc('bg', '#000000'),
           },
-          headerTintColor: '#fff',
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
         }}
@@ -258,17 +260,17 @@ const CudzichList = () => {
       {/* Search and Filter Bar */}
       <View style={styles.topBar}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#94A3B8" />
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
           <TextInput
             style={styles.searchInput}
             placeholder="Szukaj transakcji..."
-            placeholderTextColor="#64748B"
+            placeholderTextColor={tc('muted', "#64748B")}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#64748B" />
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
             </TouchableOpacity>
           )}
         </View>
@@ -306,7 +308,7 @@ const CudzichList = () => {
       >
         {filteredTransactions.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="swap-horizontal-outline" size={64} color="#64748B" />
+            <Ionicons name="swap-horizontal-outline" size={64} color={tc('muted', "#64748B")} />
             <Text style={styles.emptyStateText}>
               {transactions.length === 0 ? 'Brak transakcji do wyświetlenia' : 'Brak transakcji pasujących do filtrów'}
             </Text>
@@ -328,7 +330,7 @@ const CudzichList = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filtry</Text>
               <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -373,7 +375,7 @@ const CudzichList = () => {
                   value={selectedProduct}
                   onChangeText={setSelectedProduct}
                   placeholder="Wpisz nazwę produktu..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
 
@@ -385,7 +387,7 @@ const CudzichList = () => {
                   value={selectedSize}
                   onChangeText={setSelectedSize}
                   placeholder="Wpisz rozmiar..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
             </ScrollView>
@@ -414,22 +416,22 @@ const CudzichList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   backButton: {
     marginLeft: 8,
   },
   balanceCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     marginHorizontal: 20,
     marginVertical: 16,
     padding: 20,
@@ -445,7 +447,7 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     fontWeight: '600',
   },
   balanceAmount: {
@@ -460,25 +462,25 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
     paddingHorizontal: 12,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     paddingVertical: 10,
   },
   filterButton: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
     width: 44,
     height: 44,
@@ -489,11 +491,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   statsText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   scrollView: {
     flex: 1,
@@ -507,20 +509,20 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 16,
   },
   card: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   cardHeader: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   typeSection: {
     flexDirection: 'row',
@@ -539,7 +541,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 12,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
   },
   cardBody: {
     padding: 12,
@@ -552,11 +554,11 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   infoValue: {
     fontSize: 14,
-    color: '#fff',
+    color: tc('text', '#fff'),
     flex: 1,
   },
   amountValue: {
@@ -570,7 +572,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 16,
     width: '90%',
     maxHeight: '80%',
@@ -581,12 +583,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   modalBody: {
     padding: 20,
@@ -597,7 +599,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 8,
   },
   filterOptions: {
@@ -609,7 +611,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
   },
   filterOptionActive: {
     backgroundColor: '#3B82F6',
@@ -623,10 +625,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterInput: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 8,
     padding: 12,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
   },
   modalFooter: {
@@ -634,7 +636,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   modalButton: {
     flex: 1,
@@ -649,10 +651,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
   modalButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '600',
   },
-});
+}));
 
 export default CudzichList;

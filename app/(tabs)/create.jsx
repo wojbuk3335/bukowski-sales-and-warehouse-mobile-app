@@ -8,7 +8,9 @@ import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import Logger from "../../services/logger";
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 export default function Create() {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { 
     stateData, 
     user, 
@@ -299,12 +301,12 @@ export default function Create() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'black', // Ciemne tło
+    backgroundColor: tc('bg', 'black'), // Ciemne tło
   },
   spinnerContainer: {
     position: 'relative',
@@ -327,7 +329,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 18,
-    color: '#ffffff', // Biały tekst na ciemnym tle
+    color: tc('text', '#ffffff'), // Biały tekst na ciemnym tle
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -352,23 +354,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 10,
     padding: 16,
     alignItems: 'center',
     width: '70%',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 16,
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 14,
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
     marginBottom: 16,
     paddingHorizontal: 8,
@@ -389,7 +391,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'red',
   },
   closeText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
   },
-});
+}));

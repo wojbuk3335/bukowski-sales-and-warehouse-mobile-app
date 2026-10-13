@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-nativ
 
 import { icons } from "../constants";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const FormField = ({
   title,
   value,
@@ -12,6 +13,7 @@ const FormField = ({
   secureTextEntry,
   ...props
 }) => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [showPassword, setShowPassword] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -22,7 +24,7 @@ const FormField = ({
       <View
         style={[
           styles.inputWrapper,
-          { borderColor: isFocused ? "#0d6efd" : "#000000" },
+          { borderColor: isFocused ? "#0d6efd" : tc('border', "#000000") },
         ]}
       >
         <TextInput
@@ -60,13 +62,13 @@ const FormField = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   fieldContainer: {
     marginBottom: 16,
   },
   label: {
     fontSize: 16,
-    color: "#f3f4f6",
+    color: tc('text', "#f3f4f6"),
     fontWeight: "500",
     textAlign: "center",
     marginBottom: 8,
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 64,
     paddingHorizontal: 16,
-    backgroundColor: "#18181b",
+    backgroundColor: tc('surface', "#18181b"),
     borderRadius: 16,
     borderWidth: 2,
     flexDirection: "row",
@@ -83,7 +85,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontWeight: "600",
     fontSize: 16,
   },
@@ -97,6 +99,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-});
+}));
 
 export default FormField;

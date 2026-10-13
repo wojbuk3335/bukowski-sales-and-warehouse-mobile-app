@@ -6,6 +6,7 @@ import { useContext } from "react";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { icons } from "../../constants";
+import { useAppTheme } from '../../context/ThemeContext';
 import { GlobalStateContext } from "../../context/GlobalState";
 
 const TabIcon = ({ icon, color, name, focused, customIcon }) => {
@@ -43,21 +44,22 @@ const TabLayout = () => {
   const { user } = useContext(GlobalStateContext);
   const isParzygnat = user?.symbol === 'P';
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme(); // motyw: tło, pasek zakładek, pasek stanu
 
   return (
-    <View style={{ flex: 1, backgroundColor: "black" }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* Status bar spacer */}
-      <View style={{ height: 32, backgroundColor: "black" }} />
+      <View style={{ height: 32, backgroundColor: colors.bg }} />
       <Tabs
         options={{ headerShown: false }}
         screenOptions={{
           tabBarActiveTintColor: "#0d6efd",
-          tabBarInactiveTintColor: "#CDCDE0",
+          tabBarInactiveTintColor: colors.muted,
           tabBarShowLabel: false,
           tabBarStyle: {
-            backgroundColor: "black",
+            backgroundColor: colors.tabBar,
             borderTopWidth: 1,
-            borderTopColor: "#232533",
+            borderTopColor: colors.border,
             height: Math.max(90, 70 + insets.bottom),
             paddingBottom: Math.max(10, insets.bottom),
             paddingTop: 15,
@@ -181,7 +183,7 @@ const TabLayout = () => {
         />
       </Tabs>
 
-      <StatusBar backgroundColor="black" style="light" />
+      <StatusBar backgroundColor={colors.bg} style={colors.statusBar} />
     </View>
   );
 };

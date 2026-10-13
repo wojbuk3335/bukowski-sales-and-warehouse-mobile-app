@@ -1,9 +1,11 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useContext, useState } from "react";
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { GlobalStateContext } from "../context/GlobalState"; // Adjust the import path as necessary
 
 const QRScannerSearch = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [facing, setFacing] = useState("back");
   const [permission, requestPermission] = useCameraPermissions();
   const [modalVisible, setModalVisible] = useState(false);
@@ -145,9 +147,9 @@ const QRScannerSearch = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "black", color: "white" },
-  message: { textAlign: "center", marginTop: 20, color: "white" },
+const styles = createThemedStyles(() => StyleSheet.create({
+  container: { flex: 1, backgroundColor: tc('bg', "black"), color: tc('text', "white") },
+  message: { textAlign: "center", marginTop: 20, color: tc('text', "white") },
   camera: { flex: 1 },
   overlay: {
     flex: 1,
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#000000', // Prawdziwy czarny jak główne tło aplikacji
+    backgroundColor: tc('bg', '#000000'), // Prawdziwy czarny jak główne tło aplikacji
     borderRadius: 15,
     padding: 25,
     width: '90%',
@@ -188,7 +190,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -219,7 +221,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   emptyText: {
-    color: '#888',
+    color: tc('muted', '#888'),
     textAlign: 'center',
     marginTop: 24,
     fontSize: 13,
@@ -241,6 +243,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-});
+}));
 
 export default QRScannerSearch;

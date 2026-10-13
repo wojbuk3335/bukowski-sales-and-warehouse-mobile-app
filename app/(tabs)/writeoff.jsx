@@ -11,7 +11,9 @@ import AuthFix from "../../components/AuthFix";
 import LogoutButton from "../../components/LogoutButton";
 import { appAlert } from '../../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const WriteOff = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
     const { 
         user, 
@@ -1024,7 +1026,7 @@ const fetchSales = async () => {
                                 <TextInput
                                     style={styles.customReasonInput}
                                     placeholder="Wpisz powód (max 12 znaków)..."
-                                    placeholderTextColor="#999"
+                                    placeholderTextColor={tc('muted', "#999")}
                                     value={customReason}
                                     onChangeText={(text) => {
                                         // Ograniczenie do 12 znaków
@@ -1049,7 +1051,7 @@ const fetchSales = async () => {
                                 <TextInput
                                     style={styles.advanceInput}
                                     placeholder="0.00"
-                                    placeholderTextColor="#ccc"
+                                    placeholderTextColor={tc('muted', "#ccc")}
                                     value={advanceAmount}
                                     onChangeText={setAdvanceAmount}
                                     keyboardType="numeric"
@@ -1147,7 +1149,7 @@ const fetchSales = async () => {
                                 <TextInput
                                     style={styles.customReasonInput}
                                     placeholder="Wpisz powód (max 12 znaków)..."
-                                    placeholderTextColor="#999"
+                                    placeholderTextColor={tc('muted', "#999")}
                                     value={customReason}
                                     onChangeText={(text) => {
                                         // Ograniczenie do 12 znaków
@@ -1264,10 +1266,10 @@ const fetchSales = async () => {
                         </Text>
                         {selectedItem && (
                             <View style={{ marginVertical: 15 }}>
-                                <Text style={{ color: '#fff', fontSize: 16, textAlign: 'center' }}>
+                                <Text style={{ color: tc('text', '#fff'), fontSize: 16, textAlign: 'center' }}>
                                     {selectedItem.fullName} {selectedItem.size}
                                 </Text>
-                                <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginTop: 5 }}>
+                                <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginTop: 5 }}>
                                     Cena: {selectedItem.price} PLN
                                 </Text>
                             </View>
@@ -1300,7 +1302,7 @@ const fetchSales = async () => {
                         <Text style={styles.modalTitle}>Wybierz stanowisko wymiany</Text>
                         {selectedItem && (
                             <View style={{ marginVertical: 10 }}>
-                                <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>
+                                <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center' }}>
                                     {selectedItem.fullName} {selectedItem.size}
                                 </Text>
                             </View>
@@ -1327,12 +1329,12 @@ const fetchSales = async () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'black', // Ciemne tło
+        backgroundColor: tc('bg', 'black'), // Ciemne tło
     },
     spinnerContainer: {
         position: 'relative',
@@ -1355,7 +1357,7 @@ const styles = StyleSheet.create({
     loadingText: {
         marginTop: 16,
         fontSize: 18,
-        color: '#ffffff', // Biały tekst na ciemnym tle
+        color: tc('text', '#ffffff'), // Biały tekst na ciemnym tle
         textAlign: 'center',
         fontWeight: '500',
     },
@@ -1380,7 +1382,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalContent: {
-        backgroundColor: '#000000', // True black like main app background
+        backgroundColor: tc('bg', '#000000'), // True black like main app background
         borderRadius: 15,
         padding: 25,
         width: '90%',
@@ -1399,13 +1401,13 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#ffffff',
+        color: tc('text', '#ffffff'),
         textAlign: 'center',
         marginBottom: 20,
     },
     modalMessage: {
         fontSize: 14,
-        color: '#fff',
+        color: tc('text', '#fff'),
         textAlign: 'center',
         marginBottom: 16,
         paddingHorizontal: 8,
@@ -1453,11 +1455,11 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
-        backgroundColor: "black",
+        backgroundColor: tc('bg', "black"),
         paddingHorizontal: 0,
     },
     text: {
-        color: "white",
+        color: tc('text', "white"),
         fontSize: 18,
         fontWeight: "bold",
         marginBottom: 10,
@@ -1477,7 +1479,7 @@ const styles = StyleSheet.create({
         alignSelf: "center",
     },
     headerText: {
-        color: "white",
+        color: tc('text', "white"),
         fontSize: 13,
         fontWeight: "bold",
         marginBottom: 10,
@@ -1505,7 +1507,7 @@ const styles = StyleSheet.create({
         padding: 5,
     },
     dotsText: {
-        color: "white",
+        color: tc('text', "white"),
         fontSize: 20, // Increased font size for the three dots
     },
     customReasonContainer: {
@@ -1513,11 +1515,11 @@ const styles = StyleSheet.create({
         marginVertical: 10,
     },
     customReasonInput: {
-        backgroundColor: 'black',
+        backgroundColor: tc('surface', 'black'),
         borderRadius: 8,
         padding: 12,
         fontSize: 14,
-        color: 'white',
+        color: tc('text', 'white'),
         textAlignVertical: 'top',
         marginBottom: 5,
         minHeight: 45,
@@ -1525,7 +1527,7 @@ const styles = StyleSheet.create({
         borderColor: 'white',
     },
     characterCount: {
-        color: '#999',
+        color: tc('muted', '#999'),
         fontSize: 12,
         textAlign: 'right',
         marginBottom: 10,
@@ -1564,7 +1566,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#0d6efd',
     },
     radioText: {
-        color: '#fff',
+        color: tc('text', '#fff'),
         fontSize: 16,
         flex: 1,
     },
@@ -1573,15 +1575,15 @@ const styles = StyleSheet.create({
         marginVertical: 15,
         paddingVertical: 10,
         borderTopWidth: 1,
-        borderTopColor: '#333',
+        borderTopColor: tc('border', '#333'),
     },
     advanceTitle: {
-        color: '#fff',
+        color: tc('text', '#fff'),
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 10,
         textAlign: 'center',
-        backgroundColor: 'black',
+        backgroundColor: tc('bg', 'black'),
     },
     advanceRow: {
         flexDirection: 'row',
@@ -1590,11 +1592,11 @@ const styles = StyleSheet.create({
     },
     advanceInput: {
         flex: 1,
-        backgroundColor: 'black',
+        backgroundColor: tc('surface', 'black'),
         borderRadius: 8,
         padding: 12,
         fontSize: 16,
-        color: 'white',
+        color: tc('text', 'white'),
         marginRight: 10,
         borderWidth: 1,
         borderColor: 'white',
@@ -1627,7 +1629,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     successModalContent: {
-        backgroundColor: '#000000',
+        backgroundColor: tc('bg', '#000000'),
         borderRadius: 15,
         padding: 30,
         width: '85%',
@@ -1660,7 +1662,7 @@ const styles = StyleSheet.create({
     successModalTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#ffffff',
+        color: tc('text', '#ffffff'),
         textAlign: 'center',
         marginBottom: 15,
     },
@@ -1671,6 +1673,6 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         marginBottom: 10,
     },
-});
+}));
 
 export default WriteOff;

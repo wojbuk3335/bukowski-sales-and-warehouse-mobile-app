@@ -12,7 +12,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import LogoutButton from "../../components/LogoutButton";
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Various = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const [refreshing, setRefreshing] = useState(false);
 
@@ -224,7 +226,7 @@ const Various = () => {
   return (
     <SafeAreaView style={{
       flex: 1,
-      backgroundColor: "#000000",
+      backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
       <LogoutButton position="top-right" />
@@ -263,7 +265,7 @@ const Various = () => {
               <Text style={styles.menuTitle}>{item.title}</Text>
               <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#64748B" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#64748B")} />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -271,18 +273,18 @@ const Various = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     alignItems: "center",
     paddingVertical: 20,
     paddingHorizontal: 20,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   iconContainer: {
     width: 64,
@@ -296,7 +298,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   subtitle: {
@@ -311,12 +313,12 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   lastMenuItem: {
     marginBottom: 20, // Większy margines dla ostatniego elementu
@@ -335,13 +337,13 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   menuSubtitle: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
-});
+}));
 
 export default Various;

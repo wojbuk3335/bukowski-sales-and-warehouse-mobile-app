@@ -13,7 +13,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import LogoutButton from "../../components/LogoutButton";
 import { appAlert } from '../../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Settings = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState(true);
@@ -54,7 +56,7 @@ const Settings = () => {
   return (
     <SafeAreaView style={{
       flex: 1,
-      backgroundColor: "#000000",
+      backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
       <LogoutButton position="top-right" />
@@ -133,13 +135,13 @@ const Settings = () => {
           <TouchableOpacity style={styles.actionButton} onPress={handleBackupNow}>
             <Ionicons name="save" size={24} color="#0d6efd" />
             <Text style={styles.actionButtonText}>Utwórz kopię zapasową</Text>
-            <Ionicons name="chevron-forward" size={24} color="#CDCDE0" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#CDCDE0")} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionButton} onPress={handleExportData}>
             <Ionicons name="download" size={24} color="#0d6efd" />
             <Text style={styles.actionButtonText}>Eksportuj dane</Text>
-            <Ionicons name="chevron-forward" size={24} color="#CDCDE0" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#CDCDE0")} />
           </TouchableOpacity>
         </View>
 
@@ -152,7 +154,7 @@ const Settings = () => {
           >
             <Ionicons name="trash" size={24} color="#ffc107" />
             <Text style={styles.actionButtonText}>Wyczyść pamięć podręczną</Text>
-            <Ionicons name="chevron-forward" size={24} color="#CDCDE0" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#CDCDE0")} />
           </TouchableOpacity>
         </View>
 
@@ -174,10 +176,10 @@ const Settings = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#161622",
+    backgroundColor: tc('surface', "#161622"),
   },
   scrollContent: {
     padding: 16,
@@ -188,12 +190,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
   },
   section: {
     marginBottom: 24,
@@ -201,19 +203,19 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   settingItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   settingInfo: {
     flexDirection: "row",
@@ -227,49 +229,49 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 12,
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
   },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   actionButtonText: {
     flex: 1,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginLeft: 16,
   },
   infoItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   infoLabel: {
     fontSize: 16,
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
   },
   infoValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
-});
+}));
 
 export default Settings;

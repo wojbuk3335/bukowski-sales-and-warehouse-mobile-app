@@ -18,7 +18,9 @@ import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const EmployeesList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [employees, setEmployees] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -247,7 +249,7 @@ const EmployeesList = () => {
             </Text>
             <Text style={styles.employeeId}>ID: {item.employeeId}</Text>
             <Text style={styles.employeeLocation}>
-              <Ionicons name="location" size={12} color="#64748B" /> {item.workLocation}
+              <Ionicons name="location" size={12} color={tc('muted', "#64748B")} /> {item.workLocation}
             </Text>
             {item.hourlyRate > 0 && (
               <Text style={styles.employeeRate}>
@@ -291,7 +293,7 @@ const EmployeesList = () => {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tabela pracowników</Text>
         <TouchableOpacity
@@ -305,17 +307,17 @@ const EmployeesList = () => {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" />
+        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
         <TextInput
           style={styles.searchInput}
           placeholder="Szukaj pracownika..."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={tc('muted', "#64748B")}
           value={searchTerm}
           onChangeText={setSearchTerm}
         />
         {searchTerm.length > 0 && (
           <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
           </TouchableOpacity>
         )}
       </View>
@@ -368,7 +370,7 @@ const EmployeesList = () => {
                 {isEditing ? "Edytuj pracownika" : "Dodaj pracownika"}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -379,7 +381,7 @@ const EmployeesList = () => {
                 <TextInput
                   style={styles.formInput}
                   placeholder="Wpisz imię"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={firstName}
                   onChangeText={setFirstName}
                 />
@@ -391,7 +393,7 @@ const EmployeesList = () => {
                 <TextInput
                   style={styles.formInput}
                   placeholder="Wpisz nazwisko"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={lastName}
                   onChangeText={setLastName}
                 />
@@ -420,7 +422,7 @@ const EmployeesList = () => {
                 <TextInput
                   style={styles.formInput}
                   placeholder="0.00"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={hourlyRate}
                   onChangeText={setHourlyRate}
                   keyboardType="decimal-pad"
@@ -433,7 +435,7 @@ const EmployeesList = () => {
                 <TextInput
                   style={styles.formInput}
                   placeholder="0-100"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={salesCommission}
                   onChangeText={setSalesCommission}
                   keyboardType="decimal-pad"
@@ -446,7 +448,7 @@ const EmployeesList = () => {
                 <TextInput
                   style={[styles.formInput, styles.textArea]}
                   placeholder="Dodatkowe informacje..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={notes}
                   onChangeText={setNotes}
                   multiline
@@ -562,10 +564,10 @@ const EmployeesList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
@@ -573,9 +575,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -586,7 +588,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   addButton: {
     width: 40,
@@ -599,20 +601,20 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     marginHorizontal: 20,
     marginVertical: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     gap: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   countContainer: {
     paddingHorizontal: 20,
@@ -620,7 +622,7 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 14,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   loadingContainer: {
     flex: 1,
@@ -635,7 +637,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 16,
     textAlign: "center",
   },
@@ -650,12 +652,12 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   employeeCard: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   employeeHeader: {
     marginBottom: 12,
@@ -671,12 +673,12 @@ const styles = StyleSheet.create({
   },
   employeeId: {
     fontSize: 12,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginBottom: 4,
   },
   employeeLocation: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 4,
   },
   employeeRate: {
@@ -729,12 +731,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('bg', "#0A0A0A"),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "90%",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   modalHeader: {
     flexDirection: "row",
@@ -742,12 +744,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   modalBody: {
     padding: 20,
@@ -758,32 +760,32 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   textArea: {
     minHeight: 100,
     textAlignVertical: "top",
   },
   pickerContainer: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     overflow: "hidden",
   },
   picker: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     backgroundColor: "transparent",
   },
   modalActions: {
@@ -799,7 +801,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
   },
   saveButton: {
     backgroundColor: "#3B82F6",
@@ -807,7 +809,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   saveButtonText: {
     fontSize: 16,
@@ -821,14 +823,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   successModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
     width: "80%",
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   successIconContainer: {
     marginBottom: 20,
@@ -836,12 +838,12 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   successMessage: {
     fontSize: 16,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     marginBottom: 24,
   },
@@ -870,7 +872,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   confirmCancel: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
   },
   confirmDelete: {
     backgroundColor: "#DC2626",
@@ -878,8 +880,8 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
-});
+}));
 
 export default EmployeesList;

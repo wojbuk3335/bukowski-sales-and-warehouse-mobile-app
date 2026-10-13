@@ -18,7 +18,9 @@ import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const ChangePassword = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -153,9 +155,9 @@ const ChangePassword = () => {
           headerShown: true,
           headerTitle: 'Zmiana hasła',
           headerStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: tc('bg', '#000000'),
           },
-          headerTintColor: '#fff',
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
@@ -164,7 +166,7 @@ const ChangePassword = () => {
               onPress={() => router.back()}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
         }}
@@ -192,7 +194,7 @@ const ChangePassword = () => {
                 onChangeText={setCurrentPassword}
                 secureTextEntry={!showCurrentPassword}
                 placeholder="Wpisz obecne hasło"
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
                 autoCapitalize="none"
                 autoComplete="password"
               />
@@ -203,7 +205,7 @@ const ChangePassword = () => {
                 <Ionicons
                   name={showCurrentPassword ? 'eye-off' : 'eye'}
                   size={24}
-                  color="#666"
+                  color={tc('muted', "#666")}
                 />
               </TouchableOpacity>
             </View>
@@ -218,7 +220,7 @@ const ChangePassword = () => {
                 onChangeText={setNewPassword}
                 secureTextEntry={!showNewPassword}
                 placeholder="Wpisz nowe hasło"
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
                 autoCapitalize="none"
                 autoComplete="password"
               />
@@ -229,7 +231,7 @@ const ChangePassword = () => {
                 <Ionicons
                   name={showNewPassword ? 'eye-off' : 'eye'}
                   size={24}
-                  color="#666"
+                  color={tc('muted', "#666")}
                 />
               </TouchableOpacity>
             </View>
@@ -244,7 +246,7 @@ const ChangePassword = () => {
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
                 placeholder="Wpisz ponownie nowe hasło"
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
                 autoCapitalize="none"
                 autoComplete="password"
               />
@@ -255,7 +257,7 @@ const ChangePassword = () => {
                 <Ionicons
                   name={showConfirmPassword ? 'eye-off' : 'eye'}
                   size={24}
-                  color="#666"
+                  color={tc('muted', "#666")}
                 />
               </TouchableOpacity>
             </View>
@@ -349,10 +351,10 @@ const ChangePassword = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   backButton: {
     marginLeft: 10,
@@ -371,7 +373,7 @@ const styles = StyleSheet.create({
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     padding: 15,
     borderRadius: 10,
     marginBottom: 30,
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
     borderLeftColor: '#0d6efd',
   },
   infoText: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 14,
     marginLeft: 10,
     flex: 1,
@@ -388,7 +390,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
@@ -397,14 +399,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   input: {
-    backgroundColor: '#1a1a1a',
-    color: '#fff',
+    backgroundColor: tc('surface', '#1a1a1a'),
+    color: tc('text', '#fff'),
     borderRadius: 10,
     padding: 15,
     paddingRight: 50,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   eyeIcon: {
     position: 'absolute',
@@ -447,26 +449,26 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 20,
     padding: 30,
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   modalHeader: {
     marginBottom: 20,
   },
   modalTitle: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 15,
   },
   modalMessage: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 25,
@@ -488,6 +490,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-});
+}));
 
 export default ChangePassword;
