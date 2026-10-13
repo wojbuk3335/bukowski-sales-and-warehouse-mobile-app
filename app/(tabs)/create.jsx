@@ -4,6 +4,7 @@ import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from "react
 import { GlobalStateContext } from "../../context/GlobalState";
 import QRScanner from "../QRScanner";
 import LogoutButton from "../../components/LogoutButton";
+import { ModalHeader, look } from "../../components/AdminLook";
 import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import Logger from "../../services/logger";
@@ -278,21 +279,21 @@ export default function Create() {
         animationType="slide"
         onRequestClose={handleCloseError}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Błąd połączenia</Text>
-            <Text style={styles.modalMessage}>{errorMessage}</Text>
-            <TouchableOpacity 
-              style={styles.optionButton} 
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="cloud-offline" color="#DC3545" title="Błąd połączenia" />
+            <Text style={look.modalMessage}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={[look.primaryButton, { flex: 0 }]}
               onPress={handleRetry}
             >
-              <Text style={styles.optionText}>Spróbuj ponownie</Text>
+              <Text style={look.buttonText}>Spróbuj ponownie</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.optionButton, styles.closeButton]} 
+            <TouchableOpacity
+              style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
               onPress={handleCloseError}
             >
-              <Text style={styles.closeText}>Zamknij</Text>
+              <Text style={look.neutralButtonText}>Zamknij</Text>
             </TouchableOpacity>
           </View>
         </View>

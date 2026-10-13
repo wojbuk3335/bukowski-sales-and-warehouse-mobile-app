@@ -90,3 +90,16 @@ global.afterEach(() => {
 
 // Increase timeout for slow tests
 jest.setTimeout(30000);
+
+// Ikony (Ionicons) - pakiet z czcionkami nie jest transformowany w jest; w testach zwykły element
+jest.mock('@expo/vector-icons/Ionicons', () => {
+  const React = require('react');
+  return function IoniconsMock() {
+    return React.createElement('Ionicons');
+  };
+});
+jest.mock('@expo/vector-icons', () => {
+  const React = require('react');
+  const Icon = () => React.createElement('Ionicons');
+  return { Ionicons: Icon, MaterialIcons: Icon, FontAwesome: Icon, MaterialCommunityIcons: Icon };
+});
