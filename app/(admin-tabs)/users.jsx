@@ -2204,18 +2204,25 @@ const Users = () => {
         {processingStatusMessage && (
           <View style={styles.topWarningContainer}>
             <View style={(allProcessed && !hasPreviousUnprocessed) ? styles.topSuccess : styles.topWarning}>
-              <Ionicons 
-                name={(allProcessed && !hasPreviousUnprocessed) ? "checkmark-circle" : "warning"} 
-                size={32} 
-                color={(allProcessed && !hasPreviousUnprocessed) ? "#22c55e" : "#ff9900"} 
-              />
-              <View style={styles.topWarningContent}>
-                <Text style={(allProcessed && !hasPreviousUnprocessed) ? styles.topSuccessTitle : styles.topWarningTitle}>
-                  {processingStatusMessage}
+              <View style={styles.topWarningHeader}>
+                <View style={[styles.topWarningIcon, { backgroundColor: (allProcessed && !hasPreviousUnprocessed) ? 'rgba(16, 185, 129, 0.18)' : 'rgba(245, 158, 11, 0.18)' }]}>
+                  <Ionicons
+                    name={(allProcessed && !hasPreviousUnprocessed) ? "checkmark-circle" : "alert-circle"}
+                    size={24}
+                    color={(allProcessed && !hasPreviousUnprocessed) ? "#10B981" : "#F59E0B"}
+                  />
+                </View>
+                <Text style={styles.topWarningTitle}>
+                  {/* treść z serwera bez krzykliwego „UWAGA!” - kolor i ikona i tak ostrzegają */}
+                  {String(processingStatusMessage).replace(/^UWAGA!?\s*/i, '')}
                 </Text>
+              </View>
+              <View style={styles.topWarningContent}>
                 {!allProcessed && unprocessedCount > 0 && (
                   <>
-                    <Text style={styles.topWarningCount}>Nieprzetworzonych pozycji: {unprocessedCount}</Text>
+                    <Text style={styles.topWarningCountLabel}>
+                      Nieprzetworzonych pozycji: <Text style={styles.topWarningCount}>{unprocessedCount}</Text>
+                    </Text>
                     {currentUnprocessedUsers.length > 0 && (
                       <View style={styles.topWarningDaysContainer}>
                         <Text style={styles.topWarningDaysLabel}>Punkty do domknięcia (tapnij, aby przełączyć):</Text>
@@ -2237,8 +2244,8 @@ const Users = () => {
                 )}
                 {hasPreviousUnprocessed && previousUnprocessedCount > 0 && (
                   <>
-                    <Text style={styles.topWarningCount}>
-                      Zaległe nieprzetworzone z wcześniejszych dni: {previousUnprocessedCount}
+                    <Text style={styles.topWarningCountLabel}>
+                      Zaległe z wcześniejszych dni: <Text style={styles.topWarningCount}>{previousUnprocessedCount}</Text>
                     </Text>
                     {previousUnprocessedByDate.length > 0 && (
                       <View style={styles.topWarningDaysContainer}>
@@ -4091,67 +4098,69 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   topWarningContainer: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   topWarning: {
-    backgroundColor: tcl("#3a2a1a", '#fff2e6'),
-    padding: 16,
+    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.45)',
     borderRadius: 12,
-    borderLeftWidth: 6,
-    borderLeftColor: "#ff9900",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    shadowColor: "#ff9900",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    padding: 14,
   },
   topSuccess: {
-    backgroundColor: tcl("#1a3a1a", '#e6ffe6'),
-    padding: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.45)',
     borderRadius: 12,
-    borderLeftWidth: 6,
-    borderLeftColor: "#22c55e",
+    padding: 14,
+  },
+  topWarningHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    shadowColor: "#22c55e",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 10,
+  },
+  topWarningIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  topWarningCountLabel: {
+    fontSize: 14,
+    color: tc('muted', "#CBD5E1"),
+    marginTop: 8,
   },
   topWarningContent: {
-    flex: 1,
+    marginTop: 4,
   },
   topWarningTitle: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    color: "#ffcc66",
-    marginBottom: 6,
+    color: tc('text', "#fff"),
     lineHeight: 20,
   },
   topSuccessTitle: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    color: "#86efac",
+    color: tc('text', "#fff"),
     lineHeight: 20,
   },
   topWarningCount: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
-    color: "#ff9900",
+    color: "#F59E0B",
   },
   topWarningDaysContainer: {
-    marginTop: 6,
+    marginTop: 10,
   },
   topWarningDaysLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#ffd699",
+    fontSize: 12,
+    fontWeight: "600",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 6,
   },
   topWarningDayChipsRow: {
@@ -4160,17 +4169,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 8,
   },
   topWarningDayChip: {
-    backgroundColor: "#5b3a12",
+    backgroundColor: tc('surface', "#161622"),
     borderWidth: 1,
-    borderColor: "#ff9900",
+    borderColor: "rgba(245, 158, 11, 0.6)",
     borderRadius: 999,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
   },
   topWarningDayChipText: {
-    color: "#ffcc66",
-    fontSize: 12,
-    fontWeight: "700",
+    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "600",
   },
   priceListInfoContainer: {
     paddingHorizontal: 16,
