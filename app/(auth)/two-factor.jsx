@@ -10,7 +10,9 @@ import { GlobalStateContext } from "../../context/GlobalState";
 import { getApiUrl } from "../../config/api";
 import tokenService from "../../services/tokenService";
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const TwoFactorScreen = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const params = useLocalSearchParams();
   const { userId, email, step = "2fa_verification" } = params || {};
   // Cały kod w jednym polu tekstowym - wklejenie trafia w całości do jednego pola,
@@ -149,7 +151,7 @@ const TwoFactorScreen = () => {
 
 
   return (
-    <SafeAreaView style={{ backgroundColor: "#000", flex: 1 }}>
+    <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Weryfikacja dwuetapowa</Text>
         <Text style={styles.subtitle}>
@@ -194,7 +196,7 @@ const TwoFactorScreen = () => {
           autoComplete="off"
           importantForAutofill="no"
           placeholder="000000"
-          placeholderTextColor="#4b5563"
+          placeholderTextColor={tc('muted', "#4b5563")}
           selectionColor="#0d6efd"
           textAlign="center"
           style={styles.codeInput}
@@ -242,37 +244,37 @@ const TwoFactorScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 24,
   },
   title: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 22,
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
-    color: "#9ca3af",
+    color: tc('muted', "#9ca3af"),
     fontSize: 14,
     textAlign: "center",
     marginBottom: 20,
   },
   setupBlock: {
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     padding: 16,
     borderRadius: 16,
     marginBottom: 16,
   },
   label: {
-    color: "#9ca3af",
+    color: tc('muted', "#9ca3af"),
     fontSize: 13,
     textAlign: "center",
   },
   value: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
@@ -283,12 +285,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   qrHint: {
-    color: "#9ca3af",
+    color: tc('muted', "#9ca3af"),
     fontSize: 12,
     marginTop: 8,
   },
   tileLabel: {
-    color: "#f3f4f6",
+    color: tc('text', "#f3f4f6"),
     fontSize: 14,
     textAlign: "center",
     marginTop: 8,
@@ -297,17 +299,17 @@ const styles = StyleSheet.create({
   codeInput: {
     height: 64,
     borderRadius: 12,
-    backgroundColor: "#18181b",
+    backgroundColor: tc('surface', "#18181b"),
     borderWidth: 2,
     borderColor: "#0d6efd",
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 28,
     fontWeight: "700",
     letterSpacing: 10,
     marginBottom: 8,
   },
   manualKey: {
-    color: "#e5e7eb",
+    color: tc('text', "#e5e7eb"),
     fontSize: 12,
     textAlign: "center",
     marginBottom: 12,
@@ -320,10 +322,10 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     marginTop: 12,
-    backgroundColor: "#1f2937",
+    backgroundColor: tc('surface', "#1f2937"),
   },
   secondaryButtonText: {
-    color: "#e5e7eb",
+    color: tc('text', "#e5e7eb"),
     fontSize: 16,
   },
   errorContainer: {
@@ -340,12 +342,12 @@ const styles = StyleSheet.create({
   },
   recoveryBox: {
     marginTop: 20,
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     padding: 16,
     borderRadius: 16,
   },
   recoveryTitle: {
-    color: "#f9fafb",
+    color: tc('text', "#f9fafb"),
     fontWeight: "700",
     fontSize: 14,
     textAlign: "center",
@@ -356,11 +358,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   recoveryCode: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     letterSpacing: 1,
     marginBottom: 4,
   },
-});
+}));
 
 export default TwoFactorScreen;

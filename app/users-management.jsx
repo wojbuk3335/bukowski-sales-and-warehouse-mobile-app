@@ -19,7 +19,9 @@ import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const UsersManagement = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [users, setUsers] = useState([]);
   const [localizations, setLocalizations] = useState([]);
@@ -375,7 +377,7 @@ const UsersManagement = () => {
           value={formData.email}
           onChangeText={(text) => setFormData({ ...formData, email: text })}
           placeholder="email@example.com"
-          placeholderTextColor="#666"
+          placeholderTextColor={tc('muted', "#666")}
           autoCapitalize="none"
           keyboardType="email-address"
         />
@@ -388,7 +390,7 @@ const UsersManagement = () => {
           value={formData.symbol}
           onChangeText={(text) => setFormData({ ...formData, symbol: text })}
           placeholder="Symbol użytkownika"
-          placeholderTextColor="#666"
+          placeholderTextColor={tc('muted', "#666")}
         />
       </View>
 
@@ -400,7 +402,7 @@ const UsersManagement = () => {
             value={formData.password}
             onChangeText={(text) => setFormData({ ...formData, password: text })}
             placeholder={isEditing ? 'Zostaw puste aby nie zmieniać' : 'Minimum 5 znaków'}
-            placeholderTextColor="#666"
+            placeholderTextColor={tc('muted', "#666")}
             secureTextEntry={!showPassword}
             autoCapitalize="none"
           />
@@ -408,7 +410,7 @@ const UsersManagement = () => {
             style={styles.eyeIcon}
             onPress={() => setShowPassword(!showPassword)}
           >
-            <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={24} color="#666" />
+            <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={24} color={tc('muted', "#666")} />
           </TouchableOpacity>
         </View>
       </View>
@@ -421,7 +423,7 @@ const UsersManagement = () => {
             value={formData.confirmPassword}
             onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
             placeholder="Powtórz hasło"
-            placeholderTextColor="#666"
+            placeholderTextColor={tc('muted', "#666")}
             secureTextEntry={!showConfirmPassword}
             autoCapitalize="none"
           />
@@ -429,7 +431,7 @@ const UsersManagement = () => {
             style={styles.eyeIcon}
             onPress={() => setShowConfirmPassword(!showConfirmPassword)}
           >
-            <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={24} color="#666" />
+            <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={24} color={tc('muted', "#666")} />
           </TouchableOpacity>
         </View>
       </View>
@@ -467,7 +469,7 @@ const UsersManagement = () => {
             value={formData.pointNumber}
             onChangeText={(text) => setFormData({ ...formData, pointNumber: text })}
             placeholder="np. 00, 01, 02..."
-            placeholderTextColor="#666"
+            placeholderTextColor={tc('muted', "#666")}
             keyboardType="numeric"
             maxLength={2}
           />
@@ -483,7 +485,7 @@ const UsersManagement = () => {
             value={formData.sellingPoint}
             onChangeText={(text) => setFormData({ ...formData, sellingPoint: text })}
             placeholder="Punkt sprzedaży"
-            placeholderTextColor="#666"
+            placeholderTextColor={tc('muted', "#666")}
           />
         </View>
       )}
@@ -572,15 +574,15 @@ const UsersManagement = () => {
           headerShown: true,
           headerTitle: 'Zarządzanie użytkownikami',
           headerStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: tc('bg', '#000000'),
           },
-          headerTintColor: '#fff',
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
         }}
@@ -626,19 +628,19 @@ const UsersManagement = () => {
               <View style={styles.userDetails}>
                 {userItem.pointNumber && (
                   <View style={styles.detailRow}>
-                    <Ionicons name="pricetag" size={16} color="#CDCDE0" />
+                    <Ionicons name="pricetag" size={16} color={tc('muted', "#CDCDE0")} />
                     <Text style={styles.detailText}>Punkt nr: {userItem.pointNumber}</Text>
                   </View>
                 )}
                 {userItem.role === 'user' && userItem.sellingPoint && (
                   <View style={styles.detailRow}>
-                    <Ionicons name="storefront" size={16} color="#CDCDE0" />
+                    <Ionicons name="storefront" size={16} color={tc('muted', "#CDCDE0")} />
                     <Text style={styles.detailText}>{userItem.sellingPoint}</Text>
                   </View>
                 )}
                 {(userItem.role === 'user' || userItem.role === 'magazyn') && userItem.location && (
                   <View style={styles.detailRow}>
-                    <Ionicons name="location" size={16} color="#CDCDE0" />
+                    <Ionicons name="location" size={16} color={tc('muted', "#CDCDE0")} />
                     <Text style={styles.detailText}>{userItem.location}</Text>
                   </View>
                 )}
@@ -685,7 +687,7 @@ const UsersManagement = () => {
                   resetForm();
                 }}
               >
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             {renderUserForm(false)}
@@ -715,7 +717,7 @@ const UsersManagement = () => {
                   setEditingUser(null);
                 }}
               >
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             {renderUserForm(true)}
@@ -774,16 +776,16 @@ const UsersManagement = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   backButton: {
     marginLeft: 10,
@@ -792,7 +794,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: tc('border', '#2a2a2a'),
   },
   addButton: {
     flexDirection: 'row',
@@ -812,13 +814,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userCard: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     margin: 10,
     marginBottom: 5,
     padding: 15,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   userCardHeader: {
     flexDirection: 'row',
@@ -830,7 +832,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
@@ -841,7 +843,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   badge: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -850,12 +852,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d6efd',
   },
   badgeText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 12,
     fontWeight: '500',
   },
   userNumber: {
-    color: '#666',
+    color: tc('muted', '#666'),
     fontSize: 14,
     fontWeight: '600',
   },
@@ -869,7 +871,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailText: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 14,
   },
   userActions: {
@@ -902,12 +904,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#000',
+    backgroundColor: tc('bg', '#000'),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   modalHeader: {
     flexDirection: 'row',
@@ -915,10 +917,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: tc('border', '#2a2a2a'),
   },
   modalTitle: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -929,25 +931,25 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
   },
   helpText: {
-    color: '#888',
+    color: tc('muted', '#888'),
     fontSize: 12,
     marginTop: 5,
     fontStyle: 'italic',
   },
   input: {
-    backgroundColor: '#1a1a1a',
-    color: '#fff',
+    backgroundColor: tc('surface', '#1a1a1a'),
+    color: tc('text', '#fff'),
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   passwordContainer: {
     position: 'relative',
@@ -968,11 +970,11 @@ const styles = StyleSheet.create({
   roleButton: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     padding: 12,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
     alignItems: 'center',
   },
   roleButtonActive: {
@@ -989,15 +991,15 @@ const styles = StyleSheet.create({
   },
   locationPicker: {
     maxHeight: 150,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   locationOption: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: tc('border', '#2a2a2a'),
   },
   locationOptionSelected: {
     backgroundColor: '#0d6efd',
@@ -1039,7 +1041,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   notificationContainer: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 20,
     padding: 30,
     width: '90%',
@@ -1057,13 +1059,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   notificationTitle: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 15,
   },
   notificationMessage: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 25,
@@ -1087,6 +1089,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-});
+}));
 
 export default UsersManagement;

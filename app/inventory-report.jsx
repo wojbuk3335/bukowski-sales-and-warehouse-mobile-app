@@ -21,7 +21,9 @@ import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
 const InventoryReport = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
 
   // State management
@@ -354,17 +356,17 @@ const InventoryReport = () => {
         {isActive && (
           <View style={styles.dropdownContainer}>
             <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color="#64748B" style={styles.searchIcon} />
+              <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Szukaj..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={filterSearch}
                 onChangeText={setFilterSearch}
               />
               {filterSearch.length > 0 && (
                 <TouchableOpacity onPress={() => setFilterSearch('')}>
-                  <Ionicons name="close-circle" size={20} color="#64748B" />
+                  <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
                 </TouchableOpacity>
               )}
             </View>
@@ -451,21 +453,21 @@ const InventoryReport = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle={statusBarContent()} backgroundColor={tc('bg', "#000000")} />
       
       <Stack.Screen
         options={{
           headerShown: true,
           headerTitle: 'Stany magazynowe',
-          headerStyle: { backgroundColor: '#000000' },
-          headerTintColor: '#fff',
+          headerStyle: { backgroundColor: tc('bg', '#000000') },
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: { fontWeight: 'bold' },
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
               style={{ marginLeft: 10 }}
             >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
         }}
@@ -521,17 +523,17 @@ const InventoryReport = () => {
         {/* Search */}
         <View style={styles.card}>
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#64748B" style={styles.searchIcon} />
+            <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Szukaj produktu, kodu..."
-              placeholderTextColor="#64748B"
+              placeholderTextColor={tc('muted', "#64748B")}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#64748B" />
+                <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
               </TouchableOpacity>
             )}
           </View>
@@ -618,7 +620,7 @@ const InventoryReport = () => {
             </View>
           ) : filteredData.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="cube-outline" size={48} color="#64748B" />
+              <Ionicons name="cube-outline" size={48} color={tc('muted', "#64748B")} />
               <Text style={styles.emptyText}>Brak danych dla wybranych filtrów</Text>
             </View>
           ) : (
@@ -640,13 +642,13 @@ const InventoryReport = () => {
                   </View>
                   
                   <View style={styles.detailRow}>
-                    <Ionicons name="resize-outline" size={16} color="#64748B" />
+                    <Ionicons name="resize-outline" size={16} color={tc('muted', "#64748B")} />
                     <Text style={styles.detailText}>{item.size || '-'}</Text>
                   </View>
                   
                   {(item.sellingPoints || item.sellingPoint) && (
                     <View style={styles.detailRow}>
-                      <Ionicons name="location-outline" size={16} color="#64748B" />
+                      <Ionicons name="location-outline" size={16} color={tc('muted', "#64748B")} />
                       <Text style={styles.detailText}>{item.sellingPoints || item.sellingPoint}</Text>
                     </View>
                   )}
@@ -660,10 +662,10 @@ const InventoryReport = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   scrollView: {
     flex: 1,
@@ -673,17 +675,17 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: tc('surface', '#1a1a1a'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   dateButton: {
@@ -716,12 +718,12 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderRadius: 8,
     paddingHorizontal: 12,
   },
@@ -730,7 +732,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
     paddingVertical: 12,
   },
@@ -768,11 +770,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: tc('border', '#2a2a2a'),
   },
   filterButtonActive: {
     backgroundColor: '#0d6efd20',
@@ -791,7 +793,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dropdownContainer: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderWidth: 1,
     borderColor: '#0d6efd',
     borderTopWidth: 0,
@@ -804,7 +806,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#3a3a3a',
+    borderBottomColor: tc('border', '#3a3a3a'),
   },
   dropdownScroll: {
     maxHeight: 200,
@@ -815,13 +817,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#3a3a3a',
+    borderBottomColor: tc('border', '#3a3a3a'),
   },
   dropdownItemSelected: {
     backgroundColor: '#0d6efd10',
   },
   dropdownItemText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
   },
   dropdownItemTextSelected: {
@@ -829,12 +831,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inventoryItem: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: tc('surface', '#2a2a2a'),
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: tc('border', '#3a3a3a'),
   },
   inventoryItemHeader: {
     flexDirection: 'row',
@@ -846,7 +848,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginRight: 8,
   },
   quantityBadge: {
@@ -874,7 +876,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   detailText: {
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     fontSize: 14,
   },
   loadingContainer: {
@@ -883,7 +885,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   loadingText: {
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 12,
     fontSize: 14,
   },
@@ -893,11 +895,11 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   emptyText: {
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 12,
     fontSize: 14,
     textAlign: 'center',
   },
-});
+}));
 
 export default InventoryReport;

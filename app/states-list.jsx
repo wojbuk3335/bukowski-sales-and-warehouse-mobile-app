@@ -14,7 +14,9 @@ import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const StatesList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [states, setStates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +102,7 @@ const StatesList = () => {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Stany</Text>
           <View style={styles.backButton} />
@@ -120,7 +122,7 @@ const StatesList = () => {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Stany</Text>
         <View style={styles.backButton} />
@@ -179,13 +181,13 @@ const StatesList = () => {
                 {state.email || 'Zarządzanie stanami i korektami'}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#666" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#666")} />
           </TouchableOpacity>
         ))}
 
         {states.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Ionicons name="folder-open-outline" size={64} color="#666" />
+            <Ionicons name="folder-open-outline" size={64} color={tc('muted', "#666")} />
             <Text style={styles.emptyText}>Brak punktów sprzedaży</Text>
           </View>
         )}
@@ -194,10 +196,10 @@ const StatesList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: tc('bg', "#000"),
   },
   header: {
     flexDirection: "row",
@@ -205,9 +207,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000",
+    backgroundColor: tc('bg', "#000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -218,7 +220,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
     textAlign: "center",
   },
@@ -233,12 +235,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   infoAlert: {
     flexDirection: "row",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderWidth: 1,
     borderColor: "#0D6EFD",
     borderRadius: 8,
@@ -249,14 +251,14 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     lineHeight: 20,
   },
   counterCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 8,
     padding: 16,
     marginBottom: 16,
@@ -265,7 +267,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   counterText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "500",
   },
@@ -277,12 +279,12 @@ const styles = StyleSheet.create({
   stateCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
     gap: 16,
   },
   iconContainer: {
@@ -297,12 +299,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   stateTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "600",
   },
   stateSubtitle: {
-    color: "#999",
+    color: tc('muted', "#999"),
     fontSize: 14,
   },
   emptyContainer: {
@@ -313,9 +315,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   emptyText: {
-    color: "#666",
+    color: tc('muted', "#666"),
     fontSize: 16,
   },
-});
+}));
 
 export default StatesList;

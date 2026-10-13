@@ -19,7 +19,9 @@ import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const OrdersList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -301,7 +303,7 @@ const OrdersList = () => {
         <View style={styles.cardBody}>
           {/* Customer */}
           <View style={styles.infoRow}>
-            <Ionicons name="person-outline" size={16} color="#94A3B8" />
+            <Ionicons name="person-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Klient:</Text>
             <Text style={styles.infoValue} numberOfLines={1}>
               {order.customer?.name}
@@ -309,14 +311,14 @@ const OrdersList = () => {
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={16} color="#94A3B8" />
+            <Ionicons name="call-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Tel:</Text>
             <Text style={styles.infoValue}>{order.customer?.phone}</Text>
           </View>
 
           {/* Product */}
           <View style={styles.infoRow}>
-            <Ionicons name="pricetag-outline" size={16} color="#94A3B8" />
+            <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Produkt:</Text>
             <Text style={styles.infoValue} numberOfLines={1}>
               {[
@@ -329,7 +331,7 @@ const OrdersList = () => {
 
           {/* Delivery */}
           <View style={styles.infoRow}>
-            <Ionicons name="car-outline" size={16} color="#94A3B8" />
+            <Ionicons name="car-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Dostawa:</Text>
             <Text style={styles.infoValue}>
               {getDeliveryOptionLabel(order.customer?.deliveryOption)}
@@ -338,7 +340,7 @@ const OrdersList = () => {
 
           {/* Price */}
           <View style={styles.infoRow}>
-            <Ionicons name="cash-outline" size={16} color="#94A3B8" />
+            <Ionicons name="cash-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Pobranie:</Text>
             <Text style={[styles.infoValue, styles.priceValue]}>
               {formatPrice(order.payment?.cashOnDelivery)}
@@ -407,15 +409,15 @@ const OrdersList = () => {
           headerShown: true,
           headerTitle: 'Zamówienia',
           headerStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: tc('bg', '#000000'),
           },
-          headerTintColor: '#fff',
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
         }}
@@ -424,17 +426,17 @@ const OrdersList = () => {
       {/* Stats and Search */}
       <View style={styles.topBar}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#94A3B8" />
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
           <TextInput
             style={styles.searchInput}
             placeholder="Szukaj zamówienia..."
-            placeholderTextColor="#64748B"
+            placeholderTextColor={tc('muted', "#64748B")}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#64748B" />
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
             </TouchableOpacity>
           )}
         </View>
@@ -464,7 +466,7 @@ const OrdersList = () => {
       >
         {filteredOrders.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="cart-outline" size={64} color="#64748B" />
+            <Ionicons name="cart-outline" size={64} color={tc('muted', "#64748B")} />
             <Text style={styles.emptyStateText}>
               {orders.length === 0 ? 'Brak zamówień do wyświetlenia' : 'Brak zamówień pasujących do filtrów'}
             </Text>
@@ -486,7 +488,7 @@ const OrdersList = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filtry</Text>
               <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -554,7 +556,7 @@ const OrdersList = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Szczegóły zamówienia</Text>
               <TouchableOpacity onPress={() => setDetailsModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -716,7 +718,7 @@ const OrdersList = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>✅ Realizacja zamówienia</Text>
               <TouchableOpacity onPress={() => setCompleteModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -745,7 +747,7 @@ const OrdersList = () => {
                       <Text style={styles.dateButtonText}>
                         {shippingDate.toLocaleDateString('pl-PL')}
                       </Text>
-                      <Ionicons name="calendar" size={24} color="#fff" />
+                      <Ionicons name="calendar" size={24} color={tc('text', "#fff")} />
                     </TouchableOpacity>
                     {showDatePicker && (
                       <DateTimePicker
@@ -870,16 +872,16 @@ const OrdersList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   backButton: {
     marginLeft: 8,
@@ -890,25 +892,25 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
     paddingHorizontal: 12,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     paddingVertical: 10,
   },
   filterButton: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
     width: 44,
     height: 44,
@@ -919,11 +921,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   statsText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   scrollView: {
     flex: 1,
@@ -937,15 +939,15 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 16,
   },
   card: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -953,16 +955,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   orderId: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   orderDate: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginTop: 2,
   },
   statusBadge: {
@@ -985,11 +987,11 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   infoValue: {
     fontSize: 14,
-    color: '#fff',
+    color: tc('text', '#fff'),
     flex: 1,
   },
   priceValue: {
@@ -1004,7 +1006,7 @@ const styles = StyleSheet.create({
   },
   realizationDate: {
     fontSize: 13,
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   urgencyBadge: {
     paddingHorizontal: 8,
@@ -1021,7 +1023,7 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   actionButton: {
     flex: 1,
@@ -1051,7 +1053,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 16,
     width: '90%',
     maxHeight: '80%',
@@ -1062,12 +1064,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   modalBody: {
     padding: 20,
@@ -1078,7 +1080,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 8,
   },
   filterOptions: {
@@ -1090,7 +1092,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
   },
   filterOptionActive: {
     backgroundColor: '#3B82F6',
@@ -1108,14 +1110,14 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   modalFooterVertical: {
     flexDirection: 'column',
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   modalButton: {
     flex: 1,
@@ -1139,36 +1141,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
   },
   modalButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '600',
   },
   detailsSection: {
     marginBottom: 20,
     padding: 16,
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
   },
   detailsSectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   detailsRow: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 8,
   },
   detailsLabel: {
     fontWeight: '600',
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   detailsValue: {
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   completeOrderInfo: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1181,12 +1183,12 @@ const styles = StyleSheet.create({
   },
   completeOrderDetail: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 8,
   },
   completeOrderValue: {
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   datePickerGroup: {
     marginBottom: 20,
@@ -1194,13 +1196,13 @@ const styles = StyleSheet.create({
   datePickerLabel: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   dateButton: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
     borderRadius: 8,
     padding: 14,
     flexDirection: 'row',
@@ -1209,16 +1211,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dateButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
   },
   datePickerHint: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginTop: 8,
   },
   confirmModal: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 20,
     padding: 30,
     width: '85%',
@@ -1238,18 +1240,18 @@ const styles = StyleSheet.create({
   confirmTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
     marginBottom: 16,
   },
   confirmText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     textAlign: 'center',
     marginBottom: 16,
   },
   confirmOrderBox: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1257,12 +1259,12 @@ const styles = StyleSheet.create({
   confirmOrderId: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 8,
   },
   confirmOrderDetail: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 4,
   },
   confirmButtons: {
@@ -1282,19 +1284,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
   confirmButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: 'bold',
   },
   successMessageBox: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
   },
   successMessageText: {
     fontSize: 15,
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -1303,6 +1305,6 @@ const styles = StyleSheet.create({
     width: '100%',
     flex: 0,
   },
-});
+}));
 
 export default OrdersList;

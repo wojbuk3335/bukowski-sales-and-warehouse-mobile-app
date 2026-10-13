@@ -16,7 +16,9 @@ import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const ColorsList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,7 +162,7 @@ const ColorsList = () => {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Lista kolorów</Text>
         <View style={styles.backButton} />
@@ -168,17 +170,17 @@ const ColorsList = () => {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" />
+        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
         <TextInput
           style={styles.searchInput}
           placeholder="Szukaj koloru..."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={tc('muted', "#64748B")}
           value={searchTerm}
           onChangeText={setSearchTerm}
         />
         {searchTerm.length > 0 && (
           <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
           </TouchableOpacity>
         )}
       </View>
@@ -226,7 +228,7 @@ const ColorsList = () => {
                 Edytuj kolor
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -237,7 +239,7 @@ const ColorsList = () => {
                 <TextInput
                   style={[styles.formInput, editingColor && styles.formInputDisabled]}
                   placeholder="Wpisz kod (np. 01)"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={kolKod}
                   onChangeText={setKolKod}
                   editable={!editingColor}
@@ -253,7 +255,7 @@ const ColorsList = () => {
                 <TextInput
                   style={styles.formInput}
                   placeholder="Wpisz nazwę (np. CZERWONY)"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                   value={kolOpis}
                   onChangeText={setKolOpis}
                   autoCapitalize="characters"
@@ -334,10 +336,10 @@ const ColorsList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
@@ -345,9 +347,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -358,7 +360,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   addButton: {
     width: 40,
@@ -371,20 +373,20 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     marginHorizontal: 20,
     marginVertical: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     gap: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   countContainer: {
     paddingHorizontal: 20,
@@ -392,7 +394,7 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 14,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   loadingContainer: {
     flex: 1,
@@ -407,7 +409,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 16,
     textAlign: "center",
   },
@@ -416,12 +418,12 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   colorCard: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   colorHeader: {
     marginBottom: 12,
@@ -432,12 +434,12 @@ const styles = StyleSheet.create({
   colorName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   colorCode: {
     fontSize: 13,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   editButton: {
     flexDirection: "row",
@@ -459,12 +461,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('bg', "#0A0A0A"),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "90%",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   modalHeader: {
     flexDirection: "row",
@@ -472,12 +474,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   modalBody: {
     padding: 20,
@@ -488,26 +490,26 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   formInputDisabled: {
-    backgroundColor: "#0A0A0A",
-    color: "#64748B",
+    backgroundColor: tc('bg', "#0A0A0A"),
+    color: tc('muted', "#64748B"),
   },
   formHint: {
     fontSize: 12,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 4,
   },
   modalActions: {
@@ -523,7 +525,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
   },
   saveButton: {
     backgroundColor: "#8B5CF6",
@@ -531,7 +533,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   saveButtonText: {
     fontSize: 16,
@@ -545,14 +547,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   successModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
     width: "80%",
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   successIconContainer: {
     marginBottom: 20,
@@ -560,12 +562,12 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   successMessage: {
     fontSize: 16,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     marginBottom: 24,
   },
@@ -582,6 +584,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
   },
-});
+}));
 
 export default ColorsList;

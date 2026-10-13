@@ -18,6 +18,7 @@ import tokenService from "../services/tokenService";
 import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na żywo (także z panelu)
 import { API_CONFIG, getApiUrl } from "../config/api";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 // Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
 // Zwraca komunikat błędu albo null.
 // Liczba z pola ceny: akceptuje przecinek jako separator dziesiętny ("199,99"), puste = NaN
@@ -53,6 +54,7 @@ const validatePriceListPrice = ({ price, discountPrice, priceExceptions }) => {
 };
 
 const Cenniki = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [users, setUsers] = useState([]);
   const [selectedSellingPoint, setSelectedSellingPoint] = useState("");
@@ -526,7 +528,7 @@ const Cenniki = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Cenniki</Text>
         <View style={styles.backButton} />
@@ -547,7 +549,7 @@ const Cenniki = () => {
               <Text style={styles.selectorText}>
                 {selectedUser ? getSellingPointName(selectedUser) : "Wybierz punkt"}
               </Text>
-              <Ionicons name="chevron-down" size={20} color="#fff" />
+              <Ionicons name="chevron-down" size={20} color={tc('text', "#fff")} />
             </TouchableOpacity>
           </View>
 
@@ -576,7 +578,7 @@ const Cenniki = () => {
                     <Text style={styles.actionText}>Utwórz cennik</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={openCloneModal}>
-                    <Ionicons name="copy" size={18} color="#fff" style={styles.buttonIcon} />
+                    <Ionicons name="copy" size={18} color={tc('text', "#fff")} style={styles.buttonIcon} />
                     <Text style={styles.actionText}>Sklonuj</Text>
                   </TouchableOpacity>
                 </>
@@ -585,7 +587,7 @@ const Cenniki = () => {
               {!priceListError && priceList.length > 0 && (
                 <>
                   <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]} onPress={openCloneModal}>
-                    <Ionicons name="copy" size={18} color="#fff" style={styles.buttonIcon} />
+                    <Ionicons name="copy" size={18} color={tc('text', "#fff")} style={styles.buttonIcon} />
                     <Text style={styles.actionText}>Sklonuj</Text>
                   </TouchableOpacity>
                   {/* Removed Synchronizuj and Aktualizuj globalnie buttons as requested */}
@@ -608,17 +610,17 @@ const Cenniki = () => {
           )}
 
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#94A3B8" />
+            <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
             <TextInput
               style={styles.searchInput}
               placeholder="Szukaj po nazwie lub kodzie..."
-              placeholderTextColor="#64748B"
+              placeholderTextColor={tc('muted', "#64748B")}
               value={searchTerm}
               onChangeText={setSearchTerm}
             />
             {searchTerm.length > 0 && (
               <TouchableOpacity onPress={() => setSearchTerm("")}> 
-                <Ionicons name="close-circle" size={20} color="#94A3B8" />
+                <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
               </TouchableOpacity>
             )}
           </View>
@@ -662,7 +664,7 @@ const Cenniki = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Wybierz punkt</Text>
               <TouchableOpacity onPress={() => setShowSellingPointModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <ScrollView>
@@ -694,7 +696,7 @@ const Cenniki = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edytuj ceny</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <ScrollView>
@@ -707,7 +709,7 @@ const Cenniki = () => {
                   value={editPrice}
                   onChangeText={setEditPrice}
                   placeholder="Wprowadź cenę"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
               <View style={styles.formGroup}>
@@ -718,7 +720,7 @@ const Cenniki = () => {
                   value={editDiscountPrice}
                   onChangeText={setEditDiscountPrice}
                   placeholder="Wprowadź cenę promocyjną"
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
 
@@ -738,7 +740,7 @@ const Cenniki = () => {
                           <Text style={styles.exceptionSelectText}>
                             {sizes.find((size) => size._id === exception.size)?.Roz_Opis || exception.sizeLabel || "Wybierz rozmiar"}
                           </Text>
-                          <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+                          <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
                         </TouchableOpacity>
                       </View>
                       <TextInput
@@ -747,7 +749,7 @@ const Cenniki = () => {
                         value={String(exception.value ?? "")}
                         onChangeText={(value) => handlePriceExceptionChange(index, "value", value)}
                         placeholder="Cena"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                       />
                       <TouchableOpacity
                         style={styles.removeButton}
@@ -790,15 +792,15 @@ const Cenniki = () => {
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz rozmiar</Text>
               <TouchableOpacity onPress={() => setShowSizePicker(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <View style={styles.pickerSearchContainer}>
-              <Ionicons name="search" size={18} color="#94A3B8" />
+              <Ionicons name="search" size={18} color={tc('muted', "#94A3B8")} />
               <TextInput
                 style={styles.pickerSearchInput}
                 placeholder="Szukaj rozmiaru..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={tc('muted', "#64748B")}
                 value={sizeSearch}
                 onChangeText={setSizeSearch}
               />
@@ -844,7 +846,7 @@ const Cenniki = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Sklonuj cennik</Text>
               <TouchableOpacity onPress={() => setShowCloneModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Wybierz punkt, z którego skopiować cennik</Text>
@@ -901,7 +903,7 @@ const Cenniki = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.imageModalContent}>
             <TouchableOpacity style={styles.imageModalClose} onPress={() => setSelectedPicture(null)}>
-              <Ionicons name="close" size={24} color="#fff" />
+              <Ionicons name="close" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
             {selectedPicture && (
               <Image source={{ uri: selectedPicture }} style={styles.fullImage} resizeMode="contain" />
@@ -970,23 +972,23 @@ const Cenniki = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   headerTitle: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 20,
     fontWeight: "700",
   },
@@ -999,12 +1001,12 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   selectorLabel: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginBottom: 6,
   },
   selectorButton: {
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -1012,10 +1014,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   selectorText: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 14,
     fontWeight: "600",
   },
@@ -1043,7 +1045,7 @@ const styles = StyleSheet.create({
   secondaryAction: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#334155",
+    backgroundColor: tc('surface2', "#334155"),
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
@@ -1068,25 +1070,25 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   actionText: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 12,
     fontWeight: "600",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     marginHorizontal: 16,
     marginTop: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   searchInput: {
     flex: 1,
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     marginLeft: 8,
   },
   warningBanner: {
@@ -1124,13 +1126,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   card: {
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   cardHeader: {
     flexDirection: "row",
@@ -1139,14 +1141,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardTitle: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 14,
     fontWeight: "700",
     flex: 1,
     paddingRight: 8,
   },
   cardIndex: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   cardBody: {},
@@ -1166,25 +1168,25 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 8,
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     alignItems: "center",
     justifyContent: "center",
   },
   placeholderLogo: {
     width: 32,
     height: 32,
-    tintColor: "#64748B",
+    tintColor: tc('muted', "#64748B"),
   },
   cardInfo: {
     flex: 1,
   },
   cardLabel: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginBottom: 2,
   },
   cardValue: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 12,
   },
   priceRow: {
@@ -1193,7 +1195,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   priceText: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontWeight: "700",
   },
   discountText: {
@@ -1229,20 +1231,20 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxHeight: "80%",
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   modalContentLarge: {
     width: "100%",
     maxHeight: "90%",
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   modalHeader: {
     flexDirection: "row",
@@ -1251,7 +1253,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalTitle: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 16,
     fontWeight: "700",
   },
@@ -1260,16 +1262,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalNote: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   modalItem: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   modalItemText: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 14,
   },
   cloneList: {
@@ -1283,7 +1285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     marginBottom: 8,
   },
   cloneItemSelected: {
@@ -1297,18 +1299,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   formLabel: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
     marginBottom: 6,
   },
   formInput: {
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   pickerModalOverlay: {
     flex: 1,
@@ -1316,7 +1318,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   pickerModalContent: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "80%",
@@ -1327,29 +1329,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   pickerModalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerSearchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     margin: 16,
     marginBottom: 0,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   pickerSearchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginLeft: 8,
   },
   pickerItem: {
@@ -1359,15 +1361,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   pickerItemText: {
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerEmptyText: {
     fontSize: 14,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     textAlign: "center",
     padding: 24,
   },
@@ -1378,10 +1380,10 @@ const styles = StyleSheet.create({
   },
   exceptionPicker: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     marginRight: 8,
   },
   exceptionSelect: {
@@ -1392,23 +1394,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   exceptionSelectText: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontSize: 12,
     flex: 1,
     marginRight: 6,
   },
   picker: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
   },
   exceptionInput: {
     width: 80,
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     marginRight: 8,
   },
   removeButton: {
@@ -1437,13 +1439,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   syncSummary: {
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
   },
   syncTitle: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontWeight: "700",
     marginBottom: 6,
   },
@@ -1455,7 +1457,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   syncSectionTitle: {
-    color: "#FFFFFF",
+    color: tc('text', "#FFFFFF"),
     fontWeight: "700",
     marginBottom: 6,
   },
@@ -1464,13 +1466,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   syncRowHint: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontSize: 12,
   },
   imageModalContent: {
     width: "100%",
     height: "80%",
-    backgroundColor: "#0F172A",
+    backgroundColor: tc('surface', "#0F172A"),
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
@@ -1493,14 +1495,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   successModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
     width: "80%",
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   successIconContainer: {
     marginBottom: 20,
@@ -1508,7 +1510,7 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   dialogButtons: {
@@ -1528,7 +1530,7 @@ const styles = StyleSheet.create({
   },
   successMessage: {
     fontSize: 16,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     marginBottom: 24,
   },
@@ -1542,9 +1544,9 @@ const styles = StyleSheet.create({
   successButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     textAlign: "center",
   },
-});
+}));
 
 export default Cenniki;

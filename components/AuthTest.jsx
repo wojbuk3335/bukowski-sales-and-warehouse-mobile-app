@@ -7,7 +7,9 @@ import { getApiUrl } from '../config/api';
 import { forceResetAuth } from '../utils/forceResetAuth';
 import Logger from '../services/logger';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const AuthTest = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const [authStatus, setAuthStatus] = useState('Checking...');
     const [tokenInfo, setTokenInfo] = useState('');
 
@@ -79,7 +81,7 @@ const AuthTest = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
     container: {
         flex: 1,
         justifyContent: 'center',
@@ -101,7 +103,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         marginBottom: 30,
         textAlign: 'center',
-        color: '#666',
+        color: tc('muted', '#666'),
     },
     button: {
         backgroundColor: '#007AFF',
@@ -118,6 +120,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontWeight: 'bold',
     },
-});
+}));
 
 export default AuthTest;

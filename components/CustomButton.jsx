@@ -1,5 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
+import { createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const CustomButton = ({
   title,
   handlePress,
@@ -7,6 +8,7 @@ const CustomButton = ({
   textStyles,
   isLoading,
 }) => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   return (
     <TouchableOpacity
       onPress={handlePress}
@@ -25,7 +27,7 @@ const CustomButton = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   button: {
     backgroundColor: "#0d6efd",
     borderRadius: 16,
@@ -42,6 +44,6 @@ const styles = StyleSheet.create({
     fontSize: 22, // increased font size for bigger button text
     color: "#ffffff",
   },
-});
+}));
 
 export default CustomButton;

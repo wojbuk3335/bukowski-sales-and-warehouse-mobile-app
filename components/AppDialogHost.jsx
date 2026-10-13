@@ -3,6 +3,7 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { registerAppAlertHost } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 // Jeden wspólny dialog dla całej aplikacji (zamontowany raz w app/_layout.jsx).
 // Wygląd jak okienka w remanencie: ciemna karta, ikona, tytuł, treść, przyciski jeden pod drugim.
 
@@ -27,6 +28,7 @@ const buttonStyleFor = (button) => {
 };
 
 export default function AppDialogHost() {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [queue, setQueue] = useState([]);
 
   useEffect(() => registerAppAlertHost((request) => {
@@ -86,7 +88,7 @@ export default function AppDialogHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -97,10 +99,10 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: tc('surface', '#0A0A0A'),
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: tc('border', '#1E293B'),
     padding: 20,
   },
   iconWrap: {
@@ -108,14 +110,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 8,
   },
   message: {
-    color: '#CBD5E1',
+    color: tc('muted', '#CBD5E1'),
     fontSize: 15,
     lineHeight: 21,
     textAlign: 'center',
@@ -146,4 +148,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-});
+}));

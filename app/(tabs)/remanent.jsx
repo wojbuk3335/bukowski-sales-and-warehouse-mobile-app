@@ -21,7 +21,9 @@ import { getApiUrl } from '../../config/api';
 import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../config/remainingProductTypes';
 import LogoutButton from '../../components/LogoutButton';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Remanent = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   // Dolny pasek zakładek jest nałożony na ekran (position: absolute, wysokość jak w (tabs)/_layout.jsx) -
   // rezerwujemy jego pełną wysokość, żeby przyciski na dole nie chowały się pod nim.
@@ -1105,7 +1107,7 @@ const Remanent = () => {
   // Loading state
   if (loading) {
     return (
-      <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: "#000", flex: 1, paddingBottom: tabBarSpace }}>
+      <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: tabBarSpace }}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0d6efd" />
           <Text style={styles.loadingText}>Ładowanie remanentów...</Text>
@@ -1115,7 +1117,7 @@ const Remanent = () => {
   }
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: "#000", flex: 1, paddingBottom: tabBarSpace }}>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: tabBarSpace }}>
       <LogoutButton position="top-right" />
       <View style={styles.header}>
         <View style={styles.headerContent}>
@@ -1196,7 +1198,7 @@ const Remanent = () => {
 
       {!session ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="clipboard-outline" size={64} color="#CDCDE0" />
+          <Ionicons name="clipboard-outline" size={64} color={tc('muted', "#CDCDE0")} />
           <Text style={styles.emptyText}>Brak rozpoczętego remanentu</Text>
           <Text style={styles.emptySubtext}>
             Rozpocznij remanent, zeskanuj wszystkie sztuki w punkcie, a potem kliknij „Sprawdź” i „Zakończ remanent”.
@@ -1263,7 +1265,7 @@ const Remanent = () => {
               <Ionicons name="warning" size={56} color="#F59E0B" />
             </View>
             <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Wyczyścić cały remanent?</Text>
-            <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
+            <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
               Zostaną usunięte wszystkie skany bieżącego remanentu ({remanentData.length} szt.). Remanent pozostaje rozpoczęty. Tej operacji nie da się cofnąć.
             </Text>
             <View style={{ gap: 10, marginTop: 8 }}>
@@ -1287,7 +1289,7 @@ const Remanent = () => {
               <Ionicons name={clearResult?.ok ? 'checkmark-circle' : 'close-circle'} size={56} color={clearResult?.ok ? '#10B981' : '#EF4444'} />
             </View>
             <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>{clearResult?.ok ? 'Gotowe' : 'Błąd'}</Text>
-            <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 16 }}>{clearResult?.text}</Text>
+            <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 16 }}>{clearResult?.text}</Text>
             <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={() => setClearResult(null)}>
               <Text style={styles.filterCardButtonText}>OK</Text>
             </TouchableOpacity>
@@ -1301,10 +1303,10 @@ const Remanent = () => {
         animationType="slide"
         onRequestClose={cancelScanning}
       >
-        <SafeAreaView style={{ backgroundColor: "#000", flex: 1 }}>
+        <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
           <View style={styles.scannerHeader}>
             <TouchableOpacity onPress={cancelScanning} style={styles.closeButton}>
-              <Ionicons name="close" size={28} color="white" />
+              <Ionicons name="close" size={28} color={tc('text', "white")} />
             </TouchableOpacity>
             <Text style={styles.scannerTitle}>Skanuj kody kurtek</Text>
             <View style={styles.placeholderButton} />
@@ -1388,13 +1390,13 @@ const Remanent = () => {
                   <Ionicons name="copy-outline" size={48} color="#F59E0B" />
                 </View>
                 <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ten kod jest już policzony</Text>
-                <Text style={{ color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{duplicatePrompt.name}</Text>
-                <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 14 }}>
+                <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{duplicatePrompt.name}</Text>
+                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 14 }}>
                   Policzono już {duplicatePrompt.count} szt. Czy to ta sama metka, czy kolejna, identyczna sztuka?
                 </Text>
                 <View style={{ gap: 10 }}>
                   <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => resolveDuplicate(false)}>
-                    <Ionicons name="close" size={18} color="white" />
+                    <Ionicons name="close" size={18} color={tc('text', "white")} />
                     <Text style={styles.filterCardButtonText}>Ta sama metka - pomiń</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={() => resolveDuplicate(true)}>
@@ -1410,7 +1412,7 @@ const Remanent = () => {
             <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
               <View style={styles.filterCard}>
                 <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ile sztuk łącznie?</Text>
-                <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 12 }}>{quantityEdit.name}</Text>
+                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 12 }}>{quantityEdit.name}</Text>
                 <TextInput
                   style={styles.quantityInput}
                   value={quantityEdit.value}
@@ -1437,7 +1439,7 @@ const Remanent = () => {
             <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
               <View style={styles.filterCard}>
                 <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Wpisz kod z metki</Text>
-                <Text style={{ color: '#CBD5E1', fontSize: 14, textAlign: 'center', marginBottom: 12 }}>13 cyfr spod kodu kreskowego</Text>
+                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 14, textAlign: 'center', marginBottom: 12 }}>13 cyfr spod kodu kreskowego</Text>
                 <TextInput
                   style={[styles.quantityInput, { fontSize: 22, letterSpacing: 2 }]}
                   value={manualCode}
@@ -1447,7 +1449,7 @@ const Remanent = () => {
                   maxLength={13}
                   onSubmitEditing={submitManualCode}
                 />
-                <Text style={{ color: manualCodeValid ? '#10B981' : '#94A3B8', fontSize: 14, textAlign: 'center', marginTop: 10, minHeight: 20 }}>
+                <Text style={{ color: manualCodeValid ? '#10B981' : tc('muted', '#94A3B8'), fontSize: 14, textAlign: 'center', marginTop: 10, minHeight: 20 }}>
                   {manualCode.length < 13
                     ? `${manualCode.length}/13 cyfr`
                     : manualCodeValid
@@ -1477,12 +1479,12 @@ const Remanent = () => {
                 <View style={styles.filterCardHeader}>
                   <Text style={styles.filterCardTitle}>{pickerGood ? 'Wybierz rozmiar' : 'Wybierz z bazy produktów'}</Text>
                   <TouchableOpacity onPress={() => (pickerGood ? setPickerGood(null) : setPickerOpen(false))} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Ionicons name={pickerGood ? 'arrow-back' : 'close'} size={24} color="white" />
+                    <Ionicons name={pickerGood ? 'arrow-back' : 'close'} size={24} color={tc('text', "white")} />
                   </TouchableOpacity>
                 </View>
                 {pickerGood ? (
                   <>
-                    <Text style={{ color: '#CBD5E1', fontSize: 15, marginBottom: 10 }}>{pickerGood.fullName}</Text>
+                    <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, marginBottom: 10 }}>{pickerGood.fullName}</Text>
                     <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
                       <View style={styles.pickerSizeGrid}>
                         {pickerSizes.map((size) => (
@@ -1496,11 +1498,11 @@ const Remanent = () => {
                 ) : (
                   <>
                     <View style={[styles.selectSearchBox, { marginBottom: 8 }]}>
-                      <Ionicons name="search" size={16} color="#94A3B8" />
+                      <Ionicons name="search" size={16} color={tc('muted', "#94A3B8")} />
                       <TextInput
                         style={styles.selectSearchInput}
                         placeholder="Szukaj: np. amanda czarny, aps 056"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={tc('muted', "#64748B")}
                         value={pickerSearch}
                         onChangeText={setPickerSearch}
                         autoFocus
@@ -1508,7 +1510,7 @@ const Remanent = () => {
                       />
                       {pickerSearch ? (
                         <TouchableOpacity onPress={() => setPickerSearch('')}>
-                          <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                          <Ionicons name="close-circle" size={16} color={tc('muted', "#94A3B8")} />
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -1517,14 +1519,14 @@ const Remanent = () => {
                       keyExtractor={(good) => String(good._id || good.code)}
                       keyboardShouldPersistTaps="handled"
                       style={{ maxHeight: 380 }}
-                      ListEmptyComponent={<Text style={{ color: '#94A3B8', textAlign: 'center', padding: 16 }}>{goodsList.length === 0 ? 'Karty produktów jeszcze się wczytują…' : 'Brak produktów dla tego wyszukiwania'}</Text>}
+                      ListEmptyComponent={<Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 16 }}>{goodsList.length === 0 ? 'Karty produktów jeszcze się wczytują…' : 'Brak produktów dla tego wyszukiwania'}</Text>}
                       renderItem={({ item: good }) => (
                         <TouchableOpacity style={styles.pickerRow} onPress={() => choosePickerGood(good)}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.pickerRowTitle}>{good.fullName}</Text>
                             <Text style={styles.pickerRowSub}>{good.category || ''}{good.category === 'Kurtki kożuchy futra' ? ' · wybierz rozmiar' : ''}</Text>
                           </View>
-                          <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                          <Ionicons name="chevron-forward" size={18} color={tc('muted', "#94A3B8")} />
                         </TouchableOpacity>
                       )}
                     />
@@ -1575,7 +1577,7 @@ const Remanent = () => {
               style={styles.comparisonBackButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="arrow-back" size={24} color="white" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "white")} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={styles.comparisonTitle} numberOfLines={1}>
@@ -1667,7 +1669,7 @@ const Remanent = () => {
             </View>
           ) : historyList.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="time-outline" size={64} color="#CDCDE0" />
+              <Ionicons name="time-outline" size={64} color={tc('muted', "#CDCDE0")} />
               <Text style={styles.emptyText}>Brak zakończonych remanentów</Text>
               <Text style={styles.emptySubtext}>Wynik pojawi się tutaj po kliknięciu „Zakończ remanent i zapisz wynik”.</Text>
             </View>
@@ -1691,7 +1693,7 @@ const Remanent = () => {
                       <Text style={[styles.historyCount, { color: '#dc3545' }]}>-{counts.missing}</Text>
                       <Text style={[styles.historyCount, { color: '#ffc107' }]}>+{counts.excess}</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#888" />
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', "#888")} />
                   </TouchableOpacity>
                 );
               }}
@@ -1715,7 +1717,7 @@ const Remanent = () => {
               style={styles.comparisonBackButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="arrow-back" size={24} color="white" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "white")} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={styles.comparisonTitle} numberOfLines={1}>Remanent vs stan</Text>
@@ -1830,7 +1832,7 @@ const Remanent = () => {
                   <Ionicons name="flag" size={52} color="#F59E0B" />
                 </View>
                 <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Zakończyć remanent?</Text>
-                <Text style={{ color: '#CBD5E1', fontSize: 15, textAlign: 'center', marginBottom: 12 }}>
+                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 12 }}>
                   Wynik (braki i nadwyżki) zostanie zapisany w historii punktu. Kolejny remanent zacznie się od pustej listy.
                 </Text>
                 <View style={{ gap: 10 }}>
@@ -1860,7 +1862,7 @@ const Remanent = () => {
             <View style={styles.filterCardHeader}>
               <Text style={styles.filterCardTitle}>Filtry remanentu</Text>
               <TouchableOpacity onPress={() => { setOpenFilterSelect(null); setShowFilterModal(false); }}>
-                <Ionicons name="close" size={24} color="white" />
+                <Ionicons name="close" size={24} color={tc('text', "white")} />
               </TouchableOpacity>
             </View>
 
@@ -1936,15 +1938,15 @@ const Remanent = () => {
                       <Text style={[styles.selectFieldText, !shown && styles.selectFieldPlaceholder]} numberOfLines={2}>
                         {shown || field.placeholder}
                       </Text>
-                      <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
+                      <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={tc('muted', "#94A3B8")} />
                     </TouchableOpacity>
                     {isOpen && field.key !== "category" && (
                       <View style={styles.selectSearchBox}>
-                        <Ionicons name="search" size={16} color="#94A3B8" />
+                        <Ionicons name="search" size={16} color={tc('muted', "#94A3B8")} />
                         <TextInput
                           style={styles.selectSearchInput}
                           placeholder={`Szukaj: ${({ items: 'model, rodzaj', models: 'model', colors: 'kolor', sizes: 'rozmiar' })[field.key] || field.title.split(' ')[0].toLowerCase()}`}
-                          placeholderTextColor="#64748B"
+                          placeholderTextColor={tc('muted', "#64748B")}
                           value={selectSearch[field.key] || ""}
                           onChangeText={(text) => setSelectSearch((prev) => ({ ...prev, [field.key]: text }))}
                           autoCorrect={false}
@@ -1952,7 +1954,7 @@ const Remanent = () => {
                         />
                         {selectSearch[field.key] ? (
                           <TouchableOpacity onPress={() => setSelectSearch((prev) => ({ ...prev, [field.key]: "" }))}>
-                            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                            <Ionicons name="close-circle" size={16} color={tc('muted', "#94A3B8")} />
                           </TouchableOpacity>
                         ) : null}
                       </View>
@@ -1979,7 +1981,7 @@ const Remanent = () => {
                           );
                         })}
                         {field.options.length === 0 && (
-                          <Text style={[styles.optionText, { padding: 12, color: "#64748B" }]}>Brak opcji do wyboru</Text>
+                          <Text style={[styles.optionText, { padding: 12, color: tc('muted', "#64748B") }]}>Brak opcji do wyboru</Text>
                         )}
                       </ScrollView>
                     )}
@@ -2025,7 +2027,7 @@ const Remanent = () => {
                   setOpenFilterSelect(null);
                 }}
               >
-                <Ionicons name="refresh" size={18} color="white" />
+                <Ionicons name="refresh" size={18} color={tc('text', "white")} />
                 <Text style={styles.filterCardButtonText}>Wyczyść</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2043,11 +2045,11 @@ const Remanent = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   header: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#232533',
+    borderBottomColor: tc('border', '#232533'),
   },
   headerContent: {
     flexDirection: 'row',
@@ -2057,12 +2059,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: 'white',
+    color: tc('text', 'white'),
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
   },
   resetButton: {
     backgroundColor: '#6c757d',
@@ -2084,7 +2086,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: 'white',
+    color: tc('text', 'white'),
     marginTop: 12,
     fontSize: 16,
   },
@@ -2092,12 +2094,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   remanentItem: {
-    backgroundColor: '#1E1E2D',
+    backgroundColor: tc('surface', '#1E1E2D'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#232533',
+    borderColor: tc('border', '#232533'),
   },
   itemHeader: {
     flexDirection: 'row',
@@ -2112,8 +2114,8 @@ const styles = StyleSheet.create({
   },
   itemCode: {
     fontSize: 14,
-    color: '#CDCDE0',
-    backgroundColor: '#232533',
+    color: tc('muted', '#CDCDE0'),
+    backgroundColor: tc('surface', '#232533'),
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -2134,31 +2136,31 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'white',
+    color: tc('text', 'white'),
   },
   itemActions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#232533',
+    borderTopColor: tc('border', '#232533'),
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#232533',
+    backgroundColor: tc('surface', '#232533'),
     minWidth: 100,
     justifyContent: 'center',
   },
   actionText: {
-    color: 'white',
+    color: tc('text', 'white'),
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '500',
@@ -2167,18 +2169,18 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   quantityInput: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
     borderRadius: 12,
-    backgroundColor: '#0F172A',
+    backgroundColor: tc('surface', '#0F172A'),
     paddingVertical: 10,
   },
   historyButton: {
-    backgroundColor: '#343a40',
+    backgroundColor: tc('surface2', '#343a40'),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -2190,18 +2192,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#232533',
+    backgroundColor: tc('surface', '#232533'),
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
   },
   historyRowTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: '700',
   },
   historyRowSub: {
-    color: '#9CA3AF',
+    color: tc('muted', '#9CA3AF'),
     fontSize: 13,
     marginTop: 2,
   },
@@ -2216,7 +2218,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   historyMetaText: {
-    color: '#9CA3AF',
+    color: tc('muted', '#9CA3AF'),
     fontSize: 13,
     marginBottom: 2,
   },
@@ -2253,7 +2255,7 @@ const styles = StyleSheet.create({
   },
   sessionBarText: {
     flex: 1,
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: '600',
   },
@@ -2313,12 +2315,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    backgroundColor: '#0F172A',
+    borderColor: tc('border', '#1E293B'),
+    backgroundColor: tc('surface', '#0F172A'),
   },
   selectSearchInput: {
     flex: 1,
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 15,
     paddingVertical: 8,
   },
@@ -2331,13 +2333,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white',
+    color: tc('text', 'white'),
     marginTop: 16,
     textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
@@ -2346,7 +2348,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#232533',
+    borderTopColor: tc('border', '#232533'),
     flexDirection: 'row',
     gap: 8,
   },
@@ -2399,10 +2401,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#232533',
+    borderBottomColor: tc('border', '#232533'),
   },
   scannerTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 18,
     fontWeight: '600',
   },
@@ -2420,10 +2422,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#161622',
+    backgroundColor: tc('surface', '#161622'),
   },
   permissionText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     marginBottom: 16,
     textAlign: 'center',
@@ -2471,10 +2473,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scannedListContainer: {
-    backgroundColor: '#1E1E2D',
+    backgroundColor: tc('surface', '#1E1E2D'),
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#232533',
+    borderTopColor: tc('border', '#232533'),
     maxHeight: 170,
   },
   pieceCounterRow: {
@@ -2497,7 +2499,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#16A34A',
   },
   pieceCount: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 18,
     fontWeight: '700',
     marginHorizontal: 10,
@@ -2525,13 +2527,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scannedListTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
   },
   scannedJacket: {
-    backgroundColor: '#232533',
+    backgroundColor: tc('surface', '#232533'),
     borderRadius: 8,
     padding: 12,
     marginRight: 12,
@@ -2551,25 +2553,25 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   jacketName: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
     lineHeight: 16,
   },
   jacketCode: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 12,
     marginBottom: 4,
   },
   jacketTime: {
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     fontSize: 12,
   },
   scannerFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#232533',
+    borderTopColor: tc('border', '#232533'),
     gap: 10,
   },
   manualRow: {
@@ -2582,7 +2584,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#343a40',
+    backgroundColor: tc('surface2', '#343a40'),
     paddingVertical: 12,
     borderRadius: 10,
   },
@@ -2602,15 +2604,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   pickerRowTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 15,
     fontWeight: '600',
   },
   pickerRowSub: {
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     fontSize: 12,
     marginTop: 2,
   },
@@ -2625,10 +2627,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
   },
   pickerSizeText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: '700',
   },
@@ -2654,7 +2656,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#232533',
+    borderBottomColor: tc('border', '#232533'),
   },
   comparisonBackButton: {
     width: 40,
@@ -2662,21 +2664,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
   },
   comparisonTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
+    color: tc('text', 'white'),
   },
   comparisonSubtitle: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginTop: 2,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2684,12 +2686,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#232533',
+    borderBottomColor: tc('border', '#232533'),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
+    color: tc('text', 'white'),
   },
   closeButton: {
     padding: 8,
@@ -2697,13 +2699,13 @@ const styles = StyleSheet.create({
   comparisonContent: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 20,
-    backgroundColor: '#232533',
+    backgroundColor: tc('surface', '#232533'),
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 8,
@@ -2718,7 +2720,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
-    color: '#888',
+    color: tc('muted', '#888'),
     marginTop: 4,
   },
   resultSection: {
@@ -2727,16 +2729,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
+    color: tc('text', 'white'),
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#888',
+    color: tc('muted', '#888'),
     marginBottom: 12,
   },
   resultItem: {
-    backgroundColor: '#232533',
+    backgroundColor: tc('surface', '#232533'),
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
@@ -2750,12 +2752,12 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: tc('text', 'white'),
     marginBottom: 4,
   },
   itemDetails: {
     fontSize: 14,
-    color: '#888',
+    color: tc('muted', '#888'),
   },
   successTitle: {
     fontSize: 24,
@@ -2772,25 +2774,25 @@ const styles = StyleSheet.create({
   // Styles for assortment filter
   filterContainer: {
     marginTop: 12,
-    backgroundColor: '#2A2A3E',
+    backgroundColor: tc('surface', '#2A2A3E'),
     borderRadius: 8,
     padding: 8,
   },
   filterLabel: {
     fontSize: 12,
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     marginBottom: 4,
     fontWeight: '500',
   },
   pickerContainer: {
-    backgroundColor: '#1E1E2D',
+    backgroundColor: tc('surface', '#1E1E2D'),
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: tc('border', '#444'),
   },
   picker: {
     height: 35,
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
   },
   // Filter button styles
@@ -2828,10 +2830,10 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 420,
     maxHeight: "85%",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 20,
   },
   filterCardHeader: {
@@ -2841,16 +2843,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   filterCardTitle: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 20,
     fontWeight: "700",
   },
   selectField: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -2860,20 +2862,20 @@ const styles = StyleSheet.create({
   },
   selectFieldText: {
     flex: 1,
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 15,
     fontWeight: "600",
   },
   selectFieldPlaceholder: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontWeight: "400",
   },
   optionList: {
     maxHeight: 220,
     marginTop: 6,
-    backgroundColor: "#111827",
+    backgroundColor: tc('surface', "#111827"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 10,
   },
   optionItem: {
@@ -2883,13 +2885,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   optionItemSelected: {
     backgroundColor: "rgba(13, 110, 253, 0.15)",
   },
   optionText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 15,
   },
   optionTextSelected: {
@@ -2934,7 +2936,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#64748B",
   },
   filterCardButtonText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 15,
     fontWeight: "600",
   },
@@ -2947,14 +2949,14 @@ const styles = StyleSheet.create({
   },
   filterSectionTitle: {
     fontSize: 16,
-    color: 'white',
+    color: tc('text', 'white'),
     fontWeight: '600',
     marginBottom: 8,
   },
   activeFiltersSection: {
     marginTop: 20,
     padding: 16,
-    backgroundColor: '#2A2A3E',
+    backgroundColor: tc('surface', '#2A2A3E'),
     borderRadius: 12,
     marginBottom: 20,
   },
@@ -3002,7 +3004,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   clearFiltersText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 6,
@@ -3017,21 +3019,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   applyFiltersText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 6,
   },
   itemQuantity: {
     fontSize: 12,
-    color: '#CDCDE0',
+    color: tc('muted', '#CDCDE0'),
     marginTop: 2,
     fontStyle: 'italic',
   },
   // Progress bar styles
   progressContainer: {
     marginTop: 16,
-    backgroundColor: '#2A2A3E',
+    backgroundColor: tc('surface', '#2A2A3E'),
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
@@ -3045,7 +3047,7 @@ const styles = StyleSheet.create({
   },
   progressTitle: {
     fontSize: 14,
-    color: 'white',
+    color: tc('text', 'white'),
     fontWeight: '600',
   },
   progressStats: {
@@ -3055,7 +3057,7 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: '#1E1E2D',
+    backgroundColor: tc('surface', '#1E1E2D'),
     borderRadius: 4,
     marginBottom: 8,
     overflow: 'hidden',
@@ -3076,6 +3078,6 @@ const styles = StyleSheet.create({
     color: '#CDCDE0',
     marginRight: 8,
   },
-});
+}));
 
 export default Remanent;

@@ -22,7 +22,9 @@ import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na 
 import { getApiUrl, API_CONFIG } from "../config/api";
 import { GlobalStateContext } from "../context/GlobalState";
 
+import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const WarehouseMobile = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
     const { user, isLoggedIn } = useContext(GlobalStateContext);
     const isFocused = useIsFocused();
@@ -1101,14 +1103,14 @@ const WarehouseMobile = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: "#000000" }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: tc('bg', "#000000") }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{headerTitle}</Text>
         <View style={styles.backButton} />
@@ -1171,7 +1173,7 @@ const WarehouseMobile = () => {
           <TextInput
             style={styles.input}
             placeholder="1"
-            placeholderTextColor="#666"
+            placeholderTextColor={tc('muted', "#666")}
             value={quantity}
             onChangeText={setQuantity}
             keyboardType="number-pad"
@@ -1183,7 +1185,7 @@ const WarehouseMobile = () => {
               ref={productInputRef}
               style={styles.input}
               placeholder="Wpisz nazwę produktu"
-              placeholderTextColor="#666"
+              placeholderTextColor={tc('muted', "#666")}
               value={productName}
               onChangeText={handleProductNameChange}
               returnKeyType="next"
@@ -1216,7 +1218,7 @@ const WarehouseMobile = () => {
               ref={sizeInputRef}
               style={styles.input}
               placeholder="Wpisz rozmiar"
-              placeholderTextColor="#666"
+              placeholderTextColor={tc('muted', "#666")}
               value={selectedSize}
               onChangeText={handleSizeChange}
               returnKeyType="done"
@@ -1284,7 +1286,7 @@ const WarehouseMobile = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edytuj produkt</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color="white" />
+                <Ionicons name="close" size={24} color={tc('text', "white")} />
               </TouchableOpacity>
             </View>
 
@@ -1294,7 +1296,7 @@ const WarehouseMobile = () => {
                 <TextInput
                   style={styles.input}
                   placeholder="Wpisz nazwę produktu"
-                  placeholderTextColor="#666"
+                  placeholderTextColor={tc('muted', "#666")}
                   value={editFullName}
                   onChangeText={handleEditProductNameChange}
                 />
@@ -1323,7 +1325,7 @@ const WarehouseMobile = () => {
               <TextInput
                 style={styles.input}
                 placeholder="Rozmiar"
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
                 value={editSize}
                 onChangeText={setEditSize}
               />
@@ -1430,10 +1432,10 @@ const WarehouseMobile = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "black",
+    backgroundColor: tc('bg', "black"),
   },
   header: {
     flexDirection: "row",
@@ -1441,9 +1443,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -1454,7 +1456,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     flex: 1,
     textAlign: "center",
   },
@@ -1465,7 +1467,7 @@ const styles = StyleSheet.create({
   productCounter: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
@@ -1474,7 +1476,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   productCounterText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 16,
     fontWeight: "500",
   },
@@ -1484,26 +1486,26 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   formContainer: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 8,
     padding: 15,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
   },
   label: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
     marginTop: 12,
   },
   input: {
-    backgroundColor: "black",
+    backgroundColor: tc('surface', "black"),
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
     borderRadius: 6,
-    color: "white",
+    color: tc('text', "white"),
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
@@ -1541,7 +1543,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   correctionLabel: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 13,
     fontWeight: "bold",
   },
@@ -1556,9 +1558,9 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   dropdownMenu: {
-    backgroundColor: "#222",
+    backgroundColor: tc('surface', "#222"),
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
     borderRadius: 6,
     marginTop: 4,
     maxHeight: 150,
@@ -1567,16 +1569,16 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: tc('border', "#333"),
   },
   dropdownItemText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 13,
   },
   dateButton: {
-    backgroundColor: "black",
+    backgroundColor: tc('surface', "black"),
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1585,7 +1587,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dateText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 14,
   },
   addButton: {
@@ -1614,30 +1616,30 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
   tableCell: {
-    color: "#888",
+    color: tc('muted', "#888"),
     fontSize: 11,
     fontWeight: "600",
   },
 
   card: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
     marginBottom: 12,
     position: "relative",
   },
   cardNumber: {
     fontSize: 11,
-    color: "#888",
+    color: tc('muted', "#888"),
     marginBottom: 8,
     fontWeight: "600",
   },
   cardProductName: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -1649,13 +1651,13 @@ const styles = StyleSheet.create({
   },
   cardInfoLabel: {
     fontSize: 11,
-    color: "#888",
+    color: tc('muted', "#888"),
     fontWeight: "600",
     flex: 0.4,
   },
   cardInfoValue: {
     fontSize: 12,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontWeight: "500",
     flex: 0.6,
     textAlign: "right",
@@ -1666,7 +1668,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: tc('border', "#333"),
   },
   actionButton: {
     flex: 1,
@@ -1689,7 +1691,7 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     borderColor: "#FF6B6B",
-    backgroundColor: "#3d1a1a",
+    backgroundColor: tcl("#3d1a1a", '#ffe5e5'),
   },
   actionButtonText: {
     color: "white",
@@ -1702,13 +1704,13 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
     padding: 8,
-    backgroundColor: "#222",
+    backgroundColor: tc('surface', "#222"),
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#FF6B6B",
   },
   emptyText: {
-    color: "#666",
+    color: tc('muted', "#666"),
     textAlign: "center",
     paddingVertical: 20,
     fontSize: 14,
@@ -1724,12 +1726,12 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   modal: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     maxHeight: "90%",
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: tc('border', "#333"),
   },
   modalHeader: {
     flexDirection: "row",
@@ -1738,10 +1740,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: tc('border', "#333"),
   },
   modalTitle: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -1754,36 +1756,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 8,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: tc('border', "#333"),
   },
   modalButton: {
     flex: 1,
-    backgroundColor: "#555",
+    backgroundColor: tc('surface2', "#555"),
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#666",
+    borderColor: tc('border', "#666"),
   },
   modalButtonSave: {
     backgroundColor: "#4CAF50",
     borderColor: "#45a049",
   },
   modalButtonText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 15,
     fontWeight: "600",
   },
   notificationModal: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: tc('surface', "#1a1a1a"),
     borderRadius: 16,
     minWidth: 280,
     maxWidth: "85%",
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: tc('border', "#333"),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1794,10 +1796,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: tc('border', "#333"),
   },
   notificationTitle: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 17,
     fontWeight: "bold",
   },
@@ -1806,7 +1808,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   notificationMessage: {
-    color: "#ccc",
+    color: tc('muted', "#ccc"),
     fontSize: 14,
     lineHeight: 20,
   },
@@ -1835,8 +1837,8 @@ const styles = StyleSheet.create({
     borderColor: "#0a4fc4",
   },
   notificationButtonError: {
-    backgroundColor: "#555",
-    borderColor: "#666",
+    backgroundColor: tc('surface2', "#555"),
+    borderColor: tc('border', "#666"),
   },
   notificationButtonCancel: {
     minWidth: 90,
@@ -1846,11 +1848,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    backgroundColor: "#333",
-    borderColor: "#555",
+    backgroundColor: tc('surface2', "#333"),
+    borderColor: tc('border', "#555"),
   },
   notificationButtonText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 14,
     fontWeight: "600",
   },
@@ -1865,6 +1867,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 1000,
   },
-});
+}));
 
 export default WarehouseMobile;

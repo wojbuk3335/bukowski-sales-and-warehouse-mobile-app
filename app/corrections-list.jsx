@@ -18,7 +18,9 @@ import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const CorrectionsList = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [corrections, setCorrections] = useState([]);
   const [filteredCorrections, setFilteredCorrections] = useState([]);
@@ -409,7 +411,7 @@ const CorrectionsList = () => {
 
         <View style={styles.cardBody}>
           <View style={styles.infoRow}>
-            <Ionicons name="pricetag-outline" size={16} color="#94A3B8" />
+            <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Produkt:</Text>
             <Text style={styles.infoValue} numberOfLines={1}>
               {correction.fullName}
@@ -417,20 +419,20 @@ const CorrectionsList = () => {
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="resize-outline" size={16} color="#94A3B8" />
+            <Ionicons name="resize-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Rozmiar:</Text>
             <Text style={styles.infoValue}>{correction.size}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={16} color="#94A3B8" />
+            <Ionicons name="location-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Punkt:</Text>
             <Text style={styles.infoValue}>{correction.sellingPoint}</Text>
           </View>
 
           {correction.errorType && (
             <View style={styles.infoRow}>
-              <Ionicons name="alert-circle-outline" size={16} color="#94A3B8" />
+              <Ionicons name="alert-circle-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Typ błędu:</Text>
               <Text style={styles.infoValue}>
                 {correction.errorType === 'MISSING_IN_STATE' ? 'Brak w stanie' :
@@ -442,7 +444,7 @@ const CorrectionsList = () => {
           )}
 
           <View style={styles.timestampRow}>
-            <Ionicons name="time-outline" size={14} color="#64748B" />
+            <Ionicons name="time-outline" size={14} color={tc('muted', "#64748B")} />
             <Text style={styles.timestampText}>{formatDate(correction.createdAt)}</Text>
           </View>
         </View>
@@ -470,7 +472,7 @@ const CorrectionsList = () => {
                   style={[styles.actionButton, styles.ignoreButton]}
                   onPress={() => handleStatusUpdate(correction._id, 'IGNORED', correction)}
                 >
-                  <Ionicons name="close-circle" size={14} color="#fff" />
+                  <Ionicons name="close-circle" size={14} color={tc('text', "#fff")} />
                   <Text style={styles.actionButtonText}>Zignoruj</Text>
                 </TouchableOpacity>
               </>
@@ -487,7 +489,7 @@ const CorrectionsList = () => {
                   style={[styles.actionButton, styles.ignoreButton]}
                   onPress={() => handleStatusUpdate(correction._id, 'IGNORED', correction)}
                 >
-                  <Ionicons name="close-circle" size={14} color="#fff" />
+                  <Ionicons name="close-circle" size={14} color={tc('text', "#fff")} />
                   <Text style={styles.actionButtonText}>Zignoruj</Text>
                 </TouchableOpacity>
               </>
@@ -537,15 +539,15 @@ const CorrectionsList = () => {
           headerShown: true,
           headerTitle: 'Korekty Magazynowe',
           headerStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: tc('bg', '#000000'),
           },
-          headerTintColor: '#fff',
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
         }}
@@ -599,7 +601,7 @@ const CorrectionsList = () => {
       >
         {filteredCorrections.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="document-outline" size={64} color="#64748B" />
+            <Ionicons name="document-outline" size={64} color={tc('muted', "#64748B")} />
             <Text style={styles.emptyStateText}>
               {corrections.length === 0 ? 'Brak korekt do wyświetlenia' : 'Brak korekt pasujących do filtrów'}
             </Text>
@@ -621,7 +623,7 @@ const CorrectionsList = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filtry</Text>
               <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -698,7 +700,7 @@ const CorrectionsList = () => {
                   value={filters.sellingPoint}
                   onChangeText={(text) => setFilters({ ...filters, sellingPoint: text })}
                   placeholder="Wpisz nazwę punktu..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
 
@@ -709,7 +711,7 @@ const CorrectionsList = () => {
                   value={filters.productName}
                   onChangeText={(text) => setFilters({ ...filters, productName: text })}
                   placeholder="Wpisz nazwę produktu..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
 
@@ -720,7 +722,7 @@ const CorrectionsList = () => {
                   value={filters.size}
                   onChangeText={(text) => setFilters({ ...filters, size: text })}
                   placeholder="Wpisz rozmiar..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
             </ScrollView>
@@ -758,7 +760,7 @@ const CorrectionsList = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Lokalizacje produktu</Text>
               <TouchableOpacity onPress={() => setShowProductModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -975,16 +977,16 @@ const CorrectionsList = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   backButton: {
     marginLeft: 8,
@@ -997,7 +999,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -1015,12 +1017,12 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   actionsBar: {
     flexDirection: 'row',
@@ -1031,7 +1033,7 @@ const styles = StyleSheet.create({
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -1053,22 +1055,22 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 16,
   },
   card: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   operationBadge: {
     paddingHorizontal: 12,
@@ -1099,11 +1101,11 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   infoValue: {
     fontSize: 14,
-    color: '#fff',
+    color: tc('text', '#fff'),
     flex: 1,
   },
   timestampRow: {
@@ -1114,14 +1116,14 @@ const styles = StyleSheet.create({
   },
   timestampText: {
     fontSize: 12,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
   },
   cardActions: {
     flexDirection: 'row',
     padding: 12,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   actionButton: {
     flex: 1,
@@ -1157,7 +1159,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 16,
     width: '90%',
     maxHeight: '80%',
@@ -1168,12 +1170,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: tc('border', '#334155'),
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   modalBody: {
     padding: 20,
@@ -1184,7 +1186,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 8,
   },
   filterOptions: {
@@ -1196,7 +1198,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
   },
   filterOptionActive: {
     backgroundColor: '#3B82F6',
@@ -1210,10 +1212,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterInput: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 8,
     padding: 12,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
   },
   modalFooter: {
@@ -1221,14 +1223,14 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   modalFooterVertical: {
     flexDirection: 'column',
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: tc('border', '#334155'),
   },
   modalButton: {
     flex: 1,
@@ -1249,12 +1251,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
   modalButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: '600',
   },
   productInfo: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1262,29 +1264,29 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 8,
   },
   productDetail: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 4,
   },
   productBold: {
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   locationsTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 12,
   },
   locationItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -1297,11 +1299,11 @@ const styles = StyleSheet.create({
   locationSymbol: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   locationCount: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   writeOffButton: {
     backgroundColor: '#EF4444',
@@ -1320,11 +1322,11 @@ const styles = StyleSheet.create({
   },
   noLocationsText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     textAlign: 'center',
   },
   confirmModal: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 20,
     padding: 30,
     width: '85%',
@@ -1344,18 +1346,18 @@ const styles = StyleSheet.create({
   confirmTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
     marginBottom: 16,
   },
   confirmText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     textAlign: 'center',
     marginBottom: 16,
   },
   confirmProductBox: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -1363,22 +1365,22 @@ const styles = StyleSheet.create({
   confirmProductName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 8,
   },
   confirmProductDetail: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   confirmStatsBox: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
   },
   confirmStat: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 8,
   },
   confirmButtons: {
@@ -1409,7 +1411,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   confirmButtonText: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -1459,6 +1461,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-});
+}));
 
 export default CorrectionsList;

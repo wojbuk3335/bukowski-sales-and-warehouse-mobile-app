@@ -6,7 +6,9 @@ import bukowskiLogo from "./bukowski.png";
 
 import CustomButton from "../components/CustomButton";
 
+import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
 const Welcome = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -23,15 +25,15 @@ const Welcome = () => {
           />
         </View>
       </ScrollView>
-      <StatusBar backgroundColor="black" style="light" />
+      <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: tc('bg', "#000"),
   },
   scrollContent: {
     flexGrow: 1,
@@ -56,6 +58,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 16,
   },
-});
+}));
 
 export default Welcome;

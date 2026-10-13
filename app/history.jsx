@@ -17,7 +17,9 @@ import tokenService from '../services/tokenService';
 import { getApiUrl } from '../config/api';
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const History = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [historyData, setHistoryData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -203,14 +205,14 @@ const History = () => {
 
         <View style={styles.cardBody}>
           <View style={styles.infoRow}>
-            <Ionicons name="cube-outline" size={16} color="#94A3B8" />
+            <Ionicons name="cube-outline" size={16} color={tc('muted', "#94A3B8")} />
             <Text style={styles.infoLabel}>Kolekcja:</Text>
             <Text style={styles.infoValue}>{item.collectionName || '-'}</Text>
           </View>
 
           {item.product && (
             <View style={styles.infoRow}>
-              <Ionicons name="pricetag-outline" size={16} color="#94A3B8" />
+              <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Produkt:</Text>
               <Text style={styles.infoValue} numberOfLines={1}>
                 {item.product}
@@ -220,7 +222,7 @@ const History = () => {
 
           {(item.from || item.to) && (
             <View style={styles.infoRow}>
-              <Ionicons name="swap-horizontal-outline" size={16} color="#94A3B8" />
+              <Ionicons name="swap-horizontal-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Transfer:</Text>
               <Text style={styles.infoValue} numberOfLines={1}>
                 {item.from || '-'} → {item.to || '-'}
@@ -230,20 +232,20 @@ const History = () => {
 
           {item.userloggedinId?.username && (
             <View style={styles.infoRow}>
-              <Ionicons name="person-outline" size={16} color="#94A3B8" />
+              <Ionicons name="person-outline" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.infoLabel}>Użytkownik:</Text>
               <Text style={styles.infoValue}>{item.userloggedinId.username}</Text>
             </View>
           )}
           
           <View style={styles.timestampRow}>
-            <Ionicons name="time-outline" size={14} color="#64748B" />
+            <Ionicons name="time-outline" size={14} color={tc('muted', "#64748B")} />
             <Text style={styles.timestampText}>{formatDate(item.timestamp)}</Text>
           </View>
         </View>
 
         <View style={styles.cardFooter}>
-          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+          <Ionicons name="chevron-forward" size={20} color={tc('muted', "#64748B")} />
         </View>
       </TouchableOpacity>
     );
@@ -256,15 +258,15 @@ const History = () => {
           headerShown: true,
           headerTitle: 'Historia',
           headerStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: tc('bg', '#000000'),
           },
-          headerTintColor: '#fff',
+          headerTintColor: tc('text', '#fff'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -318,17 +320,17 @@ const History = () => {
       </View>
 
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#64748B" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Szukaj w historii..."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={tc('muted', "#64748B")}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery !== '' && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#64748B" />
+            <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
           </TouchableOpacity>
         )}
       </View>
@@ -348,7 +350,7 @@ const History = () => {
         >
           {filteredData.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="document-outline" size={64} color="#64748B" />
+              <Ionicons name="document-outline" size={64} color={tc('muted', "#64748B")} />
               <Text style={styles.emptyText}>Brak wyników</Text>
               <Text style={styles.emptySubtext}>
                 {historyData.length === 0
@@ -382,7 +384,7 @@ const History = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Szczegóły operacji</Text>
               <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -475,7 +477,7 @@ const History = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filtry</Text>
               <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -709,10 +711,10 @@ const History = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   backButton: {
     marginLeft: 8,
@@ -723,13 +725,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   subtitle: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   filterButton: {
     padding: 8,
@@ -748,7 +750,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     marginHorizontal: 20,
     marginVertical: 16,
     paddingHorizontal: 16,
@@ -760,7 +762,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
   },
   content: {
@@ -775,7 +777,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
   },
   emptyContainer: {
     flex: 1,
@@ -786,12 +788,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     marginTop: 8,
     textAlign: 'center',
   },
@@ -799,7 +801,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 8,
   },
   clearButtonText: {
@@ -808,12 +810,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   historyCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: tc('surface', '#1E293B'),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: tc('border', '#334155'),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -840,7 +842,7 @@ const styles = StyleSheet.create({
   },
   timestampText: {
     fontSize: 12,
-    color: '#64748B',
+    color: tc('muted', '#64748B'),
     fontStyle: 'italic',
   },
   infoRow: {
@@ -850,13 +852,13 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     width: 80,
   },
   infoValue: {
     flex: 1,
     fontSize: 14,
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   cardFooter: {
     alignItems: 'flex-end',
@@ -868,7 +870,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '80%',
@@ -880,28 +882,28 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#fff',
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   modalBody: {
     padding: 20,
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
   },
   detailRow: {
     marginBottom: 16,
   },
   detailLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 4,
   },
   detailValue: {
     fontSize: 16,
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   monospace: {
     fontFamily: 'monospace',
@@ -911,18 +913,18 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: tc('muted', '#94A3B8'),
     marginBottom: 8,
   },
   optionsContainer: {
     maxHeight: 150,
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     borderRadius: 8,
   },
   optionItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: tc('border', '#1E293B'),
   },
   optionItemSelected: {
     backgroundColor: '#3B82F6',
@@ -935,14 +937,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterInput: {
-    backgroundColor: '#334155',
-    color: '#fff',
+    backgroundColor: tc('surface2', '#334155'),
+    color: tc('text', '#fff'),
     fontSize: 16,
     padding: 12,
     borderRadius: 8,
   },
   clearFiltersButton: {
-    backgroundColor: '#334155',
+    backgroundColor: tc('surface2', '#334155'),
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -964,6 +966,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-});
+}));
 
 export default History;

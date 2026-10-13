@@ -12,7 +12,9 @@ import LogoutButton from '../../components/LogoutButton';
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Home = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, logout } = React.useContext(GlobalStateContext); // Access global state and logout function
   const insets = useSafeAreaInsets(); // Get safe area insets
   const { stateData, users, fetchUsers, goods, fetchGoods, fetchState, sizes, colors, stocks, fetchSizes, fetchColors, fetchStock, filteredData: contextFilteredData, transferredItems: contextTransferredItems, deductionsData: contextDeductionsData } = useContext(GlobalStateContext); // Access state data, users, goods, sizes, colors, stocks and their fetch functions from global context
@@ -2477,7 +2479,7 @@ const Home = () => {
 
   return (
     <>
-      <SafeAreaView style={{ backgroundColor: "#000", flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
+      <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
         <LogoutButton position="top-right" />
         <FlatList
           testID="home-flatlist"
@@ -2508,7 +2510,7 @@ const Home = () => {
                     <Text
                       key={`payment-${idx}`}
                       style={{
-                        color: idx < cashCount ? "white" : "red",
+                        color: idx < cashCount ? tc('text', "white") : "red",
                         marginRight: idx === allPayments.length - 1 ? 8 : 0,
                       }}
                     >
@@ -2534,7 +2536,7 @@ const Home = () => {
               <View style={{ marginVertical: 24, paddingHorizontal: 8 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                   <View style={{ width: '100%' }}>
-                    <Text style={{ fontSize: 14, color: "#f3f4f6", marginBottom: 12 }}>
+                    <Text style={{ fontSize: 14, color: tc('text', "#f3f4f6"), marginBottom: 12 }}>
                       Zalogowany jako: <Text style={{ fontWeight: 'bold' }}>{user?.email}</Text> | {new Date().toLocaleDateString('pl-PL', {
                         year: 'numeric',
                         month: '2-digit',
@@ -2558,7 +2560,7 @@ const Home = () => {
                                 alignItems: "center", 
                                 marginBottom: 4,
                                 padding: 6,
-                                backgroundColor: todaysRecord ? '#007bff' : '#374151',
+                                backgroundColor: todaysRecord ? '#007bff' : tc('surface2', '#374151'),
                                 borderRadius: 4,
                                 borderLeftWidth: todaysRecord ? 3 : 0,
                                 borderLeftColor: '#007bff',
@@ -2569,11 +2571,11 @@ const Home = () => {
                                 <Text style={{ fontSize: 13, color: "#ffffff" }}>
                                   {index + 1}. {salesperson.firstName} {salesperson.lastName}
                                   {salesperson.employeeId && (
-                                    <Text style={{ color: '#9ca3af', fontSize: 11 }}> (ID: {salesperson.employeeId})</Text>
+                                    <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 11 }}> (ID: {salesperson.employeeId})</Text>
                                   )}
                                 </Text>
                                 {todaysRecord && (
-                                  <Text style={{ color: '#ffffff', fontSize: 11, marginTop: 2 }}>
+                                  <Text style={{ color: tc('text', '#ffffff'), fontSize: 11, marginTop: 2 }}>
                                     ⏰ {todaysRecord.startTime} - {todaysRecord.endTime} ({(todaysRecord.totalHours || 0).toFixed(1)}h)
                                   </Text>
                                 )}
@@ -2634,7 +2636,7 @@ const Home = () => {
                     }}
                     onPress={() => setSalespersonModalVisible(true)}
                   >
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                       Dodaj sprzedawców
                     </Text>
                   </TouchableOpacity>
@@ -2649,7 +2651,7 @@ const Home = () => {
                   return (
                     <View style={{ 
                       marginVertical: 12, 
-                      backgroundColor: '#374151', 
+                      backgroundColor: tc('surface2', '#374151'), 
                       padding: 10, 
                       borderRadius: 6,
                       marginHorizontal: 16
@@ -2665,7 +2667,7 @@ const Home = () => {
                       {/* Show other currencies if available */}
                       {Object.entries(availableFunds).filter(([currency]) => currency !== mainCurrency).map(([currency, amount]) => (
                         <Text key={currency} style={{ 
-                          color: '#9ca3af', 
+                          color: tc('muted', '#9ca3af'), 
                           fontSize: 12, 
                           textAlign: 'center',
                           marginTop: 2
@@ -2678,7 +2680,7 @@ const Home = () => {
                 })()}
                 
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ color: "#d1d5db", fontSize: 14, fontWeight: "bold", marginRight: 8 }}>Sprzedaż:</Text>
+                  <Text style={{ color: tc('muted', "#d1d5db"), fontSize: 14, fontWeight: "bold", marginRight: 8 }}>Sprzedaż:</Text>
                 </View>
               </View>
             );
@@ -2697,20 +2699,20 @@ const Home = () => {
             return (
               <View style={{ marginTop: 24 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, color: "#d1d5db", fontWeight: "bold" }}>Suma:</Text>
+                  <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold" }}>Suma:</Text>
                   <View style={{ flexDirection: "row" }}>
-                    <Text style={{ fontSize: 13, color: "#d1d5db", marginRight: 16 }}>Gotówki:</Text>
+                    <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), marginRight: 16 }}>Gotówki:</Text>
                     {Object.entries(totals.cash || {}).map(([currency, total]) => (
-                      <Text key={`cash-${currency}`} style={{ fontSize: 10, color: "#fff", marginRight: 8 }}>
+                      <Text key={`cash-${currency}`} style={{ fontSize: 10, color: tc('text', "#fff"), marginRight: 8 }}>
                         {total} {currency}
                       </Text>
                     ))}
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-                  <Text style={{ fontSize: 13, color: "#d1d5db", marginRight: 16 }}>Na kartę:</Text>
+                  <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), marginRight: 16 }}>Na kartę:</Text>
                   {Object.entries(totals.card || {}).map(([currency, total]) => (
-                    <Text key={`card-${currency}`} style={{ fontSize: 10, color: "#fff", marginRight: 8 }}>
+                    <Text key={`card-${currency}`} style={{ fontSize: 10, color: tc('text', "#fff"), marginRight: 8 }}>
                       {total} {currency}
                     </Text>
                   ))}
@@ -2718,7 +2720,7 @@ const Home = () => {
                 {/* Section for sales on other accounts */}
                 {otherAccountsData.length > 0 && (
                   <View style={{ marginTop: 24 }}>
-                    <Text style={{ fontSize: 13, color: "#d1d5db", fontWeight: "bold", marginBottom: 8 }}>Sprzedano na innych kontach:</Text>
+                    <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold", marginBottom: 8 }}>Sprzedano na innych kontach:</Text>
                     {otherAccountsData.map((item, index) => (
                       <View key={item._id || index} style={styles.item}>
                         <Text
@@ -2748,7 +2750,7 @@ const Home = () => {
                 {/* Section for transferred items */}
                 {transferredToday.length > 0 && (
                   <View style={{ marginTop: 24 }}>
-                    <Text style={{ fontSize: 13, color: "#d1d5db", fontWeight: "bold", marginBottom: 8 }}>Odpisać ze stanu:</Text>
+                    <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold", marginBottom: 8 }}>Odpisać ze stanu:</Text>
                     {transferredToday.map((item, index) => (
                       <View
                         key={item._id || `${item.productId || 'transfer'}-${index}`}
@@ -2792,7 +2794,7 @@ const Home = () => {
                 {/* Section for received items */}
                 {receivedToday.length > 0 && (
                   <View style={{ marginTop: 24 }}>
-                    <Text style={{ fontSize: 13, color: "#d1d5db", fontWeight: "bold", marginBottom: 8 }}>Dopisać na to konto:</Text>
+                    <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold", marginBottom: 8 }}>Dopisać na to konto:</Text>
                     {receivedToday.map((item, index) => (
                       <View
                         key={item._id || `${item.productId || 'received'}-${index}`}
@@ -2827,7 +2829,7 @@ const Home = () => {
                   
                   return advancesToday.length > 0 && (
                     <View style={{ marginTop: 24 }}>
-                      <Text style={{ fontSize: 13, color: "#d1d5db", fontWeight: "bold", marginBottom: 8 }}>Zaliczki wzięte dzisiaj:</Text>
+                      <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold", marginBottom: 8 }}>Zaliczki wzięte dzisiaj:</Text>
                       {advancesToday.map((item, index) => (
                         <View
                           key={item._id || `${item.productId || 'advance'}-${index}`}
@@ -2847,8 +2849,8 @@ const Home = () => {
                         </View>
                       ))}
                       {/* Suma zaliczek pogrupowana według walut */}
-                      <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#374151" }}>
-                        <Text style={{ fontSize: 12, color: "#9ca3af", fontWeight: "bold", textAlign: "right" }}>
+                      <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: tc('border', "#374151") }}>
+                        <Text style={{ fontSize: 12, color: tc('muted', "#9ca3af"), fontWeight: "bold", textAlign: "right" }}>
                           Suma zaliczek: {' '}
                           {(() => {
                             const advanceTotals = {};
@@ -2877,7 +2879,7 @@ const Home = () => {
                   
                   return deductionsToday.length > 0 && (
                     <View style={{ marginTop: 24 }}>
-                      <Text style={{ fontSize: 13, color: "#d1d5db", fontWeight: "bold", marginBottom: 8 }}>Operacje dzisiaj:</Text>
+                      <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold", marginBottom: 8 }}>Operacje dzisiaj:</Text>
                       {deductionsToday.map((item, index) => (
                         <View
                           key={item._id || index}
@@ -2905,14 +2907,14 @@ const Home = () => {
                             }}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                           >
-                            <Text style={{ color: "white", fontSize: 16 }}>⋮</Text>
+                            <Text style={{ color: tc('text', "white"), fontSize: 16 }}>⋮</Text>
                           </TouchableOpacity>
                         </View>
                       ))}
                       {/* Suma odpisanych kwot pogrupowana według walut */}
-                      <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#374151" }}>
+                      <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: tc('border', "#374151") }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 12, color: "#9ca3af", fontWeight: "bold" }}>
+                          <Text style={{ fontSize: 12, color: tc('muted', "#9ca3af"), fontWeight: "bold" }}>
                             Bilans operacji: {' '}
                           </Text>
                           {(() => {
@@ -3045,7 +3047,7 @@ const Home = () => {
                       paddingTop: 20, 
                       borderTopWidth: 2, 
                       borderTopColor: "#fbbf24", // Golden border
-                      backgroundColor: "#1f2937", // Dark gray background
+                      backgroundColor: tc('surface', "#1f2937"), // Dark gray background
                       padding: 16,
                       borderRadius: 8,
                       marginHorizontal: 8
@@ -3072,7 +3074,7 @@ const Home = () => {
                             </Text>
                           ))
                         ) : (
-                          <Text style={{ fontSize: 13, color: "#9ca3af", marginLeft: 16, fontStyle: "italic" }}>
+                          <Text style={{ fontSize: 13, color: tc('muted', "#9ca3af"), marginLeft: 16, fontStyle: "italic" }}>
                             Brak płatności gotówką
                           </Text>
                         )}
@@ -3090,7 +3092,7 @@ const Home = () => {
                             </Text>
                           ))
                         ) : (
-                          <Text style={{ fontSize: 13, color: "#9ca3af", marginLeft: 16, fontStyle: "italic" }}>
+                          <Text style={{ fontSize: 13, color: tc('muted', "#9ca3af"), marginLeft: 16, fontStyle: "italic" }}>
                             Brak płatności kartą
                           </Text>
                         )}
@@ -3160,13 +3162,13 @@ const Home = () => {
                             </Text>
                           ))
                         ) : (
-                          <Text style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", fontStyle: "italic" }}>
+                          <Text style={{ fontSize: 13, color: tc('muted', "#9ca3af"), textAlign: "center", fontStyle: "italic" }}>
                             0.00 PLN
                           </Text>
                         )}
                         <Text style={{ 
                           fontSize: 11, 
-                          color: "#9ca3af", 
+                          color: tc('muted', "#9ca3af"), 
                           textAlign: "center",
                           marginTop: 8,
                           fontStyle: "italic" 
@@ -3219,7 +3221,7 @@ const Home = () => {
                         })()}
                         <Text style={{ 
                           fontSize: 11, 
-                          color: "#9ca3af", 
+                          color: tc('muted', "#9ca3af"), 
                           textAlign: "center",
                           marginTop: 8,
                           fontStyle: "italic" 
@@ -3254,7 +3256,7 @@ const Home = () => {
                         </Text>
                         <Text style={{
                           fontSize: 11,
-                          color: "#9ca3af",
+                          color: tc('muted', "#9ca3af"),
                           textAlign: "center",
                           marginTop: 8,
                           fontStyle: "italic"
@@ -3288,7 +3290,7 @@ const Home = () => {
                     }}
                     onPress={() => setDeductionModalVisible(true)}
                   >
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                       Odpisz kwotę
                     </Text>
                   </TouchableOpacity>
@@ -3308,7 +3310,7 @@ const Home = () => {
                     }}
                     onPress={() => setAddAmountModalVisible(true)}
                   >
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                       Dopisz kwotę
                     </Text>
                   </TouchableOpacity>
@@ -3328,7 +3330,7 @@ const Home = () => {
                     }}
                     onPress={() => setCurrencyRatesModalVisible(true)}
                   >
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                       Aktualne kursy walut
                     </Text>
                   </TouchableOpacity>
@@ -3347,7 +3349,7 @@ const Home = () => {
                     }}
                     onPress={() => setCalculatorModalVisible(true)}
                   >
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                       Kalkulator walut
                     </Text>
                   </TouchableOpacity>
@@ -3364,10 +3366,10 @@ const Home = () => {
           animationType="slide"
           onRequestClose={() => setEditModalVisible(false)}
         >
-          <View style={{ flex: 1, backgroundColor: "black", width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
+          <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: Math.max(120, insets.bottom + 120) }}>
-                <View style={[{ flex: 1, backgroundColor: "black", width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
+                <View style={[{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
                   <Pressable
                     style={{
                       position: "absolute",
@@ -3383,10 +3385,10 @@ const Home = () => {
                     }}
                     onPress={() => setEditModalVisible(false)}
                   >
-                    <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>X</Text>
+                    <Text style={{ color: tc('text', "white"), fontSize: 18, fontWeight: "bold" }}>X</Text>
                   </Pressable>
                   
-                  <Text style={{ fontSize: 16, color: "white", marginBottom: 8, marginTop: 80 }}>Edytuj Produkt:</Text>
+                  <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8, marginTop: 80 }}>Edytuj Produkt:</Text>
                   <TextInput
                     style={{
                       borderWidth: 1,
@@ -3394,8 +3396,8 @@ const Home = () => {
                       borderRadius: 5,
                       paddingHorizontal: 10,
                       paddingVertical: 8,
-                      color: "white",
-                      backgroundColor: "black",
+                      color: tc('text', "white"),
+                      backgroundColor: tc('surface', "black"),
                       marginBottom: 20,
                       width: "100%"
                     }}
@@ -3405,7 +3407,7 @@ const Home = () => {
                     placeholderTextColor="gray"
                   />
                   
-                  <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Rozmiar</Text>
+                  <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Rozmiar</Text>
                   <TextInput
                     style={{
                       borderWidth: 1,
@@ -3413,8 +3415,8 @@ const Home = () => {
                       borderRadius: 5,
                       paddingHorizontal: 10,
                       paddingVertical: 8,
-                      color: "white",
-                      backgroundColor: "black",
+                      color: tc('text', "white"),
+                      backgroundColor: tc('surface', "black"),
                       marginBottom: 20,
                       width: "100%"
                     }}
@@ -3424,7 +3426,7 @@ const Home = () => {
                     placeholderTextColor="gray"
                   />
                   
-                  <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Sprzedano od:</Text>
+                  <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano od:</Text>
                   <View
                     style={{
                       borderWidth: 1,
@@ -3441,7 +3443,7 @@ const Home = () => {
                         height: 40,
                         justifyContent: "center",
                         alignItems: "center",
-                        backgroundColor: "black",
+                        backgroundColor: tc('surface', "black"),
                         borderRadius: 5,
                       }}
                       onPress={() => {
@@ -3455,14 +3457,14 @@ const Home = () => {
                         }
                       }}
                     >
-                      <Text style={{ color: "white" }}>
+                      <Text style={{ color: tc('text', "white") }}>
                         {editData?.from || "Wybierz punkt sprzedaży"}
                       </Text>
                     </TouchableOpacity>
                   </View>
 
                 {/* Cash Payment Section */}
-                <Text style={{ fontSize: 16, marginBottom: 10, textAlign: "center", color: "white" }}>Płatność gotówką</Text>
+                <Text style={{ fontSize: 16, marginBottom: 10, textAlign: "center", color: tc('text', "white") }}>Płatność gotówką</Text>
                 <View style={{ width: "100%", borderWidth: 1, borderColor: "white", padding: 20 }}>
                   {cashPriceCurrencyPairs.map((pair, index) => (
                     <View key={`cash-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
@@ -3474,8 +3476,8 @@ const Home = () => {
                           borderWidth: 1,
                           borderRadius: 5,
                           paddingHorizontal: 10,
-                          color: "white",
-                          backgroundColor: "black",
+                          color: tc('text', "white"),
+                          backgroundColor: tc('surface', "black"),
                           marginRight: 10,
                         }}
                         value={pair.price}
@@ -3492,14 +3494,14 @@ const Home = () => {
                           height: 40,
                           justifyContent: "center",
                           alignItems: "center",
-                          backgroundColor: "black",
+                          backgroundColor: tc('surface', "black"),
                           borderColor: "white",
                           borderWidth: 1,
                           borderRadius: 5,
                         }}
                         onPress={() => openCurrencyModal(index, "cash")}
                       >
-                        <Text style={{ color: "white" }}>{pair.currency}</Text>
+                        <Text style={{ color: tc('text', "white") }}>{pair.currency}</Text>
                       </TouchableOpacity>
                       {index > 0 && (
                         <TouchableOpacity
@@ -3514,18 +3516,18 @@ const Home = () => {
                           }}
                           onPress={() => handleRemoveCashPair(index)}
                         >
-                          <Text style={{ color: "white" }}>Usuń</Text>
+                          <Text style={{ color: tc('text', "white") }}>Usuń</Text>
                         </TouchableOpacity>
                       )}
                     </View>
                   ))}
                   <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 5, alignItems: "center" }} onPress={handleAddCashPair}>
-                    <Text style={{ color: "white", fontSize: 16 }}>Dodaj parę</Text>
+                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Dodaj parę</Text>
                   </Pressable>
                 </View>
 
                 {/* Card Payment Section */}
-                <Text style={{ fontSize: 16, marginBottom: 10, marginTop: 20, textAlign: "center", color: "white" }}>Płatność kartą</Text>
+                <Text style={{ fontSize: 16, marginBottom: 10, marginTop: 20, textAlign: "center", color: tc('text', "white") }}>Płatność kartą</Text>
                 <View style={{ width: "100%", borderWidth: 1, borderColor: "white", padding: 20 }}>
                   {cardPriceCurrencyPairs.map((pair, index) => (
                     <View key={`card-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
@@ -3537,8 +3539,8 @@ const Home = () => {
                           borderWidth: 1,
                           borderRadius: 5,
                           paddingHorizontal: 10,
-                          color: "white",
-                          backgroundColor: "black",
+                          color: tc('text', "white"),
+                          backgroundColor: tc('surface', "black"),
                           marginRight: 10,
                         }}
                         value={pair.price}
@@ -3555,14 +3557,14 @@ const Home = () => {
                           height: 40,
                           justifyContent: "center",
                           alignItems: "center",
-                          backgroundColor: "black",
+                          backgroundColor: tc('surface', "black"),
                           borderColor: "white",
                           borderWidth: 1,
                           borderRadius: 5,
                         }}
                         onPress={() => openCurrencyModal(index, "card")}
                       >
-                        <Text style={{ color: "white" }}>{pair.currency}</Text>
+                        <Text style={{ color: tc('text', "white") }}>{pair.currency}</Text>
                       </TouchableOpacity>
                       {index > 0 && (
                         <TouchableOpacity
@@ -3577,13 +3579,13 @@ const Home = () => {
                           }}
                           onPress={() => handleRemoveCardPair(index)}
                         >
-                          <Text style={{ color: "white" }}>Usuń</Text>
+                          <Text style={{ color: tc('text', "white") }}>Usuń</Text>
                         </TouchableOpacity>
                       )}
                     </View>
                   ))}
                   <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 5, alignItems: "center" }} onPress={handleAddCardPair}>
-                    <Text style={{ color: "white", fontSize: 16 }}>Dodaj parę</Text>
+                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Dodaj parę</Text>
                   </Pressable>
                 </View>
 
@@ -3615,9 +3617,9 @@ const Home = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}>
-                    {editData?.isPickup && <Text style={{ color: 'white', fontSize: 16 }}>✓</Text>}
+                    {editData?.isPickup && <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>✓</Text>}
                   </View>
-                  <Text style={{ color: 'white', fontSize: 16 }}>Odbiór (dopłata do zaliczki)</Text>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>Odbiór (dopłata do zaliczki)</Text>
                 </TouchableOpacity>
 
                 {/* Przyciski identyczne z QRScanner */}
@@ -3638,7 +3640,7 @@ const Home = () => {
                     }}
                     onPress={() => setEditModalVisible(false)}
                   >
-                    <Text style={{ color: "white", fontSize: 16 }}>Anuluj</Text>
+                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Anuluj</Text>
                   </Pressable>
                   <Pressable
                     style={{
@@ -3651,7 +3653,7 @@ const Home = () => {
                     }}
                     onPress={updateItem}
                   >
-                    <Text style={{ color: "white", fontSize: 16 }}>Zapisz</Text>
+                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Zapisz</Text>
                   </Pressable>
                 </View>
                 </View>
@@ -3670,7 +3672,7 @@ const Home = () => {
             <View
               className="w-3/4 rounded-lg shadow-lg"
               style={{
-                backgroundColor: "black",
+                backgroundColor: tc('bg', "black"),
                 borderWidth: 1,
                 borderColor: "white",
               }}
@@ -3678,7 +3680,7 @@ const Home = () => {
               <View
                 className="p-4 rounded-t-lg"
                 style={{
-                  backgroundColor: "black",
+                  backgroundColor: tc('bg', "black"),
                 }}
               >
                 <Text className="text-lg font-bold text-white text-center">Edytuj Miejsce</Text>
@@ -3866,7 +3868,7 @@ const Home = () => {
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Wybierz walutę</Text>
-                <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+                <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                   Wybierz walutę dla płatności
                 </Text>
                 
@@ -3922,7 +3924,7 @@ const Home = () => {
                   <View style={{ 
                     width: '100%', 
                     marginBottom: 15, 
-                    backgroundColor: '#374151', 
+                    backgroundColor: tc('surface2', '#374151'), 
                     padding: 10, 
                     borderRadius: 6 
                   }}>
@@ -3936,7 +3938,7 @@ const Home = () => {
                     </Text>
                     {Object.keys(availableFunds).length > 1 && (
                       <Text style={{ 
-                        color: '#9ca3af', 
+                        color: tc('muted', '#9ca3af'), 
                         fontSize: 11, 
                         textAlign: 'center', 
                         marginTop: 4 
@@ -3953,20 +3955,20 @@ const Home = () => {
               
               {/* Amount input */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Kwota:</Text>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Kwota:</Text>
                 <TextInput
                   style={{
-                    backgroundColor: 'black',
+                    backgroundColor: tc('surface', 'black'),
                     borderRadius: 8,
                     padding: 12,
                     fontSize: 16,
-                    color: 'white',
+                    color: tc('text', 'white'),
                     borderWidth: 1,
                     borderColor: 'white',
                     textAlign: 'center',
                   }}
                   placeholder="0.00"
-                  placeholderTextColor="#ccc"
+                  placeholderTextColor={tc('muted', "#ccc")}
                   value={deductionAmount}
                   onChangeText={setDeductionAmount}
                   keyboardType="numeric"
@@ -3975,7 +3977,7 @@ const Home = () => {
               
               {/* Currency selection */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Waluta:</Text>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Waluta:</Text>
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545', // Red for deduction
@@ -3988,7 +3990,7 @@ const Home = () => {
                   }}
                   onPress={() => setDeductionCurrencyModalVisible(true)}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
                     {deductionCurrency}
                   </Text>
                 </TouchableOpacity>
@@ -3997,22 +3999,22 @@ const Home = () => {
               {/* Currency rate input - show only for non-PLN currencies */}
               {showDeductionRateInput && deductionCurrency !== 'PLN' && (
                 <View style={{ width: '100%', marginBottom: 20 }}>
-                  <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>
                     Kurs {deductionCurrency} (1 {deductionCurrency} = ? PLN):
                   </Text>
                   <TextInput
                     style={{
-                      backgroundColor: '#1a1a1a',
+                      backgroundColor: tc('surface', '#1a1a1a'),
                       borderRadius: 8,
                       padding: 12,
                       fontSize: 16,
-                      color: 'white',
+                      color: tc('text', 'white'),
                       borderWidth: 2,
                       borderColor: '#f39c12',
                       textAlign: 'center',
                     }}
                     placeholder="0.00"
-                    placeholderTextColor="#666"
+                    placeholderTextColor={tc('muted', "#666")}
                     value={deductionCurrencyRate}
                     onChangeText={(value) => {
                       setDeductionCurrencyRate(value);
@@ -4038,7 +4040,7 @@ const Home = () => {
               
               {/* Typ odpisania */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Typ odpisania:</Text>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Typ odpisania:</Text>
                 
                 <TouchableOpacity
                   style={{
@@ -4106,7 +4108,7 @@ const Home = () => {
               {/* Wybór pracownika dla zaliczki */}
               {deductionType === "employee_advance" && (
                 <View style={{ width: '100%', marginBottom: 15 }}>
-                  <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Wybierz pracownika:</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Wybierz pracownika:</Text>
                   <TouchableOpacity
                     style={{
                       backgroundColor: selectedEmployeeForAdvance ? '#10b981' : '#0d6efd',
@@ -4118,7 +4120,7 @@ const Home = () => {
                     }}
                     onPress={() => setDeductionEmployeeModalVisible(true)}
                   >
-                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 14, fontWeight: 'bold' }}>
                       {selectedEmployeeForAdvance 
                         ? `${selectedEmployeeForAdvance.firstName} ${selectedEmployeeForAdvance.lastName}${selectedEmployeeForAdvance.employeeId ? ` (ID: ${selectedEmployeeForAdvance.employeeId})` : ''}`
                         : 'Wybierz pracownika'
@@ -4130,23 +4132,23 @@ const Home = () => {
               
               {/* Reason input */}
               <View style={{ width: '100%', marginBottom: 20 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>
                   {deductionType === "employee_advance" ? "Dodatkowe uwagi (opcjonalne):" : "Powód odpisania:"}
                 </Text>
                 <TextInput
                   style={{
-                    backgroundColor: 'black',
+                    backgroundColor: tc('surface', 'black'),
                     borderRadius: 8,
                     padding: 12,
                     fontSize: 14,
-                    color: 'white',
+                    color: tc('text', 'white'),
                     borderWidth: 1,
                     borderColor: 'white',
                     minHeight: 80,
                     textAlignVertical: 'top',
                   }}
                   placeholder={deductionType === "employee_advance" ? "Dodatkowe uwagi do zaliczki (opcjonalne)..." : "Wpisz powód odpisania kwoty..."}
-                  placeholderTextColor="#ccc"
+                  placeholderTextColor={tc('muted', "#ccc")}
                   value={deductionReason}
                   onChangeText={setDeductionReason}
                   multiline={true}
@@ -4168,7 +4170,7 @@ const Home = () => {
                   onPress={submitDeduction}
                   testID="submit-deduction-button"
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     Odpisz kwotę
                   </Text>
                 </TouchableOpacity>
@@ -4193,7 +4195,7 @@ const Home = () => {
                     setSelectedEmployeeForAdvance(null);
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -4259,11 +4261,11 @@ const Home = () => {
               
               {selectedDeductionItem && (
                 <View style={{ width: '100%', marginBottom: 20 }}>
-                  <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
                     Czy na pewno chcesz anulować tę operację?
                   </Text>
                   <View style={{ 
-                    backgroundColor: '#374151', 
+                    backgroundColor: tc('surface2', '#374151'), 
                     padding: 12, 
                     borderRadius: 8, 
                     marginBottom: 15 
@@ -4331,20 +4333,20 @@ const Home = () => {
               
               {/* Amount input */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Kwota jaką klient wpłaca:</Text>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Kwota jaką klient wpłaca:</Text>
                 <TextInput
                   style={{
-                    backgroundColor: 'black',
+                    backgroundColor: tc('surface', 'black'),
                     borderRadius: 8,
                     padding: 12,
                     fontSize: 16,
-                    color: 'white',
+                    color: tc('text', 'white'),
                     borderWidth: 1,
                     borderColor: '#0d6efd', // Blue border for addition
                     textAlign: 'center',
                   }}
                   placeholder="0.00"
-                  placeholderTextColor="#ccc"
+                  placeholderTextColor={tc('muted', "#ccc")}
                   value={addAmountAmount}
                   onChangeText={setAddAmountAmount}
                   keyboardType="numeric"
@@ -4353,7 +4355,7 @@ const Home = () => {
               
               {/* Currency selection */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Waluta zaliczki:</Text>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Waluta zaliczki:</Text>
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#0d6efd', // Blue for addition
@@ -4366,7 +4368,7 @@ const Home = () => {
                   }}
                   onPress={() => setAddAmountCurrencyModalVisible(true)}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
                     {addAmountCurrency}
                   </Text>
                 </TouchableOpacity>
@@ -4388,7 +4390,7 @@ const Home = () => {
               
               {/* Reason selection */}
               <View style={{ width: '100%', marginBottom: 20 }}>
-                <Text style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Powód dopisania:</Text>
+                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Powód dopisania:</Text>
                 
                 {/* Radio buttons */}
                 <View style={{ marginBottom: 15 }}>
@@ -4447,7 +4449,7 @@ const Home = () => {
                   <View style={{ marginBottom: 15 }}>
                     {/* Standard Product Selection */}
                     <View>
-                      <Text style={{ color: '#fff', fontSize: 12, marginBottom: 5 }}>Produkt standardowy:</Text>
+                      <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>Produkt standardowy:</Text>
                       <TouchableOpacity
                         style={{
                           backgroundColor: '#0d6efd',
@@ -4465,25 +4467,25 @@ const Home = () => {
                           setScanned(false);
                         }}
                       >
-                        <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                        <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                           Skanuj produkt
                         </Text>
                       </TouchableOpacity>
 
-                      <Text style={{ color: '#fff', fontSize: 12, marginBottom: 5 }}>Wybierz produkt:</Text>
+                      <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>Wybierz produkt:</Text>
                       <TextInput
                         style={{
-                          backgroundColor: 'black',
+                          backgroundColor: tc('surface', 'black'),
                           borderRadius: 8,
                           padding: 12,
                           fontSize: 14,
-                          color: 'white',
+                          color: tc('text', 'white'),
                           borderWidth: 1,
                           borderColor: '#0d6efd',
                           marginBottom: 10,
                         }}
                         placeholder="Wpisz nazwę lub kod produktu..."
-                        placeholderTextColor="#ccc"
+                        placeholderTextColor={tc('muted', "#ccc")}
                         value={productSearchQuery}
                         onChangeText={(text) => {
                           setProductSearchQuery(text);
@@ -4500,7 +4502,7 @@ const Home = () => {
                       {showProductDropdown && productSearchQuery && (
                         <View style={{
                           maxHeight: 200,
-                          backgroundColor: 'black',
+                          backgroundColor: tc('surface', 'black'),
                           borderRadius: 8,
                           borderWidth: 1,
                           borderColor: '#0d6efd',
@@ -4512,7 +4514,7 @@ const Home = () => {
                               top: 5,
                               right: 10,
                               zIndex: 1,
-                              backgroundColor: '#333',
+                              backgroundColor: tc('surface2', '#333'),
                               borderRadius: 10,
                               width: 20,
                               height: 20,
@@ -4521,7 +4523,7 @@ const Home = () => {
                             }}
                             onPress={() => setShowProductDropdown(false)}
                           >
-                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>×</Text>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 12, fontWeight: 'bold' }}>×</Text>
                           </TouchableOpacity>
                           <ScrollView nestedScrollEnabled={true}>
                             {filteredProducts.length > 0 ? (
@@ -4531,7 +4533,7 @@ const Home = () => {
                                   style={{
                                     padding: 12,
                                     borderBottomWidth: 1,
-                                    borderBottomColor: '#333',
+                                    borderBottomColor: tc('border', '#333'),
                                     backgroundColor: selectedProduct === (product.id || product._id) ? '#0d6efd' : 'transparent',
                                   }}
                                   onPress={() => {
@@ -4544,7 +4546,7 @@ const Home = () => {
                                     {product.fullName || product.Tow_Opis || product.code || product.Tow_Kod || product.name || 'Nieznany produkt'}
                                   </Text>
                                   {(product.code || product.Tow_Kod) && (product.fullName || product.Tow_Opis) && (
-                                    <Text style={{ color: '#ccc', fontSize: 11 }}>
+                                    <Text style={{ color: tc('muted', '#ccc'), fontSize: 11 }}>
                                       Kod: {product.code || product.Tow_Kod}
                                     </Text>
                                   )}
@@ -4552,7 +4554,7 @@ const Home = () => {
                               ))
                             ) : (
                               <View style={{ padding: 12 }}>
-                                <Text style={{ color: '#ccc', fontSize: 13, textAlign: 'center' }}>
+                                <Text style={{ color: tc('muted', '#ccc'), fontSize: 13, textAlign: 'center' }}>
                                   Brak produktów pasujących do wyszukiwania
                                 </Text>
                               </View>
@@ -4563,20 +4565,20 @@ const Home = () => {
 
                       {!productScanned && (
                         <>
-                          <Text style={{ color: '#fff', fontSize: 12, marginBottom: 5, marginTop: 10 }}>Wybierz rozmiar:</Text>
+                          <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5, marginTop: 10 }}>Wybierz rozmiar:</Text>
                           <TextInput
                             style={{
-                              backgroundColor: 'black',
+                              backgroundColor: tc('surface', 'black'),
                               borderRadius: 8,
                               padding: 12,
                               fontSize: 14,
-                              color: 'white',
+                              color: tc('text', 'white'),
                               borderWidth: 1,
                               borderColor: '#0d6efd',
                               marginBottom: 10,
                             }}
                             placeholder="Wpisz rozmiar..."
-                            placeholderTextColor="#ccc"
+                            placeholderTextColor={tc('muted', "#ccc")}
                             value={sizeSearchQuery}
                             onChangeText={(text) => {
                               setSizeSearchQuery(text);
@@ -4588,7 +4590,7 @@ const Home = () => {
                           {showSizeDropdown && sizeSearchQuery && (
                             <View style={{
                               maxHeight: 150,
-                              backgroundColor: 'black',
+                              backgroundColor: tc('surface', 'black'),
                               borderRadius: 8,
                               borderWidth: 1,
                               borderColor: '#0d6efd',
@@ -4600,7 +4602,7 @@ const Home = () => {
                                   top: 5,
                                   right: 10,
                                   zIndex: 1,
-                                  backgroundColor: '#333',
+                                  backgroundColor: tc('surface2', '#333'),
                                   borderRadius: 10,
                                   width: 20,
                                   height: 20,
@@ -4609,7 +4611,7 @@ const Home = () => {
                                 }}
                                 onPress={() => setShowSizeDropdown(false)}
                               >
-                                <Text style={{ color: '#fff', fontSize: 12 }}>×</Text>
+                                <Text style={{ color: tc('text', '#fff'), fontSize: 12 }}>×</Text>
                               </TouchableOpacity>
                               <ScrollView>
                                 {filteredSizes.length > 0 ? (
@@ -4619,7 +4621,7 @@ const Home = () => {
                                       style={{
                                         padding: 12,
                                         borderBottomWidth: 1,
-                                        borderBottomColor: '#333',
+                                        borderBottomColor: tc('border', '#333'),
                                         backgroundColor: selectedSize === (size._id || size.id) ? '#0d6efd' : 'transparent',
                                       }}
                                       onPress={() => {
@@ -4634,7 +4636,7 @@ const Home = () => {
                                     </TouchableOpacity>
                                   ))
                                 ) : (
-                                  <Text style={{ color: '#ccc', fontSize: 13, padding: 12, textAlign: 'center' }}>
+                                  <Text style={{ color: tc('muted', '#ccc'), fontSize: 13, padding: 12, textAlign: 'center' }}>
                                     Brak rozmiarów pasujących do "{sizeSearchQuery}"
                                   </Text>
                                 )}
@@ -4648,22 +4650,22 @@ const Home = () => {
                     {/* Product final price input - when product advance is selected */}
                     {reasonType === 'product' && (
                       <View style={{ marginTop: 15 }}>
-                        <Text style={{ color: '#fff', fontSize: 12, marginBottom: 5 }}>
+                        <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>
                           Uzgodniona cena finalna produktu (w PLN - dla obrotu):
                         </Text>
                         <TextInput
                           style={{
-                            backgroundColor: 'black',
+                            backgroundColor: tc('surface', 'black'),
                             borderRadius: 8,
                             padding: 12,
                             fontSize: 14,
-                            color: 'white',
+                            color: tc('text', 'white'),
                             borderWidth: 1,
                             borderColor: '#0d6efd',
                             textAlign: 'center',
                           }}
                           placeholder="0.00 PLN"
-                          placeholderTextColor="#ccc"
+                          placeholderTextColor={tc('muted', "#ccc")}
                           value={productFinalPrice}
                           onChangeText={(value) => {
                             setProductFinalPrice(value);
@@ -4677,7 +4679,7 @@ const Home = () => {
 
                         {/* Product Currency Selection */}
                         <View style={{ marginTop: 15 }}>
-                          <Text style={{ color: '#fff', fontSize: 12, marginBottom: 5 }}>
+                          <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>
                             Waluta w której klient dopłaci:
                           </Text>
                           <TouchableOpacity
@@ -4692,7 +4694,7 @@ const Home = () => {
                             }}
                             onPress={() => setProductCurrencyModalVisible(true)}
                           >
-                            <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                            <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
                               {productSaleCurrency}
                             </Text>
                           </TouchableOpacity>
@@ -4717,7 +4719,7 @@ const Home = () => {
                           <View style={{
                             marginTop: 10,
                             padding: 10,
-                            backgroundColor: '#1a1a2e',
+                            backgroundColor: tc('surface', '#1a1a2e'),
                             borderRadius: 8,
                             borderWidth: 1,
                             borderColor: '#4ecdc4',
@@ -4727,7 +4729,7 @@ const Home = () => {
                             </Text>
                             
                             {/* Price in PLN (always) */}
-                            <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginBottom: 3 }}>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginBottom: 3 }}>
                               PLN: {parseFloat(productFinalPrice).toFixed(2)}
                             </Text>
                             
@@ -4764,16 +4766,16 @@ const Home = () => {
                           <View style={{
                             marginTop: 10,
                             padding: 10,
-                            backgroundColor: '#333',
+                            backgroundColor: tc('surface2', '#333'),
                             borderRadius: 8,
                             borderWidth: 1,
                             borderColor: '#0d6efd',
                           }}>
                             {/* Advance Amount */}
-                            <Text style={{ color: '#fff', fontSize: 13, textAlign: 'center' }}>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 13, textAlign: 'center' }}>
                               <Text style={{ fontWeight: 'bold' }}>Zaliczka:</Text> {parseFloat(addAmountAmount || 0).toFixed(2)} {addAmountCurrency}
                               {addAmountCurrency !== 'PLN' && (
-                                <Text style={{ color: '#ccc', fontSize: 11 }}>
+                                <Text style={{ color: tc('muted', '#ccc'), fontSize: 11 }}>
                                   {' '}(≈ {(() => {
                                       // Use rate from table (cached in state)
                                       const rate = addAmountCurrencyRate && parseFloat(addAmountCurrencyRate) > 0
@@ -4786,7 +4788,7 @@ const Home = () => {
                             </Text>
                             
                             {/* Product Price */}
-                            <Text style={{ color: '#fff', fontSize: 13, textAlign: 'center', marginTop: 3 }}>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 13, textAlign: 'center', marginTop: 3 }}>
                               <Text style={{ fontWeight: 'bold' }}>Cena dla obrotu:</Text> {parseFloat(productFinalPrice || 0).toFixed(2)} PLN
                             </Text>
                             
@@ -4794,7 +4796,7 @@ const Home = () => {
                             <View style={{
                               marginTop: 8,
                               padding: 8,
-                              backgroundColor: '#1a1a2e',
+                              backgroundColor: tc('surface', '#1a1a2e'),
                               borderRadius: 6,
                               borderWidth: 1,
                               borderColor: '#4ecdc4',
@@ -4849,7 +4851,7 @@ const Home = () => {
                                     {/* Show PLN equivalent if display currency is different */}
                                     {productSaleCurrency !== 'PLN' && (
                                       <Text style={{ 
-                                        color: '#ccc', 
+                                        color: tc('muted', '#ccc'), 
                                         fontSize: 11, 
                                         textAlign: 'center', 
                                         marginTop: 2
@@ -4872,18 +4874,18 @@ const Home = () => {
                 {reasonType === 'other' && (
                   <TextInput
                     style={{
-                      backgroundColor: 'black',
+                      backgroundColor: tc('surface', 'black'),
                       borderRadius: 8,
                       padding: 12,
                       fontSize: 14,
-                      color: 'white',
+                      color: tc('text', 'white'),
                       borderWidth: 1,
                       borderColor: '#10b981',
                       minHeight: 80,
                       textAlignVertical: 'top',
                     }}
                     placeholder="Wpisz powód dopisania kwoty..."
-                    placeholderTextColor="#ccc"
+                    placeholderTextColor={tc('muted', "#ccc")}
                     value={addAmountReason}
                     onChangeText={setAddAmountReason}
                     multiline={true}
@@ -4906,7 +4908,7 @@ const Home = () => {
                   onPress={submitAddAmount}
                   testID="submit-addition-button"
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     {isEditingAddAmount ? 'Aktualizuj kwotę' : 'Dopisz kwotę'}
                   </Text>
                 </TouchableOpacity>
@@ -4937,7 +4939,7 @@ const Home = () => {
                     setProductFinalPrice("");
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -4958,7 +4960,7 @@ const Home = () => {
           <View style={styles.salespersonModalOverlay}>
             <View style={styles.salespersonModalContent}>
               <Text style={styles.salespersonModalTitle}>Wybierz sprzedawców</Text>
-              <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                 Możesz wybrać wielu sprzedawców dla tego stanowiska
               </Text>
               
@@ -5010,7 +5012,7 @@ const Home = () => {
                           
                           {isAlreadyAssigned && (
                             <Text style={{ 
-                              color: '#ffffff', 
+                              color: tc('text', '#ffffff'), 
                               fontSize: 12, 
                               fontWeight: 'bold',
                               marginLeft: 8,
@@ -5028,10 +5030,10 @@ const Home = () => {
                   })
                 ) : (
                   <View style={{ padding: 20 }}>
-                    <Text style={{ color: 'white', textAlign: 'center', fontSize: 16 }}>
+                    <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontSize: 16 }}>
                       Brak dostępnych pracowników
                     </Text>
-                    <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginTop: 5 }}>
+                    <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginTop: 5 }}>
                       Dodaj pracowników w panelu administracyjnym
                     </Text>
                   </View>
@@ -5057,7 +5059,7 @@ const Home = () => {
                     }
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     ✓ Dodaj ({selectedSalespeople.length})
                   </Text>
                 </TouchableOpacity>
@@ -5079,7 +5081,7 @@ const Home = () => {
                     setSelectedSalespeople([]);
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✕ Anuluj</Text>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>✕ Anuluj</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -5115,9 +5117,9 @@ const Home = () => {
                   <Text style={styles.workHoursTimeLabel}>Godzina rozpoczęcia:</Text>
                   <TouchableOpacity
                     style={{
-                      backgroundColor: '#000000',
+                      backgroundColor: tc('surface', '#000000'),
                       borderWidth: 1,
-                      borderColor: '#6b7280',
+                      borderColor: tc('border', '#6b7280'),
                       borderRadius: 8,
                       padding: 12,
                       alignItems: 'center'
@@ -5129,39 +5131,39 @@ const Home = () => {
                       setShowStartTimePicker(true);
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
                       {workStartTime}
                     </Text>
                   </TouchableOpacity>
                   {showStartTimePicker && (
                     <Modal transparent visible={showStartTimePicker} animationType="fade">
                       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-                        <View style={{ backgroundColor: '#000000', borderRadius: 12, padding: 20, width: 300, borderWidth: 1, borderColor: '#6b7280' }}>
-                          <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
+                        <View style={{ backgroundColor: tc('surface', '#000000'), borderRadius: 12, padding: 20, width: 300, borderWidth: 1, borderColor: tc('border', '#6b7280') }}>
+                          <Text style={{ color: tc('text', 'white'), fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
                             Wybierz godzinę rozpoczęcia
                           </Text>
                           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
                             <View style={{ alignItems: 'center' }}>
                               <TouchableOpacity onPress={() => setTempHour((tempHour + 1) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▲</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
                               </TouchableOpacity>
-                              <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
+                              <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempHour.toString().padStart(2, '0')}
                               </Text>
                               <TouchableOpacity onPress={() => setTempHour((tempHour - 1 + 24) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▼</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
                               </TouchableOpacity>
                             </View>
-                            <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', marginHorizontal: 10 }}>:</Text>
+                            <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', marginHorizontal: 10 }}>:</Text>
                             <View style={{ alignItems: 'center' }}>
                               <TouchableOpacity onPress={() => setTempMinute((tempMinute + 1) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▲</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
                               </TouchableOpacity>
-                              <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
+                              <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempMinute.toString().padStart(2, '0')}
                               </Text>
                               <TouchableOpacity onPress={() => setTempMinute((tempMinute - 1 + 60) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▼</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -5170,7 +5172,7 @@ const Home = () => {
                               onPress={() => setShowStartTimePicker(false)}
                               style={{ backgroundColor: '#6b7280', padding: 12, borderRadius: 8, flex: 1, marginRight: 8 }}
                             >
-                              <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
+                              <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
@@ -5192,9 +5194,9 @@ const Home = () => {
                   <Text style={styles.workHoursTimeLabel}>Godzina zakończenia:</Text>
                   <TouchableOpacity
                     style={{
-                      backgroundColor: '#000000',
+                      backgroundColor: tc('surface', '#000000'),
                       borderWidth: 1,
-                      borderColor: '#6b7280',
+                      borderColor: tc('border', '#6b7280'),
                       borderRadius: 8,
                       padding: 12,
                       alignItems: 'center'
@@ -5206,39 +5208,39 @@ const Home = () => {
                       setShowEndTimePicker(true);
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
                       {workEndTime}
                     </Text>
                   </TouchableOpacity>
                   {showEndTimePicker && (
                     <Modal transparent visible={showEndTimePicker} animationType="fade">
                       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-                        <View style={{ backgroundColor: '#000000', borderRadius: 12, padding: 20, width: 300, borderWidth: 1, borderColor: '#6b7280' }}>
-                          <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
+                        <View style={{ backgroundColor: tc('surface', '#000000'), borderRadius: 12, padding: 20, width: 300, borderWidth: 1, borderColor: tc('border', '#6b7280') }}>
+                          <Text style={{ color: tc('text', 'white'), fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
                             Wybierz godzinę zakończenia
                           </Text>
                           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
                             <View style={{ alignItems: 'center' }}>
                               <TouchableOpacity onPress={() => setTempHour((tempHour + 1) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▲</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
                               </TouchableOpacity>
-                              <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
+                              <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempHour.toString().padStart(2, '0')}
                               </Text>
                               <TouchableOpacity onPress={() => setTempHour((tempHour - 1 + 24) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▼</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
                               </TouchableOpacity>
                             </View>
-                            <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', marginHorizontal: 10 }}>:</Text>
+                            <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', marginHorizontal: 10 }}>:</Text>
                             <View style={{ alignItems: 'center' }}>
                               <TouchableOpacity onPress={() => setTempMinute((tempMinute + 1) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▲</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
                               </TouchableOpacity>
-                              <Text style={{ color: 'white', fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
+                              <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempMinute.toString().padStart(2, '0')}
                               </Text>
                               <TouchableOpacity onPress={() => setTempMinute((tempMinute - 1 + 60) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: 'white', fontSize: 24 }}>▼</Text>
+                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -5247,7 +5249,7 @@ const Home = () => {
                               onPress={() => setShowEndTimePicker(false)}
                               style={{ backgroundColor: '#6b7280', padding: 12, borderRadius: 8, flex: 1, marginRight: 8 }}
                             >
-                              <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
+                              <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
@@ -5296,7 +5298,7 @@ const Home = () => {
                   value={workNotes}
                   onChangeText={setWorkNotes}
                   placeholder="Dodaj notatki dotyczące pracy..."
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={tc('muted', "#9ca3af")}
                   multiline
                   numberOfLines={3}
                 />
@@ -5314,7 +5316,7 @@ const Home = () => {
                   }}
                   onPress={saveWorkHours}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     Zapisz
                   </Text>
                 </TouchableOpacity>
@@ -5332,7 +5334,7 @@ const Home = () => {
                     closeWorkHoursModal();
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     ✕ Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -5424,7 +5426,7 @@ const Home = () => {
                   }}
                   onPress={() => setConfirmDeleteModalVisible(false)}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✕ Anuluj</Text>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>✕ Anuluj</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
@@ -5441,7 +5443,7 @@ const Home = () => {
                   }}
                   onPress={handleDeleteConfirm}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✓ Usuń</Text>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>✓ Usuń</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -5482,7 +5484,7 @@ const Home = () => {
                   }}
                   onPress={() => handleRemoveEmployee(true)}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     ✓ Usuń
                   </Text>
                 </TouchableOpacity>
@@ -5501,7 +5503,7 @@ const Home = () => {
                   }}
                   onPress={cancelRemoveEmployee}
                 >
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
                     ✕ Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -5520,7 +5522,7 @@ const Home = () => {
           <View style={styles.currencyModalContainer}>
             <View style={styles.currencyModalContent}>
               <Text style={styles.currencyModalTitle}>Wybierz walutę</Text>
-              <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                 Wybierz walutę dla płatności
               </Text>
               
@@ -5568,7 +5570,7 @@ const Home = () => {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { width: '80%', maxHeight: '70%' }]}>
               <Text style={styles.modalTitle}>Wybierz walutę</Text>
-              <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                 Wybierz walutę dla odpisanej kwoty
               </Text>
               
@@ -5584,20 +5586,20 @@ const Home = () => {
                       borderRadius: 8,
                       marginBottom: 8,
                       borderWidth: 1,
-                      borderColor: deductionCurrency === item.code ? 'white' : '#444',
+                      borderColor: deductionCurrency === item.code ? 'white' : tc('border', '#444'),
                     }}
                     onPress={() => selectCurrencyForDeduction(item.code)}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <Text style={{ 
-                        color: deductionCurrency === item.code ? 'white' : '#ccc', 
+                        color: deductionCurrency === item.code ? tc('text', 'white') : tc('muted', '#ccc'), 
                         fontSize: 16, 
                         fontWeight: deductionCurrency === item.code ? 'bold' : 'normal',
                         width: 60
                       }}>
                         {item.code}
                       </Text>
-                      <Text style={{ color: '#a1a1aa', fontSize: 12, flex: 1, marginLeft: 10 }}>{item.name}</Text>
+                      <Text style={{ color: tc('muted', '#a1a1aa'), fontSize: 12, flex: 1, marginLeft: 10 }}>{item.name}</Text>
                       <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '500', marginLeft: 10 }}>{item.buyRate}</Text>
                     </View>
                   </TouchableOpacity>
@@ -5678,7 +5680,7 @@ const Home = () => {
                   </Text>
                   
                   <Text style={{
-                    color: '#ccc',
+                    color: tc('muted', '#ccc'),
                     fontSize: 13,
                     textAlign: 'center',
                     marginBottom: 20,
@@ -5693,7 +5695,7 @@ const Home = () => {
                     marginBottom: 20
                   }}>
                     <Text style={{
-                      color: '#fff',
+                      color: tc('text', '#fff'),
                       fontSize: 14,
                       marginBottom: 8,
                       textAlign: 'center'
@@ -5709,11 +5711,11 @@ const Home = () => {
                     }}>
                       <TextInput
                         style={{
-                          backgroundColor: '#1a1a1a',
+                          backgroundColor: tc('surface', '#1a1a1a'),
                           borderRadius: 8,
                           padding: 12,
                           fontSize: 16,
-                          color: 'white',
+                          color: tc('text', 'white'),
                           borderWidth: 2,
                           borderColor: '#f39c12',
                           textAlign: 'center',
@@ -5721,7 +5723,7 @@ const Home = () => {
                           maxWidth: 150
                         }}
                         placeholder="0.00"
-                        placeholderTextColor="#666"
+                        placeholderTextColor={tc('muted', "#666")}
                         value={tempCurrencyRate}
                         onChangeText={setTempCurrencyRate}
                         keyboardType="decimal-pad"
@@ -5729,7 +5731,7 @@ const Home = () => {
                         autoFocus={true}
                       />
                       <Text style={{
-                        color: '#fff',
+                        color: tc('text', '#fff'),
                         fontSize: 16,
                         fontWeight: 'bold'
                       }}>
@@ -5741,14 +5743,14 @@ const Home = () => {
                   {/* Current rate info */}
                   {exchangeRates[editingCurrencyRate] && (
                     <View style={{
-                      backgroundColor: '#333',
+                      backgroundColor: tc('surface2', '#333'),
                       padding: 10,
                       borderRadius: 6,
                       marginBottom: 20,
                       width: '100%'
                     }}>
                       <Text style={{
-                        color: '#ccc',
+                        color: tc('muted', '#ccc'),
                         fontSize: 12,
                         textAlign: 'center'
                       }}>
@@ -5777,7 +5779,7 @@ const Home = () => {
                       onPress={saveCurrencyRate}
                     >
                       <Text style={{
-                        color: 'white',
+                        color: tc('text', 'white'),
                         fontSize: 14,
                         fontWeight: 'bold',
                         textAlign: 'center'
@@ -5799,7 +5801,7 @@ const Home = () => {
                       onPress={cancelEditingRate}
                     >
                       <Text style={{
-                        color: 'white',
+                        color: tc('text', 'white'),
                         fontSize: 14,
                         fontWeight: 'bold',
                         textAlign: 'center'
@@ -5825,7 +5827,7 @@ const Home = () => {
           <View style={styles.salespersonModalOverlay}>
             <View style={styles.salespersonModalContent}>
               <Text style={styles.salespersonModalTitle}>Wybierz pracownika</Text>
-              <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                 Wybierz pracownika dla zaliczki
               </Text>
               
@@ -5876,7 +5878,7 @@ const Home = () => {
                     );
                   })
                 ) : (
-                  <Text style={{ color: '#ffffff', textAlign: 'center', fontSize: 16, marginVertical: 20 }}>
+                  <Text style={{ color: tc('text', '#ffffff'), textAlign: 'center', fontSize: 16, marginVertical: 20 }}>
                     Brak dostępnych pracowników
                   </Text>
                 )}
@@ -5909,13 +5911,13 @@ const Home = () => {
               </Text>
               {selectedItem && (
                 <View style={{ marginVertical: 15 }}>
-                  <Text style={{ color: '#fff', fontSize: 16, textAlign: 'center' }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, textAlign: 'center' }}>
                     {selectedItem.fullName || selectedItem.name || "Nieznana nazwa"}
                   </Text>
-                  <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginTop: 5 }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginTop: 5 }}>
                     Rozmiar: {selectedItem.size || "Nieznany"}
                   </Text>
-                  <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center', marginTop: 5 }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginTop: 5 }}>
                     Cena: {(() => {
                       // Use the same logic as in the sales list
                       const payments = [...(selectedItem.cash || []), ...(selectedItem.card || [])]
@@ -5959,7 +5961,7 @@ const Home = () => {
             setScanned(false);
           }}
         >
-          <View style={{ flex: 1, backgroundColor: 'black' }}>
+          <View style={{ flex: 1, backgroundColor: tc('bg', 'black') }}>
             {permission?.granted ? (
               <>
                 <CameraView
@@ -5978,7 +5980,7 @@ const Home = () => {
                   padding: 20,
                   backgroundColor: 'rgba(0,0,0,0.7)',
                 }}>
-                  <Text style={{ color: 'white', fontSize: 16, textAlign: 'center', marginBottom: 15 }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 16, textAlign: 'center', marginBottom: 15 }}>
                     Zeskanuj kod kreskowy produktu
                   </Text>
                   <TouchableOpacity
@@ -5998,13 +6000,13 @@ const Home = () => {
                       }
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <Text style={{ color: 'white', fontSize: 18, textAlign: 'center', marginBottom: 20 }}>
+                <Text style={{ color: tc('text', 'white'), fontSize: 18, textAlign: 'center', marginBottom: 20 }}>
                   Brak uprawnień do kamery
                 </Text>
                 <TouchableOpacity
@@ -6030,7 +6032,7 @@ const Home = () => {
                     setProductScanned(false); // Reset when user closes scanner
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>Zamknij</Text>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>Zamknij</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -6051,7 +6053,7 @@ const Home = () => {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
           }}>
             <View style={{
-              backgroundColor: '#1f2937',
+              backgroundColor: tc('surface', '#1f2937'),
               borderRadius: 10,
               padding: 20,
               width: '90%',
@@ -6060,7 +6062,7 @@ const Home = () => {
               <Text style={{
                 fontSize: 20,
                 fontWeight: 'bold',
-                color: 'white',
+                color: tc('text', 'white'),
                 marginBottom: 15,
                 textAlign: 'center',
               }}>
@@ -6069,11 +6071,11 @@ const Home = () => {
 
               {loadingCurrencyRates ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ color: 'white' }}>Ładowanie...</Text>
+                  <Text style={{ color: tc('text', 'white') }}>Ładowanie...</Text>
                 </View>
               ) : currencyRates.length === 0 ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ color: 'white', marginBottom: 15 }}>Brak dostępnych kursów walut</Text>
+                  <Text style={{ color: tc('text', 'white'), marginBottom: 15 }}>Brak dostępnych kursów walut</Text>
                   <TouchableOpacity
                     style={{
                       backgroundColor: '#007bff',
@@ -6090,14 +6092,14 @@ const Home = () => {
                 <ScrollView style={{ maxHeight: 400 }}>
                   <View style={{
                     flexDirection: 'row',
-                    backgroundColor: '#374151',
+                    backgroundColor: tc('surface2', '#374151'),
                     padding: 10,
                     borderRadius: 5,
                     marginBottom: 5,
                   }}>
-                    <Text style={{ color: 'white', fontWeight: 'bold', flex: 1 }}>Waluta</Text>
-                    <Text style={{ color: 'white', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Kupno</Text>
-                    <Text style={{ color: 'white', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Sprzedaż</Text>
+                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1 }}>Waluta</Text>
+                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Kupno</Text>
+                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Sprzedaż</Text>
                   </View>
                   {currencyRates.map((rate, index) => (
                     <View
@@ -6106,21 +6108,21 @@ const Home = () => {
                         flexDirection: 'row',
                         padding: 10,
                         borderBottomWidth: 1,
-                        borderBottomColor: '#374151',
+                        borderBottomColor: tc('border', '#374151'),
                       }}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                        <Text style={{ color: tc('text', 'white'), fontWeight: 'bold' }}>
                           {rate.currency.code}
                         </Text>
-                        <Text style={{ color: '#9ca3af', fontSize: 12 }}>
+                        <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 12 }}>
                           {rate.currency.name}
                         </Text>
                       </View>
-                      <Text style={{ color: 'white', flex: 1, textAlign: 'right' }}>
+                      <Text style={{ color: tc('text', 'white'), flex: 1, textAlign: 'right' }}>
                         {rate.buyRate.toFixed(4)} PLN
                       </Text>
-                      <Text style={{ color: 'white', flex: 1, textAlign: 'right' }}>
+                      <Text style={{ color: tc('text', 'white'), flex: 1, textAlign: 'right' }}>
                         {rate.sellRate.toFixed(4)} PLN
                       </Text>
                     </View>
@@ -6178,7 +6180,7 @@ const Home = () => {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
           }}>
             <View style={{
-              backgroundColor: '#1f2937',
+              backgroundColor: tc('surface', '#1f2937'),
               borderRadius: 10,
               padding: 20,
               width: '90%',
@@ -6186,7 +6188,7 @@ const Home = () => {
               <Text style={{
                 fontSize: 20,
                 fontWeight: 'bold',
-                color: 'white',
+                color: tc('text', 'white'),
                 marginBottom: 20,
                 textAlign: 'center',
               }}>
@@ -6195,25 +6197,25 @@ const Home = () => {
 
               {loadingCurrencyRates ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ color: 'white' }}>Ładowanie kursów...</Text>
+                  <Text style={{ color: tc('text', 'white') }}>Ładowanie kursów...</Text>
                 </View>
               ) : (
                 <>
                   {/* Amount Input */}
                   <View style={{ marginBottom: 15 }}>
-                    <Text style={{ color: 'white', marginBottom: 5, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), marginBottom: 5, fontWeight: 'bold' }}>
                       Kwota:
                     </Text>
                     <TextInput
                       style={{
-                        backgroundColor: '#374151',
-                        color: 'white',
+                        backgroundColor: tc('surface2', '#374151'),
+                        color: tc('text', 'white'),
                         padding: 12,
                         borderRadius: 6,
                         fontSize: 16,
                       }}
                       placeholder="Wprowadź kwotę"
-                      placeholderTextColor="#9ca3af"
+                      placeholderTextColor={tc('muted', "#9ca3af")}
                       keyboardType="decimal-pad"
                       value={calculatorAmount}
                       onChangeText={setCalculatorAmount}
@@ -6222,12 +6224,12 @@ const Home = () => {
 
                   {/* From Currency Picker */}
                   <View style={{ marginBottom: 15 }}>
-                    <Text style={{ color: 'white', marginBottom: 5, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), marginBottom: 5, fontWeight: 'bold' }}>
                       Z waluty:
                     </Text>
                     <TouchableOpacity
                       style={{
-                        backgroundColor: '#374151',
+                        backgroundColor: tc('surface2', '#374151'),
                         borderRadius: 6,
                         padding: 15,
                         flexDirection: 'row',
@@ -6236,13 +6238,13 @@ const Home = () => {
                       }}
                       onPress={() => setFromCurrencyModalVisible(true)}
                     >
-                      <Text style={{ color: 'white', fontSize: 16 }}>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>
                         {calculatorFromCurrency === 'PLN' 
                           ? 'PLN - Polski złoty'
                           : `${calculatorFromCurrency} - ${currencyRates.find(r => r.currency.code === calculatorFromCurrency)?.currency.name || calculatorFromCurrency}`
                         }
                       </Text>
-                      <Text style={{ color: 'white', fontSize: 18 }}>▼</Text>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 18 }}>▼</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -6261,7 +6263,7 @@ const Home = () => {
                       }}
                       onPress={swapCurrencies}
                     >
-                      <Text style={{ color: 'white', fontSize: 24, fontWeight: 'bold' }}>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 24, fontWeight: 'bold' }}>
                         ⇅
                       </Text>
                     </TouchableOpacity>
@@ -6269,12 +6271,12 @@ const Home = () => {
 
                   {/* To Currency Picker */}
                   <View style={{ marginBottom: 15 }}>
-                    <Text style={{ color: 'white', marginBottom: 5, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), marginBottom: 5, fontWeight: 'bold' }}>
                       Na walutę:
                     </Text>
                     <TouchableOpacity
                       style={{
-                        backgroundColor: '#374151',
+                        backgroundColor: tc('surface2', '#374151'),
                         borderRadius: 6,
                         padding: 15,
                         flexDirection: 'row',
@@ -6283,13 +6285,13 @@ const Home = () => {
                       }}
                       onPress={() => setToCurrencyModalVisible(true)}
                     >
-                      <Text style={{ color: 'white', fontSize: 16 }}>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>
                         {calculatorToCurrency === 'PLN' 
                           ? 'PLN - Polski złoty'
                           : `${calculatorToCurrency} - ${currencyRates.find(r => r.currency.code === calculatorToCurrency)?.currency.name || calculatorToCurrency}`
                         }
                       </Text>
-                      <Text style={{ color: 'white', fontSize: 18 }}>▼</Text>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 18 }}>▼</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -6312,16 +6314,16 @@ const Home = () => {
                   {/* Result Display */}
                   {calculatorResult !== null && (
                     <View style={{
-                      backgroundColor: '#374151',
+                      backgroundColor: tc('surface2', '#374151'),
                       padding: 15,
                       borderRadius: 6,
                       marginBottom: 15,
                       alignItems: 'center',
                     }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 14, marginBottom: 5 }}>
+                      <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14, marginBottom: 5 }}>
                         Wynik:
                       </Text>
-                      <Text style={{ color: 'white', fontSize: 24, fontWeight: 'bold' }}>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 24, fontWeight: 'bold' }}>
                         {calculatorResult} {calculatorToCurrency}
                       </Text>
                     </View>
@@ -6343,7 +6345,7 @@ const Home = () => {
                   setCalculatorResult(null);
                 }}
               >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Zamknij</Text>
+                <Text style={{ color: tc('text', 'white'), fontWeight: 'bold' }}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -6363,7 +6365,7 @@ const Home = () => {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
           }}>
             <View style={{
-              backgroundColor: '#1f2937',
+              backgroundColor: tc('surface', '#1f2937'),
               borderRadius: 10,
               padding: 20,
               width: '90%',
@@ -6372,7 +6374,7 @@ const Home = () => {
               <Text style={{
                 fontSize: 18,
                 fontWeight: 'bold',
-                color: 'white',
+                color: tc('text', 'white'),
                 marginBottom: 15,
                 textAlign: 'center',
               }}>
@@ -6383,7 +6385,7 @@ const Home = () => {
                 {/* PLN Option */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: calculatorFromCurrency === 'PLN' ? '#007bff' : '#374151',
+                    backgroundColor: calculatorFromCurrency === 'PLN' ? '#007bff' : tc('surface2', '#374151'),
                     padding: 15,
                     borderRadius: 6,
                     marginBottom: 8,
@@ -6394,10 +6396,10 @@ const Home = () => {
                     setCalculatorResult(null);
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
                     PLN
                   </Text>
-                  <Text style={{ color: '#9ca3af', fontSize: 14 }}>
+                  <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
                     Polski złoty
                   </Text>
                 </TouchableOpacity>
@@ -6407,7 +6409,7 @@ const Home = () => {
                   <TouchableOpacity
                     key={rate.currency.code}
                     style={{
-                      backgroundColor: calculatorFromCurrency === rate.currency.code ? '#007bff' : '#374151',
+                      backgroundColor: calculatorFromCurrency === rate.currency.code ? '#007bff' : tc('surface2', '#374151'),
                       padding: 15,
                       borderRadius: 6,
                       marginBottom: 8,
@@ -6418,10 +6420,10 @@ const Home = () => {
                       setCalculatorResult(null);
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
                       {rate.currency.code}
                     </Text>
-                    <Text style={{ color: '#9ca3af', fontSize: 14 }}>
+                    <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
                       {rate.currency.name}
                     </Text>
                     <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 4 }}>
@@ -6461,7 +6463,7 @@ const Home = () => {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
           }}>
             <View style={{
-              backgroundColor: '#1f2937',
+              backgroundColor: tc('surface', '#1f2937'),
               borderRadius: 10,
               padding: 20,
               width: '90%',
@@ -6470,7 +6472,7 @@ const Home = () => {
               <Text style={{
                 fontSize: 18,
                 fontWeight: 'bold',
-                color: 'white',
+                color: tc('text', 'white'),
                 marginBottom: 15,
                 textAlign: 'center',
               }}>
@@ -6481,7 +6483,7 @@ const Home = () => {
                 {/* PLN Option */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: calculatorToCurrency === 'PLN' ? '#007bff' : '#374151',
+                    backgroundColor: calculatorToCurrency === 'PLN' ? '#007bff' : tc('surface2', '#374151'),
                     padding: 15,
                     borderRadius: 6,
                     marginBottom: 8,
@@ -6492,10 +6494,10 @@ const Home = () => {
                     setCalculatorResult(null);
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
                     PLN
                   </Text>
-                  <Text style={{ color: '#9ca3af', fontSize: 14 }}>
+                  <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
                     Polski złoty
                   </Text>
                 </TouchableOpacity>
@@ -6505,7 +6507,7 @@ const Home = () => {
                   <TouchableOpacity
                     key={rate.currency.code}
                     style={{
-                      backgroundColor: calculatorToCurrency === rate.currency.code ? '#007bff' : '#374151',
+                      backgroundColor: calculatorToCurrency === rate.currency.code ? '#007bff' : tc('surface2', '#374151'),
                       padding: 15,
                       borderRadius: 6,
                       marginBottom: 8,
@@ -6516,10 +6518,10 @@ const Home = () => {
                       setCalculatorResult(null);
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
                       {rate.currency.code}
                     </Text>
-                    <Text style={{ color: '#9ca3af', fontSize: 14 }}>
+                    <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
                       {rate.currency.name}
                     </Text>
                     <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 4 }}>
@@ -6550,7 +6552,7 @@ const Home = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   item: {
     backgroundColor: "#0d6efd", // Blue color for items
     padding: 3, // Reduced padding to match writeoff.jsx
@@ -6562,7 +6564,7 @@ const styles = StyleSheet.create({
     alignItems: "center", // Center content vertically
   },
   itemText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 14, // Standardized font size
     fontWeight: "bold", // Standardized font weight
     textAlign: "left",
@@ -6596,7 +6598,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemTextRight: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 14, // Standardized font size
     fontWeight: "bold", // Standardized font weight
     textAlign: "right",
@@ -6606,7 +6608,7 @@ const styles = StyleSheet.create({
     padding: 5, // Match writeoff.jsx
   },
   dotsText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 20, // Reduced to match writeoff.jsx
     textAlign: "center",
   },
@@ -6630,18 +6632,18 @@ const styles = StyleSheet.create({
     textAlign: "right", // Align text to the right
   },
   text: {
-    color: "white", // White text for items
+    color: tc('text', "white"), // White text for items
     fontSize: 14, // Adjust font size for items
   },
   transferredItemTextLeft: {
-    color: "white", // White text for left-aligned content
+    color: tc('text', "white"), // White text for left-aligned content
     fontSize: 13, // Match font size from writeoff.jsx
     fontWeight: "bold", // Bold text for emphasis
     flex: 1, // Allow text to take available space
     textAlign: "left", // Align text to the left
   },
   transferredItemTextRight: {
-    color: "white", // White text for right-aligned content
+    color: tc('text', "white"), // White text for right-aligned content
     fontSize: 13, // Match font size from writeoff.jsx
     fontWeight: "bold", // Bold text for emphasis
     textAlign: "right", // Align text to the right
@@ -6654,13 +6656,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#000000', // True black like main app background
+    backgroundColor: tc('bg', '#000000'), // True black like main app background
     borderRadius: 15,
     padding: 25,
     alignItems: 'center',
     width: '90%',
     maxHeight: '80%',
-    color: '#fff',
+    color: tc('text', '#fff'),
     borderWidth: 2,
     borderColor: '#0d6efd', // Main app color
     shadowColor: '#000',
@@ -6676,19 +6678,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     width: '100%',
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#e5e7eb',
+    color: tc('text', '#e5e7eb'),
     textAlign: 'center',
     marginBottom: 12,
   },
   modalText: {
     fontSize: 16,
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 20,
     paddingHorizontal: 10,
@@ -6754,21 +6756,21 @@ const styles = StyleSheet.create({
   deductionItem: {
     marginBottom: 12,
     padding: 8, // Reduced padding to make items more compact
-    backgroundColor: "#374151", // Neutral gray background (will be overridden by inline styles)
+    backgroundColor: tc('surface2', "#374151"), // Neutral gray background (will be overridden by inline styles)
     borderRadius: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   deductionItemTextLeft: {
-    color: "white", // White text for left-aligned content
+    color: tc('text', "white"), // White text for left-aligned content
     fontSize: 13, // Match font size from writeoff.jsx
     fontWeight: "bold", // Bold text for emphasis
     flex: 1, // Allow text to take available space
     textAlign: "left", // Align text to the left
   },
   deductionItemTextRight: {
-    color: "white", // White text for right-aligned content
+    color: tc('text', "white"), // White text for right-aligned content
     fontSize: 13, // Match font size from writeoff.jsx
     fontWeight: "bold", // Bold text for emphasis
     textAlign: "right", // Align text to the right
@@ -6781,7 +6783,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   currencyModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 25,
     width: '90%',
@@ -6801,7 +6803,7 @@ const styles = StyleSheet.create({
   currencyModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -6847,7 +6849,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   salespersonModalContent: {
-    backgroundColor: '#000000', // Prawdziwy czarny jak główne tło aplikacji
+    backgroundColor: tc('bg', '#000000'), // Prawdziwy czarny jak główne tło aplikacji
     borderRadius: 15,
     padding: 25,
     width: '90%',
@@ -6866,7 +6868,7 @@ const styles = StyleSheet.create({
   salespersonModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 5,
   },
@@ -6881,7 +6883,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   salespersonOptionText: {
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -6919,7 +6921,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   workHoursModalContent: {
-    backgroundColor: 'black',
+    backgroundColor: tc('bg', 'black'),
     borderRadius: 10,
     padding: 16,
     width: '90%',
@@ -6938,7 +6940,7 @@ const styles = StyleSheet.create({
   workHoursModalTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -6951,7 +6953,7 @@ const styles = StyleSheet.create({
   },
   workHoursDateText: {
     fontSize: 14,
-    color: '#e5e7eb',
+    color: tc('text', '#e5e7eb'),
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -6964,11 +6966,11 @@ const styles = StyleSheet.create({
   workHoursTimeLabel: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 6,
   },
   workHoursTimePickerContainer: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'white',
@@ -6977,11 +6979,11 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     textAlign: 'center',
   },
   workHoursTimePicker: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -6991,10 +6993,10 @@ const styles = StyleSheet.create({
   workHoursTimeText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
   },
   workHoursPreview: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -7004,12 +7006,12 @@ const styles = StyleSheet.create({
   workHoursPreviewText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 4,
   },
   workHoursPreviewTextSmall: {
     fontSize: 12,
-    color: '#e5e7eb',
+    color: tc('text', '#e5e7eb'),
     fontStyle: 'italic',
   },
   workHoursNotesContainer: {
@@ -7018,16 +7020,16 @@ const styles = StyleSheet.create({
   workHoursNotesLabel: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: tc('text', '#fff'),
     marginBottom: 6,
   },
   workHoursNotesInput: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'white',
     padding: 12,
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     minHeight: 60,
     textAlignVertical: 'top',
@@ -7065,7 +7067,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -7098,7 +7100,7 @@ const styles = StyleSheet.create({
   successModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -7117,7 +7119,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -7150,7 +7152,7 @@ const styles = StyleSheet.create({
   errorModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -7169,7 +7171,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -7202,7 +7204,7 @@ const styles = StyleSheet.create({
   confirmModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -7219,7 +7221,7 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 15,
   },
-});
+}));
 export default Home; // Export the Home component
 
 

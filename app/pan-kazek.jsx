@@ -18,6 +18,7 @@ import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
 const monthNames = [
   "",
   "Styczeń",
@@ -35,6 +36,7 @@ const monthNames = [
 ];
 
 const PanKazek = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -246,15 +248,15 @@ const PanKazek = () => {
     <SafeAreaView
       style={{
         flex: 1,
-        backgroundColor: "#000000",
+        backgroundColor: tc('bg', "#000000"),
         paddingBottom: Math.max(20, insets.bottom + 20),
       }}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar backgroundColor="black" style="light" />
+      <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <View style={styles.headerIcon}>
           <Ionicons name="cash-outline" size={28} color="#fff" />
@@ -354,7 +356,7 @@ const PanKazek = () => {
           </View>
         ) : items.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="information-circle-outline" size={32} color="#64748B" />
+            <Ionicons name="information-circle-outline" size={32} color={tc('muted', "#64748B")} />
             <Text style={styles.emptyText}>Brak pozycji do wyświetlenia</Text>
           </View>
         ) : (
@@ -441,14 +443,14 @@ const PanKazek = () => {
             <TextInput
               style={styles.input}
               placeholder="Kto rozlicza"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={tc('muted', "#64748B")}
               value={paidBy}
               onChangeText={setPaidBy}
             />
             <TextInput
               style={styles.input}
               placeholder="Kwota (PLN)"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={tc('muted', "#64748B")}
               value={paidAmount}
               keyboardType="numeric"
               onChangeText={setPaidAmount}
@@ -474,14 +476,14 @@ const PanKazek = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   header: {
     alignItems: "center",
     paddingVertical: 20,
     paddingHorizontal: 20,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     position: "absolute",
@@ -500,7 +502,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   subtitle: {
     fontSize: 13,
@@ -518,9 +520,9 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 8,
@@ -529,18 +531,18 @@ const styles = StyleSheet.create({
   },
   statsLabel: {
     fontSize: 12,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   statsValue: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginTop: 6,
   },
   filterCard: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -548,7 +550,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   filterRow: {
@@ -562,8 +564,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1E293B",
-    backgroundColor: "#0B1220",
+    borderColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface', "#0B1220"),
   },
   filterButtonActive: {
     borderColor: "#16A34A",
@@ -587,8 +589,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1E293B",
-    backgroundColor: "#0B1220",
+    borderColor: tc('border', "#1E293B"),
+    backgroundColor: tc('surface', "#0B1220"),
   },
   selectBoxDisabled: {
     opacity: 0.6,
@@ -598,7 +600,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
   selectValue: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginTop: 4,
     fontSize: 14,
   },
@@ -621,7 +623,7 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   loadingText: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginTop: 12,
   },
   emptyBox: {
@@ -629,17 +631,17 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   emptyText: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginTop: 12,
   },
   card: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 16,
     marginBottom: 12,
   },
@@ -651,7 +653,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     flex: 1,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 15,
     fontWeight: "600",
     marginRight: 8,
@@ -682,7 +684,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   value: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 12,
   },
   deleteButton: {
@@ -703,31 +705,31 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: "#000000",
+    backgroundColor: tc('surface', "#000000"),
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 20,
   },
   modalTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 8,
     textAlign: "center",
   },
   modalHint: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     textAlign: "center",
     marginBottom: 16,
   },
   modalOption: {
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   modalOptionText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     textAlign: "center",
   },
   modalClose: {
@@ -735,17 +737,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalCloseText: {
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontWeight: "600",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     borderRadius: 12,
     padding: 12,
     color: "#fff",
     marginBottom: 12,
-    backgroundColor: "#0B1220",
+    backgroundColor: tc('surface', "#0B1220"),
   },
   payConfirmButton: {
     backgroundColor: "#16A34A",
@@ -760,6 +762,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
-});
+}));
 
 export default PanKazek;

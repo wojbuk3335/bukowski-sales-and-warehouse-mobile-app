@@ -23,6 +23,39 @@ export const PALETTES = {
   },
 };
 
+// Bieżący motyw dostępny poza Reactem (style w StyleSheet są tworzone poza komponentami).
+// Ustawiany przez ThemeProvider przed wyrenderowaniem ekranów.
+let currentTheme = 'dark';
+export const getCurrentTheme = () => currentTheme;
+
+// Kolor zależny od motywu: w czarnym zostaje dokładnie dotychczasowy kolor (darkValue),
+// w szarym/białym brany jest kolor z palety dla danej roli (bg, surface, surface2, surface3, text, muted, border).
+export const tc = (role, darkValue) => (currentTheme === 'dark' ? darkValue : PALETTES[currentTheme][role]);
+// Ciemne kolorowe tła komunikatów (zielone/czerwone/żółte ramki): w białym motywie jasny odpowiednik, w szarym/czarnym bez zmian.
+export const tcl = (darkValue, lightValue) => (currentTheme === 'light' ? lightValue : darkValue);
+export const statusBarStyle = () => PALETTES[currentTheme].statusBar; // 'light' | 'dark' (expo-status-bar)
+export const statusBarContent = () => (PALETTES[currentTheme].statusBar === 'light' ? 'light-content' : 'dark-content'); // react-native StatusBar
+
+// Style zależne od motywu: factory wywołuje tc(...) i StyleSheet.create; wynik jest liczony osobno dla każdego motywu.
+// Zwracany obiekt zachowuje się jak zwykłe `styles` (styles.container itd.). Ekran musi wywołać useAppTheme(),
+// żeby przerysować się po zmianie motywu.
+export const createThemedStyles = (factory) => {
+  const cache = {};
+  const sheet = () => {
+    if (!cache[currentTheme]) cache[currentTheme] = factory();
+    return cache[currentTheme];
+  };
+  return new Proxy({}, {
+    get: (_, key) => sheet()[key],
+    has: (_, key) => key in sheet(),
+    ownKeys: () => Reflect.ownKeys(sheet()),
+    getOwnPropertyDescriptor: (_, key) => {
+      const value = sheet()[key];
+      return value === undefined ? undefined : { value, enumerable: true, configurable: true, writable: false };
+    },
+  });
+};
+
 const ThemeContext = createContext({ theme: 'dark', colors: PALETTES.dark, setTheme: () => {} });
 
 export const ThemeProvider = ({ children }) => {
@@ -42,6 +75,7 @@ export const ThemeProvider = ({ children }) => {
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
   };
 
+  currentTheme = theme; // przed renderem dzieci - style i tc() widzą już nowy motyw
   const contextValue = useMemo(() => ({ theme, colors: PALETTES[theme], setTheme }), [theme]);
   return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 };

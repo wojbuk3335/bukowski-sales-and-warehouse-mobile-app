@@ -8,7 +8,9 @@ import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags, wallets, currencyRates, getFilteredSellingPoints, isActive }) => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const [facing, setFacing] = useState("back");
   const [permission, requestPermission] = useCameraPermissions();
@@ -399,7 +401,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
             setCameraActive(true);
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>Włącz czytnik kodów kreskowych</Text>
+          <Text style={{ color: tc('text', "#fff"), fontWeight: "bold", fontSize: 16 }}>Włącz czytnik kodów kreskowych</Text>
         </TouchableOpacity>
       </View>
     );
@@ -823,7 +825,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                 setCurrentProductSize("");
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>Skanuj ponownie</Text>
+              <Text style={{ color: tc('text', "#fff"), fontWeight: "bold", fontSize: 16 }}>Skanuj ponownie</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -832,11 +834,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       {modalVisible && (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1, backgroundColor: "black", width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}
+          style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ScrollView contentContainerStyle={[styles.scrollViewContent, { paddingBottom: Math.max(120, insets.bottom + 120) }]}>
-              <View style={[styles.modalContent, { flex: 1, backgroundColor: "black", width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
+              <View style={[styles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
                 <Pressable
                   style={styles.closeButton}
                   onPress={() => {
@@ -856,7 +858,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                 >
                   <Text style={styles.closeButtonText}>X</Text>
                 </Pressable>
-                <Text style={{ fontSize: 16, color: "white", marginBottom: 8, marginTop: 16, fontWeight: "bold" }}>Kod kreskowy</Text>
+                <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8, marginTop: 16, fontWeight: "bold" }}>Kod kreskowy</Text>
                 <TextInput
                   style={styles.inputField}
                   value={barcode}
@@ -865,20 +867,20 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   placeholder="Wpisz lub zeskanuj kod kreskowy"
                   autoFocus={true}
                 />
-                <Text style={{ fontSize: 16, color: "white", marginBottom: 8, marginTop: 16 }}>Sprzedano produkt:</Text>
+                <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8, marginTop: 16 }}>Sprzedano produkt:</Text>
                 <TextInput
                   style={styles.inputField}
                   value={modalMessage}
                   editable={false}
                 />
-                <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Gdzie</Text>
+                <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Gdzie</Text>
                 <TextInput
                   style={styles.inputField}
                   value={user?.sellingPoint || "Unknown"}
                   editable={false}
                   placeholder="Selling Point"
                 />
-                <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Sprzedano od:</Text>
+                <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano od:</Text>
                 <View
                   style={{
                     backgroundColor: '#8B0000',
@@ -897,7 +899,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     ⚠️ UWAGA ⚠️
                   </Text>
                   <Text style={{ 
-                    color: 'white', 
+                    color: tc('text', 'white'), 
                     fontSize: 13, 
                     textAlign: 'center',
                     lineHeight: 18,
@@ -942,7 +944,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     <View style={styles.currencyModalContainer}>
                       <View style={styles.currencyModalContent}>
                         <Text style={styles.currencyModalTitle}>Wybierz punkt sprzedaży</Text>
-                        <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+                        <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                           Wybierz punkt sprzedaży dla tego produktu
                         </Text>
                         
@@ -961,7 +963,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                             ))
                           ) : (
                             <View style={{ padding: 20 }}>
-                              <Text style={{ color: 'white', textAlign: 'center', fontSize: 16 }}>
+                              <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontSize: 16 }}>
                                 {barcode ? 
                                   `Brak tego produktu w punktach sprzedaży w lokalizacji "${user?.location || 'nieznana'}"` :
                                   'Zeskanuj kod kreskowy aby zobaczyć dostępne punkty sprzedaży'
@@ -1010,10 +1012,10 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     }}
                   >
                     {isPickup && (
-                      <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>✓</Text>
+                      <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>✓</Text>
                     )}
                   </TouchableOpacity>
-                  <Text style={{ color: 'white', fontSize: 16 }}>
+                  <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>
                     Odbiór (dopłata do zaliczki)
                   </Text>
                 </View>
@@ -1022,7 +1024,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   fontSize: 16,
                   marginBottom: 10,
                   textAlign: "center",
-                  color: "white",
+                  color: tc('text', "white"),
                 }}>{isPickup ? 'Dopłata' : 'Płatność gotówką'}</Text>
                 <View
                   style={{
@@ -1049,8 +1051,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                           borderWidth: 1,
                           borderRadius: 5,
                           paddingHorizontal: 10,
-                          color: "white",
-                          backgroundColor: "black",
+                          color: tc('text', "white"),
+                          backgroundColor: tc('surface', "black"),
                           marginRight: 10,
                         }}
                         value={pair.price}
@@ -1067,14 +1069,14 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                           height: 40,
                           justifyContent: "center",
                           alignItems: "center",
-                          backgroundColor: "black",
+                          backgroundColor: tc('surface', "black"),
                           borderColor: "white",
                           borderWidth: 1,
                           borderRadius: 5,
                         }}
                         onPress={() => openCurrencyModal(index, "cash")}
                       >
-                        <Text style={{ color: "white" }}>{pair.currency || "PLN"}</Text>
+                        <Text style={{ color: tc('text', "white") }}>{pair.currency || "PLN"}</Text>
                       </TouchableOpacity>
                       {index > 0 && (
                         <TouchableOpacity
@@ -1089,7 +1091,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                           }}
                           onPress={() => handleRemoveCashPair(index)}
                         >
-                          <Text style={{ color: "white" }}>Usuń</Text>
+                          <Text style={{ color: tc('text', "white") }}>Usuń</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1108,7 +1110,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     <View style={styles.currencyModalContainer}>
                       <View style={styles.currencyModalContent}>
                         <Text style={styles.currencyModalTitle}>Wybierz walutę</Text>
-                        <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+                        <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
                           Wybierz walutę dla płatności
                         </Text>
                         
@@ -1143,7 +1145,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   marginBottom: 10,
                   marginTop: 20,
                   textAlign: "center",
-                  color: "white",
+                  color: tc('text', "white"),
                 }}>{isPickup ? "Dopłata kartą" : "Płatność kartą"}</Text>
                 <View
                   style={{
@@ -1170,8 +1172,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                           borderWidth: 1,
                           borderRadius: 5,
                           paddingHorizontal: 10,
-                          color: "white",
-                          backgroundColor: "black",
+                          color: tc('text', "white"),
+                          backgroundColor: tc('surface', "black"),
                           marginRight: 10,
                         }}
                         value={pair.price}
@@ -1188,14 +1190,14 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                           height: 40,
                           justifyContent: "center",
                           alignItems: "center",
-                          backgroundColor: "black",
+                          backgroundColor: tc('surface', "black"),
                           borderColor: "white",
                           borderWidth: 1,
                           borderRadius: 5,
                         }}
                         onPress={() => openCurrencyModal(index, "card")}
                       >
-                        <Text style={{ color: "white" }}>{pair.currency}</Text>
+                        <Text style={{ color: tc('text', "white") }}>{pair.currency}</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -1290,9 +1292,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "black",color: "white" },
-  message: { textAlign: "center", marginTop: 20, color: "white" },
+const styles = createThemedStyles(() => StyleSheet.create({
+  container: { flex: 1, backgroundColor: tc('bg', "black"),color: tc('text', "white") },
+  message: { textAlign: "center", marginTop: 20, color: tc('text', "white") },
   camera: { flex: 1 },
   buttonContainer: {
     position: "absolute",
@@ -1319,7 +1321,7 @@ const styles = StyleSheet.create({
     backgroundColor: "green",
   },
   buttonText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 16,
   },
   overlay: {
@@ -1367,7 +1369,7 @@ const styles = StyleSheet.create({
     width: "100%", // Full width
     height: "100%", // Full height
     padding: 20,
-    backgroundColor: "black", // Set background color to black
+    backgroundColor: tc('surface', "black"), // Set background color to black
     borderRadius: 0, // Remove border radius for full-screen effect
     alignItems: "center",
     zIndex: 10, // Ensure modal content is above other elements
@@ -1382,7 +1384,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
     textAlign: "center",
-    color: "white", // Set text color to white
+    color: tc('text', "white"), // Set text color to white
   },
   closeButton: {
     top: 10, // Place it near the top
@@ -1407,8 +1409,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     width: "100%",
     paddingHorizontal: 10,
-    color: "white", // Set input text color to white
-    backgroundColor: "black", // Match input background with modal
+    color: tc('text', "white"), // Set input text color to white
+    backgroundColor: tc('bg', "black"), // Match input background with modal
   },
   pairContainer: {
     flexDirection: "row",
@@ -1463,7 +1465,7 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "black",
+    backgroundColor: tc('surface', "black"),
     borderColor: "white",
     borderWidth: 1,
     borderRadius: 5,
@@ -1480,7 +1482,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   currencyModalContent: {
-    backgroundColor: '#000000', // Prawdziwy czarny jak główne tło aplikacji
+    backgroundColor: tc('bg', '#000000'), // Prawdziwy czarny jak główne tło aplikacji
     borderRadius: 15,
     padding: 25,
     width: '90%',
@@ -1500,7 +1502,7 @@ const styles = StyleSheet.create({
   currencyModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -1540,7 +1542,7 @@ const styles = StyleSheet.create({
   },
   // Success Modal Styles
   successModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -1573,7 +1575,7 @@ const styles = StyleSheet.create({
   successModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -1584,6 +1586,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 10,
   },
-});
+}));
 
 export default QRScanner;

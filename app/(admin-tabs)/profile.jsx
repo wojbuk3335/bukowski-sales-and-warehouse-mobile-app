@@ -16,7 +16,7 @@ import { GlobalStateContext } from "../../context/GlobalState";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
 import ThemeSwitch from "../../components/ThemeSwitch";
-import { useAppTheme } from "../../context/ThemeContext";
+import { createThemedStyles, tc, useAppTheme } from '../../context/ThemeContext';
 import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
@@ -115,7 +115,7 @@ const Profile = () => {
           >
             <Ionicons name="key" size={24} color="#0d6efd" />
             <Text style={styles.actionText}>Zmień hasło</Text>
-            <Ionicons name="chevron-forward" size={24} color="#CDCDE0" />
+            <Ionicons name="chevron-forward" size={24} color={tc('muted', "#CDCDE0")} />
           </TouchableOpacity>
         </View>
 
@@ -142,10 +142,10 @@ const Profile = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#161622",
+    backgroundColor: tc('surface', "#161622"),
   },
   scrollContent: {
     padding: 16,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 8,
   },
   roleBadge: {
@@ -181,46 +181,46 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   infoCard: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#232533",
+    borderBottomColor: tc('border', "#232533"),
   },
   infoLabel: {
     fontSize: 16,
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
   },
   infoValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   actionText: {
     flex: 1,
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginLeft: 16,
   },
   logoutButton: {
@@ -244,9 +244,9 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
     marginBottom: 4,
   },
-});
+}));
 
 export default Profile;

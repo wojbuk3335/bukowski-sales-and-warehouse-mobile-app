@@ -23,7 +23,9 @@ import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Cudzych = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const { 
     user, 
@@ -1029,7 +1031,7 @@ const Cudzych = () => {
     return (
       <SafeAreaView style={{
         flex: 1,
-        backgroundColor: "#000000",
+        backgroundColor: tc('bg', "#000000"),
         paddingBottom: Math.max(20, insets.bottom + 20)
       }}>
         <View style={styles.content}>
@@ -1042,7 +1044,7 @@ const Cudzych = () => {
   return (
     <SafeAreaView style={{
       flex: 1,
-      backgroundColor: "#000000",
+      backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
       <LogoutButton position="top-right" />
@@ -1206,14 +1208,14 @@ const Cudzych = () => {
                 onFocus={() => {
                   if (productSearchText.length > 0) setProductDropdownVisible(true);
                 }}
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
               />
 
               {/* Product dropdown */}
               {productDropdownVisible && productSearchText && (
                 <View style={{
                   maxHeight: 120,
-                  backgroundColor: 'black',
+                  backgroundColor: tc('surface', 'black'),
                   borderRadius: 8,
                   borderWidth: 1,
                   borderColor: '#0d6efd',
@@ -1225,7 +1227,7 @@ const Cudzych = () => {
                       top: 5,
                       right: 10,
                       zIndex: 1,
-                      backgroundColor: '#333',
+                      backgroundColor: tc('surface2', '#333'),
                       borderRadius: 10,
                       width: 20,
                       height: 20,
@@ -1234,7 +1236,7 @@ const Cudzych = () => {
                     }}
                     onPress={() => setProductDropdownVisible(false)}
                   >
-                    <Text style={{ color: '#fff', fontSize: 12 }}>×</Text>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 12 }}>×</Text>
                   </TouchableOpacity>
                   <ScrollView>
                     {filteredProducts.length > 0 ? (
@@ -1244,7 +1246,7 @@ const Cudzych = () => {
                           style={{
                             padding: 12,
                             borderBottomWidth: 1,
-                            borderBottomColor: '#333',
+                            borderBottomColor: tc('border', '#333'),
                             backgroundColor: selectedProduct?._id === item._id ? '#0d6efd' : 'transparent',
                           }}
                           onPress={() => {
@@ -1258,7 +1260,7 @@ const Cudzych = () => {
                         </TouchableOpacity>
                       ))
                     ) : (
-                      <Text style={{ color: '#ccc', fontSize: 13, padding: 12, textAlign: 'center' }}>
+                      <Text style={{ color: tc('muted', '#ccc'), fontSize: 13, padding: 12, textAlign: 'center' }}>
                         {!goods || goods.length === 0 ? 'Brak dostępnych produktów' : 'Brak produktów pasujących do wyszukiwania'}
                       </Text>
                     )}
@@ -1273,7 +1275,7 @@ const Cudzych = () => {
               <TextInput
                 style={styles.input}
                 placeholder="Wpisz rozmiar..."
-                placeholderTextColor="#ccc"
+                placeholderTextColor={tc('muted', "#ccc")}
                 value={size}
                 onChangeText={(text) => {
                   setSize(text);
@@ -1288,7 +1290,7 @@ const Cudzych = () => {
               {sizeDropdownVisible && size && (
                 <View style={{
                   maxHeight: 120,
-                  backgroundColor: 'black',
+                  backgroundColor: tc('surface', 'black'),
                   borderRadius: 8,
                   borderWidth: 1,
                   borderColor: '#0d6efd',
@@ -1300,7 +1302,7 @@ const Cudzych = () => {
                       top: 5,
                       right: 10,
                       zIndex: 1,
-                      backgroundColor: '#333',
+                      backgroundColor: tc('surface2', '#333'),
                       borderRadius: 10,
                       width: 20,
                       height: 20,
@@ -1309,7 +1311,7 @@ const Cudzych = () => {
                     }}
                     onPress={() => setSizeDropdownVisible(false)}
                   >
-                    <Text style={{ color: '#fff', fontSize: 12 }}>×</Text>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 12 }}>×</Text>
                   </TouchableOpacity>
                   <ScrollView>
                     {sizes.filter((item) => {
@@ -1339,7 +1341,7 @@ const Cudzych = () => {
                             style={{
                               padding: 12,
                               borderBottomWidth: 1,
-                              borderBottomColor: '#333',
+                              borderBottomColor: tc('border', '#333'),
                               backgroundColor: selectedSize?._id === item._id ? '#0d6efd' : 'transparent',
                             }}
                             onPress={() => {
@@ -1355,7 +1357,7 @@ const Cudzych = () => {
                         );
                       })
                     ) : (
-                      <Text style={{ color: '#ccc', fontSize: 13, padding: 12, textAlign: 'center' }}>
+                      <Text style={{ color: tc('muted', '#ccc'), fontSize: 13, padding: 12, textAlign: 'center' }}>
                         {!sizes || sizes.length === 0 ? 'Brak dostępnych rozmiarów' : 'Brak pasujących rozmiarów'}
                       </Text>
                     )}
@@ -1372,7 +1374,7 @@ const Cudzych = () => {
                 placeholder="Cena z cennika"
                 value={price}
                 editable={false}
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
               />
             </View>
 
@@ -1385,7 +1387,7 @@ const Cudzych = () => {
                 value={notes}
                 onChangeText={setNotes}
                 multiline
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
               />
             </View>
 
@@ -1475,7 +1477,7 @@ const Cudzych = () => {
                 value={paymentAmount}
                 onChangeText={setPaymentAmount}
                 keyboardType="numeric"
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
               />
             </View>
 
@@ -1489,7 +1491,7 @@ const Cudzych = () => {
                 onChangeText={setPaymentNotes}
                 multiline={true}
                 numberOfLines={3}
-                placeholderTextColor="#666"
+                placeholderTextColor={tc('muted', "#666")}
               />
             </View>
 
@@ -1534,7 +1536,7 @@ const Cudzych = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { width: '90%', maxHeight: '80%' }]}>
             <Text style={styles.modalTitle}>Filtruj po dacie</Text>
-            <Text style={{ color: '#a1a1aa', textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
+            <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
               Wybierz przedział czasowy dla transakcji
             </Text>
 
@@ -1551,7 +1553,7 @@ const Cudzych = () => {
                 <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
                   ✓ Wybrany okres:
                 </Text>
-                <Text style={{ color: '#ffffff', fontSize: 13, textAlign: 'center', marginTop: 4 }}>
+                <Text style={{ color: tc('text', '#ffffff'), fontSize: 13, textAlign: 'center', marginTop: 4 }}>
                   {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
                 </Text>
               </View>
@@ -1579,7 +1581,7 @@ const Cudzych = () => {
                   setFilterEndDate(today);
                 }}
               >
-                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>Dziś</Text>
+                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>Dziś</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={{
@@ -1601,7 +1603,7 @@ const Cudzych = () => {
                   setFilterEndDate(today);
                 }}
               >
-                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>7 dni</Text>
+                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>7 dni</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={{
@@ -1623,7 +1625,7 @@ const Cudzych = () => {
                   setFilterEndDate(today);
                 }}
               >
-                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>30 dni</Text>
+                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>30 dni</Text>
               </TouchableOpacity>
             </View>
 
@@ -1646,7 +1648,7 @@ const Cudzych = () => {
                   setDateFilterVisible(false);
                 }}
               >
-                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>✕ Wyczyść</Text>
+                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>✕ Wyczyść</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{
@@ -1662,7 +1664,7 @@ const Cudzych = () => {
                 }}
                 onPress={() => setDateFilterVisible(false)}
               >
-                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>✓ Zastosuj</Text>
+                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>✓ Zastosuj</Text>
               </TouchableOpacity>
             </View>
 
@@ -1713,7 +1715,7 @@ const Cudzych = () => {
                     setScanned(false);
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>Skanuj ponownie</Text>
+                  <Text style={{ color: tc('text', "#fff"), fontWeight: "bold", fontSize: 16 }}>Skanuj ponownie</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1738,7 +1740,7 @@ const Cudzych = () => {
                   }
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>✏️ Wpisz ręcznie</Text>
+                <Text style={{ color: tc('text', "#fff"), fontWeight: "bold", fontSize: 16 }}>✏️ Wpisz ręcznie</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1747,9 +1749,9 @@ const Cudzych = () => {
 
       {/* Scanned Product Modal - identical to QRScanner */}
       {scannedProductModalVisible && (
-        <View style={{ flex: 1, backgroundColor: "black", width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
+        <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
           <ScrollView contentContainerStyle={[qrStyles.scrollViewContent, { paddingBottom: Math.max(120, insets.bottom + 120) }]}>
-            <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: "black", width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
+            <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
               <TouchableOpacity
                 style={qrStyles.closeButton}
                 onPress={() => {
@@ -1759,27 +1761,27 @@ const Cudzych = () => {
               >
                 <Text style={qrStyles.closeButtonText}>X</Text>
               </TouchableOpacity>
-              <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Sprzedano produkt:</Text>
+              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano produkt:</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={scannedProductData.name}
                 editable={false}
               />
-              <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Gdzie</Text>
+              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Gdzie</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={user?.sellingPoint || "Unknown"}
                 editable={false}
                 placeholder="Selling Point"
               />
-              <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Kod kreskowy</Text>
+              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Kod kreskowy</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={scannedProductData.barcode}
                 editable={false}
                 placeholder="Barcode"
               />
-              <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Sprzedano od:</Text>
+              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano od:</Text>
               <View
                 style={{
                   borderWidth: 1,
@@ -1796,18 +1798,18 @@ const Cudzych = () => {
                     height: 40,
                     justifyContent: "center",
                     alignItems: "center",
-                    backgroundColor: "black",
+                    backgroundColor: tc('surface', "black"),
                     borderRadius: 5,
                   }}
                   onPress={openSellingPointModal}
                 >
-                  <Text style={{ color: "white" }}>
+                  <Text style={{ color: tc('text', "white") }}>
                     {selectedOption || "Wybierz punkt sprzedaży"}
                   </Text>
                 </TouchableOpacity>
               </View>
               
-              <Text style={{ fontSize: 16, color: "white", marginBottom: 8 }}>Cena (PLN):</Text>
+              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Cena (PLN):</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={scannedProductData.price}
@@ -1948,10 +1950,10 @@ const Cudzych = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: tc('bg', 'black'),
   },
   scrollView: {
     flex: 1,
@@ -1962,7 +1964,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   text: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -1973,10 +1975,10 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: tc('border', '#333'),
   },
   title: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
@@ -1985,7 +1987,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   balanceLabel: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 5,
@@ -1993,7 +1995,7 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: 'white',
+    color: tc('text', 'white'),
   },
   
   // Action buttons
@@ -2012,7 +2014,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   smallButtonText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 12,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -2057,7 +2059,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   sectionTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -2095,12 +2097,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   clearFilterText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
   },
   transactionItem: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
@@ -2116,38 +2118,38 @@ const styles = StyleSheet.create({
   transactionType: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: 'white',
+    color: tc('text', 'white'),
   },
   transactionPrice: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
   },
   transactionProduct: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   transactionSize: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 13,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   transactionDate: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 13,
     fontWeight: 'bold',
   },
   transactionNotes: {
-    color: '#bbb',
+    color: tc('muted', '#bbb'),
     fontSize: 14,
     marginTop: 8,
     fontStyle: 'italic',
   },
   noTransactions: {
-    color: '#666',
+    color: tc('muted', '#666'),
     fontSize: 16,
     textAlign: 'center',
     marginTop: 20,
@@ -2161,7 +2163,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 25,
     width: '90%',
@@ -2185,7 +2187,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 10,
     padding: 16,
     width: '70%',
@@ -2196,7 +2198,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
   },
   
@@ -2206,22 +2208,22 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   fieldLabel: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 14,
     marginBottom: 8,
   },
   input: {
     width: '100%',
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: 'white',
+    color: tc('text', 'white'),
     borderWidth: 1,
     borderColor: '#0d6efd',
   },
   inputText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
   },
   selectButton: {
@@ -2243,18 +2245,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 80,
     textAlignVertical: 'top',
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: 'white',
+    color: tc('text', 'white'),
     borderWidth: 1,
     borderColor: '#0d6efd',
   },
   readonlyInput: {
-    backgroundColor: '#1a1a1a',
-    borderColor: '#666',
-    color: '#ccc',
+    backgroundColor: tc('surface', '#1a1a1a'),
+    borderColor: tc('border', '#666'),
+    color: tc('muted', '#ccc'),
   },
   
   // Product container
@@ -2265,7 +2267,7 @@ const styles = StyleSheet.create({
   
   // Product dropdown
   dropdown: {
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     marginTop: 5,
     borderWidth: 1,
@@ -2279,7 +2281,7 @@ const styles = StyleSheet.create({
     top: 70, // Adjust based on label + input height
     left: 0,
     right: 0,
-    backgroundColor: 'black',
+    backgroundColor: tc('surface', 'black'),
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#0d6efd',
@@ -2293,7 +2295,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#0d6efd',
   },
   dropdownItemText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -2305,12 +2307,12 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 8,
   },
   closeDropdownText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
   },
   noDataText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     padding: 15,
     textAlign: 'center',
@@ -2332,7 +2334,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 12,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -2379,7 +2381,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickFilterText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -2389,7 +2391,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   relativeDropdown: {
-    backgroundColor: '#333',
+    backgroundColor: tc('surface2', '#333'),
     borderRadius: 8,
     maxHeight: 200,
     marginTop: 5, // Mały odstęp od inputa
@@ -2475,7 +2477,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   checkboxLabel: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 14,
     fontWeight: 'bold',
     flex: 1,
@@ -2489,7 +2491,7 @@ const styles = StyleSheet.create({
   
   scannerContainer: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: tc('bg', 'black'),
   },
   camera: {
     flex: 1,
@@ -2537,11 +2539,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'black',
+    backgroundColor: tc('bg', 'black'),
     padding: 20,
   },
   permissionText: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,
@@ -2559,11 +2561,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-});
+}));
 
 // QRScanner styles - identical to QRScanner component
-const qrStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "black", color: "white" },
+const qrStyles = createThemedStyles(() => StyleSheet.create({
+  container: { flex: 1, backgroundColor: tc('bg', "black"), color: tc('text', "white") },
   camera: { flex: 1 },
   overlay: {
     flex: 1,
@@ -2596,7 +2598,7 @@ const qrStyles = StyleSheet.create({
     width: "100%",
     height: "100%", 
     padding: 20,
-    backgroundColor: "black",
+    backgroundColor: tc('surface', "black"),
     borderRadius: 0,
     alignItems: "center",
     zIndex: 10,
@@ -2614,8 +2616,8 @@ const qrStyles = StyleSheet.create({
     marginBottom: 20,
     width: "100%",
     paddingHorizontal: 10,
-    color: "white",
-    backgroundColor: "black",
+    color: tc('text', "white"),
+    backgroundColor: tc('bg', "black"),
   },
   modalButtons: {
     flexDirection: "row",
@@ -2649,7 +2651,7 @@ const qrStyles = StyleSheet.create({
   },
   currencyModalContent: {
     width: "80%",
-    backgroundColor: "black",
+    backgroundColor: tc('surface', "black"),
     borderRadius: 10,
     padding: 20,
     alignItems: "center",
@@ -2657,7 +2659,7 @@ const qrStyles = StyleSheet.create({
   currencyModalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "white",
+    color: tc('text', "white"),
     marginBottom: 15,
   },
   currencyModalItem: {
@@ -2671,7 +2673,7 @@ const qrStyles = StyleSheet.create({
     backgroundColor: "rgb(13, 110, 253)", // Set background color to blue
   },
   currencyModalItemText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 16,
   },
   currencyModalCloseButton: {
@@ -2694,7 +2696,7 @@ const qrStyles = StyleSheet.create({
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -2727,7 +2729,7 @@ const qrStyles = StyleSheet.create({
   successModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -2746,7 +2748,7 @@ const qrStyles = StyleSheet.create({
     alignItems: 'center',
   },
   errorModalContent: {
-    backgroundColor: '#000000',
+    backgroundColor: tc('bg', '#000000'),
     borderRadius: 15,
     padding: 30,
     width: '85%',
@@ -2772,20 +2774,20 @@ const qrStyles = StyleSheet.create({
     marginBottom: 20,
   },
   errorIcon: {
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     fontSize: 20,
     fontWeight: 'bold',
   },
   errorModalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     textAlign: 'center',
     marginBottom: 15,
   },
   errorModalMessage: {
     fontSize: 16,
-    color: '#e5e7eb',
+    color: tc('text', '#e5e7eb'),
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 10,
@@ -2799,10 +2801,10 @@ const qrStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   optionText: {
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     fontSize: 16,
     fontWeight: 'bold',
   },
-});
+}));
 
 export default Cudzych;

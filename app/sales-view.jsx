@@ -16,7 +16,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
 
+import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const SalesView = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
   const [sales, setSales] = useState([]);
   const [users, setUsers] = useState([]);
@@ -164,11 +166,11 @@ const SalesView = () => {
         <View style={styles.saleDetails}>
           <View style={styles.saleDetailRow}>
             <View style={styles.saleDetailItem}>
-              <Ionicons name="resize" size={16} color="#94A3B8" />
+              <Ionicons name="resize" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.saleDetailText}>Rozmiar: {item.size}</Text>
             </View>
             <View style={styles.saleDetailItem}>
-              <Ionicons name="location" size={16} color="#94A3B8" />
+              <Ionicons name="location" size={16} color={tc('muted', "#94A3B8")} />
               <Text style={styles.saleDetailText}>{item.from}</Text>
             </View>
           </View>
@@ -203,7 +205,7 @@ const SalesView = () => {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Podgląd sprzedaży</Text>
         <View style={styles.backButton} />
@@ -218,7 +220,7 @@ const SalesView = () => {
         >
           <Ionicons name="calendar" size={20} color="#0D6EFD" />
           <Text style={styles.filterButtonText}>{formatDate(selectedDate)}</Text>
-          <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+          <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
         </TouchableOpacity>
 
         {/* User Picker */}
@@ -230,7 +232,7 @@ const SalesView = () => {
           <Text style={styles.filterButtonText}>
             {selectedUser ? selectedUser.symbol : "Wybierz użytkownika"}
           </Text>
-          <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+          <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
         </TouchableOpacity>
       </View>
 
@@ -254,7 +256,7 @@ const SalesView = () => {
             </View>
           </View>
           <View style={styles.summaryFooter}>
-            <Ionicons name="receipt" size={16} color="#64748B" />
+            <Ionicons name="receipt" size={16} color={tc('muted', "#64748B")} />
             <Text style={styles.summaryCount}>Liczba sprzedaży: {sales.length}</Text>
           </View>
         </View>
@@ -307,7 +309,7 @@ const SalesView = () => {
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Wybierz użytkownika</Text>
               <TouchableOpacity onPress={() => setShowUserPicker(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -357,7 +359,7 @@ const SalesView = () => {
             <View style={styles.detailsModalHeader}>
               <Text style={styles.detailsModalTitle}>Szczegóły sprzedaży</Text>
               <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -453,10 +455,10 @@ const SalesView = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   header: {
     flexDirection: "row",
@@ -464,9 +466,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   backButton: {
     width: 40,
@@ -477,7 +479,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   filtersContainer: {
     flexDirection: "row",
@@ -489,27 +491,27 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     gap: 8,
   },
   filterButtonText: {
     flex: 1,
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontWeight: "500",
   },
   summaryContainer: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
     padding: 16,
   },
   summaryRow: {
@@ -522,7 +524,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 12,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     marginBottom: 4,
   },
   summaryCash: {
@@ -538,11 +540,11 @@ const styles = StyleSheet.create({
   summaryTotal: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   summaryDivider: {
     width: 1,
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
   },
   summaryFooter: {
     flexDirection: "row",
@@ -550,12 +552,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1E293B",
+    borderTopColor: tc('border', "#1E293B"),
     gap: 8,
   },
   summaryCount: {
     fontSize: 13,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   loadingContainer: {
     flex: 1,
@@ -570,7 +572,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 16,
     textAlign: "center",
   },
@@ -579,12 +581,12 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   saleCard: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   saleHeader: {
     flexDirection: "row",
@@ -598,16 +600,16 @@ const styles = StyleSheet.create({
   saleProduct: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   saleBarcode: {
     fontSize: 12,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
   },
   saleTime: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
     fontWeight: "500",
   },
   saleDetails: {
@@ -624,7 +626,7 @@ const styles = StyleSheet.create({
   },
   saleDetailText: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   salePriceContainer: {
     flexDirection: "row",
@@ -632,27 +634,27 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1E293B",
+    borderTopColor: tc('border', "#1E293B"),
   },
   paymentBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#1E293B",
+    backgroundColor: tc('surface', "#1E293B"),
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   paymentText: {
     fontSize: 12,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontWeight: "500",
   },
   totalPrice: {
     marginLeft: "auto",
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerModalOverlay: {
     flex: 1,
@@ -660,12 +662,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   pickerModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('bg', "#0A0A0A"),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "70%",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   pickerModalHeader: {
     flexDirection: "row",
@@ -673,12 +675,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   pickerModalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerItem: {
     flexDirection: "row",
@@ -686,14 +688,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   pickerItemSelected: {
     backgroundColor: "#0D6EFD15",
   },
   pickerItemText: {
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   pickerItemTextSelected: {
     color: "#0D6EFD",
@@ -704,7 +706,7 @@ const styles = StyleSheet.create({
   },
   userPickerDetail: {
     fontSize: 13,
-    color: "#64748B",
+    color: tc('muted', "#64748B"),
     marginTop: 2,
   },
   detailsModalOverlay: {
@@ -714,12 +716,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   detailsModalContent: {
-    backgroundColor: "#0A0A0A",
+    backgroundColor: tc('surface', "#0A0A0A"),
     borderRadius: 16,
     width: "90%",
     maxHeight: "80%",
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: tc('border', "#1E293B"),
   },
   detailsModalHeader: {
     flexDirection: "row",
@@ -727,12 +729,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: tc('border', "#1E293B"),
   },
   detailsModalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
   },
   detailsScrollView: {
     padding: 20,
@@ -749,7 +751,7 @@ const styles = StyleSheet.create({
   detailsProductName: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
   },
   detailsRow: {
@@ -760,11 +762,11 @@ const styles = StyleSheet.create({
   },
   detailsLabel: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: tc('muted', "#94A3B8"),
   },
   detailsValue: {
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontWeight: "500",
   },
   paymentSection: {
@@ -772,7 +774,7 @@ const styles = StyleSheet.create({
   },
   paymentTypeTitle: {
     fontSize: 14,
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontWeight: "600",
     marginBottom: 6,
   },
@@ -795,6 +797,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
   },
-});
+}));
 
 export default SalesView;

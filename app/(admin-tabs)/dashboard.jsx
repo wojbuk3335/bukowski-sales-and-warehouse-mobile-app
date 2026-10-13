@@ -22,7 +22,9 @@ import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
 import { appAlert } from '../../services/appAlert';
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Dashboard = () => {
+  useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, users, fetchUsers } = useContext(GlobalStateContext);
   const insets = useSafeAreaInsets(); // Get safe area insets
   
@@ -414,7 +416,7 @@ const Dashboard = () => {
   return (
     <SafeAreaView style={{
       flex: 1,
-      backgroundColor: "#000000",
+      backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
       <LogoutButton position="top-right" />
@@ -445,7 +447,7 @@ const Dashboard = () => {
                   "Użytkownik"
                 : "Wybierz użytkownika..."}
             </Text>
-            <Ionicons name="people" size={24} color="#fff" />
+            <Ionicons name="people" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
         </View>
 
@@ -459,7 +461,7 @@ const Dashboard = () => {
             <Text style={styles.dateButtonText}>
               {selectedDate.toLocaleDateString("pl-PL")}
             </Text>
-            <Ionicons name="calendar" size={24} color="#fff" />
+            <Ionicons name="calendar" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
           {showDatePicker && (
             <DateTimePicker
@@ -584,17 +586,17 @@ const Dashboard = () => {
 
       {/* QR Scanner Modal */}
       <Modal visible={scannerVisible} animationType="slide" onRequestClose={closeScanner}>
-        <SafeAreaView style={{ backgroundColor: "#000", flex: 1 }}>
+        <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
           <View style={styles.scannerHeader}>
             <TouchableOpacity onPress={closeScanner} style={styles.closeButton}>
-              <Ionicons name="close" size={28} color="white" />
+              <Ionicons name="close" size={28} color={tc('text', "white")} />
             </TouchableOpacity>
             <Text style={styles.scannerTitle}>Skanuj kody kurtek</Text>
             <TouchableOpacity
               onPress={() => setFacing(facing === "back" ? "front" : "back")}
               style={styles.cameraFlipButton}
             >
-              <Ionicons name="camera-reverse" size={24} color="white" />
+              <Ionicons name="camera-reverse" size={24} color={tc('text', "white")} />
             </TouchableOpacity>
           </View>
 
@@ -730,7 +732,7 @@ const Dashboard = () => {
             <View style={styles.comparisonHeader}>
               <Text style={styles.comparisonTitle}>Wynik weryfikacji</Text>
               <TouchableOpacity onPress={() => setComparisonModalVisible(false)}>
-                <Ionicons name="close" size={32} color="#fff" />
+                <Ionicons name="close" size={32} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
 
@@ -817,7 +819,7 @@ const Dashboard = () => {
             <View style={styles.userModalHeader}>
               <Text style={styles.userModalTitle}>Wybierz użytkownika</Text>
               <TouchableOpacity onPress={() => setShowUserModal(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
+                <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
             
@@ -927,10 +929,10 @@ const Dashboard = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: tc('bg', "#000000"),
   },
   scrollView: {
     flex: 1,
@@ -938,24 +940,24 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#232533",
+    borderBottomColor: tc('border', "#232533"),
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
   },
   section: {
     padding: 20,
   },
   label: {
     fontSize: 16,
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 12,
     fontWeight: "600",
   },
@@ -963,28 +965,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   userSelectButtonText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   dateButton: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   dateButtonText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   startButton: {
@@ -1007,7 +1009,7 @@ const styles = StyleSheet.create({
     maxHeight: 300,
   },
   expectedTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 12,
@@ -1016,33 +1018,33 @@ const styles = StyleSheet.create({
     maxHeight: 250,
   },
   expectedItem: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   expectedName: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 14,
     marginBottom: 4,
   },
   expectedCode: {
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
     fontSize: 12,
   },
   countSection: {
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     marginHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   countLabel: {
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
     fontSize: 14,
     marginBottom: 8,
   },
@@ -1054,7 +1056,7 @@ const styles = StyleSheet.create({
   progressSection: {
     padding: 20,
     marginHorizontal: 20,
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderRadius: 12,
     marginTop: 16,
   },
@@ -1064,7 +1066,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   progressTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
   },
@@ -1075,7 +1077,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 12,
-    backgroundColor: "#232533",
+    backgroundColor: tc('surface', "#232533"),
     borderRadius: 6,
     overflow: "hidden",
     marginBottom: 8,
@@ -1131,7 +1133,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   scannedTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "600",
   },
@@ -1144,12 +1146,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   jacketItemError: {
     borderColor: "#dc3545",
@@ -1159,24 +1161,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   jacketName: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     marginBottom: 4,
   },
   jacketCode: {
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
     fontSize: 14,
   },
   scannerContainer: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: tc('bg', "#000"),
   },
   scannerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#000",
+    backgroundColor: tc('bg', "#000"),
   },
   closeButton: {
     width: 44,
@@ -1239,10 +1241,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   scannedListContainer: {
-    backgroundColor: '#1E1E2D',
+    backgroundColor: tc('surface', '#1E1E2D'),
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#232533',
+    borderTopColor: tc('border', '#232533'),
     maxHeight: 140,
   },
   scannedListHeader: {
@@ -1252,7 +1254,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scannedListTitle: {
-    color: 'white',
+    color: tc('text', 'white'),
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1267,7 +1269,7 @@ const styles = StyleSheet.create({
     borderColor: '#ff4444',
   },
   scannedJacket: {
-    backgroundColor: '#232533',
+    backgroundColor: tc('surface', '#232533'),
     borderRadius: 8,
     padding: 12,
     marginRight: 12,
@@ -1293,8 +1295,8 @@ const styles = StyleSheet.create({
   scannerFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#232533',
-    backgroundColor: '#000',
+    borderTopColor: tc('border', '#232533'),
+    backgroundColor: tc('bg', '#000'),
   },
   scannerProgressInfo: {
     flexDirection: 'row',
@@ -1304,7 +1306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   scannerInfo: {
-    color: '#fff',
+    color: tc('text', '#fff'),
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1355,7 +1357,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   scannerTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "600",
   },
@@ -1366,7 +1368,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   userModal: {
-    backgroundColor: "#161622",
+    backgroundColor: tc('surface', "#161622"),
     width: "90%",
     maxHeight: "70%",
     borderRadius: 16,
@@ -1377,17 +1379,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderBottomWidth: 1,
-    borderBottomColor: "#232533",
+    borderBottomColor: tc('border', "#232533"),
   },
   userModalTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 20,
     fontWeight: "bold",
   },
   infoModal: {
-    backgroundColor: "#161622",
+    backgroundColor: tc('surface', "#161622"),
     width: "85%",
     borderRadius: 20,
     overflow: "hidden",
@@ -1395,7 +1397,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   infoModalHeader: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     width: "100%",
     paddingVertical: 30,
     alignItems: "center",
@@ -1406,14 +1408,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   infoModalTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 12,
     textAlign: "center",
   },
   infoModalMessage: {
-    color: "#aaa",
+    color: tc('muted', "#aaa"),
     fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
@@ -1432,7 +1434,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   confirmModal: {
-    backgroundColor: "#161622",
+    backgroundColor: tc('surface', "#161622"),
     width: "85%",
     borderRadius: 20,
     overflow: "hidden",
@@ -1440,7 +1442,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   confirmModalHeader: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     width: "100%",
     paddingVertical: 30,
     alignItems: "center",
@@ -1451,14 +1453,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   confirmModalTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 12,
     textAlign: "center",
   },
   confirmModalMessage: {
-    color: "#aaa",
+    color: tc('muted', "#aaa"),
     fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
@@ -1469,14 +1471,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   confirmModalCancelButton: {
-    backgroundColor: "#2a2a3e",
+    backgroundColor: tc('surface', "#2a2a3e"),
     paddingHorizontal: 30,
     paddingVertical: 14,
     borderRadius: 12,
     flex: 1,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: tc('border', "#444"),
   },
   confirmModalCancelButtonText: {
     color: "#fff",
@@ -1505,10 +1507,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#232533",
+    borderBottomColor: tc('border', "#232533"),
   },
   userItemSelected: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
   },
   userItemContent: {
     flexDirection: "row",
@@ -1520,13 +1522,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userItemName: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 4,
   },
   userItemDetails: {
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
     fontSize: 14,
   },
   comparisonModalContainer: {
@@ -1536,7 +1538,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   comparisonModal: {
-    backgroundColor: "#161622",
+    backgroundColor: tc('surface', "#161622"),
     width: "90%",
     maxHeight: "80%",
     borderRadius: 16,
@@ -1547,12 +1549,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     borderBottomWidth: 1,
-    borderBottomColor: "#232533",
+    borderBottomColor: tc('border', "#232533"),
   },
   comparisonTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 20,
     fontWeight: "bold",
   },
@@ -1560,13 +1562,13 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   comparisonSummary: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
   },
   summaryText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     marginBottom: 8,
   },
@@ -1574,29 +1576,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   comparisonSectionTitle: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 12,
   },
   comparisonItem: {
-    backgroundColor: "#1E1E2D",
+    backgroundColor: tc('surface', "#1E1E2D"),
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#232533",
+    borderColor: tc('border', "#232533"),
   },
   comparisonItemInfo: {
     flex: 1,
   },
   comparisonItemName: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     marginBottom: 4,
   },
   comparisonItemDetails: {
-    color: "#CDCDE0",
+    color: tc('muted', "#CDCDE0"),
     fontSize: 14,
     marginBottom: 4,
   },
@@ -1635,10 +1637,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     padding: 20,
-    backgroundColor: "#000",
+    backgroundColor: tc('bg', "#000"),
   },
   scannerInfo: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
   },
   scannerProgress: {
@@ -1646,6 +1648,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-});
+}));
 
 export default Dashboard;
