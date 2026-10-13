@@ -1700,9 +1700,9 @@ const Cudzych = () => {
 
       {/* Scanned Product Modal - identical to QRScanner */}
       {scannedProductModalVisible && (
-        <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
-          <ScrollView contentContainerStyle={[qrStyles.scrollViewContent, { paddingBottom: Math.max(120, insets.bottom + 120) }]}>
-            <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
+        <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }}>
+          <ScrollView style={{ width: '100%' }} contentContainerStyle={[qrStyles.scrollViewContent, { paddingHorizontal: 12, paddingTop: Math.max(12, insets.top), paddingBottom: Math.max(120, insets.bottom + 120) }]}>
+            <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: "100%", padding: 0, paddingTop: 64, justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }]}>
               <TouchableOpacity
                 style={qrStyles.closeButton}
                 onPress={() => {
@@ -1755,7 +1755,7 @@ const Cudzych = () => {
                 editable={false}
               />
               
-              <View style={styles.buttonRow}>
+              <View style={look.buttonRow}>
                 <TouchableOpacity
                   style={look.neutralButton}
                   onPress={() => {
