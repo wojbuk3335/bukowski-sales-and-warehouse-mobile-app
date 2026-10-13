@@ -711,28 +711,26 @@ const Profile = () => {
     }
     
     // Validate address fields based on delivery option
-    if (deliveryOption === 'shipping') {
-      if (!postalCode.trim()) {
-        appAlert('Błąd', 'Kod pocztowy jest wymagany dla wysyłki');
-        return false;
-      }
-      if (!isPostalCodeFormatValid(postalCode)) {
+    // Wysyłka / dostawa: pełny adres potwierdzony przez Google (backend też to sprawdza)
+    if (deliveryOption === 'shipping' || deliveryOption === 'delivery') {
+      if (deliveryOption === 'shipping' && !isPostalCodeFormatValid(postalCode)) {
         appAlert('Błąd', 'Kod pocztowy musi mieć format XX-XXX (np. 34-500)');
         return false;
       }
-      if (!citySearchText.trim()) {
-        appAlert('Błąd', 'Miejscowość jest wymagana dla wysyłki');
+      if (!citySearchText.trim() || !streetSearchText.trim() || !houseNumber.trim()) {
+        appAlert('Błąd', 'Podaj pełny adres: miejscowość, ulicę i numer domu');
         return false;
       }
-    }
-    
-    if (deliveryOption === 'delivery') {
-      if (!citySearchText.trim()) {
-        appAlert('Błąd', 'Miejscowość jest wymagana dla dostawy');
-        return false;
-      }
-      if (!houseNumber.trim()) {
-        appAlert('Błąd', 'Numer domu jest wymagany dla dostawy');
+      const addressMessages = {
+        checking: 'Poczekaj chwilę - sprawdzamy adres w Google.',
+        corrected: 'Google proponuje poprawiony adres - kliknij „Użyj” pod numerem domu albo popraw adres ręcznie.',
+        number_not_found: 'Google nie zna tego numeru domu na tej ulicy - sprawdź adres z klientem.',
+        not_found: 'Google nie znalazł takiego adresu - sprawdź ulicę i miejscowość z klientem.',
+        unavailable: 'Nie udało się sprawdzić adresu w Google - spróbuj ponownie za chwilę.',
+        idle: 'Adres nie został jeszcze sprawdzony - poczekaj chwilę i spróbuj ponownie.',
+      };
+      if (addrHint !== 'ok') {
+        appAlert('Adres niepotwierdzony', addressMessages[addrHint] || addressMessages.idle);
         return false;
       }
     }
@@ -820,7 +818,7 @@ const Profile = () => {
           }, 500);
         }
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         Logger.error('❌ Backend error:', errorData);
         throw new Error(errorData.message || 'Błąd podczas zapisywania zamówienia');
       }
