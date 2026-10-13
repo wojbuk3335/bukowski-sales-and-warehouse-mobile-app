@@ -22,7 +22,8 @@ import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
-
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { ModalHeader, ScreenHeader, look } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Cudzych = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -1000,16 +1001,13 @@ const Cudzych = () => {
   };
 
   // Render transaction item
+  const TYPE_COLORS = { odbior: '#EF4444', zwrot: '#10B981', wplata: '#F59E0B', wyplata: '#06B6D4' };
   const renderTransaction = ({ item }) => (
-    <View style={styles.transactionItem}>
+    <View style={[styles.transactionItem, { borderLeftColor: TYPE_COLORS[item.type] || '#06B6D4' }]}>
       <View style={styles.transactionHeader}>
         <Text style={[
-          styles.transactionType, 
-          { color: 
-            item.type === 'odbior' ? '#dc3545' : 
-            item.type === 'zwrot' ? '#28a745' :
-            item.type === 'wplata' ? '#ffc107' : '#17a2b8'
-          }
+          styles.transactionType,
+          { color: TYPE_COLORS[item.type] || '#06B6D4' }
         ]}>
           {item.type === 'odbior' ? 'ODBIÓR' : 
            item.type === 'zwrot' ? 'ZWROT' :
@@ -1055,53 +1053,66 @@ const Cudzych = () => {
         }
       >
         {/* Header with balance */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Tomasz Cudzich</Text>
-          <View style={styles.balanceContainer}>
-            <Text style={styles.balanceLabel}>Saldo do zapłaty:</Text>
-            <Text style={[
-              styles.balanceAmount,
-              { color: balance >= 0 ? '#ff6b6b' : '#51cf66' }
-            ]}>
-              {balance}zł
-            </Text>
-          </View>
+        <View style={{ paddingHorizontal: 12 }}>
+          <ScreenHeader icon="person" title="Cudzich" subtitle="Tomasz Cudzich">
+            <View style={[styles.balanceCard, { borderColor: balance >= 0 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)' }]}>
+              <Text style={styles.balanceLabel}>Saldo do zapłaty</Text>
+              <Text style={[
+                styles.balanceAmount,
+                { color: balance >= 0 ? '#EF4444' : '#10B981' }
+              ]}>
+                {balance} zł
+              </Text>
+            </View>
+          </ScreenHeader>
         </View>
 
         {/* Action buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: '#dc3545' }]}
+            style={styles.actionTile}
             onPress={() => {
               setScannerType('odbior');
               setScannerVisible(true);
             }}
           >
-            <Text style={styles.smallButtonText}>Odbiór</Text>
+            <View style={[styles.actionTileIcon, { backgroundColor: '#EF444426' }]}>
+              <Ionicons name="arrow-down-circle" size={26} color="#EF4444" />
+            </View>
+            <Text style={styles.actionTileText}>Odbiór</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: '#28a745' }]}
+            style={styles.actionTile}
             onPress={() => {
               setScannerType('zwrot');
               setScannerVisible(true);
             }}
           >
-            <Text style={styles.smallButtonText}>Zwrot</Text>
+            <View style={[styles.actionTileIcon, { backgroundColor: '#10B98126' }]}>
+              <Ionicons name="return-up-back" size={26} color="#10B981" />
+            </View>
+            <Text style={styles.actionTileText}>Zwrot</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: '#ffc107' }]}
+            style={styles.actionTile}
             onPress={() => setWplataModalVisible(true)}
           >
-            <Text style={styles.smallButtonText}>Wpłata</Text>
+            <View style={[styles.actionTileIcon, { backgroundColor: '#F59E0B26' }]}>
+              <Ionicons name="wallet" size={26} color="#F59E0B" />
+            </View>
+            <Text style={styles.actionTileText}>Wpłata</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.smallButton, { backgroundColor: '#17a2b8' }]}
+            style={styles.actionTile}
             onPress={() => setWyplataModalVisible(true)}
           >
-            <Text style={styles.smallButtonText}>Wypłata</Text>
+            <View style={[styles.actionTileIcon, { backgroundColor: '#06B6D426' }]}>
+              <Ionicons name="cash" size={26} color="#06B6D4" />
+            </View>
+            <Text style={styles.actionTileText}>Wypłata</Text>
           </TouchableOpacity>
         </View>
 
@@ -1113,7 +1124,8 @@ const Cudzych = () => {
               style={styles.filterButton}
               onPress={() => setDateFilterVisible(true)}
             >
-              <Text style={styles.filterButtonText}>📅 Filtruj</Text>
+              <Ionicons name="calendar-outline" size={18} color={tc('text', '#fff')} />
+              <Text style={styles.filterButtonText}>Filtruj</Text>
             </TouchableOpacity>
           </View>
 
@@ -1124,7 +1136,7 @@ const Cudzych = () => {
                 Okres: {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
               </Text>
               <TouchableOpacity onPress={clearDateFilters} style={styles.clearFilterButton}>
-                <Text style={styles.clearFilterText}>✕</Text>
+                <Ionicons name="close" size={16} color="#fff" />
               </TouchableOpacity>
             </View>
           )}
@@ -1156,14 +1168,16 @@ const Cudzych = () => {
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { width: '85%', maxHeight: '90%' }]}>
-            <Text style={styles.modalTitle}>
-              {odbiorModalVisible ? 'ODBIÓR KURTKI' : 'ZWROT KURTKI'}
-            </Text>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <ModalHeader
+              icon={odbiorModalVisible ? 'arrow-down-circle' : 'return-up-back'}
+              color={odbiorModalVisible ? '#EF4444' : '#10B981'}
+              title={odbiorModalVisible ? 'Odbiór kurtki' : 'Zwrot kurtki'}
+            />
 
             <ScrollView 
               style={{ width: '100%' }}
-              contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
+              contentContainerStyle={{ paddingBottom: 8 }}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
             >
@@ -1188,7 +1202,8 @@ const Cudzych = () => {
                       setScanned(false);
                     }}
                   >
-                    <Text style={styles.scanButtonText}>📱 Skanuj kod</Text>
+                    <Ionicons name="barcode-outline" size={18} color="#fff" />
+                    <Text style={styles.scanButtonText}>Skanuj kod</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1214,11 +1229,11 @@ const Cudzych = () => {
               {/* Product dropdown */}
               {productDropdownVisible && productSearchText && (
                 <View style={{
-                  maxHeight: 120,
-                  backgroundColor: tc('surface', 'black'),
-                  borderRadius: 8,
+                  maxHeight: 160,
+                  backgroundColor: tc('surface2', '#1E1E2D'),
+                  borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#0d6efd',
+                  borderColor: tc('border', '#334155'),
                   marginBottom: 10,
                 }}>
                   <TouchableOpacity
@@ -1247,14 +1262,14 @@ const Cudzych = () => {
                             padding: 12,
                             borderBottomWidth: 1,
                             borderBottomColor: tc('border', '#333'),
-                            backgroundColor: selectedProduct?._id === item._id ? '#0d6efd' : 'transparent',
+                            backgroundColor: selectedProduct?._id === item._id ? 'rgba(13, 110, 253, 0.2)' : 'transparent',
                           }}
                           onPress={() => {
                             handleProductSelect(item);
                             setProductDropdownVisible(false);
                           }}
                         >
-                          <Text style={{ color: '#fff', fontSize: 13 }}>
+                          <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>
                             {item.fullName}
                           </Text>
                         </TouchableOpacity>
@@ -1289,11 +1304,11 @@ const Cudzych = () => {
               {/* Size dropdown list */}
               {sizeDropdownVisible && size && (
                 <View style={{
-                  maxHeight: 120,
-                  backgroundColor: tc('surface', 'black'),
-                  borderRadius: 8,
+                  maxHeight: 160,
+                  backgroundColor: tc('surface2', '#1E1E2D'),
+                  borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#0d6efd',
+                  borderColor: tc('border', '#334155'),
                   marginBottom: 10,
                 }}>
                   <TouchableOpacity
@@ -1342,7 +1357,7 @@ const Cudzych = () => {
                               padding: 12,
                               borderBottomWidth: 1,
                               borderBottomColor: tc('border', '#333'),
-                              backgroundColor: selectedSize?._id === item._id ? '#0d6efd' : 'transparent',
+                              backgroundColor: selectedSize?._id === item._id ? 'rgba(13, 110, 253, 0.2)' : 'transparent',
                             }}
                             onPress={() => {
                               setSelectedSize(item);
@@ -1350,7 +1365,7 @@ const Cudzych = () => {
                               setSizeDropdownVisible(false);
                             }}
                           >
-                            <Text style={{ color: '#fff', fontSize: 13 }}>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>
                               {sizeText}
                             </Text>
                           </TouchableOpacity>
@@ -1399,7 +1414,7 @@ const Cudzych = () => {
                   onPress={() => setIsHistoricalSale(!isHistoricalSale)}
                 >
                   <View style={[styles.checkboxInner, isHistoricalSale && styles.checkboxChecked]}>
-                    {isHistoricalSale && <Text style={styles.checkmark}>✓</Text>}
+                    {isHistoricalSale && <Ionicons name="checkmark" size={16} color="#fff" />}
                   </View>
                   <Text style={styles.checkboxLabel}>
                     Sprzedaż historyczna (sprzed systemu)
@@ -1430,7 +1445,7 @@ const Cudzych = () => {
               <TouchableOpacity
                 style={[
                   styles.saveButton,
-                  { backgroundColor: odbiorModalVisible ? '#ff6b6b' : '#51cf66' }
+                  { backgroundColor: odbiorModalVisible ? '#EF4444' : '#10B981' }
                 ]}
                 onPress={() => createTransaction(odbiorModalVisible ? 'odbior' : 'zwrot')}
                 disabled={loading}
@@ -1456,14 +1471,16 @@ const Cudzych = () => {
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { width: '85%', maxHeight: '90%' }]}>
-            <Text style={styles.modalTitle}>
-              {wplataModalVisible ? 'WPŁATA OD TOMKA' : 'WYPŁATA DLA TOMKA'}
-            </Text>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <ModalHeader
+              icon={wplataModalVisible ? 'wallet' : 'cash'}
+              color={wplataModalVisible ? '#F59E0B' : '#06B6D4'}
+              title={wplataModalVisible ? 'Wpłata od Tomka' : 'Wypłata dla Tomka'}
+            />
 
             <ScrollView 
               style={{ width: '100%' }}
-              contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
+              contentContainerStyle={{ paddingBottom: 8 }}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
             >
@@ -1535,23 +1552,20 @@ const Cudzych = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { width: '90%', maxHeight: '80%' }]}>
-            <Text style={styles.modalTitle}>Filtruj po dacie</Text>
-            <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
-              Wybierz przedział czasowy dla transakcji
-            </Text>
+            <ModalHeader icon="calendar" color="#0D6EFD" title="Filtruj po dacie" subtitle="Wybierz przedział czasowy dla transakcji" />
 
             {/* Display selected date range */}
             {(filterStartDate || filterEndDate) && (
-              <View style={{ 
-                backgroundColor: '#10b981', 
-                padding: 12, 
-                borderRadius: 8, 
+              <View style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                padding: 12,
+                borderRadius: 12,
                 marginBottom: 15,
                 borderWidth: 1,
-                borderColor: '#ffffff'
+                borderColor: 'rgba(16, 185, 129, 0.5)'
               }}>
-                <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
-                  ✓ Wybrany okres:
+                <Text style={{ color: '#10B981', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
+                  Wybrany okres
                 </Text>
                 <Text style={{ color: tc('text', '#ffffff'), fontSize: 13, textAlign: 'center', marginTop: 4 }}>
                   {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
@@ -1563,39 +1577,17 @@ const Cudzych = () => {
             <Text style={styles.fieldLabel}>Szybki wybór:</Text>
             <View style={styles.quickFilters}>
               <TouchableOpacity 
-                style={{
-                  backgroundColor: '#0d6efd',
-                  paddingVertical: 15,
-                  paddingHorizontal: 20,
-                  borderRadius: 10,
-                  marginVertical: 8,
-                  borderWidth: 1,
-                  borderColor: '#ffffff',
-                  alignItems: 'center',
-                  flex: 1,
-                  marginHorizontal: 4
-                }}
+                style={styles.quickChip}
                 onPress={() => {
                   const today = new Date();
                   setFilterStartDate(today);
                   setFilterEndDate(today);
                 }}
               >
-                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>Dziś</Text>
+                <Text style={styles.quickChipText}>Dziś</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={{
-                  backgroundColor: '#0d6efd',
-                  paddingVertical: 15,
-                  paddingHorizontal: 20,
-                  borderRadius: 10,
-                  marginVertical: 8,
-                  borderWidth: 1,
-                  borderColor: '#ffffff',
-                  alignItems: 'center',
-                  flex: 1,
-                  marginHorizontal: 4
-                }}
+                style={styles.quickChip}
                 onPress={() => {
                   const today = new Date();
                   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -1603,21 +1595,10 @@ const Cudzych = () => {
                   setFilterEndDate(today);
                 }}
               >
-                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>7 dni</Text>
+                <Text style={styles.quickChipText}>7 dni</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={{
-                  backgroundColor: '#0d6efd',
-                  paddingVertical: 15,
-                  paddingHorizontal: 20,
-                  borderRadius: 10,
-                  marginVertical: 8,
-                  borderWidth: 1,
-                  borderColor: '#ffffff',
-                  alignItems: 'center',
-                  flex: 1,
-                  marginHorizontal: 4
-                }}
+                style={styles.quickChip}
                 onPress={() => {
                   const today = new Date();
                   const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
@@ -1625,46 +1606,26 @@ const Cudzych = () => {
                   setFilterEndDate(today);
                 }}
               >
-                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>30 dni</Text>
+                <Text style={styles.quickChipText}>30 dni</Text>
               </TouchableOpacity>
             </View>
 
             {/* Modal buttons */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, width: '100%' }}>
               <TouchableOpacity
-                style={{
-                  backgroundColor: '#ef4444',
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: 'white',
-                  flex: 1,
-                  marginRight: 8,
-                  alignItems: 'center'
-                }}
+                style={[look.neutralButton, { marginRight: 6 }]}
                 onPress={() => {
                   clearDateFilters();
                   setDateFilterVisible(false);
                 }}
               >
-                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>✕ Wyczyść</Text>
+                <Text style={look.neutralButtonText}>Wyczyść</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{
-                  backgroundColor: '#10b981',
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: 'white',
-                  flex: 1,
-                  marginLeft: 8,
-                  alignItems: 'center'
-                }}
+                style={[look.primaryButton, { marginLeft: 6, backgroundColor: '#10B981' }]}
                 onPress={() => setDateFilterVisible(false)}
               >
-                <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>✓ Zastosuj</Text>
+                <Text style={look.buttonText}>Zastosuj</Text>
               </TouchableOpacity>
             </View>
 
@@ -1697,25 +1658,20 @@ const Cudzych = () => {
                 setScanned(false);
               }}
             >
-              <Text style={qrStyles.closeButtonText}>X</Text>
+              <Ionicons name="close" size={24} color={tc('text', '#fff')} />
             </TouchableOpacity>
             
             {/* Przycisk do resetowania skanowania - pokazuje się tylko gdy scanned=true */}
             {scanned && (
               <View style={{ position: "absolute", bottom: 100, left: 0, right: 0, alignItems: "center" }}>
                 <TouchableOpacity
-                  style={{
-                    backgroundColor: "#0d6efd",
-                    paddingVertical: 12,
-                    paddingHorizontal: 24,
-                    borderRadius: 8,
-                    opacity: 0.9
-                  }}
+                  style={[look.primaryButton, { flex: 0, flexDirection: 'row', gap: 8, paddingHorizontal: 24 }]}
                   onPress={() => {
                     setScanned(false);
                   }}
                 >
-                  <Text style={{ color: tc('text', "#fff"), fontWeight: "bold", fontSize: 16 }}>Skanuj ponownie</Text>
+                  <Ionicons name="scan" size={20} color="#fff" />
+                  <Text style={look.buttonText}>Skanuj ponownie</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1723,13 +1679,7 @@ const Cudzych = () => {
             {/* Przycisk do ręcznego wprowadzenia */}
             <View style={{ position: "absolute", bottom: 30, left: 0, right: 0, alignItems: "center" }}>
               <TouchableOpacity
-                style={{
-                  backgroundColor: "#6c757d",
-                  paddingVertical: 12,
-                  paddingHorizontal: 24,
-                  borderRadius: 8,
-                  opacity: 0.9
-                }}
+                style={[look.neutralButton, { flex: 0, flexDirection: 'row', gap: 8, paddingHorizontal: 24 }]}
                 onPress={() => {
                   setScannerVisible(false);
                   setScanned(false);
@@ -1740,7 +1690,8 @@ const Cudzych = () => {
                   }
                 }}
               >
-                <Text style={{ color: tc('text', "#fff"), fontWeight: "bold", fontSize: 16 }}>✏️ Wpisz ręcznie</Text>
+                <Ionicons name="create-outline" size={20} color={tc('text', '#fff')} />
+                <Text style={look.neutralButtonText}>Wpisz ręcznie</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1759,57 +1710,40 @@ const Cudzych = () => {
                   setScanned(false);
                 }}
               >
-                <Text style={qrStyles.closeButtonText}>X</Text>
+                <Ionicons name="close" size={24} color={tc('text', '#fff')} />
               </TouchableOpacity>
-              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano produkt:</Text>
+              <Text style={look.formLabel}>Sprzedano produkt</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={scannedProductData.name}
                 editable={false}
               />
-              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Gdzie</Text>
+              <Text style={look.formLabel}>Gdzie</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={user?.sellingPoint || "Unknown"}
                 editable={false}
                 placeholder="Selling Point"
               />
-              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Kod kreskowy</Text>
+              <Text style={look.formLabel}>Kod kreskowy</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={scannedProductData.barcode}
                 editable={false}
                 placeholder="Barcode"
               />
-              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano od:</Text>
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: "white",
-                  borderRadius: 5,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  marginBottom: 20,
-                  width: "100%",
-                }}
+              <Text style={look.formLabel}>Sprzedano od</Text>
+              <TouchableOpacity
+                style={[look.selectField, { marginBottom: 16, borderWidth: 2, borderColor: '#F59E0B' }]}
+                onPress={openSellingPointModal}
               >
-                <TouchableOpacity
-                  style={{
-                    height: 40,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: tc('surface', "black"),
-                    borderRadius: 5,
-                  }}
-                  onPress={openSellingPointModal}
-                >
-                  <Text style={{ color: tc('text', "white") }}>
-                    {selectedOption || "Wybierz punkt sprzedaży"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                <Text style={[look.selectFieldText, !selectedOption && { color: tc('muted', '#94A3B8') }]}>
+                  {selectedOption || "Wybierz punkt sprzedaży"}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#F59E0B" />
+              </TouchableOpacity>
               
-              <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Cena (PLN):</Text>
+              <Text style={look.formLabel}>Cena (PLN)</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={scannedProductData.price}
@@ -1818,16 +1752,16 @@ const Cudzych = () => {
               
               <View style={styles.buttonRow}>
                 <TouchableOpacity
-                  style={[styles.smallButton, { backgroundColor: 'gray' }]}
+                  style={look.neutralButton}
                   onPress={() => {
                     setScannedProductModalVisible(false);
                     setScanned(false);
                   }}
                 >
-                  <Text style={styles.smallButtonText}>Anuluj</Text>
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.smallButton, { backgroundColor: '#28a745' }]}
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
                   onPress={async () => {
                     // Use price from scannedProductData
                     Logger.debug('DEBUG: Scanned product data:', scannedProductData);
@@ -1843,7 +1777,7 @@ const Cudzych = () => {
                     }
                   }}
                 >
-                  <Text style={styles.smallButtonText}>Potwierdź</Text>
+                  <Text style={look.buttonText}>Potwierdź</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1861,7 +1795,7 @@ const Cudzych = () => {
         >
           <View style={qrStyles.currencyModalContainer}>
             <View style={qrStyles.currencyModalContent}>
-              <Text style={qrStyles.currencyModalTitle}>Wybierz punkt sprzedaży</Text>
+              <ModalHeader icon="storefront" color="#F59E0B" title="Wybierz punkt sprzedaży" />
               {getMatchingSymbols().length > 0 ? (
                 <FlatList
                   data={getMatchingSymbols()}
@@ -1902,19 +1836,16 @@ const Cudzych = () => {
       >
         <View style={qrStyles.successModalOverlay}>
           <View style={qrStyles.successModalContent}>
-            <View style={qrStyles.successIconContainer}>
-              <Text style={qrStyles.successIcon}>✓</Text>
-            </View>
-            <Text style={qrStyles.successModalTitle}>Sukces!</Text>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Gotowe" />
             <Text style={qrStyles.successModalMessage}>
               {successMessage}
             </Text>
             
             <TouchableOpacity
-              style={[qrStyles.optionButton, { backgroundColor: '#007bff', marginTop: 20, width: '90%' }]}
+              style={[look.primaryButton, { flex: 0, alignSelf: 'stretch' }]}
               onPress={() => setSuccessModalVisible(false)}
             >
-              <Text style={qrStyles.optionText}>OK</Text>
+              <Text style={look.buttonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1929,19 +1860,16 @@ const Cudzych = () => {
       >
         <View style={qrStyles.errorModalOverlay}>
           <View style={qrStyles.errorModalContent}>
-            <View style={qrStyles.errorIconContainer}>
-              <Text style={qrStyles.errorIcon}>⚠</Text>
-            </View>
-            <Text style={qrStyles.errorModalTitle}>Błąd!</Text>
+            <ModalHeader icon="alert-circle" color="#DC3545" title="Błąd" />
             <Text style={qrStyles.errorModalMessage}>
               {errorMessage}
             </Text>
             
             <TouchableOpacity
-              style={[qrStyles.optionButton, { backgroundColor: '#dc3545', marginTop: 20, width: '90%' }]}
+              style={[look.primaryButton, { flex: 0, alignSelf: 'stretch' }]}
               onPress={() => setErrorModalVisible(false)}
             >
-              <Text style={qrStyles.optionText}>OK</Text>
+              <Text style={look.buttonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1986,14 +1914,61 @@ const styles = createThemedStyles(() => StyleSheet.create({
   balanceContainer: {
     alignItems: 'center',
   },
-  balanceLabel: {
-    color: tc('text', 'white'),
+  balanceCard: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: tc('surface', '#161622'),
+  },
+  actionTile: {
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+    borderRadius: 12,
+    padding: 12,
+  },
+  actionTileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  actionTileText: {
+    color: tc('text', '#fff'),
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontWeight: '600',
+  },
+  quickChip: {
+    flex: 1,
+    marginHorizontal: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(13, 110, 253, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(13, 110, 253, 0.4)',
+  },
+  quickChipText: {
+    color: tc('text', '#fff'),
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  balanceLabel: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   balanceAmount: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     color: tc('text', 'white'),
   },
@@ -2001,9 +1976,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
   // Action buttons
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 20,
-    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    rowGap: 12,
   },
   smallButton: {
     paddingVertical: 8,
@@ -2028,7 +2005,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginHorizontal: 10,
   },
   cancelButton: {
-    backgroundColor: 'gray',
+    flex: 1,
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   confirmButton: {
     backgroundColor: 'green',
@@ -2050,7 +2033,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
   
   // Transactions
   transactionsContainer: {
-    padding: 20,
+    paddingHorizontal: 12,
+    paddingTop: 20,
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -2061,38 +2045,45 @@ const styles = createThemedStyles(() => StyleSheet.create({
   sectionTitle: {
     color: tc('text', 'white'),
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   filterButton: {
-    backgroundColor: '#0d6efd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   filterButtonText: {
-    color: 'white',
+    color: tc('text', '#fff'),
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   dateFilterDisplay: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#0d6efd',
+    backgroundColor: 'rgba(13, 110, 253, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(13, 110, 253, 0.4)',
     padding: 12,
-    borderRadius: 8,
-    marginBottom: 15,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   dateFilterText: {
-    color: 'white',
+    color: tc('text', '#fff'),
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   clearFilterButton: {
-    backgroundColor: 'red',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2102,12 +2093,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: 'bold',
   },
   transactionItem: {
-    backgroundColor: tc('surface', 'black'),
-    borderRadius: 8,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'white',
+    borderColor: tc('border', '#1E293B'),
+    borderLeftWidth: 4,
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -2122,35 +2114,33 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   transactionPrice: {
     color: tc('text', 'white'),
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   transactionProduct: {
     color: tc('text', 'white'),
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   transactionSize: {
-    color: tc('text', 'white'),
+    color: tc('muted', '#94A3B8'),
     fontSize: 13,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   transactionDate: {
-    color: tc('text', 'white'),
+    color: tc('muted', '#94A3B8'),
     fontSize: 13,
-    fontWeight: 'bold',
   },
   transactionNotes: {
-    color: tc('muted', '#bbb'),
-    fontSize: 14,
-    marginTop: 8,
+    color: tc('muted', '#94A3B8'),
+    fontSize: 13,
+    marginTop: 6,
     fontStyle: 'italic',
   },
   noTransactions: {
-    color: tc('muted', '#666'),
-    fontSize: 16,
+    color: tc('muted', '#94A3B8'),
+    fontSize: 15,
     textAlign: 'center',
     marginTop: 20,
   },
@@ -2158,27 +2148,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 25,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '90%',
-    maxHeight: '80%',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#0d6efd',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    maxHeight: '85%',
+    alignItems: 'stretch',
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   modalBackground: {
     flex: 1,
@@ -2208,19 +2190,21 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 15,
   },
   fieldLabel: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
-    marginBottom: 8,
+    color: tc('muted', '#94A3B8'),
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   input: {
     width: '100%',
-    backgroundColor: tc('surface', 'black'),
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     fontSize: 16,
     color: tc('text', 'white'),
     borderWidth: 1,
-    borderColor: '#0d6efd',
+    borderColor: tc('border', '#334155'),
   },
   inputText: {
     color: tc('text', 'white'),
@@ -2245,18 +2229,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: '100%',
     height: 80,
     textAlignVertical: 'top',
-    backgroundColor: tc('surface', 'black'),
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: tc('text', 'white'),
-    borderWidth: 1,
-    borderColor: '#0d6efd',
   },
   readonlyInput: {
-    backgroundColor: tc('surface', '#1a1a1a'),
-    borderColor: tc('border', '#666'),
-    color: tc('muted', '#ccc'),
+    backgroundColor: tc('surface', '#161622'),
+    borderColor: tc('border', '#1E293B'),
+    color: tc('muted', '#94A3B8'),
   },
   
   // Product container
@@ -2322,33 +2299,34 @@ const styles = createThemedStyles(() => StyleSheet.create({
   // Modal buttons
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 25,
-    gap: 15,
+    gap: 12,
+    marginTop: 16,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: 'red',
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   cancelButtonText: {
     color: tc('text', 'white'),
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
   saveButton: {
     flex: 1,
-    backgroundColor: '#0d6efd',
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#0D6EFD',
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   saveButtonText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -2414,16 +2392,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 8,
   },
   scanButton: {
-    backgroundColor: '#0d6efd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0D6EFD',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'white',
+    borderRadius: 10,
   },
   scanButtonText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
   },
 
@@ -2435,16 +2414,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 8,
   },
   scanButton: {
-    backgroundColor: '#0d6efd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0D6EFD',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'white',
+    borderRadius: 10,
   },
   scanButtonText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   
@@ -2459,17 +2439,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 5,
   },
   checkboxInner: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
     borderWidth: 2,
-    borderColor: 'white',
-    borderRadius: 3,
+    borderColor: tc('border', '#475569'),
+    borderRadius: 6,
     marginRight: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#0d6efd',
+    backgroundColor: '#0D6EFD',
+    borderColor: '#0D6EFD',
   },
   checkmark: {
     color: 'white',
@@ -2483,10 +2464,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
   },
   checkboxHelp: {
-    color: '#ccc',
+    color: tc('muted', '#94A3B8'),
     fontSize: 12,
     fontStyle: 'italic',
-    marginLeft: 30,
+    marginLeft: 32,
   },
   
   scannerContainer: {
@@ -2509,9 +2490,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
   scanArea: {
     width: 250,
     height: 250,
-    borderWidth: 2,
-    borderColor: 'white',
-    borderRadius: 10,
+    borderWidth: 3,
+    borderColor: '#0D6EFD',
+    borderRadius: 20,
   },
   scannerControls: {
     position: 'absolute',
@@ -2575,19 +2556,23 @@ const qrStyles = createThemedStyles(() => StyleSheet.create({
   scanArea: {
     width: 250,
     height: 250,
-    borderWidth: 2,
-    borderColor: "white",
-    borderRadius: 10,
+    borderWidth: 3,
+    borderColor: "#0D6EFD",
+    borderRadius: 20,
   },
   closeButton: {
-    top: 10,
-    right: 10,
-    backgroundColor: "red",
-    borderRadius: 100,
-    position: "absolute",
-    width: 30,
-    height: 30,
-    justifyContent: "center",
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+    zIndex: 20,
   },
   closeButtonText: {
     color: "white",
@@ -2610,14 +2595,16 @@ const qrStyles = createThemedStyles(() => StyleSheet.create({
     padding: 20,
   },
   inputField: {
-    height: 40,
-    borderColor: "gray",
+    backgroundColor: tc('surface2', '#1E1E2D'),
     borderWidth: 1,
-    marginBottom: 20,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    marginBottom: 16,
     width: "100%",
-    paddingHorizontal: 10,
-    color: tc('text', "white"),
-    backgroundColor: tc('bg', "black"),
+    color: tc('text', "#fff"),
   },
   modalButtons: {
     flexDirection: "row",
@@ -2647,14 +2634,16 @@ const qrStyles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)", // Semi-transparent background
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
   },
   currencyModalContent: {
-    width: "80%",
-    backgroundColor: tc('surface', "black"),
-    borderRadius: 10,
-    padding: 20,
-    alignItems: "center",
+    width: "90%",
+    maxHeight: "85%",
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: tc('border', "#232533"),
   },
   currencyModalTitle: {
     fontSize: 18,
@@ -2663,54 +2652,49 @@ const qrStyles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 15,
   },
   currencyModalItem: {
-    paddingVertical: 5, // Reduce vertical padding for shorter height
-    paddingHorizontal: 30, // Increase horizontal padding for wider items
-    marginVertical: 5, // Add vertical margin between items
-    borderBottomWidth: 1,
-    borderBottomColor: "gray",
-    width: 100, // Set the width to 100px
-    alignItems: "center",
-    backgroundColor: "rgb(13, 110, 253)", // Set background color to blue
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
   },
   currencyModalItemText: {
     color: tc('text', "white"),
     fontSize: 16,
+    fontWeight: '600',
   },
   currencyModalCloseButton: {
-    marginTop: 15,
-    paddingVertical: 10,
+    marginTop: 12,
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: "red",
-    borderRadius: 5,
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
     alignItems: "center",
   },
   currencyModalCloseButtonText: {
-    color: "white",
+    color: tc('text', "white"),
     fontSize: 16,
+    fontWeight: 'bold',
   },
   // Success Modal Styles
   successModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   successModalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 30,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '85%',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#007bff',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   successIconContainer: {
     width: 60,
@@ -2734,35 +2718,27 @@ const qrStyles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 15,
   },
   successModalMessage: {
-    fontSize: 16,
-    color: '#e5e7eb',
+    fontSize: 15,
+    color: tc('muted', '#CBD5E1'),
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 10,
+    marginBottom: 16,
   },
   // Error Modal Styles
   errorModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   errorModalContent: {
-    backgroundColor: tc('bg', '#000000'),
-    borderRadius: 15,
-    padding: 30,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 20,
+    padding: 24,
     width: '85%',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#dc3545',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
   },
   errorIconContainer: {
     width: 60,
@@ -2786,11 +2762,11 @@ const qrStyles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 15,
   },
   errorModalMessage: {
-    fontSize: 16,
-    color: tc('text', '#e5e7eb'),
+    fontSize: 15,
+    color: tc('muted', '#CBD5E1'),
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 10,
+    marginBottom: 16,
   },
   // Button styles for modals
   optionButton: {
