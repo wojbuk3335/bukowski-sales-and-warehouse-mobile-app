@@ -59,6 +59,8 @@ const formatDateTime = (date) => {
 // Napis na ekranie logowania: wersja ze sklepu + data aktualizacji OTA, jeśli jakaś działa
 export const getVersionLabel = () => {
   const version = Constants.expoConfig?.version || "?";
+  // numer kompilacji ze sklepu (np. 15) - widać, czy zainstalowana jest nowa wersja natywna, a nie tylko OTA
+  const build = Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : "";
   const updatedAt = Updates && !Updates.isEmbeddedLaunch && Updates.createdAt ? formatDateTime(Updates.createdAt) : null;
-  return updatedAt ? `Wersja ${version} · aktualizacja ${updatedAt}` : `Wersja ${version}`;
+  return updatedAt ? `Wersja ${version}${build} · aktualizacja ${updatedAt}` : `Wersja ${version}${build}`;
 };
