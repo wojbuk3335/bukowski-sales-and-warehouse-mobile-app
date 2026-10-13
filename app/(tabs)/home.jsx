@@ -2918,7 +2918,75 @@ const Home = () => {
                 })()}
                 
 
-                {/* Financial Summary Section - Zamknięcie Dnia */}
+                
+                {/* Kasa i waluty - karty jak w panelu admina */}
+                <View style={{
+                  flexDirection: "column",
+                  marginTop: 24,
+                  marginBottom: 20,
+                }}>
+                  <Text style={[styles.sectionLabel, { marginBottom: 12 }]}>Kasa i waluty</Text>
+                  <TouchableOpacity
+                    testID="deduct-amount-button"
+                    style={styles.menuCard}
+                    onPress={() => setDeductionModalVisible(true)}
+                  >
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#DC354526' }]}>
+                      <Ionicons name="remove-circle" size={26} color="#DC3545" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Odpisz kwotę</Text>
+                      <Text style={styles.menuCardSubtitle}>Wypłata z kasy, zaliczka pracownika, inne wydatki</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    testID="add-amount-button"
+                    style={styles.menuCard}
+                    onPress={() => setAddAmountModalVisible(true)}
+                  >
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#10B98126' }]}>
+                      <Ionicons name="add-circle" size={26} color="#10B981" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Dopisz kwotę</Text>
+                      <Text style={styles.menuCardSubtitle}>Wpłata do kasy, zaliczka klienta na produkt</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    testID="currency-rates-button"
+                    style={styles.menuCard}
+                    onPress={() => setCurrencyRatesModalVisible(true)}
+                  >
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#0EA5E926' }]}>
+                      <Ionicons name="trending-up" size={26} color="#0EA5E9" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Aktualne kursy walut</Text>
+                      <Text style={styles.menuCardSubtitle}>Kupno i sprzedaż walut w PLN</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    testID="currency-calculator-button"
+                    style={styles.menuCard}
+                    onPress={() => setCalculatorModalVisible(true)}
+                  >
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#8B5CF626' }]}>
+                      <Ionicons name="calculator" size={26} color="#8B5CF6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Kalkulator walut</Text>
+                      <Text style={styles.menuCardSubtitle}>Przelicz kwotę między walutami</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+                </View>
+                {/* Zamknięcie dnia - na samym dole ekranu */}
                 {(() => {
                   // FOR TESTING: Uncomment line below to simulate tomorrow
                   // const today = '2025-08-11'; // TEST: Simulate tomorrow (dzień później)
@@ -3018,299 +3086,53 @@ const Home = () => {
                   );
                   
                   return allCurrencies.size > 0 && (
-                    <View style={{ 
-                      marginTop: 32, 
-                      paddingTop: 20, 
-                      borderTopWidth: 2, 
-                      borderTopColor: "#fbbf24", // Golden border
-                      backgroundColor: tc('surface', "#1f2937"), // Dark gray background
-                      padding: 16,
-                      borderRadius: 8,
-                      marginHorizontal: 8
-                    }}>
-                      <Text style={{ 
-                        fontSize: 16, 
-                        color: "#fbbf24", // Golden text
-                        fontWeight: "bold", 
-                        marginBottom: 16, 
-                        textAlign: "center" 
-                      }}>
-                        🏦 ZAMKNIĘCIE DNIA
-                      </Text>
-                      
-                      {/* Cash Sales */}
-                      <View style={{ marginBottom: 12 }}>
-                        <Text style={{ fontSize: 14, color: "#10b981", fontWeight: "bold", marginBottom: 4 }}>
-                          💵 SPRZEDAŻ GOTÓWKĄ:
-                        </Text>
-                        {Object.entries(cashTotals).length > 0 ? (
-                          Object.entries(cashTotals).map(([currency, total]) => (
-                            <Text key={`cash-${currency}`} style={{ fontSize: 13, color: "#d1fae5", marginLeft: 16 }}>
-                              +{total.toFixed(2)} {currency}
-                            </Text>
-                          ))
-                        ) : (
-                          <Text style={{ fontSize: 13, color: tc('muted', "#9ca3af"), marginLeft: 16, fontStyle: "italic" }}>
-                            Brak płatności gotówką
-                          </Text>
-                        )}
-                      </View>
-                      
-                      {/* Card Sales */}
-                      <View style={{ marginBottom: 12 }}>
-                        <Text style={{ fontSize: 14, color: "#3b82f6", fontWeight: "bold", marginBottom: 4 }}>
-                          💳 SPRZEDAŻ KARTĄ:
-                        </Text>
-                        {Object.entries(cardTotals).length > 0 ? (
-                          Object.entries(cardTotals).map(([currency, total]) => (
-                            <Text key={`card-${currency}`} style={{ fontSize: 13, color: "#dbeafe", marginLeft: 16 }}>
-                              +{total.toFixed(2)} {currency}
-                            </Text>
-                          ))
-                        ) : (
-                          <Text style={{ fontSize: 13, color: tc('muted', "#9ca3af"), marginLeft: 16, fontStyle: "italic" }}>
-                            Brak płatności kartą
-                          </Text>
-                        )}
-                      </View>
-                      
-                      {/* Advances */}
-                      {Object.keys(advancesTotals).length > 0 && (
-                        <View style={{ marginBottom: 12 }}>
-                          <Text style={{ fontSize: 14, color: "#3b82f6", fontWeight: "bold", marginBottom: 4 }}>
-                            💰 ZALICZKI (od klientów):
-                          </Text>
-                          {Object.entries(advancesTotals).map(([currency, total]) => (
-                            <Text key={`advances-${currency}`} style={{ fontSize: 13, color: "#dbeafe", marginLeft: 16 }}>
-                              +{total.toFixed(2)} {currency}
-                            </Text>
-                          ))}
+                    <View style={styles.dayCloseCard} testID="day-close-summary">
+                      <View style={styles.dayCloseHeader}>
+                        <View style={[styles.iconTileLarge, { backgroundColor: '#F59E0B26' }]}>
+                          <Ionicons name="lock-closed" size={24} color="#F59E0B" />
                         </View>
-                      )}
-                      
-                      {/* Financial Operations */}
-                      {Object.keys(operationsTotals).length > 0 && (
-                        <View style={{ marginBottom: 12 }}>
-                          <Text style={{ fontSize: 14, color: "#fbbf24", fontWeight: "bold", marginBottom: 4 }}>
-                            OPERACJE FINANSOWE (BILANS):
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.menuCardTitle}>Zamknięcie dnia</Text>
+                          <Text style={styles.menuCardSubtitle}>
+                            {new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}
                           </Text>
-                          {Object.entries(operationsTotals).map(([currency, total]) => (
-                            <Text key={`operations-${currency}`} style={{ 
-                              fontSize: 13, 
-                              color: total >= 0 ? "#10b981" : "#fecaca", 
-                              marginLeft: 16 
-                            }}>
-                              {total >= 0 ? '+' : ''}{total.toFixed(2)} {currency}
-                            </Text>
-                          ))}
                         </View>
-                      )}
-                      
-                      {/* Final Cash Total */}
-                      <View style={{ 
-                        marginTop: 16, 
-                        paddingTop: 12, 
-                        borderTopWidth: 1, 
-                        borderTopColor: "#10b981" 
-                      }}>
-                        <Text style={{ 
-                          fontSize: 15, 
-                          color: "#10b981", 
-                          fontWeight: "bold", 
-                          marginBottom: 8,
-                          textAlign: "center" 
-                        }}>
-                          💵 GOTÓWKA W KASIE:
-                        </Text>
-                        {Object.entries(finalCashTotals).length > 0 ? (
-                          Object.entries(finalCashTotals).map(([currency, total]) => (
-                            <Text 
-                              key={`final-cash-${currency}`} 
-                              style={{ 
-                                fontSize: 16, 
-                                color: total >= 0 ? "#10b981" : "#ef4444", 
-                                fontWeight: "bold",
-                                textAlign: "center",
-                                marginBottom: 2
-                              }}
-                            >
-                              {total >= 0 ? '+' : ''}{total.toFixed(2)} {currency}
-                            </Text>
-                          ))
-                        ) : (
-                          <Text style={{ fontSize: 13, color: tc('muted', "#9ca3af"), textAlign: "center", fontStyle: "italic" }}>
-                            0.00 PLN
-                          </Text>
-                        )}
-                        <Text style={{ 
-                          fontSize: 11, 
-                          color: tc('muted', "#9ca3af"), 
-                          textAlign: "center",
-                          marginTop: 8,
-                          fontStyle: "italic" 
-                        }}>
-                          Kwota gotówki którą powinieneś mieć w kasie
-                        </Text>
-                      </View>
-                      
-                      {/* Final Card Total */}
-                      <View style={{ 
-                        marginTop: 16, 
-                        paddingTop: 12, 
-                        borderTopWidth: 1, 
-                        borderTopColor: "#3b82f6" 
-                      }}>
-                        <Text style={{ 
-                          fontSize: 15, 
-                          color: "#3b82f6", 
-                          fontWeight: "bold", 
-                          marginBottom: 8,
-                          textAlign: "center" 
-                        }}>
-                          💳 ZAMKNIĘCIE TERMINALA:
-                        </Text>
-                        {(() => {
-                          const nonZeroCardTotals = Object.entries(finalCardTotals).filter(([currency, total]) => total !== 0);
-                          
-                          if (nonZeroCardTotals.length === 0) {
-                            return (
-                              <Text style={{ fontSize: 16, color: "#3b82f6", textAlign: "center", fontWeight: "bold" }}>
-                                0.00 PLN
-                              </Text>
-                            );
-                          }
-                          
-                          return nonZeroCardTotals.map(([currency, total]) => (
-                            <Text 
-                              key={`final-card-${currency}`} 
-                              style={{ 
-                                fontSize: 16, 
-                                color: total >= 0 ? "#3b82f6" : "#ef4444", 
-                                fontWeight: "bold",
-                                textAlign: "center",
-                                marginBottom: 2
-                              }}
-                            >
-                              {total >= 0 ? '+' : ''}{total.toFixed(2)} {currency}
-                            </Text>
-                          ));
-                        })()}
-                        <Text style={{ 
-                          fontSize: 11, 
-                          color: tc('muted', "#9ca3af"), 
-                          textAlign: "center",
-                          marginTop: 8,
-                          fontStyle: "italic" 
-                        }}>
-                          Kwota płatności kartą (terminal na koniec dnia)
-                        </Text>
                       </View>
 
-                      {/* Total Turnover in PLN */}
-                      <View style={{
-                        marginTop: 16,
-                        paddingTop: 12,
-                        borderTopWidth: 1,
-                        borderTopColor: "#fbbf24"
-                      }}>
-                        <Text style={{
-                          fontSize: 15,
-                          color: "#fbbf24",
-                          fontWeight: "bold",
-                          marginBottom: 6,
-                          textAlign: "center"
-                        }}>
-                          📊 OBRÓT DNIA (PLN):
-                        </Text>
-                        <Text style={{
-                          fontSize: 16,
-                          color: "#fbbf24",
-                          fontWeight: "bold",
-                          textAlign: "center"
-                        }}>
-                          {totalTurnoverPln.toFixed(2)} PLN
-                        </Text>
-                        <Text style={{
-                          fontSize: 11,
-                          color: tc('muted', "#9ca3af"),
-                          textAlign: "center",
-                          marginTop: 8,
-                          fontStyle: "italic"
-                        }}>
-                          Suma sprzedaży liczona do obrotu
-                        </Text>
-                      </View>
+                      <DaySummaryRow icon="cash-outline" color="#10B981" label="Sprzedaż gotówką" totals={cashTotals} emptyText="Brak płatności gotówką" />
+                      <DaySummaryRow icon="card-outline" color="#3B82F6" label="Sprzedaż kartą" totals={cardTotals} emptyText="Brak płatności kartą" />
+                      {Object.keys(advancesTotals).length > 0 && (
+                        <DaySummaryRow icon="pricetag-outline" color="#0EA5E9" label="Zaliczki od klientów" totals={advancesTotals} />
+                      )}
+                      {Object.keys(operationsTotals).length > 0 && (
+                        <DaySummaryRow icon="swap-vertical" color="#F59E0B" label="Operacje finansowe (bilans)" totals={operationsTotals} signed />
+                      )}
+
+                      <DayTotalTile
+                        icon="wallet"
+                        color="#10B981"
+                        label="Gotówka w kasie"
+                        caption="Tyle gotówki powinno być w kasie"
+                        totals={finalCashTotals}
+                        signed
+                      />
+                      <DayTotalTile
+                        icon="card"
+                        color="#3B82F6"
+                        label="Zamknięcie terminala"
+                        caption="Płatności kartą na koniec dnia"
+                        totals={Object.fromEntries(Object.entries(finalCardTotals).filter(([, total]) => total !== 0))}
+                      />
+                      <DayTotalTile
+                        icon="stats-chart"
+                        color="#F59E0B"
+                        label="Obrót dnia"
+                        caption="Suma sprzedaży liczona do obrotu"
+                        totals={{ PLN: totalTurnoverPln }}
+                      />
                     </View>
                   );
                 })()}
-                
-                {/* Kasa i waluty - karty jak w panelu admina */}
-                <View style={{
-                  flexDirection: "column",
-                  marginTop: 24,
-                  marginBottom: 20,
-                }}>
-                  <Text style={[styles.sectionLabel, { marginBottom: 12 }]}>Kasa i waluty</Text>
-                  <TouchableOpacity
-                    testID="deduct-amount-button"
-                    style={styles.menuCard}
-                    onPress={() => setDeductionModalVisible(true)}
-                  >
-                    <View style={[styles.menuCardIcon, { backgroundColor: '#DC354526' }]}>
-                      <Ionicons name="remove-circle" size={26} color="#DC3545" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.menuCardTitle}>Odpisz kwotę</Text>
-                      <Text style={styles.menuCardSubtitle}>Wypłata z kasy, zaliczka pracownika, inne wydatki</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    testID="add-amount-button"
-                    style={styles.menuCard}
-                    onPress={() => setAddAmountModalVisible(true)}
-                  >
-                    <View style={[styles.menuCardIcon, { backgroundColor: '#10B98126' }]}>
-                      <Ionicons name="add-circle" size={26} color="#10B981" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.menuCardTitle}>Dopisz kwotę</Text>
-                      <Text style={styles.menuCardSubtitle}>Wpłata do kasy, zaliczka klienta na produkt</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    testID="currency-rates-button"
-                    style={styles.menuCard}
-                    onPress={() => setCurrencyRatesModalVisible(true)}
-                  >
-                    <View style={[styles.menuCardIcon, { backgroundColor: '#0EA5E926' }]}>
-                      <Ionicons name="trending-up" size={26} color="#0EA5E9" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.menuCardTitle}>Aktualne kursy walut</Text>
-                      <Text style={styles.menuCardSubtitle}>Kupno i sprzedaż walut w PLN</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    testID="currency-calculator-button"
-                    style={styles.menuCard}
-                    onPress={() => setCalculatorModalVisible(true)}
-                  >
-                    <View style={[styles.menuCardIcon, { backgroundColor: '#8B5CF626' }]}>
-                      <Ionicons name="calculator" size={26} color="#8B5CF6" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.menuCardTitle}>Kalkulator walut</Text>
-                      <Text style={styles.menuCardSubtitle}>Przelicz kwotę między walutami</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
-                  </TouchableOpacity>
-                </View>
               </View>
             );
           }}
@@ -6284,6 +6106,52 @@ const Home = () => {
   );
 };
 
+// Zamknięcie dnia: wiersz z sumami w walutach
+const formatTotal = (total, signed) => `${signed && total > 0 ? '+' : ''}${Number(total || 0).toFixed(2)}`;
+const DaySummaryRow = ({ icon, color, label, totals, signed = false, emptyText = '-' }) => {
+  const entries = Object.entries(totals || {});
+  return (
+    <View style={styles.daySummaryRow}>
+      <View style={[styles.daySummaryIcon, { backgroundColor: `${color}26` }]}>
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+      <Text style={styles.daySummaryLabel}>{label}</Text>
+      <View style={{ alignItems: 'flex-end' }}>
+        {entries.length === 0 ? (
+          <Text style={styles.daySummaryEmpty}>{emptyText}</Text>
+        ) : entries.map(([currency, total]) => (
+          <Text key={currency} style={[styles.daySummaryValue, total < 0 && { color: '#EF4444' }]}>
+            {formatTotal(total, signed)} {currency}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// Zamknięcie dnia: wyróżniona suma (gotówka w kasie, terminal, obrót)
+const DayTotalTile = ({ icon, color, label, caption, totals, signed = false }) => {
+  const entries = Object.entries(totals || {});
+  return (
+    <View style={[styles.dayTotalTile, { borderColor: `${color}66`, backgroundColor: `${color}14` }]}>
+      <View style={[styles.daySummaryIcon, { backgroundColor: `${color}26` }]}>
+        <Ionicons name={icon} size={20} color={color} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.dayTotalLabel}>{label}</Text>
+        <Text style={styles.dayTotalCaption}>{caption}</Text>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        {(entries.length === 0 ? [['PLN', 0]] : entries).map(([currency, total]) => (
+          <Text key={currency} style={[styles.dayTotalValue, { color: total < 0 ? '#EF4444' : color }]}>
+            {formatTotal(total, signed)} {currency}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 // Karta wyboru w okienkach (zamiast małych kółek): ikona, opis, znacznik zaznaczenia
 const OptionCard = ({ selected, icon, label, onPress, color = '#0D6EFD', testID }) => (
   <TouchableOpacity
@@ -6313,6 +6181,75 @@ const ModalHeader = ({ icon, color = '#0D6EFD', title }) => (
 
 const styles = createThemedStyles(() => StyleSheet.create({
   // ---- wygląd jak w panelu admina ----
+  dayCloseCard: {
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: tc('border', "#1E293B"),
+    padding: 16,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  dayCloseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingBottom: 14,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: tc('border', "#1E293B"),
+  },
+  daySummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: tc('border', "#1E293B"),
+  },
+  daySummaryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  daySummaryLabel: {
+    flex: 1,
+    color: tc('text', "#fff"),
+    fontSize: 15,
+  },
+  daySummaryValue: {
+    color: tc('text', "#fff"),
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  daySummaryEmpty: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
+    fontStyle: "italic",
+  },
+  dayTotalTile: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  dayTotalLabel: {
+    color: tc('text', "#fff"),
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  dayTotalCaption: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dayTotalValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
