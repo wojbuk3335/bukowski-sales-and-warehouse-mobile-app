@@ -3364,7 +3364,7 @@ const Home = () => {
                   <TextInput
                     style={{
                       borderWidth: 1,
-                      borderColor: 'transparent',
+                      borderColor: tc('border', '#475569'),
                       borderRadius: 10,
                       paddingHorizontal: 10,
                       paddingVertical: 8,
@@ -3383,7 +3383,7 @@ const Home = () => {
                   <TextInput
                     style={{
                       borderWidth: 1,
-                      borderColor: 'transparent',
+                      borderColor: tc('border', '#475569'),
                       borderRadius: 10,
                       paddingHorizontal: 10,
                       paddingVertical: 8,
@@ -3402,7 +3402,7 @@ const Home = () => {
                   <View
                     style={{
                       borderWidth: 1,
-                      borderColor: 'transparent',
+                      borderColor: tc('border', '#475569'),
                       borderRadius: 10,
                       paddingHorizontal: 10,
                       paddingVertical: 5,
@@ -3437,14 +3437,14 @@ const Home = () => {
 
                 {/* Cash Payment Section */}
                 <Text style={{ fontSize: 16, marginBottom: 10, textAlign: "center", color: tc('text', "white") }}>Płatność gotówką</Text>
-                <View style={{ width: "100%", borderWidth: 1, borderColor: 'transparent', padding: 20 }}>
+                <View style={{ width: "100%", borderWidth: 1, borderColor: tc('border', '#475569'), padding: 20 }}>
                   {cashPriceCurrencyPairs.map((pair, index) => (
                     <View key={`cash-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
                       <TextInput
                         style={{
                           flex: 1,
                           height: 40,
-                          borderColor: 'transparent',
+                          borderColor: tc('border', '#475569'),
                           borderWidth: 1,
                           borderRadius: 10,
                           paddingHorizontal: 10,
@@ -3467,7 +3467,7 @@ const Home = () => {
                           justifyContent: "center",
                           alignItems: "center",
                           backgroundColor: tc('surface', "black"),
-                          borderColor: 'transparent',
+                          borderColor: tc('border', '#475569'),
                           borderWidth: 1,
                           borderRadius: 10,
                         }}
@@ -3500,14 +3500,14 @@ const Home = () => {
 
                 {/* Card Payment Section */}
                 <Text style={{ fontSize: 16, marginBottom: 10, marginTop: 20, textAlign: "center", color: tc('text', "white") }}>Płatność kartą</Text>
-                <View style={{ width: "100%", borderWidth: 1, borderColor: 'transparent', padding: 20 }}>
+                <View style={{ width: "100%", borderWidth: 1, borderColor: tc('border', '#475569'), padding: 20 }}>
                   {cardPriceCurrencyPairs.map((pair, index) => (
                     <View key={`card-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
                       <TextInput
                         style={{
                           flex: 1,
                           height: 40,
-                          borderColor: 'transparent',
+                          borderColor: tc('border', '#475569'),
                           borderWidth: 1,
                           borderRadius: 10,
                           paddingHorizontal: 10,
@@ -3530,7 +3530,7 @@ const Home = () => {
                           justifyContent: "center",
                           alignItems: "center",
                           backgroundColor: tc('surface', "black"),
-                          borderColor: 'transparent',
+                          borderColor: tc('border', '#475569'),
                           borderWidth: 1,
                           borderRadius: 10,
                         }}
@@ -3582,8 +3582,8 @@ const Home = () => {
                     width: 24,
                     height: 24,
                     borderWidth: 2,
-                    borderColor: 'transparent',
-                    borderRadius: 10,
+                    borderColor: tc('border', '#475569'),
+                    borderRadius: 6,
                     marginRight: 10,
                     backgroundColor: editData?.isPickup ? 'rgb(13, 110, 253)' : 'transparent',
                     alignItems: 'center',
@@ -3605,27 +3605,27 @@ const Home = () => {
                     style={{
                       flex: 1,
                       marginHorizontal: 10,
-                      paddingVertical: 10,
-                      borderRadius: 8,
+                      paddingVertical: 14,
+                      borderRadius: 12,
                       alignItems: "center",
-                      backgroundColor: "gray",
+                      backgroundColor: "#6B7280",
                     }}
                     onPress={() => setEditModalVisible(false)}
                   >
-                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Anuluj</Text>
+                    <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>Anuluj</Text>
                   </Pressable>
                   <Pressable
                     style={{
                       flex: 1,
                       marginHorizontal: 10,
-                      paddingVertical: 10,
-                      borderRadius: 8,
+                      paddingVertical: 14,
+                      borderRadius: 12,
                       alignItems: "center",
-                      backgroundColor: "green",
+                      backgroundColor: "#10B981",
                     }}
                     onPress={updateItem}
                   >
-                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Zapisz</Text>
+                    <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>Zapisz</Text>
                   </Pressable>
                 </View>
                 </View>
@@ -3646,7 +3646,7 @@ const Home = () => {
               style={{
                 backgroundColor: tc('bg', "black"),
                 borderWidth: 1,
-                borderColor: 'transparent',
+                borderColor: tc('border', '#475569'),
               }}
             >
               <View
@@ -3674,9 +3674,9 @@ const Home = () => {
                   onPress={updateFromField}
                   style={{
                     backgroundColor: "#0d6efd",
-                    paddingVertical: 10,
+                    paddingVertical: 14,
                     paddingHorizontal: 20,
-                    borderRadius: 10,
+                    borderRadius: 12,
                     marginBottom: 10,
                   }}
                 >
@@ -3686,9 +3686,9 @@ const Home = () => {
                   onPress={() => setEditFromModalVisible(false)}
                   style={{
                     backgroundColor: "#6c757d",
-                    paddingVertical: 10,
+                    paddingVertical: 14,
                     paddingHorizontal: 20,
-                    borderRadius: 10,
+                    borderRadius: 12,
                   }}
                 >
                   <Text style={{ color: "white", fontWeight: "bold", textAlign: "center" }}>Anuluj</Text>
@@ -3936,7 +3936,7 @@ const Home = () => {
                     fontSize: 16,
                     color: tc('text', 'white'),
                     borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderColor: tc('border', '#475569'),
                     textAlign: 'center',
                   }}
                   placeholder="0.00"
@@ -4028,7 +4028,7 @@ const Home = () => {
                     height: 20,
                     borderRadius: 10,
                     borderWidth: 2,
-                    borderColor: 'transparent',
+                    borderColor: tc('border', '#475569'),
                     marginRight: 10,
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -4059,7 +4059,7 @@ const Home = () => {
                     height: 20,
                     borderRadius: 10,
                     borderWidth: 2,
-                    borderColor: 'transparent',
+                    borderColor: tc('border', '#475569'),
                     marginRight: 10,
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -4115,7 +4115,7 @@ const Home = () => {
                     fontSize: 14,
                     color: tc('text', 'white'),
                     borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderColor: tc('border', '#475569'),
                     minHeight: 80,
                     textAlignVertical: 'top',
                   }}
@@ -4133,16 +4133,16 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#28a745',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                   }}
                   onPress={submitDeduction}
                   testID="submit-deduction-button"
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     Odpisz kwotę
                   </Text>
                 </TouchableOpacity>
@@ -4150,11 +4150,11 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                   }}
                   onPress={() => {
                     setDeductionModalVisible(false);
@@ -4167,7 +4167,7 @@ const Home = () => {
                     setSelectedEmployeeForAdvance(null);
                   }}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -4495,7 +4495,7 @@ const Home = () => {
                             }}
                             onPress={() => setShowProductDropdown(false)}
                           >
-                            <Text style={{ color: tc('text', '#fff'), fontSize: 12, fontWeight: 'bold' }}>×</Text>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>×</Text>
                           </TouchableOpacity>
                           <ScrollView nestedScrollEnabled={true}>
                             {filteredProducts.length > 0 ? (
@@ -4871,16 +4871,16 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#0d6efd',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                   }}
                   onPress={submitAddAmount}
                   testID="submit-addition-button"
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     {isEditingAddAmount ? 'Aktualizuj kwotę' : 'Dopisz kwotę'}
                   </Text>
                 </TouchableOpacity>
@@ -4888,11 +4888,11 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                   }}
                   onPress={() => {
                     setAddAmountModalVisible(false);
@@ -4911,7 +4911,7 @@ const Home = () => {
                     setProductFinalPrice("");
                   }}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -4945,10 +4945,11 @@ const Home = () => {
                     return (
                       <TouchableOpacity
                         key={employee._id}
-                        style={[styles.salespersonOptionButton, {
-                          backgroundColor: isSelected ? '#10b981' : (isAlreadyAssigned ? '#6b7280' : '#0d6efd'),
-                          opacity: isAlreadyAssigned ? 0.6 : 1
-                        }]}
+                        style={[
+                          styles.salespersonOptionButton,
+                          isSelected && { borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+                          isAlreadyAssigned && { opacity: 0.5 },
+                        ]}
                         onPress={() => {
                           if (!isAlreadyAssigned) {
                             toggleSalespersonSelection(employee);
@@ -4968,27 +4969,25 @@ const Home = () => {
                           </View>
                           
                           <View style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
+                            width: 26,
+                            height: 26,
+                            borderRadius: 13,
                             borderWidth: 2,
-                            borderColor: 'transparent',
-                            backgroundColor: isSelected ? '#ffffff' : 'transparent',
+                            borderColor: isSelected ? '#10B981' : tc('border', '#475569'),
+                            backgroundColor: isSelected ? '#10B981' : 'transparent',
                             justifyContent: 'center',
                             alignItems: 'center'
                           }}>
-                            {isSelected && (
-                              <Text style={{ color: '#10b981', fontSize: 16, fontWeight: 'bold' }}>✓</Text>
-                            )}
+                            {isSelected && <Ionicons name="checkmark" size={18} color="#fff" />}
                           </View>
                           
                           {isAlreadyAssigned && (
-                            <Text style={{ 
-                              color: tc('text', '#ffffff'), 
-                              fontSize: 12, 
+                            <Text style={{
+                              color: tc('muted', '#94A3B8'),
+                              fontSize: 12,
                               fontWeight: 'bold',
                               marginLeft: 8,
-                              backgroundColor: 'rgba(0,0,0,0.3)',
+                              backgroundColor: tc('surface3', 'rgba(255,255,255,0.08)'),
                               paddingHorizontal: 6,
                               paddingVertical: 2,
                               borderRadius: 10
@@ -5016,11 +5015,9 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#10b981',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                     flex: 1,
                     marginRight: 8,
                     alignItems: 'center'
@@ -5031,19 +5028,17 @@ const Home = () => {
                     }
                   }}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
-                    ✓ Dodaj ({selectedSalespeople.length})
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                    Dodaj ({selectedSalespeople.length})
                   </Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#ef4444',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                     flex: 1,
                     marginLeft: 8,
                     alignItems: 'center'
@@ -5053,7 +5048,7 @@ const Home = () => {
                     setSelectedSalespeople([]);
                   }}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>✕ Anuluj</Text>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -5142,7 +5137,7 @@ const Home = () => {
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <TouchableOpacity
                               onPress={() => setShowStartTimePicker(false)}
-                              style={{ backgroundColor: '#6b7280', padding: 12, borderRadius: 8, flex: 1, marginRight: 8 }}
+                              style={{ backgroundColor: '#6b7280', padding: 14, borderRadius: 12, flex: 1, marginRight: 8 }}
                             >
                               <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
                             </TouchableOpacity>
@@ -5151,7 +5146,7 @@ const Home = () => {
                                 setWorkStartTime(`${tempHour.toString().padStart(2, '0')}:${tempMinute.toString().padStart(2, '0')}`);
                                 setShowStartTimePicker(false);
                               }}
-                              style={{ backgroundColor: '#3b82f6', padding: 12, borderRadius: 8, flex: 1, marginLeft: 8 }}
+                              style={{ backgroundColor: '#3b82f6', padding: 14, borderRadius: 12, flex: 1, marginLeft: 8 }}
                             >
                               <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>OK</Text>
                             </TouchableOpacity>
@@ -5219,7 +5214,7 @@ const Home = () => {
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <TouchableOpacity
                               onPress={() => setShowEndTimePicker(false)}
-                              style={{ backgroundColor: '#6b7280', padding: 12, borderRadius: 8, flex: 1, marginRight: 8 }}
+                              style={{ backgroundColor: '#6b7280', padding: 14, borderRadius: 12, flex: 1, marginRight: 8 }}
                             >
                               <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
                             </TouchableOpacity>
@@ -5228,7 +5223,7 @@ const Home = () => {
                                 setWorkEndTime(`${tempHour.toString().padStart(2, '0')}:${tempMinute.toString().padStart(2, '0')}`);
                                 setShowEndTimePicker(false);
                               }}
-                              style={{ backgroundColor: '#3b82f6', padding: 12, borderRadius: 8, flex: 1, marginLeft: 8 }}
+                              style={{ backgroundColor: '#3b82f6', padding: 14, borderRadius: 12, flex: 1, marginLeft: 8 }}
                             >
                               <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>OK</Text>
                             </TouchableOpacity>
@@ -5280,15 +5275,15 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#0D6EFD',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                   }}
                   onPress={saveWorkHours}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     Zapisz
                   </Text>
                 </TouchableOpacity>
@@ -5296,17 +5291,17 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                   }}
                   onPress={() => {
                     closeWorkHoursModal();
                   }}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     ✕ Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -5387,35 +5382,31 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#ef4444',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                     flex: 1,
                     marginRight: 8,
                     alignItems: 'center'
                   }}
                   onPress={() => setConfirmDeleteModalVisible(false)}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>✕ Anuluj</Text>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                     flex: 1,
                     marginLeft: 8,
                     alignItems: 'center'
                   }}
                   onPress={handleDeleteConfirm}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>✓ Usuń</Text>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✓ Usuń</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -5445,18 +5436,16 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                     flex: 1,
                     marginRight: 8,
                     alignItems: 'center'
                   }}
                   onPress={() => handleRemoveEmployee(true)}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     ✓ Usuń
                   </Text>
                 </TouchableOpacity>
@@ -5464,18 +5453,16 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#ef4444',
-                    paddingVertical: 8,
+                    paddingVertical: 14,
                     paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
+                    borderRadius: 12,
                     flex: 1,
                     marginLeft: 8,
                     alignItems: 'center'
                   }}
                   onPress={cancelRemoveEmployee}
                 >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 12, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                     ✕ Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -5837,7 +5824,7 @@ const Home = () => {
                             borderRadius: 12,
                             backgroundColor: isSelected ? '#ffffff' : 'transparent',
                             borderWidth: 2,
-                            borderColor: 'transparent',
+                            borderColor: tc('border', '#475569'),
                             justifyContent: 'center',
                             alignItems: 'center'
                           }}>
@@ -7095,9 +7082,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 8,
   },
   workHoursModalButton: {
-    paddingVertical: 8,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 6,
+    borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'white',
