@@ -10,7 +10,8 @@ import Logger from "../../services/logger"; // Import logger service
 import AuthFix from "../../components/AuthFix";
 import LogoutButton from "../../components/LogoutButton";
 import { appAlert } from '../../services/appAlert';
-
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { ActionItem, ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -786,45 +787,34 @@ const fetchSales = async () => {
                     <FlatList
                         testID="writeoff-flatlist"
                         ListHeaderComponent={
-                            <View>
-                                <Text style={styles.headerText}>
-                                    Stan użytkownika: {user?.email || "Nieznany użytkownik"}
-                                </Text>
-                                <Text style={styles.productCountText}>
-                                    Produktów: {filteredData.length}
-                                </Text>
-                            </View>
+                            <ScreenHeader icon="layers" title="Stan" subtitle={user?.email || "Nieznany użytkownik"}>
+                                <View style={look.chip}>
+                                    <Ionicons name="cube-outline" size={16} color="#0D6EFD" />
+                                    <Text style={look.chipText}>Produktów: {filteredData.length}</Text>
+                                </View>
+                            </ScreenHeader>
                         }
-                        contentContainerStyle={{ paddingHorizontal: 0, paddingBottom: Math.max(120, insets.bottom + 120) }}
+                        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
                         data={filteredData}
                         keyExtractor={(item) => item.id}
                         onRefresh={() => fetchAllRequiredData(true)} // true = to jest refresh action
                         refreshing={isRefreshing} // Używamy isRefreshing zamiast isLoading
                         renderItem={({ item, index }) => (
                             <View
-                                style={[
-                                    styles.item,
-                                    { marginHorizontal: 0 }, // Remove side margins
-                                ]}
+                                style={look.itemCard}
                             >
                                 <Text 
-                                    style={[
-                                        styles.itemTextLeft,
-                                        {
-                                            fontSize: (item.fullName?.length || 0) + (item.size?.length || 0) > 20 ? 10 : 12,
-                                            fontWeight: "bold",
-                                        },
-                                    ]} 
+                                    style={look.itemCardText} 
                                     numberOfLines={1}
                                 >
-                                    {index + 1}. {item.fullName}   {item.size}
+                                    {index + 1}. {item.fullName}  {item.size}
                                 </Text>
                                 <TouchableOpacity
                                     onPress={() => openModal(item)}
-                                    style={styles.dotsButton}
+                                    style={look.dotsButton}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 >
-                                    <Text style={styles.dotsText}>⋮</Text>
+                                    <Text style={look.dotsText}>⋮</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
@@ -837,48 +827,45 @@ const fetchSales = async () => {
                 animationType="slide"
                 onRequestClose={closeModal}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Opcje</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="ellipsis-horizontal-circle" color="#0D6EFD" title="Opcje" />
                         {selectedItem ? (
                             <>
-                                <TouchableOpacity
-                                    style={styles.optionButton}
+                                <ActionItem
+                                    icon="swap-horizontal"
+                                    label="Przepisz do"
                                     onPress={() => {
                                         setModalVisible(false);
                                         setTransferModalVisible(true);
                                     }}
-                                >
-                                    <Text style={styles.optionText}>Przepisz do</Text>
-                                </TouchableOpacity>
+                                />
                                 {(user?.symbol === 'most' || user?.email === 'most@wp.pl') && (
-                                    <TouchableOpacity
-                                        style={[styles.optionButton, { backgroundColor: '#28a745' }]}
+                                    <ActionItem
+                                        icon="person"
+                                        color="#10B981"
+                                        label="Od Pana Kazka"
                                         onPress={() => handlePanKazekTransfer()}
-                                    >
-                                        <Text style={styles.optionText}>Od Pana Kazka</Text>
-                                    </TouchableOpacity>
+                                    />
                                 )}
-                                <TouchableOpacity
-                                    style={[styles.optionButton, { backgroundColor: '#ff9800' }]}
+                                <ActionItem
+                                    icon="repeat"
+                                    color="#FF9800"
+                                    label="Wymiana"
                                     onPress={() => {
                                         setModalVisible(false);
                                         setExchangeModalVisible(true);
                                     }}
-                                >
-                                    <Text style={styles.optionText}>Wymiana</Text>
-                                </TouchableOpacity>
+                                />
                             </>
                         ) : (
-                            <View style={[styles.optionButton, styles.disabledButton]}>
-                                <Text style={styles.optionText}>Brak wybranego produktu</Text>
-                            </View>
+                            <Text style={look.modalMessage}>Brak wybranego produktu</Text>
                         )}
                         <TouchableOpacity
-                            style={[styles.optionButton, styles.closeButton]}
+                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                             onPress={closeModal}
                         >
-                            <Text style={styles.closeText}>Anuluj</Text>
+                            <Text style={look.neutralButtonText}>Anuluj</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -889,23 +876,24 @@ const fetchSales = async () => {
                 animationType="slide"
                 onRequestClose={() => setTransferModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Wybierz użytkownika</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="swap-horizontal" color="#0D6EFD" title="Wybierz użytkownika" />
                         {/* MAGAZYN option at the top */}
-                        <TouchableOpacity
-                            style={[styles.optionButton, styles.magazynButton]}
+                        <ActionItem
+                            icon="archive"
+                            color="#F59E0B"
+                            label="MAGAZYN"
                             onPress={() => {
                                 setTransferModalVisible(false);
                                 setMagazynReasonModalVisible(true);
                             }}
-                        >
-                            <Text style={styles.optionText}>MAGAZYN</Text>
-                        </TouchableOpacity>
+                        />
                         {users.map((item) => (
-                            <TouchableOpacity
+                            <ActionItem
                                 key={item._id}
-                                style={styles.optionButton}
+                                icon={item.role && item.role.toLowerCase() === 'dom' ? 'home-outline' : 'storefront-outline'}
+                                label={item.symbol}
                                 onPress={() => {
                                     if (item.role && item.role.toLowerCase() === 'dom') {
                                         // Dla użytkownika Dom pokaż modal powodów
@@ -916,15 +904,13 @@ const fetchSales = async () => {
                                         initiateTransfer(item.symbol);
                                     }
                                 }}
-                            >
-                                <Text style={styles.optionText}>{item.symbol}</Text>
-                            </TouchableOpacity>
+                            />
                         ))}
                         <TouchableOpacity
-                            style={[styles.optionButton, styles.closeButton]}
+                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                             onPress={() => setTransferModalVisible(false)}
                         >
-                            <Text style={styles.closeText}>Zamknij</Text>
+                            <Text style={look.neutralButtonText}>Zamknij</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -937,21 +923,21 @@ const fetchSales = async () => {
                 animationType="slide"
                 onRequestClose={handleCloseError}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Błąd połączenia</Text>
-                        <Text style={styles.modalMessage}>{errorMessage}</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="cloud-offline" color="#DC3545" title="Błąd połączenia" />
+                        <Text style={look.modalMessage}>{errorMessage}</Text>
                         <TouchableOpacity
-                            style={styles.optionButton}
+                            style={[look.primaryButton, { flex: 0 }]}
                             onPress={handleRetry}
                         >
-                            <Text style={styles.optionText}>Spróbuj ponownie</Text>
+                            <Text style={look.buttonText}>Spróbuj ponownie</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.optionButton, styles.closeButton]}
+                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                             onPress={handleCloseError}
                         >
-                            <Text style={styles.closeText}>Zamknij</Text>
+                            <Text style={look.neutralButtonText}>Zamknij</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -970,61 +956,49 @@ const fetchSales = async () => {
                     setSelectedCurrency("PLN");
                 }}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { width: '85%' }]}>
-                        <Text style={styles.modalTitle}>Powód przepisania do domu</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="home" color="#0D6EFD" title="Powód przepisania do domu" />
                         
                         {/* Radio buttons dla powodów */}
-                        <View style={styles.radioContainer}>
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                        <View style={{ marginBottom: 8 }}>
+                            <OptionCard
+                                icon="cut-outline"
+                                label="Skracanie rękawów"
+                                selected={selectedReason === 'skracanie rękawów'}
                                 onPress={() => setSelectedReason('skracanie rękawów')}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'skracanie rękawów' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Skracanie rękawów</Text>
-                            </TouchableOpacity>
+                            />
                             
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                            <OptionCard
+                                icon="construct-outline"
+                                label="Przeróbka"
+                                selected={selectedReason === 'przeróbka'}
                                 onPress={() => setSelectedReason('przeróbka')}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'przeróbka' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Przeróbka</Text>
-                            </TouchableOpacity>
+                            />
                             
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                            <OptionCard
+                                icon="paper-plane-outline"
+                                label="Wysyłka"
+                                selected={selectedReason === 'wysyłka'}
                                 onPress={() => setSelectedReason('wysyłka')}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'wysyłka' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Wysyłka</Text>
-                            </TouchableOpacity>
+                            />
                             
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                            <OptionCard
+                                icon="create-outline"
+                                label="Inny powód"
+                                selected={selectedReason === 'custom'}
                                 onPress={() => {
                                     setSelectedReason('custom');
                                     setCustomReason(''); // Wyczyść poprzedni tekst
                                 }}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'custom' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Inny powód</Text>
-                            </TouchableOpacity>
+                            />
                         </View>
                         
                         {/* Pole tekstowe dla niestandardowego powodu */}
                         {selectedReason === 'custom' && (
-                            <View style={styles.customReasonContainer}>
+                            <View style={{ marginBottom: 8 }}>
                                 <TextInput
-                                    style={styles.customReasonInput}
+                                    style={look.formInput}
                                     placeholder="Wpisz powód (max 12 znaków)..."
                                     placeholderTextColor={tc('muted', "#999")}
                                     value={customReason}
@@ -1045,11 +1019,11 @@ const fetchSales = async () => {
                         )}
                         
                         {/* Sekcja zaliczki */}
-                        <View style={styles.advanceSection}>
-                            <Text style={styles.advanceTitle}>Zaliczka (opcjonalnie)</Text>
+                        <View style={{ marginTop: 8, marginBottom: 12 }}>
+                            <Text style={look.formLabel}>Zaliczka (opcjonalnie)</Text>
                             <View style={styles.advanceRow}>
                                 <TextInput
-                                    style={styles.advanceInput}
+                                    style={[look.formInput, { flex: 1, marginRight: 10 }]}
                                     placeholder="0.00"
                                     placeholderTextColor={tc('muted', "#ccc")}
                                     value={advanceAmount}
@@ -1057,26 +1031,27 @@ const fetchSales = async () => {
                                     keyboardType="numeric"
                                 />
                                 <TouchableOpacity
-                                    style={styles.currencyButton}
+                                    style={[look.selectField, { minWidth: 100 }]}
                                     onPress={() => setShowCurrencyModal(true)}
                                 >
-                                    <Text style={styles.currencyButtonText}>{selectedCurrency}</Text>
+                                    <Text style={look.selectFieldText}>{selectedCurrency}</Text>
+                                    <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
                                 </TouchableOpacity>
                             </View>
                         </View>
                         
                         {/* Przyciski akcji */}
-                        <View style={styles.actionButtons}>
+                        <View style={look.buttonRow}>
                             <TouchableOpacity
-                                style={[styles.optionButton, styles.submitButton, !selectedReason && styles.disabledButton]}
+                                style={[look.primaryButton, { backgroundColor: '#10B981' }, !selectedReason && look.disabled]}
                                 onPress={handleFinalSubmit}
                                 disabled={!selectedReason}
                             >
-                                <Text style={styles.optionText}>Zatwierdź</Text>
+                                <Text style={look.buttonText}>Zatwierdź</Text>
                             </TouchableOpacity>
                             
                             <TouchableOpacity
-                                style={[styles.optionButton, styles.closeButton]}
+                                style={look.neutralButton}
                                 onPress={() => {
                                     setDomReasonModalVisible(false);
                                     setCustomReason("");
@@ -1085,7 +1060,7 @@ const fetchSales = async () => {
                                     setSelectedCurrency("PLN");
                                 }}
                             >
-                                <Text style={styles.closeText}>Anuluj</Text>
+                                <Text style={look.neutralButtonText}>Anuluj</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -1103,51 +1078,42 @@ const fetchSales = async () => {
                     setSelectedReason("");
                 }}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { width: '85%' }]}>
-                        <Text style={styles.modalTitle}>Czy na pewno chcesz przepisać kurtkę do MAGAZYNy?</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="archive" color="#F59E0B" title="Przepisać kurtkę do magazynu?" />
                         
                         {/* Radio buttons dla powodów */}
-                        <View style={styles.radioContainer}>
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                        <View style={{ marginBottom: 8 }}>
+                            <OptionCard
+                                icon="construct-outline"
+                                label="Przeróbka"
+                                selected={selectedReason === 'przeróbka'}
                                 onPress={() => setSelectedReason('przeróbka')}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'przeróbka' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Przeróbka</Text>
-                            </TouchableOpacity>
+                            />
                             
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                            <OptionCard
+                                icon="paper-plane-outline"
+                                label="Wysyłka"
+                                selected={selectedReason === 'wysyłka'}
                                 onPress={() => setSelectedReason('wysyłka')}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'wysyłka' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Wysyłka</Text>
-                            </TouchableOpacity>
+                            />
                             
-                            <TouchableOpacity
-                                style={styles.radioOption}
+                            <OptionCard
+                                icon="create-outline"
+                                label="Inny powód"
+                                selected={selectedReason === 'custom'}
                                 onPress={() => {
                                     setSelectedReason('custom');
                                     setCustomReason(''); // Wyczyść poprzedni tekst
                                 }}
-                            >
-                                <View style={styles.radioButton}>
-                                    {selectedReason === 'custom' && <View style={styles.radioButtonSelected} />}
-                                </View>
-                                <Text style={styles.radioText}>Inny powód</Text>
-                            </TouchableOpacity>
+                            />
                         </View>
                         
                         {/* Pole tekstowe dla niestandardowego powodu */}
                         {selectedReason === 'custom' && (
-                            <View style={styles.customReasonContainer}>
+                            <View style={{ marginBottom: 8 }}>
                                 <TextInput
-                                    style={styles.customReasonInput}
+                                    style={look.formInput}
                                     placeholder="Wpisz powód (max 12 znaków)..."
                                     placeholderTextColor={tc('muted', "#999")}
                                     value={customReason}
@@ -1168,24 +1134,24 @@ const fetchSales = async () => {
                         )}
                         
                         {/* Przyciski akcji */}
-                        <View style={styles.actionButtons}>
+                        <View style={look.buttonRow}>
                             <TouchableOpacity
-                                style={[styles.optionButton, styles.submitButton, !selectedReason && styles.disabledButton]}
+                                style={[look.primaryButton, { backgroundColor: '#10B981' }, !selectedReason && look.disabled]}
                                 onPress={handleMagazynFinalSubmit}
                                 disabled={!selectedReason}
                             >
-                                <Text style={styles.optionText}>Zatwierdź</Text>
+                                <Text style={look.buttonText}>Zatwierdź</Text>
                             </TouchableOpacity>
                             
                             <TouchableOpacity
-                                style={[styles.optionButton, styles.closeButton]}
+                                style={look.neutralButton}
                                 onPress={() => {
                                     setMagazynReasonModalVisible(false);
                                     setCustomReason("");
                                     setSelectedReason("");
                                 }}
                             >
-                                <Text style={styles.closeText}>Anuluj</Text>
+                                <Text style={look.neutralButtonText}>Anuluj</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -1199,26 +1165,27 @@ const fetchSales = async () => {
                 animationType="slide"
                 onRequestClose={() => setShowCurrencyModal(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Wybierz walutę</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="cash" color="#10B981" title="Wybierz walutę" />
                         {['PLN', 'EUR', 'USD', 'CZK'].map((currency) => (
-                            <TouchableOpacity
+                            <OptionCard
                                 key={currency}
-                                style={styles.optionButton}
+                                icon="cash-outline"
+                                color="#10B981"
+                                label={currency}
+                                selected={selectedCurrency === currency}
                                 onPress={() => {
                                     setSelectedCurrency(currency);
                                     setShowCurrencyModal(false);
                                 }}
-                            >
-                                <Text style={styles.optionText}>{currency}</Text>
-                            </TouchableOpacity>
+                            />
                         ))}
                         <TouchableOpacity
-                            style={[styles.optionButton, styles.closeButton]}
+                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                             onPress={() => setShowCurrencyModal(false)}
                         >
-                            <Text style={styles.closeText}>Anuluj</Text>
+                            <Text style={look.neutralButtonText}>Anuluj</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1231,21 +1198,17 @@ const fetchSales = async () => {
                 visible={successModalVisible}
                 onRequestClose={() => setSuccessModalVisible(false)}
             >
-                <View style={styles.successModalOverlay}>
-                    <View style={styles.successModalContent}>
-                        <View style={styles.successIconContainer}>
-                            <Text style={styles.successIcon}>✓</Text>
-                        </View>
-                        <Text style={styles.successModalTitle}>Sukces!</Text>
-                        <Text style={styles.successModalMessage}>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="checkmark-circle" color="#10B981" title="Gotowe" />
+                        <Text style={look.modalMessage}>
                             {successMessage}
                         </Text>
-                        
                         <TouchableOpacity
-                            style={[styles.optionButton, { backgroundColor: '#007bff', marginTop: 20, width: '90%' }]}
+                            style={[look.primaryButton, { flex: 0 }]}
                             onPress={() => setSuccessModalVisible(false)}
                         >
-                            <Text style={styles.optionText}>OK</Text>
+                            <Text style={look.buttonText}>OK</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1258,10 +1221,10 @@ const fetchSales = async () => {
                 animationType="slide"
                 onRequestClose={() => setPanKazekModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Potwierdzenie</Text>
-                        <Text style={styles.modalMessage}>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="help-circle" color="#10B981" title="Potwierdzenie" />
+                        <Text style={look.modalMessage}>
                             Czy chcesz dodać tę kurtkę do listy "Od Pana Kazka"?
                         </Text>
                         {selectedItem && (
@@ -1275,16 +1238,16 @@ const fetchSales = async () => {
                             </View>
                         )}
                         <TouchableOpacity
-                            style={[styles.optionButton, { backgroundColor: '#28a745' }]}
+                            style={[look.primaryButton, { flex: 0, backgroundColor: '#10B981' }]}
                             onPress={confirmPanKazekTransfer}
                         >
-                            <Text style={styles.optionText}>Tak, dodaj</Text>
+                            <Text style={look.buttonText}>Tak, dodaj</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.optionButton, styles.closeButton]}
+                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                             onPress={() => setPanKazekModalVisible(false)}
                         >
-                            <Text style={styles.closeText}>Anuluj</Text>
+                            <Text style={look.neutralButtonText}>Anuluj</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1297,9 +1260,9 @@ const fetchSales = async () => {
                 animationType="slide"
                 onRequestClose={() => setExchangeModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Wybierz stanowisko wymiany</Text>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        <ModalHeader icon="repeat" color="#FF9800" title="Wybierz stanowisko wymiany" />
                         {selectedItem && (
                             <View style={{ marginVertical: 10 }}>
                                 <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center' }}>
@@ -1308,19 +1271,19 @@ const fetchSales = async () => {
                             </View>
                         )}
                         {exchangeUsers.map((item) => (
-                            <TouchableOpacity
+                            <ActionItem
                                 key={item._id}
-                                style={styles.optionButton}
+                                icon="storefront-outline"
+                                color="#FF9800"
+                                label={item.symbol}
                                 onPress={() => handleExchange(item.symbol)}
-                            >
-                                <Text style={styles.optionText}>{item.symbol}</Text>
-                            </TouchableOpacity>
+                            />
                         ))}
                         <TouchableOpacity
-                            style={[styles.optionButton, styles.closeButton]}
+                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                             onPress={() => setExchangeModalVisible(false)}
                         >
-                            <Text style={styles.closeText}>Anuluj</Text>
+                            <Text style={look.neutralButtonText}>Anuluj</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
