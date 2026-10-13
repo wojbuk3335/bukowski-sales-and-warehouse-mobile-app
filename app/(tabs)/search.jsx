@@ -1,17 +1,17 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useCallback, useContext, useState } from 'react';
-import { FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlobalStateContext } from '../../context/GlobalState';
 import Logger from '../../services/logger'; // Import logger service
 import QRScannerSearch from '../QRScannerSearch';
 import LogoutButton from '../../components/LogoutButton';
-
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { BackButton, MenuCard, ScreenHeader, look } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const SearchScreen = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
-  const [modalVisible, setModalVisible] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -21,11 +21,9 @@ const SearchScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      setModalVisible(true);
       setShowQR(false);
       setShowSearchBar(false);
       return () => {
-        setModalVisible(false);
         setShowQR(false);
         setShowSearchBar(false);
       };
@@ -89,15 +87,15 @@ const SearchScreen = () => {
           goods={goods}
           isActive={isFocused}
         />
-        <TouchableOpacity
-          style={[styles.optionButton, { width: '100%', alignSelf: 'stretch' }]}
-          onPress={() => {
-            setShowQR(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={styles.optionText}>Powrót</Text>
-        </TouchableOpacity>
+        <View style={{ padding: 16, paddingBottom: Math.max(16, insets.bottom + 8), backgroundColor: tc('bg', 'black') }}>
+          <TouchableOpacity
+            style={[look.neutralButton, { flex: 0, flexDirection: 'row', gap: 8 }]}
+            onPress={() => setShowQR(false)}
+          >
+            <Ionicons name="chevron-back" size={20} color={tc('text', '#fff')} />
+            <Text style={look.neutralButtonText}>Powrót</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -106,64 +104,50 @@ const SearchScreen = () => {
     return (
       <View style={styles.searchBarContainer}>
         <View style={styles.searchBarRow}>
-          <TextInput
-            style={styles.searchBar}
-            placeholder="Szukaj..."
-            placeholderTextColor={tc('muted', "#888")}
-            value={searchText}
-            onChangeText={setSearchText}
-            autoFocus
-          />
+          <BackButton testID="search-back-button" onPress={() => setShowSearchBar(false)} />
+          <View style={styles.searchField}>
+            <Ionicons name="search" size={20} color={tc('muted', '#94A3B8')} />
+            <TextInput
+              style={styles.searchBar}
+              placeholder="Nazwa, kolor, rozmiar, kod, punkt..."
+              placeholderTextColor={tc('muted', "#888")}
+              value={searchText}
+              onChangeText={setSearchText}
+              autoFocus
+            />
+            {!!searchText && (
+              <TouchableOpacity accessibilityLabel="Wyczyść" onPress={() => setSearchText('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close-circle" size={20} color={tc('muted', '#94A3B8')} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-        <View style={{ paddingHorizontal: 16 }}>
-          <TouchableOpacity
-            style={[styles.optionButton, { 
-              marginBottom: 16, 
-              width: '100%'
-            }]}
-            onPress={() => {
-              setShowSearchBar(false);
-              setModalVisible(true);
-            }}
-          >
-            <Text style={styles.optionText}>Powrót</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.resultCount}>Wyników: {filteredData.length}</Text>
         <FlatList
           testID="search-flatlist"
-          contentContainerStyle={{ paddingHorizontal: 0, paddingBottom: Math.max(120, insets.bottom + 120) }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
           data={filteredData}
           keyExtractor={item => item.id}
           onRefresh={handleRefresh} // Dodano funkcję odświeżania
           refreshing={isRefreshing} // Dodano stan odświeżania
           renderItem={({ item, index }) => (
-            <View
-              style={[
-                styles.item,
-                { marginHorizontal: 0 }, // Remove side margins - same as writeoff.jsx
-              ]}
-            >
-              <Text 
-                style={[
-                  styles.itemTextLeft,
-                  {
-                    fontSize: (item.fullName?.length || 0) + (item.size?.length || 0) > 20 ? 10 : 12,
-                    fontWeight: "bold",
-                  },
-                ]} 
-                numberOfLines={1}
-              >
-                {index + 1}. {item.fullName}   {item.size}   {item.barcode}
-              </Text>
-              <View
-                style={styles.dotsButton}
-              >
-                <Text style={styles.dotsText}>{item.symbol}</Text>
+            <View style={look.itemCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={look.itemCardText} numberOfLines={1}>
+                  {index + 1}. {item.fullName}  {item.size}
+                </Text>
+                {!!item.barcode && <Text style={styles.barcodeText}>{item.barcode}</Text>}
+              </View>
+              <View style={look.pill}>
+                <Text style={look.pillText}>{item.symbol}</Text>
               </View>
             </View>
           )}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Brak wyników</Text>
+            <View style={look.emptyState}>
+              <Ionicons name="search-outline" size={40} color={tc('muted', '#94A3B8')} />
+              <Text style={look.emptyStateText}>Brak wyników</Text>
+            </View>
           }
           keyboardShouldPersistTaps="handled"
         />
@@ -174,42 +158,25 @@ const SearchScreen = () => {
   return (
     <View style={styles.container}>
       <LogoutButton position="top-right" />
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Wybierz opcję wyszukiwania</Text>
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={() => {
-                setModalVisible(false);
-                setShowQR(true);
-              }}
-            >
-              <Text style={styles.optionText}>📱 Wyszukaj po kodzie</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={() => {
-                setModalVisible(false);
-                setShowSearchBar(true);
-              }}
-            >
-              <Text style={styles.optionText}>🔍 Wyszukaj w wyszukiwarce</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.optionButton, styles.closeButton]}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.closeText}>✕ Zamknij</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <View style={{ paddingHorizontal: 12 }}>
+        <ScreenHeader icon="search" title="Szukaj" subtitle="Znajdź produkt w stanach wszystkich punktów" />
+        <MenuCard
+          testID="search-by-code"
+          icon="barcode-outline"
+          color="#0D6EFD"
+          title="Wyszukaj po kodzie"
+          subtitle="Zeskanuj kod kreskowy aparatem"
+          onPress={() => setShowQR(true)}
+        />
+        <MenuCard
+          testID="search-by-text"
+          icon="search"
+          color="#10B981"
+          title="Wyszukaj w wyszukiwarce"
+          subtitle="Nazwa, kolor, rozmiar, kod albo punkt"
+          onPress={() => setShowSearchBar(true)}
+        />
+      </View>
     </View>
   );
 };
@@ -279,24 +246,43 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
     backgroundColor: tc('bg', 'black'),
     justifyContent: 'flex-start',
-    paddingTop: 40,
-    paddingHorizontal: 0, // Changed from 16 to 0 to match writeoff.jsx
+    paddingTop: 48,
   },
   searchBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 16, // Add padding only to search row
+    gap: 10,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  searchField: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
   },
   searchBar: {
     flex: 1,
-    backgroundColor: tc('surface', 'black'),
     color: tc('text', '#fff'),
-    borderRadius: 8,
-    padding: 12,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: tc('border', '#333'),
+    paddingVertical: 0,
+  },
+  resultCount: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 13,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  barcodeText: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 2,
   },
   listItem: {
     paddingVertical: 12,

@@ -3,7 +3,7 @@ import { useContext, useState } from "react";
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { GlobalStateContext } from "../context/GlobalState"; // Adjust the import path as necessary
-
+import { ModalHeader, look } from '../components/AdminLook';
 const QRScannerSearch = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [facing, setFacing] = useState("back");
@@ -108,25 +108,23 @@ const QRScannerSearch = () => {
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Znalezione produkty</Text>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="barcode-outline" color="#0D6EFD" title="Znalezione produkty" subtitle={`Pozycji: ${matchedItems.length}`} />
             <FlatList
               data={matchedItems}
               keyExtractor={item => item.id}
               style={{ width: '100%' }}
               renderItem={({ item, index }) => (
-                <View
-                  style={[
-                    styles.itemContainer,
-                    { marginHorizontal: 0 },
-                  ]}
-                >
-                  <Text style={styles.itemText} numberOfLines={1}>
-                    {index + 1}. {item.fullName}   {item.size}   {item.barcode}
-                  </Text>
-                  <View style={styles.dotsButton}>
-                    <Text style={styles.dotsText}>{item.symbol}</Text>
+                <View style={look.itemCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={look.itemCardText} numberOfLines={1}>
+                      {index + 1}. {item.fullName}  {item.size}
+                    </Text>
+                    {!!item.barcode && <Text style={styles.barcodeText}>{item.barcode}</Text>}
+                  </View>
+                  <View style={look.pill}>
+                    <Text style={look.pillText}>{item.symbol}</Text>
                   </View>
                 </View>
               )}
@@ -135,10 +133,10 @@ const QRScannerSearch = () => {
               }
             />
             <TouchableOpacity
-              style={styles.closeButton}
+              style={[look.neutralButton, { flex: 0, marginTop: 12 }]}
               onPress={() => setModalVisible(false)}
             >
-              <Text style={styles.closeButtonText}>Zamknij</Text>
+              <Text style={look.neutralButtonText}>Zamknij</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -160,8 +158,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: 250,
     height: 250,
     borderWidth: 2,
-    borderColor: "white",
-    borderRadius: 10,
+    borderColor: "#0D6EFD",
+    borderRadius: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -219,6 +217,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: "white",
     fontSize: 12, // Same as search.jsx
     fontWeight: "bold",
+  },
+  barcodeText: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 2,
   },
   emptyText: {
     color: tc('muted', '#888'),

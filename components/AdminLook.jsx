@@ -52,6 +52,27 @@ export const OptionCard = ({ selected, icon, label, onPress, color = '#0D6EFD', 
   </TouchableOpacity>
 );
 
+/** Duża karta menu (jak w panelu admina): kafelek z ikoną, tytuł, opis, strzałka. */
+export const MenuCard = ({ icon, color = '#0D6EFD', title, subtitle, onPress, testID }) => (
+  <TouchableOpacity testID={testID} style={look.menuCard} onPress={onPress}>
+    <View style={[look.menuCardIcon, { backgroundColor: `${color}26` }]}>
+      <Ionicons name={icon} size={26} color={color} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={look.menuCardTitle}>{title}</Text>
+      {!!subtitle && <Text style={look.menuCardSubtitle}>{subtitle}</Text>}
+    </View>
+    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+  </TouchableOpacity>
+);
+
+/** Przycisk „wstecz” (kafelek ze strzałką) - np. obok pola wyszukiwania. */
+export const BackButton = ({ onPress, testID }) => (
+  <TouchableOpacity testID={testID} accessibilityLabel="Powrót" style={look.backButton} onPress={onPress}>
+    <Ionicons name="chevron-back" size={24} color={tc('text', '#fff')} />
+  </TouchableOpacity>
+);
+
 /** Pozycja menu w okienku akcji: ikona w kolorze akcji, tytuł, strzałka. */
 export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, disabled = false }) => (
   <TouchableOpacity testID={testID} disabled={disabled} style={[look.actionItem, disabled && { opacity: 0.5 }]} onPress={onPress}>
@@ -110,6 +131,67 @@ export const look = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
     fontSize: 13,
     fontWeight: '600',
+  },
+  menuCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: tc('surface', '#161622'),
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+  },
+  menuCardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  menuCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: tc('text', '#fff'),
+    marginBottom: 3,
+  },
+  menuCardSubtitle: {
+    fontSize: 13,
+    color: tc('muted', '#94A3B8'),
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+  },
+  pill: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(13, 110, 253, 0.4)',
+    marginLeft: 8,
+  },
+  pillText: {
+    color: tc('text', '#fff'),
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  emptyStateText: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 14,
+    marginTop: 8,
   },
   sectionLabel: {
     fontSize: 16,
