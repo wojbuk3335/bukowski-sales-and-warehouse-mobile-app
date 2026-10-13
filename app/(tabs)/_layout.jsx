@@ -27,13 +27,12 @@ const TabIcon = ({ iconName, color, name, focused }) => (
   </View>
 );
 
-// „Dodaj” - wyróżniony okrągły przycisk pośrodku menu
+// „Dodaj” - wyróżniony okrągły przycisk pośrodku menu (bez podpisu)
 const AddTabIcon = ({ focused }) => (
   <View style={styles.tabIconContainer}>
     <View style={[styles.addButton, focused && styles.addButtonFocused]}>
       <Ionicons name="add" size={30} color="#fff" />
     </View>
-    <Text numberOfLines={1} style={[styles.tabText, styles.tabTextFocused, { color: '#0D6EFD' }]}>Dodaj</Text>
   </View>
 );
 
@@ -173,7 +172,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    marginTop: -18,
+    marginTop: 4,
     backgroundColor: "#0D6EFD",
     alignItems: "center",
     justifyContent: "center",
