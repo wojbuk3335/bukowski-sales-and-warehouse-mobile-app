@@ -20,7 +20,7 @@ import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../config/remainingProductTypes';
 import LogoutButton from '../../components/LogoutButton';
-
+import { ScreenHeader } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Remanent = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -1120,12 +1120,7 @@ const Remanent = () => {
     <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: tabBarSpace }}>
       <LogoutButton position="top-right" />
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerTitle}>Remanenty</Text>
-            <Text style={styles.headerSubtitle}>Stan magazynowy</Text>
-          </View>
-        </View>
+        <ScreenHeader icon="clipboard" title="Remanent" subtitle="Stan magazynowy" />
         
         {/* Przycisk filtrów na pełnej szerokości */}
         <View style={styles.headerButtons}>
@@ -1133,7 +1128,7 @@ const Remanent = () => {
             style={styles.filterButton}
             onPress={() => setShowFilterModal(true)}
           >
-            <Ionicons name="filter" size={16} color="white" />
+            <Ionicons name="filter" size={18} color="#0D6EFD" />
             <Text style={styles.filterButtonText}>
               Filtry
               {hasActiveFilters && ` (${activeFilterLabels.length})`
@@ -1141,7 +1136,7 @@ const Remanent = () => {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.historyButton} onPress={openHistory}>
-            <Ionicons name="time-outline" size={16} color="white" />
+            <Ionicons name="time-outline" size={18} color="#8B5CF6" />
             <Text style={styles.filterButtonText}>Historia</Text>
           </TouchableOpacity>
         </View>
@@ -1167,14 +1162,14 @@ const Remanent = () => {
                 
                 <View style={styles.progressDetails}>
                   <Text style={styles.progressDetailText}>
-                    📦 Sztuki: {scanProgress.uniqueScanned}/{scanProgress.totalExpected}
+                    <Ionicons name="cube-outline" size={12} color={tc('muted', '#94A3B8')} /> Sztuki: {scanProgress.uniqueScanned}/{scanProgress.totalExpected}
                   </Text>
                   <Text style={styles.progressDetailText}>
-                    🔍 Skanowania: {scanProgress.totalScanned}
+                    <Ionicons name="scan-outline" size={12} color={tc('muted', '#94A3B8')} /> Skanowania: {scanProgress.totalScanned}
                   </Text>
                   {scanStartTime && (
                     <Text style={styles.progressDetailText}>
-                      ⏱️ Czas: {formatElapsedTime()}
+                      <Ionicons name="time-outline" size={12} color={tc('muted', '#94A3B8')} /> Czas: {formatElapsedTime()}
                     </Text>
                   )}
                 </View>
@@ -2047,9 +2042,8 @@ const Remanent = () => {
 
 const styles = createThemedStyles(() => StyleSheet.create({
   header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#232533'),
+    paddingHorizontal: 12,
+    paddingBottom: 12,
   },
   headerContent: {
     flexDirection: 'row',
@@ -2180,13 +2174,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingVertical: 10,
   },
   historyButton: {
-    backgroundColor: tc('surface2', '#343a40'),
+    flex: 1,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   historyRow: {
     flexDirection: 'row',
@@ -2236,7 +2234,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     padding: 14,
   },
   historyOkText: {
-    color: '#28a745',
+    color: '#10B981',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -2353,21 +2351,21 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 8,
   },
   addButton: {
-    backgroundColor: '#0d6efd',
+    backgroundColor: '#0D6EFD',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     borderRadius: 12,
     flex: 1,
   },
   checkButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: '#10B981',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     borderRadius: 12,
     flex: 1,
@@ -2383,7 +2381,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     borderRadius: 12,
     flex: 1,
@@ -2431,10 +2429,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     textAlign: 'center',
   },
   permissionButton: {
-    backgroundColor: '#0d6efd',
+    backgroundColor: '#0D6EFD',
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
   },
   permissionButtonText: {
     color: 'white',
@@ -2454,9 +2452,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
   scanArea: {
     width: 250,
     height: 250,
-    borderWidth: 2,
-    borderColor: '#0d6efd',
-    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: '#0D6EFD',
+    borderRadius: 20,
     backgroundColor: 'transparent',
   },
   scanningDisabled: {
@@ -2635,7 +2633,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: '700',
   },
   confirmButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: '#10B981',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2716,7 +2714,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   statNumber: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: '#0d6efd',
+    color: '#0D6EFD',
   },
   statLabel: {
     fontSize: 14,
@@ -2762,7 +2760,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#28a745',
+    color: '#10B981',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -2797,31 +2795,33 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   // Filter button styles
   filterButton: {
-    backgroundColor: '#007bff',
+    flex: 1,
+    backgroundColor: tc('surface', '#161622'),
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    marginRight: 8,
+    borderRadius: 12,
   },
   filterButtonText: {
-    color: 'white',
-    fontSize: 14,
+    color: tc('text', '#fff'),
+    fontSize: 15,
     fontWeight: '600',
-    marginLeft: 6,
   },
   // Header buttons container
   headerButtons: {
     flexDirection: 'row',
-    marginTop: 8,
+    gap: 10,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   // Filter modal styles
   filterOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
@@ -2830,10 +2830,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: "100%",
     maxWidth: 420,
     maxHeight: "85%",
-    backgroundColor: tc('surface', "#0A0A0A"),
-    borderRadius: 16,
+    backgroundColor: tc('surface', "#161622"),
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
+    borderColor: tc('border', "#232533"),
     padding: 20,
   },
   filterCardHeader: {
@@ -2936,8 +2936,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: "#64748B",
   },
   filterCardButtonText: {
-    color: tc('text', "white"),
-    fontSize: 15,
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "600",
   },
   filterModalContent: {
@@ -2969,17 +2969,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
   activeFilterTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007bff',
+    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(13, 110, 253, 0.4)',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
+    borderRadius: 999,
   },
   activeFilterText: {
-    color: 'white',
+    color: tc('text', '#fff'),
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     marginRight: 4,
   },
   removeFilterButton: {
@@ -2996,31 +2996,31 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   clearFiltersButton: {
     flex: 1,
-    backgroundColor: '#6c757d',
+    backgroundColor: '#64748B',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
   },
   clearFiltersText: {
-    color: tc('text', 'white'),
-    fontSize: 14,
+    color: '#fff',
+    fontSize: 15,
     fontWeight: '600',
     marginLeft: 6,
   },
   applyFiltersButton: {
     flex: 1,
-    backgroundColor: '#28a745',
+    backgroundColor: '#10B981',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
   },
   applyFiltersText: {
-    color: tc('text', 'white'),
-    fontSize: 14,
+    color: '#fff',
+    fontSize: 15,
     fontWeight: '600',
     marginLeft: 6,
   },
@@ -3032,12 +3032,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   // Progress bar styles
   progressContainer: {
-    marginTop: 16,
-    backgroundColor: tc('surface', '#2A2A3E'),
+    marginTop: 12,
+    backgroundColor: tc('surface', '#161622'),
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#3C3C43',
+    borderColor: tc('border', '#1E293B'),
   },
   progressHeader: {
     flexDirection: 'row',
@@ -3052,7 +3052,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   progressStats: {
     fontSize: 14,
-    color: '#007bff',
+    color: '#0D6EFD',
     fontWeight: 'bold',
   },
   progressBarContainer: {
@@ -3064,9 +3064,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#28a745',
+    backgroundColor: '#10B981',
     borderRadius: 4,
-    transition: 'width 0.3s ease',
   },
   progressDetails: {
     flexDirection: 'row',
@@ -3074,8 +3073,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexWrap: 'wrap',
   },
   progressDetailText: {
-    fontSize: 11,
-    color: '#CDCDE0',
+    fontSize: 12,
+    color: tc('muted', '#94A3B8'),
     marginRight: 8,
   },
 }));
