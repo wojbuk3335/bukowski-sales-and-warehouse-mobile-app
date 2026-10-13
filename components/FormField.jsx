@@ -24,14 +24,14 @@ const FormField = ({
       <View
         style={[
           styles.inputWrapper,
-          { borderColor: isFocused ? "#0d6efd" : tc('border', "#000000") },
+          { borderColor: isFocused ? "#0D6EFD" : tc('border', "#334155") },
         ]}
       >
         <TextInput
           style={styles.input}
           value={value}
           placeholder={placeholder}
-          placeholderTextColor="#0d6efd"
+          placeholderTextColor={tc('muted', '#94A3B8')}
           onChangeText={handleChangeText}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
@@ -67,19 +67,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 16,
-    color: tc('text', "#f3f4f6"),
-    fontWeight: "500",
-    textAlign: "center",
-    marginBottom: 8,
+    fontSize: 13,
+    color: tc('muted', "#94A3B8"),
+    fontWeight: "600",
+    marginBottom: 6,
   },
   inputWrapper: {
     width: "100%",
-    height: 64,
-    paddingHorizontal: 16,
-    backgroundColor: tc('surface', "#18181b"),
-    borderRadius: 16,
-    borderWidth: 2,
+    height: 54,
+    paddingHorizontal: 14,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderRadius: 12,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
   },

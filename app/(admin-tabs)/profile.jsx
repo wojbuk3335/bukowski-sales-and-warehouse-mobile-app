@@ -15,7 +15,6 @@ import { router } from "expo-router";
 import { GlobalStateContext } from "../../context/GlobalState";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
-import ThemeSwitch from "../../components/ThemeSwitch";
 import { createThemedStyles, tc, useAppTheme } from '../../context/ThemeContext';
 import { appAlert } from '../../services/appAlert';
 
@@ -72,7 +71,7 @@ const Profile = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <ThemeSwitch style={{ marginTop: 56 }} />
+        <View style={{ height: 56 }} />
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
             <Ionicons name="person-circle" size={80} color="#dc3545" />

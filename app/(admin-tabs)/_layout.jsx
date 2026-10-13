@@ -1,44 +1,31 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useContext } from "react";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { icons } from "../../constants";
 import { useAppTheme } from '../../context/ThemeContext';
 import { GlobalStateContext } from "../../context/GlobalState";
 
-const TabIcon = ({ icon, color, name, focused, customIcon }) => {
-  return (
-    <View style={styles.tabIconContainer}>
-      {customIcon ? (
-        <Ionicons
-          name={customIcon}
-          size={22}
-          color={color}
-          style={{ marginBottom: 4 }}
-        />
-      ) : (
-        <Image
-          source={icon}
-          resizeMode="contain"
-          tintColor={color}
-          style={styles.icon}
-        />
-      )}
-      <Text
-        style={[
-          styles.tabText,
-          focused ? styles.tabTextFocused : styles.tabTextRegular,
-          { color },
-        ]}
-      >
-        {name}
-      </Text>
+// Ikona zakładki (jak w panelu użytkownika): aktywna - wypełniona, na niebieskiej plakietce
+const TabIcon = ({ iconName, color, name, focused }) => (
+  <View style={styles.tabIconContainer}>
+    <View style={[styles.iconPill, focused && styles.iconPillFocused]}>
+      <Ionicons name={focused ? iconName : `${iconName}-outline`} size={22} color={color} />
     </View>
-  );
-};
+    <Text
+      numberOfLines={1}
+      style={[
+        styles.tabText,
+        focused ? styles.tabTextFocused : styles.tabTextRegular,
+        { color },
+      ]}
+    >
+      {name}
+    </Text>
+  </View>
+);
 
 const AdminTabLayout = () => {
   const { user } = useContext(GlobalStateContext);
@@ -75,12 +62,7 @@ const AdminTabLayout = () => {
             title: "Sprawdź",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon="grid"
-                color={color}
-                name="Sprawdź"
-                focused={focused}
-              />
+              <TabIcon iconName="checkmark-done-circle" color={color} name="Sprawdź" focused={focused} />
             ),
           }}
         />
@@ -91,12 +73,7 @@ const AdminTabLayout = () => {
             title: "Dobierz",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon="shirt"
-                color={color}
-                name="Dobierz"
-                focused={focused}
-              />
+              <TabIcon iconName="shirt" color={color} name="Dobierz" focused={focused} />
             ),
           }}
         />
@@ -107,12 +84,7 @@ const AdminTabLayout = () => {
             title: "Różne",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon="grid-outline"
-                color={color}
-                name="Różne"
-                focused={focused}
-              />
+              <TabIcon iconName="apps" color={color} name="Różne" focused={focused} />
             ),
           }}
         />
@@ -123,12 +95,7 @@ const AdminTabLayout = () => {
             title: "Raporty",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon="bar-chart"
-                color={color}
-                name="Raporty"
-                focused={focused}
-              />
+              <TabIcon iconName="bar-chart" color={color} name="Raporty" focused={focused} />
             ),
           }}
         />
@@ -139,12 +106,7 @@ const AdminTabLayout = () => {
             title: "Profil",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon="person"
-                color={color}
-                name="Profil"
-                focused={focused}
-              />
+              <TabIcon iconName="person-circle" color={color} name="Profil" focused={focused} />
             ),
           }}
         />
@@ -165,30 +127,32 @@ const styles = StyleSheet.create({
   tabIconContainer: {
     alignItems: "center",
     justifyContent: "center",
-    width: 46,
-    paddingTop: 0,
+    width: 56,
     height: 56,
     gap: 2,
     marginBottom: 20,
   },
-  icon: {
-    width: 22,
-    height: 22,
-    marginBottom: 4,
+  iconPill: {
+    width: 44,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconPillFocused: {
+    backgroundColor: "rgba(13, 110, 253, 0.15)",
   },
   tabText: {
-    fontSize: 9,
+    fontSize: 10,
     textAlign: "center",
     minHeight: 12,
     lineHeight: 12,
-    flexWrap: "nowrap",
-    numberOfLines: 1,
   },
   tabTextFocused: {
-    fontWeight: "600",
+    fontWeight: "700",
   },
   tabTextRegular: {
-    fontWeight: "400",
+    fontWeight: "500",
   },
 });
 

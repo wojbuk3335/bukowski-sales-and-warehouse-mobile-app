@@ -29,9 +29,9 @@ const CustomButton = ({
 
 const styles = createThemedStyles(() => StyleSheet.create({
   button: {
-    backgroundColor: "#0d6efd",
-    borderRadius: 16,
-    minHeight: 62,
+    backgroundColor: "#0D6EFD",
+    borderRadius: 12,
+    minHeight: 54,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -40,8 +40,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
     opacity: 0.5,
   },
   text: {
-    fontWeight: "600",
-    fontSize: 22, // increased font size for bigger button text
+    fontWeight: "700",
+    fontSize: 18,
     color: "#ffffff",
   },
 }));
