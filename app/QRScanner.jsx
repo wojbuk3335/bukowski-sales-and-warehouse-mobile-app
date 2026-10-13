@@ -834,7 +834,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ScrollView style={{ width: '100%' }} contentContainerStyle={[styles.scrollViewContent, { padding: 0, paddingTop: Math.max(12, insets.top), paddingBottom: Math.max(120, insets.bottom + 120) }]}>
-              <View style={[styles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: undefined, height: undefined, alignSelf: 'stretch', padding: 0, paddingHorizontal: 20, justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }]}>
+              <View style={[styles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: undefined, height: undefined, alignSelf: 'stretch', padding: 0, paddingHorizontal: 20, paddingBottom: 24, justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }]}>
                 <Pressable
                   style={styles.closeButton}
                   onPress={() => {

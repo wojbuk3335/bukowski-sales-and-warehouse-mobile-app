@@ -1702,7 +1702,7 @@ const Cudzych = () => {
       {scannedProductModalVisible && (
         <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }}>
           <ScrollView style={{ width: '100%' }} contentContainerStyle={[qrStyles.scrollViewContent, { padding: 0, paddingTop: Math.max(12, insets.top), paddingBottom: Math.max(120, insets.bottom + 120) }]}>
-            <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: undefined, height: undefined, alignSelf: 'stretch', padding: 0, paddingHorizontal: 20, paddingTop: 64, justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }]}>
+            <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: undefined, height: undefined, alignSelf: 'stretch', padding: 0, paddingHorizontal: 20, paddingTop: 64, paddingBottom: 24, justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }]}>
               <TouchableOpacity
                 style={qrStyles.closeButton}
                 onPress={() => {
