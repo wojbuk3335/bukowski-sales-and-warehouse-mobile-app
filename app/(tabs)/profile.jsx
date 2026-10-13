@@ -8,7 +8,7 @@ import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
-import { isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
+import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
@@ -66,6 +66,8 @@ const Profile = () => {
   const [postalCodeFocused, setPostalCodeFocused] = useState(false);
   // Sprawdzenie kodu w Google (przez backend): { status: idle|checking|ok|not_found|unavailable, localities }
   const [postalCheck, setPostalCheck] = useState({ status: 'idle', localities: [] });
+  // Walidacja całego adresu (Google Address Validation przez backend)
+  const [addressCheck, setAddressCheck] = useState({ status: 'idle', suggestion: null });
   const [cityInputFocused, setCityInputFocused] = useState(false);
   
   // Street data states
@@ -161,6 +163,88 @@ const Profile = () => {
   }, [postalCode, deliveryOption]);
 
   const postalHint = postalCodeHint(postalCheck, citySearchText);
+
+  // Po wpisaniu miejscowości, ulicy i numeru (przy wysyłce także poprawnego kodu) sprawdzamy cały adres
+  useEffect(() => {
+    const needsPostal = deliveryOption === 'shipping';
+    const ready = (deliveryOption === 'shipping' || deliveryOption === 'delivery')
+      && citySearchText.trim() && streetSearchText.trim() && houseNumber.trim()
+      && (!needsPostal || isPostalCodeFormatValid(postalCode));
+    if (!ready) {
+      setAddressCheck({ status: 'idle', suggestion: null });
+      return undefined;
+    }
+    let cancelled = false;
+    setAddressCheck({ status: 'checking', suggestion: null });
+    const timer = setTimeout(async () => {
+      try {
+        const response = await tokenService.authenticatedFetch(getApiUrl('/orders/address-check'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            postalCode: needsPostal ? postalCode : '',
+            city: citySearchText,
+            street: streetSearchText,
+            houseNumber,
+          }),
+        });
+        const data = await response.json();
+        if (cancelled) return;
+        if (!response.ok || !data.checked) {
+          setAddressCheck({ status: 'unavailable', suggestion: null });
+          return;
+        }
+        setAddressCheck({ status: data.status, suggestion: data.suggestion || null });
+      } catch (error) {
+        if (!cancelled) setAddressCheck({ status: 'unavailable', suggestion: null });
+      }
+    }, 900);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [deliveryOption, postalCode, citySearchText, streetSearchText, houseNumber]);
+
+  const currentAddress = {
+    postalCode: deliveryOption === 'shipping' ? postalCode : '',
+    city: citySearchText,
+    street: streetSearchText,
+    houseNumber,
+  };
+  const addrHint = addressHint(addressCheck, currentAddress);
+
+  const applyAddressSuggestion = () => {
+    const suggestion = addressCheck.suggestion || {};
+    if (deliveryOption === 'shipping' && suggestion.postalCode) setPostalCode(suggestion.postalCode);
+    if (suggestion.city) setCitySearchText(suggestion.city);
+    if (suggestion.street) setStreetSearchText(suggestion.street);
+    if (suggestion.houseNumber) setHouseNumber(suggestion.houseNumber);
+  };
+
+  // Wynik sprawdzenia adresu - pod numerem domu (wysyłka i dostawa)
+  const renderAddressHint = () => {
+    if (addrHint === 'idle') return null;
+    if (addrHint === 'checking') return <Text style={postalHintStyles.muted}>Sprawdzam adres…</Text>;
+    if (addrHint === 'unavailable') return <Text style={postalHintStyles.muted}>Nie udało się sprawdzić adresu (można kontynuować)</Text>;
+    if (addrHint === 'ok') return <Text style={postalHintStyles.ok} testID="address-hint-ok">✓ Adres potwierdzony przez Google</Text>;
+    const suggestionText = formatSuggestion(addressCheck.suggestion || {});
+    const message = addrHint === 'corrected'
+      ? '⚠️ Google poprawił adres. Czy chodziło o:'
+      : addrHint === 'number_not_found'
+        ? '⚠️ Ulica istnieje, ale Google nie zna tego numeru - sprawdź z klientem.'
+        : '⚠️ Google nie znalazł takiego adresu - sprawdź ulicę i miejscowość z klientem.';
+    return (
+      <View testID={`address-hint-${addrHint}`}>
+        <Text style={postalHintStyles.warn}>{message}</Text>
+        {addrHint === 'corrected' && suggestionText ? (
+          <TouchableOpacity style={postalHintStyles.chip} onPress={applyAddressSuggestion} testID="address-apply">
+            <Text style={postalHintStyles.chipText}>Użyj: {suggestionText}</Text>
+          </TouchableOpacity>
+        ) : null}
+        <Text style={postalHintStyles.muted}>Możesz zostawić adres bez zmian i złożyć zamówienie.</Text>
+      </View>
+    );
+  };
 
   // Handle city text change (simple text input, no API)
   const handleCityChange = (text) => {
@@ -1271,6 +1355,7 @@ const Profile = () => {
                         placeholderTextColor="#666"
                         autoCapitalize="characters"
                       />
+                      {renderAddressHint()}
                     </View>
                   )}
 
@@ -1315,6 +1400,7 @@ const Profile = () => {
                           placeholderTextColor="#666"
                           autoCapitalize="characters"
                         />
+                        {renderAddressHint()}
                       </View>
                     </>
                   )}
@@ -2094,6 +2180,6 @@ const postalHintStyles = StyleSheet.create({
   ok: { color: '#22C55E', fontSize: 13, marginTop: 6, fontWeight: '600' },
   warn: { color: '#F59E0B', fontSize: 13, marginTop: 6, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { backgroundColor: '#1E293B', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  chip: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#1E293B', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   chipText: { color: '#F59E0B', fontSize: 13, fontWeight: '600' },
 });

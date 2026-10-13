@@ -26,3 +26,21 @@ export const postalCodeHint = (check, city) => {
   if (check.status === 'not_found') return 'not_found';
   return cityMatchesLocalities(city, check.localities) ? 'ok' : 'mismatch';
 };
+
+// Walidacja pełnego adresu (Google Address Validation przez backend).
+// check: { status: idle|checking|ok|corrected|number_not_found|not_found|unavailable, suggestion }
+// Gdy propozycja Google = to, co już jest w formularzu (np. po kliknięciu „Użyj”), pokazujemy „ok”.
+export const sameAddress = (a = {}, b = {}) => ['postalCode', 'city', 'street', 'houseNumber']
+  .every((key) => !b[key] || normalizePlace(a[key]) === normalizePlace(b[key]));
+
+export const addressHint = (check, current) => {
+  if (!check) return 'idle';
+  if (check.status === 'corrected' && sameAddress(current, check.suggestion)) return 'ok';
+  return check.status;
+};
+
+export const formatSuggestion = (suggestion = {}) => {
+  const line1 = [suggestion.street, suggestion.houseNumber].filter(Boolean).join(' ');
+  const line2 = [suggestion.postalCode, suggestion.city].filter(Boolean).join(' ');
+  return [line1, line2].filter(Boolean).join(', ');
+};
