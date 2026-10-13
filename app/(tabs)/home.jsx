@@ -2608,13 +2608,17 @@ const Home = () => {
                 }}>
                   <TouchableOpacity
                     testID="add-salesperson-button"
-                    style={styles.primaryButton}
+                    style={styles.menuCard}
                     onPress={() => setSalespersonModalVisible(true)}
                   >
-                    <Ionicons name="person-add" size={20} color="#fff" />
-                    <Text style={styles.primaryButtonText}>
-                      Dodaj sprzedawców
-                    </Text>
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#0D6EFD26' }]}>
+                      <Ionicons name="person-add" size={26} color="#0D6EFD" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Dodaj sprzedawców</Text>
+                      <Text style={styles.menuCardSubtitle}>Kto dziś pracuje na tym stanowisku</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                 </View>
                 
@@ -3860,12 +3864,12 @@ const Home = () => {
           onRequestClose={() => setDeductionModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { width: '85%', maxHeight: '90%' }]}>
+            <View style={[styles.modalContent, { maxHeight: '90%', alignItems: 'stretch' }]}>
               <ModalHeader icon="remove-circle" color="#DC3545" title="Odpisz kwotę" />
               
               <ScrollView 
                 style={{ width: '100%' }}
-                contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
+                contentContainerStyle={{ paddingBottom: 8 }}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
               >
@@ -3874,29 +3878,24 @@ const Home = () => {
               {(() => {
                 const currentAvailable = availableFunds[deductionCurrency] || 0;
                 return (
-                  <View style={{ 
-                    width: '100%', 
-                    marginBottom: 15, 
-                    backgroundColor: tc('surface2', '#374151'), 
-                    borderWidth: 1, 
-                    borderColor: tc('border', '#334155'), 
-                    padding: 10, 
-                    borderRadius: 12 
-                  }}>
-                    <Text style={{ 
-                      color: '#10b981', 
-                      fontSize: 13, 
-                      textAlign: 'center', 
-                      fontWeight: 'bold' 
+                  <View style={[styles.fundsCard, { marginTop: 0, marginBottom: 15 }]}>
+                    <View style={[styles.iconTileLarge, { backgroundColor: '#10B98126' }]}>
+                      <Ionicons name="wallet" size={24} color="#10B981" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                    <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13 }}>Dostępne środki</Text>
+                    <Text style={{
+                      color: '#10b981',
+                      fontSize: 20,
+                      fontWeight: 'bold'
                     }}>
-                      💰 Dostępne środki w {deductionCurrency}: {currentAvailable.toFixed(2)}
+                      {currentAvailable.toFixed(2)} {deductionCurrency}
                     </Text>
                     {Object.keys(availableFunds).length > 1 && (
-                      <Text style={{ 
-                        color: tc('muted', '#9ca3af'), 
-                        fontSize: 11, 
-                        textAlign: 'center', 
-                        marginTop: 4 
+                      <Text style={{
+                        color: tc('muted', '#9ca3af'),
+                        fontSize: 12,
+                        marginTop: 4
                       }}>
                         Inne waluty: {Object.entries(availableFunds)
                           .filter(([currency]) => currency !== deductionCurrency)
@@ -3904,6 +3903,7 @@ const Home = () => {
                           .join(', ')}
                       </Text>
                     )}
+                    </View>
                   </View>
                 );
               })()}
@@ -3972,67 +3972,20 @@ const Home = () => {
               <View style={{ width: '100%', marginBottom: 15 }}>
                 <Text style={styles.formLabel}>Typ odpisania:</Text>
                 
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    marginBottom: 8,
-                    paddingVertical: 8,
-                  }}
+                <OptionCard
+                  selected={deductionType === "other"}
+                  icon="receipt-outline"
+                  label="Inne odpisanie"
+                  color="#DC3545"
                   onPress={() => setDeductionType("other")}
-                >
-                  <View style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 10,
-                    borderWidth: 2,
-                    borderColor: tc('border', '#475569'),
-                    marginRight: 10,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    {deductionType === "other" && (
-                      <View style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 10,
-                        backgroundColor: '#0d6efd',
-                      }} />
-                    )}
-                  </View>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Inne odpisanie</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    marginBottom: 8,
-                    paddingVertical: 8,
-                  }}
+                />
+                <OptionCard
+                  selected={deductionType === "employee_advance"}
+                  icon="person-outline"
+                  label="Zaliczka pracownika"
+                  color="#DC3545"
                   onPress={() => setDeductionType("employee_advance")}
-                >
-                  <View style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 10,
-                    borderWidth: 2,
-                    borderColor: tc('border', '#475569'),
-                    marginRight: 10,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    {deductionType === "employee_advance" && (
-                      <View style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 10,
-                        backgroundColor: '#0d6efd',
-                      }} />
-                    )}
-                  </View>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Zaliczka pracownika</Text>
-                </TouchableOpacity>
+                />
               </View>
               
               {/* Wybór pracownika dla zaliczki */}
@@ -4074,7 +4027,7 @@ const Home = () => {
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 8 }}>
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#28a745',
+                    backgroundColor: '#DC3545',
                     flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
@@ -4092,7 +4045,9 @@ const Home = () => {
                 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#dc3545',
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
@@ -4111,7 +4066,7 @@ const Home = () => {
                     setSelectedEmployeeForAdvance(null);
                   }}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
                     Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -4235,12 +4190,12 @@ const Home = () => {
           }}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { width: '85%', maxHeight: '90%' }]}>
+            <View style={[styles.modalContent, { maxHeight: '90%', alignItems: 'stretch' }]}>
               <ModalHeader icon="add-circle" color="#10B981" title={isEditingAddAmount ? 'Edytuj zaliczkę' : 'Dopisz kwotę'} />
               
               <ScrollView 
                 style={{ width: '100%' }}
-                contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
+                contentContainerStyle={{ paddingBottom: 8 }}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
               >
@@ -4292,12 +4247,11 @@ const Home = () => {
                 
                 {/* Radio buttons */}
                 <View style={{ marginBottom: 15 }}>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      marginBottom: 10,
-                    }}
+                  <OptionCard
+                    selected={reasonType === 'product'}
+                    icon="pricetag-outline"
+                    label="Zaliczka na produkt"
+                    color="#10B981"
                     onPress={() => {
                       Logger.debug('Selected product radio');
                       setReasonType('product');
@@ -4305,41 +4259,18 @@ const Home = () => {
                       setAddAmountReason('');
                       setShowProductDropdown(false);
                     }}
-                  >
-                    <View style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      borderWidth: 2,
-                      borderColor: '#0d6efd',
-                      backgroundColor: reasonType === 'product' ? '#0d6efd' : 'transparent',
-                      marginRight: 10,
-                    }} />
-                    <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Zaliczka na produkt</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                    }}
+                  />
+                  <OptionCard
+                    selected={reasonType === 'other'}
+                    icon="create-outline"
+                    label="Inny powód dopisania"
+                    color="#10B981"
                     onPress={() => {
                       setReasonType('other');
                       setSelectedProduct('');
                       setProductFinalPrice('');
                     }}
-                  >
-                    <View style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      borderWidth: 2,
-                      borderColor: '#0d6efd',
-                      backgroundColor: reasonType === 'other' ? '#0d6efd' : 'transparent',
-                      marginRight: 10,
-                    }} />
-                    <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Inny powód dopisania</Text>
-                  </TouchableOpacity>
+                  />
                 </View>
 
                 {/* Conditional product search */}
@@ -4751,7 +4682,7 @@ const Home = () => {
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 8 }}>
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#0d6efd',
+                    backgroundColor: '#10B981',
                     flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
@@ -4769,7 +4700,9 @@ const Home = () => {
                 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#dc3545',
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
@@ -4794,7 +4727,7 @@ const Home = () => {
                     setProductFinalPrice("");
                   }}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
                     Anuluj
                   </Text>
                 </TouchableOpacity>
@@ -4918,7 +4851,9 @@ const Home = () => {
                 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#ef4444',
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     paddingVertical: 14,
                     paddingHorizontal: 16,
                     borderRadius: 12,
@@ -4931,7 +4866,7 @@ const Home = () => {
                     setSelectedSalespeople([]);
                   }}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -5173,7 +5108,9 @@ const Home = () => {
                 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#dc3545',
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     paddingVertical: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -5184,8 +5121,8 @@ const Home = () => {
                     closeWorkHoursModal();
                   }}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                    ✕ Anuluj
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
+                    Anuluj
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -5264,7 +5201,9 @@ const Home = () => {
               <View style={{ width: '100%', alignItems: 'center', gap: 12, flexDirection: 'row', justifyContent: 'space-between' }}>
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#ef4444',
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     paddingVertical: 14,
                     paddingHorizontal: 16,
                     borderRadius: 12,
@@ -5274,7 +5213,7 @@ const Home = () => {
                   }}
                   onPress={() => setConfirmDeleteModalVisible(false)}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
@@ -5335,7 +5274,9 @@ const Home = () => {
 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: '#ef4444',
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     paddingVertical: 14,
                     paddingHorizontal: 16,
                     borderRadius: 12,
@@ -5345,8 +5286,8 @@ const Home = () => {
                   }}
                   onPress={cancelRemoveEmployee}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                    ✕ Anuluj
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
+                    Anuluj
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -6343,6 +6284,23 @@ const Home = () => {
   );
 };
 
+// Karta wyboru w okienkach (zamiast małych kółek): ikona, opis, znacznik zaznaczenia
+const OptionCard = ({ selected, icon, label, onPress, color = '#0D6EFD', testID }) => (
+  <TouchableOpacity
+    testID={testID}
+    accessibilityRole="radio"
+    accessibilityState={{ checked: !!selected }}
+    style={[styles.optionCard, selected && { borderColor: color, backgroundColor: `${color}1F` }]}
+    onPress={onPress}
+  >
+    <View style={[styles.optionCardIcon, { backgroundColor: `${color}26` }]}>
+      <Ionicons name={icon} size={20} color={color} />
+    </View>
+    <Text style={styles.optionCardLabel}>{label}</Text>
+    <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={selected ? color : tc('muted', '#94A3B8')} />
+  </TouchableOpacity>
+);
+
 // Nagłówek okienka jak w panelu admina: kolorowy kafelek z ikoną i tytuł
 const ModalHeader = ({ icon, color = '#0D6EFD', title }) => (
   <View style={styles.modalHeader}>
@@ -6355,6 +6313,31 @@ const ModalHeader = ({ icon, color = '#0D6EFD', title }) => (
 
 const styles = createThemedStyles(() => StyleSheet.create({
   // ---- wygląd jak w panelu admina ----
+  optionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  optionCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  optionCardLabel: {
+    flex: 1,
+    color: tc('text', "#fff"),
+    fontSize: 15,
+    fontWeight: "600",
+  },
   menuCard: {
     flexDirection: "row",
     alignItems: "center",
