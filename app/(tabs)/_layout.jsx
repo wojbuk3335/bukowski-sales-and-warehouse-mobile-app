@@ -1,44 +1,41 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useContext } from "react";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { icons } from "../../constants";
 import { useAppTheme } from '../../context/ThemeContext';
 import { GlobalStateContext } from "../../context/GlobalState";
 
-const TabIcon = ({ icon, color, name, focused, customIcon }) => {
-  return (
-    <View style={styles.tabIconContainer}>
-      {customIcon ? (
-        <Ionicons
-          name={customIcon}
-          size={22}
-          color={color}
-          style={{ marginBottom: 4 }}
-        />
-      ) : (
-        <Image
-          source={icon}
-          resizeMode="contain"
-          tintColor={color}
-          style={styles.icon}
-        />
-      )}
-      <Text
-        style={[
-          styles.tabText,
-          focused ? styles.tabTextFocused : styles.tabTextRegular,
-          { color },
-        ]}
-      >
-        {name}
-      </Text>
+// Ikona zakładki: te same ikony co w nagłówkach ekranów; aktywna - wypełniona, na niebieskiej plakietce
+const TabIcon = ({ iconName, color, name, focused }) => (
+  <View style={styles.tabIconContainer}>
+    <View style={[styles.iconPill, focused && styles.iconPillFocused]}>
+      <Ionicons name={focused ? iconName : `${iconName}-outline`} size={22} color={color} />
     </View>
-  );
-};
+    <Text
+      numberOfLines={1}
+      style={[
+        styles.tabText,
+        focused ? styles.tabTextFocused : styles.tabTextRegular,
+        { color },
+      ]}
+    >
+      {name}
+    </Text>
+  </View>
+);
+
+// „Dodaj” - wyróżniony okrągły przycisk pośrodku menu
+const AddTabIcon = ({ focused }) => (
+  <View style={styles.tabIconContainer}>
+    <View style={[styles.addButton, focused && styles.addButtonFocused]}>
+      <Ionicons name="add" size={30} color="#fff" />
+    </View>
+    <Text numberOfLines={1} style={[styles.tabText, styles.tabTextFocused, { color: '#0D6EFD' }]}>Dodaj</Text>
+  </View>
+);
 
 const TabLayout = () => {
   const { user } = useContext(GlobalStateContext);
@@ -53,7 +50,7 @@ const TabLayout = () => {
       <Tabs
         options={{ headerShown: false }}
         screenOptions={{
-          tabBarActiveTintColor: "#0d6efd",
+          tabBarActiveTintColor: "#0D6EFD",
           tabBarInactiveTintColor: colors.muted,
           tabBarShowLabel: false,
           tabBarStyle: {
@@ -76,12 +73,7 @@ const TabLayout = () => {
             title: "Home",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                icon={icons.home}
-                color={color}
-                name="Sprzedaż"
-                focused={focused}
-              />
+              <TabIcon iconName="cart" color={color} name="Sprzedaż" focused={focused} />
             ),
           }}
         />
@@ -92,12 +84,7 @@ const TabLayout = () => {
             title: "Stan",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon="arrow-forward-circle"
-                color={color}
-                name="Stan"
-                focused={focused}
-              />
+              <TabIcon iconName="layers" color={color} name="Stan" focused={focused} />
             ),
           }}
         />
@@ -107,12 +94,7 @@ const TabLayout = () => {
             title: "Search",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                icon={icons.bookmark}
-                color={color}
-                name="Szukaj"
-                focused={focused}
-              />
+              <TabIcon iconName="search" color={color} name="Szukaj" focused={focused} />
             ),
           }}
         />
@@ -123,12 +105,7 @@ const TabLayout = () => {
             title: "Create",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                icon={icons.plus}
-                color={color}
-                name="Dodaj"
-                focused={focused}
-              />
+              <AddTabIcon focused={focused} />
             ),
           }}
         />
@@ -140,12 +117,7 @@ const TabLayout = () => {
             headerShown: false,
             href: isParzygnat ? "/cudzych" : null,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                icon={icons.book}
-                color={color}
-                name="Cudzich"
-                focused={focused}
-              />
+              <TabIcon iconName="person" color={color} name="Cudzich" focused={focused} />
             ),
           }}
         />
@@ -156,12 +128,7 @@ const TabLayout = () => {
             title: "Zamówienia",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                icon={icons.profile}
-                color={color}
-                name="Zamów"
-                focused={focused}
-              />
+              <TabIcon iconName="document-text" color={color} name="Zamów" focused={focused} />
             ),
           }}
         />
@@ -172,12 +139,7 @@ const TabLayout = () => {
             title: "Remanent",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon
-                customIcon={focused ? "archive" : "archive-outline"}
-                color={color}
-                name="Remanent"
-                focused={focused}
-              />
+              <TabIcon iconName="clipboard" color={color} name="Remanent" focused={focused} />
             ),
           }}
         />
@@ -192,30 +154,49 @@ const styles = StyleSheet.create({
   tabIconContainer: {
     alignItems: "center",
     justifyContent: "center",
-    width: 46,
-    paddingTop: 0,
+    width: 56,
     height: 56,
     gap: 2,
     marginBottom: 20,
   },
-  icon: {
-    width: 22,
-    height: 22,
-    marginBottom: 4,
+  iconPill: {
+    width: 44,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconPillFocused: {
+    backgroundColor: "rgba(13, 110, 253, 0.15)",
+  },
+  addButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginTop: -18,
+    backgroundColor: "#0D6EFD",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0D6EFD",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  addButtonFocused: {
+    backgroundColor: "#0B5ED7",
   },
   tabText: {
-    fontSize: 9,
+    fontSize: 10,
     textAlign: "center",
     minHeight: 12,
     lineHeight: 12,
-    flexWrap: 'nowrap',
-    numberOfLines: 1,
   },
   tabTextFocused: {
-    fontWeight: "600",
+    fontWeight: "700",
   },
   tabTextRegular: {
-    fontWeight: "400",
+    fontWeight: "500",
   },
 });
 

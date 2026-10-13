@@ -1,8 +1,9 @@
 import React, { useContext } from 'react';
-import { TouchableOpacity, Text, View } from 'react-native';
+import { TouchableOpacity, Text } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { GlobalStateContext } from '../context/GlobalState';
 
-import { tc, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const LogoutButton = ({ position = 'top-right', style = {} }) => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, logout } = useContext(GlobalStateContext);
@@ -46,19 +47,17 @@ const LogoutButton = ({ position = 'top-right', style = {} }) => {
     }
   };
 
+  // Wygląd jak w panelu admina: kafelek z ikoną, delikatne czerwone tło i ramka
   const defaultButtonStyle = {
-    backgroundColor: "#dc3545",
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    paddingVertical: 8,
+    borderRadius: 12,
   };
 
   const buttonStyle = {
@@ -71,11 +70,13 @@ const LogoutButton = ({ position = 'top-right', style = {} }) => {
     <TouchableOpacity
       onPress={handleLogout}
       style={buttonStyle}
+      accessibilityLabel="Wyloguj"
     >
-      <Text style={{ 
-        fontSize: 12, 
-        color: tc('text', "#fff"), 
-        fontWeight: "bold",
+      <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+      <Text style={{
+        fontSize: 13,
+        color: '#EF4444',
+        fontWeight: "700",
         textAlign: 'center'
       }}>
         Wyloguj
