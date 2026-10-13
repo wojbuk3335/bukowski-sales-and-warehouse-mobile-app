@@ -850,89 +850,72 @@ const ProductsList = () => {
 
   const renderProduct = ({ item, index }) => {
     const imageUrl = getImageUrl(item.picture);
-    
+
+    // Karta jak w innych listach: miniatura, nazwa i kod, plakietki (kategoria, cena, promocja, wyjątki), akcje jako kafelki
     return (
       <View style={styles.productCard}>
-        <View style={styles.productHeader}>
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{item.fullName}</Text>
-            {item.ToW_Kod && (
-              <Text style={styles.productCode}>Kod: {item.ToW_Kod}</Text>
-            )}
+        <TouchableOpacity
+          style={styles.productImageContainer}
+          onPress={() => setEnlargedImage(imageUrl)}
+          activeOpacity={0.8}
+        >
+          {item.picture ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.productImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.placeholderImage}>
+              <Ionicons name="image-outline" size={26} color={tc('muted', "#475569")} />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.productInfo}>
+          <Text style={styles.productName}>{item.fullName}</Text>
+          {(item.ToW_Kod || item.subcategory?.Kat_1_Opis_1) && (
+            <Text style={styles.productCode} numberOfLines={1}>
+              {[item.ToW_Kod ? `Kod: ${item.ToW_Kod}` : null, item.subcategory?.Kat_1_Opis_1].filter(Boolean).join(' · ')}
+            </Text>
+          )}
+          <View style={styles.pillRow}>
             {item.category && (
               <Text style={styles.productCategory}>{item.category.toUpperCase()}</Text>
             )}
-            {item.subcategory?.Kat_1_Opis_1 && (
-              <Text style={styles.productSubcategory}>{item.subcategory.Kat_1_Opis_1}</Text>
+            <Text style={styles.pricePill}>{item.price || 0} zł</Text>
+            {item.discount_price > 0 && (
+              <Text style={styles.discountPill}>Promocja: {item.discount_price} zł</Text>
             )}
           </View>
-          <TouchableOpacity
-            style={styles.productImageContainer}
-            onPress={() => setEnlargedImage(imageUrl)}
-            activeOpacity={0.8}
-          >
-            {item.picture ? (
-              <Image
-                source={{ uri: imageUrl }}
-                style={styles.productImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.placeholderImage}>
-                <Ionicons name="image-outline" size={32} color="#475569" />
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-      <View style={styles.productDetails}>
-        <View style={styles.priceContainer}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Cena:</Text>
-            <Text style={styles.priceValue}>{item.price || 0} zł</Text>
-          </View>
-          {item.discount_price > 0 && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Promocja:</Text>
-              <Text style={[styles.priceValue, styles.discountPrice]}>
-                {item.discount_price} zł
-              </Text>
-            </View>
-          )}
           {item.priceExceptions && item.priceExceptions.length > 0 && (
-            <View style={styles.exceptionsContainer}>
-              <Text style={styles.exceptionsTitle}>Wyjątki cenowe:</Text>
+            <View style={styles.pillRow}>
               {item.priceExceptions.map((exception, idx) => (
-                <View key={idx} style={styles.exceptionItemCompact}>
-                  <Text style={styles.exceptionSize}>
-                    {exception.size?.Roz_Opis || 'Rozmiar'}: 
-                  </Text>
-                  <Text style={styles.exceptionValue}> {exception.value} zł</Text>
-                </View>
+                <Text key={idx} style={styles.exceptionPill}>
+                  {exception.size?.Roz_Opis || 'Rozmiar'}: {exception.value} zł
+                </Text>
               ))}
             </View>
           )}
         </View>
-      </View>
 
-      <View style={styles.productActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={() => handleEditProduct(item)}
-        >
-          <Ionicons name="pencil" size={18} color="#fff" />
-          <Text style={styles.actionButtonText}>Edytuj</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => handleDeleteProduct(item)}
-        >
-          <Ionicons name="trash" size={18} color="#fff" />
-          <Text style={styles.actionButtonText}>Usuń</Text>
-        </TouchableOpacity>
+        <View style={styles.productActions}>
+          <TouchableOpacity
+            style={[styles.actionTile, styles.editTile]}
+            onPress={() => handleEditProduct(item)}
+            accessibilityLabel="Edytuj"
+          >
+            <Ionicons name="pencil" size={18} color="#0D6EFD" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionTile, styles.deleteTile]}
+            onPress={() => handleDeleteProduct(item)}
+            accessibilityLabel="Usuń"
+          >
+            <Ionicons name="trash-outline" size={18} color="#DC3545" />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
     );
   };
 
@@ -997,7 +980,7 @@ const ProductsList = () => {
               style={[styles.scrollToBottomButton, { bottom: insets.bottom + 80 }]}
               onPress={scrollToBottom}
             >
-              <Ionicons name="arrow-down-circle" size={50} color="#3b82f6" />
+              <Ionicons name="arrow-down-circle" size={50} color="#0D6EFD" />
             </TouchableOpacity>
           )}
         </>
@@ -2956,11 +2939,69 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
+  pillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  pricePill: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: tc('text', "#fff"),
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  discountPill: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  exceptionPill: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: tc('muted', "#94A3B8"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  actionTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  editTile: {
+    backgroundColor: "#0D6EFD26",
+    borderColor: "#0D6EFD66",
+  },
+  deleteTile: {
+    backgroundColor: "#DC354526",
+    borderColor: "#DC354566",
+  },
   productCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
     backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
     borderLeftWidth: 4,
@@ -2978,11 +3019,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
   productInfo: {
     flex: 1,
     gap: 4,
-    marginRight: 12,
   },
   productImageContainer: {
-    width: 64,
-    height: 64,
+    width: 56,
+    height: 56,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: tc('surface2', "#1E1E2D"),
@@ -3001,16 +3041,15 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: tc('surface2', "#1E1E2D"),
   },
   productName: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: tc('text', "#fff"),
   },
   productCode: {
-    fontSize: 13,
+    fontSize: 12,
     color: tc('muted', "#94A3B8"),
   },
   productCategory: {
-    alignSelf: "flex-start",
     fontSize: 11,
     fontWeight: "700",
     color: "#0D6EFD",
@@ -3019,7 +3058,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 999,
     overflow: "hidden",
-    marginTop: 4,
   },
   productDetails: {
     marginBottom: 12,
@@ -3045,8 +3083,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: "#10B981",
   },
   productActions: {
-    flexDirection: "row",
-    gap: 10,
+    gap: 8,
   },
   actionButton: {
     flex: 1,

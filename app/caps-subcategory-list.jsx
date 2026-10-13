@@ -11,7 +11,6 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Picker } from "@react-native-picker/picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import tokenService from "../services/tokenService";
@@ -19,6 +18,12 @@ import { getApiUrl } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
+import { PageHeader, IconButton, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+
+// Ikona i kolor ekranu – te same co na kafelku w menu podkategorii
+const SCREEN_ICON = "snow";
+const SCREEN_COLOR = "#8B5CF6";
+
 // Tabela podpodkategorii czapek (np. „Czapka damska”, „Czapka męska”) – jak podkategorie kurtek.
 // Kody z metek (APS 120 …) są w Tabeli pozostałego asortymentu.
 const NAME_EXAMPLE = "Czapka damska";
@@ -207,15 +212,25 @@ const CapsSubcategoryList = () => {
     <View style={styles.itemCard}>
       <View style={styles.itemContent}>
         <Text style={styles.itemName}>{item.Cap_Opis}</Text>
-        <Text style={styles.itemMeta}>Kod: {item.Cap_Kod}</Text>
-        <Text style={styles.itemMeta}>Rodzaj: {item.Rodzaj || "D"}</Text>
+        <View style={styles.itemMetaRow}>
+          <Text style={styles.itemMeta}>Kod: {item.Cap_Kod}</Text>
+          <Text style={styles.itemMeta}>Rodzaj: {item.Rodzaj || "D"}</Text>
+        </View>
       </View>
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(item)}>
-          <Text style={styles.editButtonText}>Edytuj</Text>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => handleEdit(item)}
+          accessibilityLabel="Edytuj"
+        >
+          <Ionicons name="pencil" size={18} color="#0D6EFD" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item)}>
-          <Text style={styles.deleteButtonText}>Usuń</Text>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDelete(item)}
+          accessibilityLabel="Usuń"
+        >
+          <Ionicons name="trash-outline" size={18} color="#DC2626" />
         </TouchableOpacity>
       </View>
     </View>
@@ -226,11 +241,17 @@ const CapsSubcategoryList = () => {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0D6EFD" />
-          <Text style={styles.loadingText}>Ładowanie...</Text>
-        </View>
-      </SafeAreaView>
+          <PageHeader
+            title="Czapki"
+            icon={SCREEN_ICON}
+            color={SCREEN_COLOR}
+            onBack={() => router.back()}
+          />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={SCREEN_COLOR} />
+            <Text style={styles.loadingText}>Ładowanie...</Text>
+          </View>
+        </SafeAreaView>
       </>
     );
   }
@@ -239,18 +260,18 @@ const CapsSubcategoryList = () => {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={tc('text', "#fff")} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Czapki</Text>
-        <TouchableOpacity style={styles.addIconButton} onPress={handleAdd}>
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      {/* Nagłówek */}
+      <PageHeader
+        title="Czapki"
+        icon={SCREEN_ICON}
+        color={SCREEN_COLOR}
+        onBack={() => router.back()}
+        right={<IconButton icon="add" color="#10B981" onPress={handleAdd} accessibilityLabel="Dodaj" />}
+      />
 
+      {/* Wyszukiwarka */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
         <TextInput
           style={styles.searchInput}
           placeholder="Szukaj..."
@@ -270,33 +291,36 @@ const CapsSubcategoryList = () => {
         renderItem={renderItem}
         keyExtractor={(item) => item._id}
         contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="folder-open-outline" size={64} color={tc('muted', "#64748B")} />
+            <Ionicons name={SCREEN_ICON} size={64} color={tc('muted', "#475569")} />
             <Text style={styles.emptyText}>Brak czapek</Text>
           </View>
         }
       />
 
-      {/* Edit/Add Modal */}
-      <Modal visible={showModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingItem ? "Edytuj czapkę" : "Dodaj czapkę"}
-              </Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={24} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
+      {/* Okno dodawania / edycji */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader
+              icon={editingItem ? "create-outline" : "add-circle-outline"}
+              color={SCREEN_COLOR}
+              title={editingItem ? "Edytuj czapkę" : "Dodaj czapkę"}
+            />
 
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Nazwa czapki:</Text>
-                <Text style={styles.hintText}>Nazwa podpodkategorii, np. {NAME_EXAMPLE}</Text>
+                <Text style={look.formLabel}>Nazwa czapki:</Text>
+                <Text style={styles.formHint}>Nazwa podpodkategorii, np. {NAME_EXAMPLE}</Text>
                 <TextInput
-                  style={styles.input}
+                  style={look.formInput}
                   placeholder={`np. ${NAME_EXAMPLE}`}
                   placeholderTextColor={tc('muted', "#64748B")}
                   value={capOpis}
@@ -305,67 +329,84 @@ const CapsSubcategoryList = () => {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Rodzaj:</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={rodzaj}
-                    onValueChange={(itemValue) => setRodzaj(itemValue)}
-                    style={styles.picker}
-                    dropdownIconColor="#fff"
-                  >
-                    <Picker.Item label="Damskie (D)" value="D" />
-                    <Picker.Item label="Męskie (M)" value="M" />
-                  </Picker>
-                </View>
+                <Text style={look.formLabel}>Rodzaj:</Text>
+                  <OptionCard
+                    icon="woman-outline"
+                    label="Damskie (D)"
+                    color={SCREEN_COLOR}
+                    selected={rodzaj === "D"}
+                    onPress={() => setRodzaj("D")}
+                  />
+                  <OptionCard
+                    icon="man-outline"
+                    label="Męskie (M)"
+                    color={SCREEN_COLOR}
+                    selected={rodzaj === "M"}
+                    onPress={() => setRodzaj("M")}
+                  />
               </View>
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={[look.buttonRow, styles.modalActions]}>
               <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
+                style={look.neutralButton}
                 onPress={() => setShowModal(false)}
               >
-                <Text style={styles.buttonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, styles.saveButton]}
+                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
                 onPress={handleSave}
               >
-                <Text style={styles.buttonText}>Zapisz</Text>
+                <Text style={look.buttonText}>Zapisz</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Success Modal */}
-      <Modal visible={showSuccessModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.smallModalContent}>
-            <Ionicons name="checkmark-circle" size={48} color="#10B981" />
-            <Text style={styles.modalMessage}>{successMessage}</Text>
-            <TouchableOpacity
-              style={[styles.button, styles.okButton]}
-              onPress={() => setShowSuccessModal(false)}
-            >
-              <Text style={styles.buttonText}>OK</Text>
-            </TouchableOpacity>
+      {/* Okno sukcesu */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="checkmark-circle" color="#10B981" title="Sukces!" />
+            <Text style={look.modalMessage}>{successMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                onPress={() => setShowSuccessModal(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
-      {/* Error Modal */}
-      <Modal visible={showErrorModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.smallModalContent}>
-            <Ionicons name="alert-circle" size={48} color="#EF4444" />
-            <Text style={styles.modalMessage}>{errorMessage}</Text>
-            <TouchableOpacity
-              style={[styles.button, styles.okButton]}
-              onPress={() => setShowErrorModal(false)}
-            >
-              <Text style={styles.buttonText}>OK</Text>
-            </TouchableOpacity>
+      {/* Okno błędu */}
+      <Modal
+        visible={showErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="close-circle" color="#DC2626" title="Błąd" />
+            <Text style={look.modalMessage}>{errorMessage}</Text>
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                style={[look.primaryButton, { backgroundColor: '#DC2626' }]}
+                onPress={() => setShowErrorModal(false)}
+              >
+                <Text style={look.buttonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -386,254 +427,113 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: tc('text', "#fff"),
-    fontSize: 16,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: tc('bg', "#000000"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#1E293B"),
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: tc('surface', "#1E293B"),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#0D6EFD",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
-    flex: 1,
-    textAlign: "center",
-  },
-  headerContent: {
-    display: "none",
-  },
-  title: {
-    display: "none",
-    color: tc('text', "#fff"),
-    marginBottom: 5,
-  },
-  subtitle: {
-    display: "none",
+    color: tc('muted', "#94A3B8"),
+    fontSize: 15,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#1E293B"),
-    marginHorizontal: 20,
-    marginTop: 20,
-    paddingHorizontal: 15,
+    backgroundColor: tc('surface', "#161622"),
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 12,
-    height: 50,
-  },
-  searchIcon: {
-    marginRight: 10,
+    borderWidth: 1,
+    borderColor: tc('border', "#1E293B"),
+    gap: 10,
   },
   searchInput: {
     flex: 1,
+    fontSize: 16,
     color: tc('text', "#fff"),
-    fontSize: 16,
-  },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D6EFD",
-    marginHorizontal: 20,
-    marginTop: 15,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  addButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
   },
   listContainer: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 0,
   },
   itemCard: {
-    backgroundColor: tc('surface', "#0A0A0A"),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
+    borderLeftColor: SCREEN_COLOR,
   },
   itemContent: {
-    marginBottom: 12,
+    flex: 1,
   },
   itemName: {
-    color: "#0D6EFD",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
-    marginBottom: 6,
+    color: tc('text', "#fff"),
+    marginBottom: 4,
+  },
+  itemMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 12,
   },
   itemMeta: {
-    color: tc('muted', "#94A3B8"),
     fontSize: 13,
-    marginBottom: 3,
+    color: tc('muted', "#64748B"),
   },
   actionButtons: {
-    flexDirection: "column",
+    flexDirection: "row",
     gap: 8,
   },
   editButton: {
-    backgroundColor: "#0D6EFD",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
     alignItems: "center",
-  },
-  editButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    backgroundColor: "#0D6EFD26",
+    borderWidth: 1,
+    borderColor: "#0D6EFD66",
   },
   deleteButton: {
-    backgroundColor: "#DC2626",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
     alignItems: "center",
-  },
-  deleteButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    backgroundColor: "#DC262626",
+    borderWidth: 1,
+    borderColor: "#DC262666",
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 60,
+    paddingHorizontal: 40,
   },
   emptyText: {
-    color: tc('muted', "#64748B"),
-    fontSize: 16,
-    marginTop: 10,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: tc('surface', "#1E293B"),
-    width: "90%",
-    maxHeight: "80%",
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#334155"),
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-  },
-  modalBody: {
-    padding: 20,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 14,
-    marginBottom: 8,
-    fontWeight: "500",
-  },
-  input: {
-    backgroundColor: tc('surface', "#0F172A"),
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    borderRadius: 12,
-    padding: 15,
-    color: tc('text', "#fff"),
-    fontSize: 16,
-  },
-  pickerContainer: {
-    backgroundColor: tc('surface', "#0F172A"),
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  picker: {
-    color: tc('text', "#fff"),
-    height: 50,
-  },
-  modalFooter: {
-    flexDirection: "row",
-    padding: 20,
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: tc('border', "#334155"),
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: "#64748B",
-  },
-  saveButton: {
-    backgroundColor: "#10B981",
-  },
-  okButton: {
-    backgroundColor: "#0D6EFD",
-    marginTop: 15,
-  },
-  buttonText: {
-    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
-  },
-  smallModalContent: {
-    backgroundColor: tc('surface', "#1E293B"),
-    padding: 30,
-    borderRadius: 20,
-    alignItems: "center",
-    width: "80%",
-  },
-  hintText: {
     color: tc('muted', "#94A3B8"),
-    fontSize: 13,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  modalBody: {
+    flexGrow: 0,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formHint: {
+    fontSize: 12,
+    color: tc('muted', "#64748B"),
     marginBottom: 8,
   },
-  modalMessage: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 15,
-    marginBottom: 5,
+  modalActions: {
+    marginTop: 4,
   },
 }));
 
