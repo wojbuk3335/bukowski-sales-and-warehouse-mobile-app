@@ -4705,32 +4705,26 @@ const Home = () => {
         >
           <View style={styles.workHoursModalOverlay}>
             <View style={styles.workHoursModalContent}>
-              <Text style={styles.workHoursModalTitle}>
-                Ustaw godziny pracy
-              </Text>
-              
-              {selectedEmployeeForHours && (
-                <Text style={styles.workHoursEmployeeName}>
-                  {selectedEmployeeForHours.firstName} {selectedEmployeeForHours.lastName}
-                </Text>
-              )}
-              
-              <Text style={styles.workHoursDateText}>
-                Data: {new Date().toLocaleDateString('pl-PL')}
-              </Text>
+              <ModalHeader icon="time" color="#0EA5E9" title="Ustaw godziny pracy" />
+              <View style={styles.workHoursPersonCard}>
+                <Ionicons name="person-circle" size={36} color="#0EA5E9" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  {selectedEmployeeForHours && (
+                    <Text style={styles.workHoursEmployeeName}>
+                      {selectedEmployeeForHours.firstName} {selectedEmployeeForHours.lastName}
+                    </Text>
+                  )}
+                  <Text style={styles.workHoursDateText}>
+                    {new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </Text>
+                </View>
+              </View>
 
               <View style={styles.workHoursTimeContainer}>
                 <View style={styles.workHoursTimeSection}>
-                  <Text style={styles.workHoursTimeLabel}>Godzina rozpoczęcia:</Text>
+                  <Text style={styles.formLabel}>Rozpoczęcie</Text>
                   <TouchableOpacity
-                    style={{
-                      backgroundColor: tc('surface', '#000000'),
-                      borderWidth: 1,
-                      borderColor: tc('border', '#6b7280'),
-                      borderRadius: 8,
-                      padding: 12,
-                      alignItems: 'center'
-                    }}
+                    style={styles.timeField}
                     onPress={() => {
                       const [h, m] = workStartTime.split(':');
                       setTempHour(parseInt(h));
@@ -4738,57 +4732,56 @@ const Home = () => {
                       setShowStartTimePicker(true);
                     }}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
+                    <Ionicons name="time-outline" size={20} color={tc('muted', '#94A3B8')} />
+                    <Text style={styles.timeFieldText}>
                       {workStartTime}
                     </Text>
                   </TouchableOpacity>
                   {showStartTimePicker && (
                     <Modal transparent visible={showStartTimePicker} animationType="fade">
-                      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-                        <View style={{ backgroundColor: tc('surface', '#000000'), borderRadius: 12, padding: 20, width: 300, borderWidth: 1, borderColor: tc('border', '#6b7280') }}>
-                          <Text style={{ color: tc('text', 'white'), fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
-                            Wybierz godzinę rozpoczęcia
-                          </Text>
+                      <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { width: 320, alignItems: 'stretch' }]}>
+                          <ModalHeader icon="time-outline" color="#0EA5E9" title="Wybierz godzinę rozpoczęcia" />
                           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
                             <View style={{ alignItems: 'center' }}>
-                              <TouchableOpacity onPress={() => setTempHour((tempHour + 1) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
+                              <TouchableOpacity onPress={() => setTempHour((tempHour + 1) % 24)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-up" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                               <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempHour.toString().padStart(2, '0')}
                               </Text>
-                              <TouchableOpacity onPress={() => setTempHour((tempHour - 1 + 24) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
+                              <TouchableOpacity onPress={() => setTempHour((tempHour - 1 + 24) % 24)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-down" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                             </View>
                             <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', marginHorizontal: 10 }}>:</Text>
                             <View style={{ alignItems: 'center' }}>
-                              <TouchableOpacity onPress={() => setTempMinute((tempMinute + 1) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
+                              <TouchableOpacity onPress={() => setTempMinute((tempMinute + 1) % 60)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-up" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                               <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempMinute.toString().padStart(2, '0')}
                               </Text>
-                              <TouchableOpacity onPress={() => setTempMinute((tempMinute - 1 + 60) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
+                              <TouchableOpacity onPress={() => setTempMinute((tempMinute - 1 + 60) % 60)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-down" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                             </View>
                           </View>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <TouchableOpacity
                               onPress={() => setShowStartTimePicker(false)}
-                              style={{ backgroundColor: '#6b7280', padding: 14, borderRadius: 12, flex: 1, marginRight: 8 }}
+                              style={{ backgroundColor: tc('surface2', '#2a2a3e'), borderWidth: 1, borderColor: tc('border', '#334155'), padding: 14, borderRadius: 12, flex: 1, marginRight: 8 }}
                             >
-                              <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
+                              <Text style={{ color: tc('text', '#fff'), textAlign: 'center', fontWeight: 'bold', fontSize: 16 }}>Anuluj</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
                                 setWorkStartTime(`${tempHour.toString().padStart(2, '0')}:${tempMinute.toString().padStart(2, '0')}`);
                                 setShowStartTimePicker(false);
                               }}
-                              style={{ backgroundColor: '#3b82f6', padding: 14, borderRadius: 12, flex: 1, marginLeft: 8 }}
+                              style={{ backgroundColor: '#0D6EFD', padding: 14, borderRadius: 12, flex: 1, marginLeft: 8 }}
                             >
-                              <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>OK</Text>
+                              <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold', fontSize: 16 }}>OK</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -4798,16 +4791,9 @@ const Home = () => {
                 </View>
 
                 <View style={styles.workHoursTimeSection}>
-                  <Text style={styles.workHoursTimeLabel}>Godzina zakończenia:</Text>
+                  <Text style={styles.formLabel}>Zakończenie</Text>
                   <TouchableOpacity
-                    style={{
-                      backgroundColor: tc('surface', '#000000'),
-                      borderWidth: 1,
-                      borderColor: tc('border', '#6b7280'),
-                      borderRadius: 8,
-                      padding: 12,
-                      alignItems: 'center'
-                    }}
+                    style={styles.timeField}
                     onPress={() => {
                       const [h, m] = workEndTime.split(':');
                       setTempHour(parseInt(h));
@@ -4815,57 +4801,56 @@ const Home = () => {
                       setShowEndTimePicker(true);
                     }}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
+                    <Ionicons name="time-outline" size={20} color={tc('muted', '#94A3B8')} />
+                    <Text style={styles.timeFieldText}>
                       {workEndTime}
                     </Text>
                   </TouchableOpacity>
                   {showEndTimePicker && (
                     <Modal transparent visible={showEndTimePicker} animationType="fade">
-                      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-                        <View style={{ backgroundColor: tc('surface', '#000000'), borderRadius: 12, padding: 20, width: 300, borderWidth: 1, borderColor: tc('border', '#6b7280') }}>
-                          <Text style={{ color: tc('text', 'white'), fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
-                            Wybierz godzinę zakończenia
-                          </Text>
+                      <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { width: 320, alignItems: 'stretch' }]}>
+                          <ModalHeader icon="time-outline" color="#0EA5E9" title="Wybierz godzinę zakończenia" />
                           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
                             <View style={{ alignItems: 'center' }}>
-                              <TouchableOpacity onPress={() => setTempHour((tempHour + 1) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
+                              <TouchableOpacity onPress={() => setTempHour((tempHour + 1) % 24)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-up" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                               <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempHour.toString().padStart(2, '0')}
                               </Text>
-                              <TouchableOpacity onPress={() => setTempHour((tempHour - 1 + 24) % 24)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
+                              <TouchableOpacity onPress={() => setTempHour((tempHour - 1 + 24) % 24)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-down" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                             </View>
                             <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', marginHorizontal: 10 }}>:</Text>
                             <View style={{ alignItems: 'center' }}>
-                              <TouchableOpacity onPress={() => setTempMinute((tempMinute + 1) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▲</Text>
+                              <TouchableOpacity onPress={() => setTempMinute((tempMinute + 1) % 60)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-up" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                               <Text style={{ color: tc('text', 'white'), fontSize: 32, fontWeight: 'bold', minWidth: 60, textAlign: 'center' }}>
                                 {tempMinute.toString().padStart(2, '0')}
                               </Text>
-                              <TouchableOpacity onPress={() => setTempMinute((tempMinute - 1 + 60) % 60)} style={{ padding: 10 }}>
-                                <Text style={{ color: tc('text', 'white'), fontSize: 24 }}>▼</Text>
+                              <TouchableOpacity onPress={() => setTempMinute((tempMinute - 1 + 60) % 60)} style={styles.timeStepButton}>
+                                <Ionicons name="chevron-down" size={26} color={tc('text', '#fff')} />
                               </TouchableOpacity>
                             </View>
                           </View>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <TouchableOpacity
                               onPress={() => setShowEndTimePicker(false)}
-                              style={{ backgroundColor: '#6b7280', padding: 14, borderRadius: 12, flex: 1, marginRight: 8 }}
+                              style={{ backgroundColor: tc('surface2', '#2a2a3e'), borderWidth: 1, borderColor: tc('border', '#334155'), padding: 14, borderRadius: 12, flex: 1, marginRight: 8 }}
                             >
-                              <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontWeight: 'bold' }}>Anuluj</Text>
+                              <Text style={{ color: tc('text', '#fff'), textAlign: 'center', fontWeight: 'bold', fontSize: 16 }}>Anuluj</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
                                 setWorkEndTime(`${tempHour.toString().padStart(2, '0')}:${tempMinute.toString().padStart(2, '0')}`);
                                 setShowEndTimePicker(false);
                               }}
-                              style={{ backgroundColor: '#3b82f6', padding: 14, borderRadius: 12, flex: 1, marginLeft: 8 }}
+                              style={{ backgroundColor: '#0D6EFD', padding: 14, borderRadius: 12, flex: 1, marginLeft: 8 }}
                             >
-                              <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>OK</Text>
+                              <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold', fontSize: 16 }}>OK</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -4888,20 +4873,22 @@ const Home = () => {
 
                 return (
                   <View style={styles.workHoursPreview}>
-                    <Text style={styles.workHoursPreviewText}>
-                      ⏱️ Łączny czas pracy: {totalHours.toFixed(1)} godz.
-                    </Text>
-                    <Text style={styles.workHoursPreviewText}>
-                      💰 Dzienna wypłata: {dailyPay.toFixed(2)} PLN
-                    </Text>
+                    <DaySummaryRow icon="hourglass-outline" color="#0EA5E9" label="Łączny czas pracy" totals={{ 'godz.': totalHours }} />
+                    <View style={styles.daySummaryRowLast}>
+                      <View style={[styles.daySummaryIcon, { backgroundColor: '#10B98126' }]}>
+                        <Ionicons name="cash-outline" size={18} color="#10B981" />
+                      </View>
+                      <Text style={styles.daySummaryLabel}>Dzienna wypłata</Text>
+                      <Text style={[styles.daySummaryValue, { color: '#10B981', fontSize: 17 }]}>{dailyPay.toFixed(2)} PLN</Text>
+                    </View>
                   </View>
                 );
               })()}
 
               <View style={styles.workHoursNotesContainer}>
-                <Text style={styles.workHoursNotesLabel}>Notatki (opcjonalne):</Text>
+                <Text style={styles.formLabel}>Notatki (opcjonalne)</Text>
                 <TextInput
-                  style={styles.workHoursNotesInput}
+                  style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
                   value={workNotes}
                   onChangeText={setWorkNotes}
                   placeholder="Dodaj notatki dotyczące pracy..."
@@ -4914,6 +4901,7 @@ const Home = () => {
               <View style={styles.workHoursModalButtonContainer}>
                 <TouchableOpacity
                   style={{
+                    flex: 1,
                     backgroundColor: '#0D6EFD',
                     paddingVertical: 14,
                     alignItems: 'center',
@@ -4930,6 +4918,7 @@ const Home = () => {
                 
                 <TouchableOpacity
                   style={{
+                    flex: 1,
                     backgroundColor: tc('surface2', '#2a2a3e'),
                     borderWidth: 1,
                     borderColor: tc('border', '#334155'),
@@ -6181,6 +6170,48 @@ const ModalHeader = ({ icon, color = '#0D6EFD', title }) => (
 
 const styles = createThemedStyles(() => StyleSheet.create({
   // ---- wygląd jak w panelu admina ----
+  workHoursPersonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  timeField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  timeFieldText: {
+    color: tc('text', '#fff'),
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  timeStepButton: {
+    width: 52,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    marginVertical: 6,
+  },
+  daySummaryRowLast: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
   dayCloseCard: {
     backgroundColor: tc('surface', "#161622"),
     borderRadius: 16,
@@ -6807,7 +6838,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   // Work Hours Modal Styles
   workHoursModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -6830,21 +6861,20 @@ const styles = createThemedStyles(() => StyleSheet.create({
   workHoursEmployeeName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#007bff',
-    textAlign: 'center',
-    marginBottom: 5,
+    color: tc('text', '#fff'),
   },
   workHoursDateText: {
-    fontSize: 14,
-    color: tc('text', '#e5e7eb'),
-    textAlign: 'center',
-    marginBottom: 16,
+    fontSize: 13,
+    color: tc('muted', '#94A3B8'),
+    marginTop: 2,
   },
   workHoursTimeContainer: {
+    flexDirection: 'row',
+    gap: 12,
     marginBottom: 16,
   },
   workHoursTimeSection: {
-    marginBottom: 12,
+    flex: 1,
   },
   workHoursTimeLabel: {
     fontSize: 14,
@@ -6879,12 +6909,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
   },
   workHoursPreview: {
-    backgroundColor: tc('surface', 'black'),
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: tc('surface2', '#1E1E2D'),
     borderWidth: 1,
-    borderColor: '#007bff',
+    borderColor: tc('border', '#334155'),
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
   },
   workHoursPreviewText: {
     fontSize: 14,
