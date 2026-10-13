@@ -9,6 +9,7 @@ import axios from 'axios';
 import { API_CONFIG } from '../config/api';
 import { GlobalStateProvider } from "../context/GlobalState"; // Import global state provider
 import { AuthProvider } from '../context/AuthContext'; // Import auth provider
+import { ThemeProvider } from '../context/ThemeContext'; // motyw: biały / szary / czarny
 import AppDialogHost from '../components/AppDialogHost'; // wspólne okienka zamiast Alert.alert
 
 // Configure axios baseURL globally
@@ -97,6 +98,7 @@ const RootLayout = () => {
 
   return (
     <SafeAreaProvider>
+      <ThemeProvider>
       <AuthProvider>
         <GlobalStateProvider>
           <Stack options={{ headerShown: false }}>
@@ -125,6 +127,7 @@ const RootLayout = () => {
           <AppDialogHost />
         </GlobalStateProvider>
       </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 };

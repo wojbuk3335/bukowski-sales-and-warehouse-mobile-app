@@ -15,11 +15,14 @@ import { router } from "expo-router";
 import { GlobalStateContext } from "../../context/GlobalState";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
+import ThemeSwitch from "../../components/ThemeSwitch";
+import { useAppTheme } from "../../context/ThemeContext";
 import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
   const { user, setUser, setIsLoggedIn } = useContext(GlobalStateContext);
   const insets = useSafeAreaInsets(); // Get safe area insets
+  const { colors } = useAppTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = () => {
@@ -59,7 +62,7 @@ const Profile = () => {
   return (
     <SafeAreaView style={{
       flex: 1,
-      backgroundColor: "#000000",
+      backgroundColor: colors.bg,
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
       <LogoutButton position="top-right" />
@@ -69,6 +72,7 @@ const Profile = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        <ThemeSwitch style={{ marginTop: 56 }} />
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
             <Ionicons name="person-circle" size={80} color="#dc3545" />

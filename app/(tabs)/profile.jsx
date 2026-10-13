@@ -7,10 +7,13 @@ import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
+import ThemeSwitch from '../../components/ThemeSwitch';
+import { useAppTheme } from '../../context/ThemeContext';
 import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
   const insets = useSafeAreaInsets(); // Get safe area insets
+  const { colors: themeColors } = useAppTheme(); // 'colors' to już słownik kolorów produktów
   const { logout, user } = useContext(GlobalStateContext); // Access logout function
   
   // States for order form
@@ -791,7 +794,7 @@ const Profile = () => {
 
   return (
     <>
-      <SafeAreaView style={{ backgroundColor: "#000", flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
+      <SafeAreaView style={{ backgroundColor: themeColors.bg, flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
         <LogoutButton position="top-right" />
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -822,6 +825,7 @@ const Profile = () => {
             contentInsetAdjustmentBehavior="automatic"
             keyboardDismissMode="interactive"
           >
+          <ThemeSwitch style={{ marginTop: 56 }} />
           <View style={styles.container}>
             <Text style={styles.title}>Zamówienia</Text>
             
