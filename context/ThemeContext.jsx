@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-// Motyw aplikacji: 'dark' (czarny, dotychczasowy), 'gray' (szary), 'light' (biały).
+// Motyw aplikacji: 'dark' (czarny), 'gray' (szary - domyślny), 'light' (biały).
 // Zapamiętywany w telefonie (AsyncStorage). Ekrany biorą kolory z useAppTheme().colors.
 
 export const THEMES = ['light', 'gray', 'dark'];
@@ -25,7 +25,8 @@ export const PALETTES = {
 
 // Bieżący motyw dostępny poza Reactem (style w StyleSheet są tworzone poza komponentami).
 // Ustawiany przez ThemeProvider przed wyrenderowaniem ekranów.
-let currentTheme = 'dark';
+export const DEFAULT_THEME = 'gray';
+let currentTheme = DEFAULT_THEME;
 export const getCurrentTheme = () => currentTheme;
 
 // Kolor zależny od motywu: w czarnym zostaje dokładnie dotychczasowy kolor (darkValue),
@@ -56,10 +57,10 @@ export const createThemedStyles = (factory) => {
   });
 };
 
-const ThemeContext = createContext({ theme: 'dark', colors: PALETTES.dark, setTheme: () => {} });
+const ThemeContext = createContext({ theme: DEFAULT_THEME, colors: PALETTES[DEFAULT_THEME], setTheme: () => {} });
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setThemeState] = useState('dark');
+  const [theme, setThemeState] = useState(DEFAULT_THEME);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +71,7 @@ export const ThemeProvider = ({ children }) => {
   }, []);
 
   const setTheme = (value) => {
-    const next = THEMES.includes(value) ? value : 'dark';
+    const next = THEMES.includes(value) ? value : DEFAULT_THEME;
     setThemeState(next);
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
   };

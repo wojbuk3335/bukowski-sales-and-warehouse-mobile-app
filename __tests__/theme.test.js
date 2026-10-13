@@ -21,22 +21,22 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-test('domyślnie czarny; wybór zapisuje się w telefonie i zmienia kolory', async () => {
+test('domyślnie szary; wybór zapisuje się w telefonie i zmienia kolory', async () => {
   const { getByTestId } = render(
     <ThemeProvider>
       <ThemeSwitch />
       <Probe />
     </ThemeProvider>
   );
-  expect(getByTestId('probe').props.children).toBe(`dark:${PALETTES.dark.bg}`);
+  expect(getByTestId('probe').props.children).toBe(`gray:${PALETTES.gray.bg}`);
 
   fireEvent.press(getByTestId('theme-light'));
   expect(getByTestId('probe').props.children).toBe(`light:${PALETTES.light.bg}`);
   await waitFor(async () => expect(await AsyncStorage.getItem('appTheme')).toBe('light'));
 
-  fireEvent.press(getByTestId('theme-gray'));
-  expect(getByTestId('probe').props.children).toBe(`gray:${PALETTES.gray.bg}`);
-  await waitFor(async () => expect(await AsyncStorage.getItem('appTheme')).toBe('gray'));
+  fireEvent.press(getByTestId('theme-dark'));
+  expect(getByTestId('probe').props.children).toBe(`dark:${PALETTES.dark.bg}`);
+  await waitFor(async () => expect(await AsyncStorage.getItem('appTheme')).toBe('dark'));
 });
 
 test('zapisany motyw jest przywracany po ponownym uruchomieniu', async () => {
@@ -49,7 +49,7 @@ test('zapisany motyw jest przywracany po ponownym uruchomieniu', async () => {
   await waitFor(() => expect(getByTestId('probe').props.children).toBe(`light:${PALETTES.light.bg}`));
 });
 
-test('nieznana wartość w pamięci nie psuje aplikacji (zostaje czarny)', async () => {
+test('nieznana wartość w pamięci nie psuje aplikacji (zostaje szary)', async () => {
   await AsyncStorage.setItem('appTheme', 'fioletowy');
   const { getByTestId } = render(
     <ThemeProvider>
@@ -57,7 +57,7 @@ test('nieznana wartość w pamięci nie psuje aplikacji (zostaje czarny)', async
     </ThemeProvider>
   );
   await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(getByTestId('probe').props.children).toBe(`dark:${PALETTES.dark.bg}`);
+  expect(getByTestId('probe').props.children).toBe(`gray:${PALETTES.gray.bg}`);
 });
 
 test('style ekranów idą za motywem: czarny bez zmian, biały/szary z palety, kolorowe ramki jaśnieją w białym', async () => {
@@ -77,6 +77,7 @@ test('style ekranów idą za motywem: czarny bez zmian, biały/szary z palety, k
       <Screen />
     </ThemeProvider>
   );
+  fireEvent.press(getByTestId('theme-dark'));
   expect(getByTestId('s').props.children).toBe('#000000|#fff|#1a3a1a|#fff');
   fireEvent.press(getByTestId('theme-light'));
   expect(getByTestId('s').props.children).toBe(`${PALETTES.light.bg}|${PALETTES.light.text}|#e6f5e6|#fff`);

@@ -5,10 +5,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import bukowskiLogo from "./bukowski.png";
 
 import CustomButton from "../components/CustomButton";
+import ThemeSwitch from "../components/ThemeSwitch";
 
 import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
 const Welcome = () => {
-  useAppTheme(); // przerysowanie ekranu po zmianie motywu
+  const { theme, colors } = useAppTheme(); // przerysowanie ekranu po zmianie motywu
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -16,13 +17,15 @@ const Welcome = () => {
           <Image
             source={bukowskiLogo}
             resizeMode="contain"
-            style={styles.logo}
+            style={[styles.logo, theme === 'light' && { tintColor: colors.text }]} // w białym motywie logo czarne
           />
           <CustomButton
             title="Zaloguj się"
             handlePress={() => router.push("/(auth)/sign-in")}
             containerStyles={styles.button}
           />
+          {/* Motyw aplikacji (Biały / Szary / Czarny) - domyślnie szary */}
+          <ThemeSwitch style={{ marginHorizontal: 0, marginTop: 28, alignSelf: 'stretch' }} />
         </View>
       </ScrollView>
       <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />

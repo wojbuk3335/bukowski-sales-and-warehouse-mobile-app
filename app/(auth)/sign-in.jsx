@@ -7,7 +7,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
 import CustomButton from "../../components/CustomButton";
-import ThemeSwitch from "../../components/ThemeSwitch";
 import FormField from "../../components/FormField";
 import { GlobalStateContext } from "../../context/GlobalState";
 import { checkAndApplyUpdate, getVersionLabel } from "../../services/appUpdates";
@@ -17,7 +16,7 @@ import tokenService from "../../services/tokenService"; // Import token service
 import bukowskiLogo from "./bukowski.png"; // Import the image
 
 const SignIn = () => {
-  useAppTheme(); // przerysowanie ekranu po zmianie motywu
+  const { theme, colors } = useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const params = useLocalSearchParams();
   const [form, setForm] = useState({
     email: "",
@@ -153,7 +152,7 @@ const SignIn = () => {
           <Image
             source={bukowskiLogo}
             resizeMode="contain"
-            style={styles.logo}
+            style={[styles.logo, theme === 'light' && { tintColor: colors.text }]} // w białym motywie logo czarne
           />
 
           <View style={styles.card}>
@@ -241,8 +240,6 @@ const SignIn = () => {
 
           </View>
 
-          {/* Motyw aplikacji (Biały / Szary / Czarny) - wybierany przed zalogowaniem */}
-          <ThemeSwitch style={{ marginHorizontal: 0, marginTop: 20, marginBottom: 8 }} />
 
           <Text style={styles.versionText}>{getVersionLabel()}</Text>
         </View>
