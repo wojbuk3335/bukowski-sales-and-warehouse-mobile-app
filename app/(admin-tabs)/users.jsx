@@ -1645,6 +1645,10 @@ const Users = () => {
     return matchedPairs.some(pair => pair.blueProduct?.id === itemId);
   };
 
+  // Karta pozycji w kolorze typu (niebieska - usunąć, żółta - z transferów, pomarańczowa - z magazynu, zielona - sparowana):
+  // delikatne tło i ramka w kolorze, wyraźny pasek z lewej; napisy w kolorze motywu
+  const tintCard = (color) => ({ backgroundColor: `${color}1F`, borderColor: `${color}66`, borderLeftColor: color });
+
   const renderBlueItem = ({ item, index }) => {
     const isMatched = isBlueItemMatched(item.sourceId);
     const backgroundColor = isMatched ? '#10B981' : '#007bff';
@@ -1661,10 +1665,10 @@ const Users = () => {
     
     // Calculate balance
     const balance = indicator === 'OK' ? -1 : indicator === 'WARNING' ? 0 : null;
-    const balanceColor = balance === -1 ? '#dc3545' : balance === 0 ? '#000000' : '#000';
+    const balanceColor = balance === -1 ? '#dc3545' : '#64748B';
     
     return (
-      <View style={[styles.transferCard, { backgroundColor, borderColor: backgroundColor }]}>
+      <View style={[styles.transferCard, tintCard(backgroundColor)]}>
         <View style={styles.transferContent}>
           <View style={styles.transferInfo}>
             <Text style={styles.transferName} numberOfLines={1}>
@@ -1747,11 +1751,7 @@ const Users = () => {
     const displayTo = item.transfer_to || item.sellingPoint || 'N/A';
     
     return (
-      <View style={[styles.transferCard, { 
-        backgroundColor: '#ff8c00', 
-        borderColor: '#ff8c00',
-        opacity: isGreyed ? 0.7 : 1.0 
-      }]}>
+      <View style={[styles.transferCard, tintCard('#ff8c00'), { opacity: isGreyed ? 0.7 : 1.0 }]}>
         <View style={styles.transferContent}>
           <View style={styles.transferInfo}>
             <Text style={styles.transferName} numberOfLines={1}>
@@ -1834,7 +1834,7 @@ const Users = () => {
     const displayTo = item.transfer_to || item.sellingPoint || 'N/A';
     
     return (
-      <View style={[styles.transferCard, { backgroundColor, borderColor: backgroundColor }]}>
+      <View style={[styles.transferCard, tintCard(backgroundColor)]}>
         <View style={styles.transferContent}>
           <View style={styles.transferInfo}>
             <Text style={styles.transferName} numberOfLines={1}>
@@ -1918,10 +1918,7 @@ const Users = () => {
     const displayDate = formatDateValueLocal(item.date || item.timestamp || item.createdAt);
     
     return (
-      <View style={[styles.transferCard, { 
-        backgroundColor: '#ffc107', 
-        borderColor: '#ffc107' 
-      }]}>
+      <View style={[styles.transferCard, tintCard('#ffc107')]}>
         <View style={styles.transferContent}>
           <View style={styles.transferInfo}>
             <Text style={styles.transferName} numberOfLines={1}>
@@ -2367,9 +2364,14 @@ const Users = () => {
           <>
             {/* Warehouse Items Section - Always Visible on Top */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                📦 Magazyn ({warehouseItems.length})
-              </Text>
+              <View style={styles.sectionTitleRow}>
+                <View style={[styles.sectionTitleIcon, { backgroundColor: '#ff8c0026' }]}>
+                  <Ionicons name="archive" size={20} color="#ff8c00" />
+                </View>
+                <Text style={styles.sectionTitle}>
+                  Magazyn ({warehouseItems.length})
+                </Text>
+              </View>
               <Text style={styles.sectionSubtitle}>Dostępne produkty w magazynie</Text>
 
               <View style={styles.searchContainer}>
@@ -2426,9 +2428,14 @@ const Users = () => {
             {/* Combined Blue and Transfer Items Section */}
             {(blueItems.length > 0 || transfers.length > 0 || matchedPairs.length > 0 || yellowTransfers.length > 0) && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  📋 Do przetworzenia ({blueItems.length + transfers.length + matchedPairs.length + yellowTransfers.length})
-                </Text>
+                <View style={styles.sectionTitleRow}>
+                  <View style={[styles.sectionTitleIcon, { backgroundColor: 'rgba(13, 110, 253, 0.15)' }]}>
+                    <Ionicons name="list" size={20} color="#0D6EFD" />
+                  </View>
+                  <Text style={styles.sectionTitle}>
+                    Do przetworzenia ({blueItems.length + transfers.length + matchedPairs.length + yellowTransfers.length})
+                  </Text>
+                </View>
                 <Text style={styles.sectionSubtitle}>
                   Niebieskie (usunąć): {blueItems.length} | Żółte (dodać z transferów): {yellowTransfers.length} | Pomarańczowe (dodać z magazynu): {transfers.length + matchedPairs.length}
                 </Text>
@@ -3242,47 +3249,64 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
   },
   section: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   label: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
-    color: tc('text', "#fff"),
-    marginBottom: 12,
+    color: tc('muted', "#94A3B8"),
+    marginBottom: 6,
   },
   selectButton: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: tc('surface', "#1E293B"),
-    padding: 16,
+    backgroundColor: tc('surface', "#161622"),
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#334155"),
+    borderColor: tc('border', "#1E293B"),
   },
   selectButtonText: {
     fontSize: 16,
     color: tc('text', "#fff"),
     flex: 1,
   },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sectionTitleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: tc('text', "#fff"),
-    marginBottom: 4,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: tc('muted', "#94A3B8"),
+    marginTop: 6,
     marginBottom: 12,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: tc('surface', "#1E293B"),
-    padding: 12,
+    backgroundColor: tc('surface', "#161622"),
+    borderWidth: 1,
+    borderColor: tc('border', "#1E293B"),
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 8,
     gap: 8,
   },
   searchInput: {
@@ -3301,12 +3325,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     maxHeight: 'auto',
   },
   warehouseCard: {
-    backgroundColor: tc('surface', "#000"),
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: tc('border', "#334155"),
+    borderColor: tc('border', "#1E293B"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#ff8c00",
   },
   warehouseCardMatched: {
     backgroundColor: tc('surface2', "#374151"),
@@ -3340,24 +3366,26 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#9CA3AF"),
   },
   warehouseButton: {
-    backgroundColor: "rgb(0, 123, 255)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: "#0D6EFD",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   warehouseButtonDisabled: {
     backgroundColor: "#6B7280",
   },
   warehouseButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: tc('text', "#fff"),
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#fff",
   },
   transferCard: {
+    backgroundColor: tc('surface', "#161622"),
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    borderWidth: 2,
+    borderWidth: 1,
+    borderLeftWidth: 5,
   },
   transferContent: {
     flexDirection: "row",
@@ -3368,23 +3396,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flex: 1,
   },
   transferName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    color: tc('text', "#fff"),
     marginBottom: 4,
   },
   transferSize: {
     fontSize: 13,
-    color: "#fff",
+    color: tc('text', "#fff"),
     marginBottom: 2,
   },
   transferBarcode: {
     fontSize: 12,
-    color: "rgba(255, 255, 255, 0.8)",
+    color: tc('muted', "#94A3B8"),
   },
   transferIndicator: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     color: tc('text', "#fff"),
     marginTop: 4,
   },
@@ -3404,7 +3432,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     borderRadius: 8,
   },
   matchedBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderWidth: 1,
+    borderColor: "#10B981",
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -3414,7 +3444,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   matchedBadgeText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: tc('text', "#fff"),
+    color: "#10B981",
   },
   buttonContainer: {
     paddingHorizontal: 20,
@@ -4213,12 +4243,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: '700',
   },
   processingSummaryBox: {
-    marginTop: 16,
+    marginTop: 12,
     padding: 12,
-    backgroundColor: tc('surface', '#1f2937'),
-    borderRadius: 10,
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', '#334155'),
+    borderColor: tc('border', '#1E293B'),
   },
   summaryLine: {
     fontSize: 13,
