@@ -39,7 +39,7 @@ export default function ThemeSwitch({ style, compact = false }) {
 
 const styles = StyleSheet.create({
   wrap: { marginHorizontal: 16, marginBottom: 16 },
-  label: { fontSize: 13, marginBottom: 6, fontWeight: '600' },
+  label: { fontSize: 13, marginBottom: 6, fontWeight: '600', textAlign: 'center' },
   row: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 4, gap: 4 },
   option: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 9 },
   optionText: { fontSize: 14 },
