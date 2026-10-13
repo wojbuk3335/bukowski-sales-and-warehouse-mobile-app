@@ -3240,90 +3240,71 @@ const Home = () => {
                   );
                 })()}
                 
-                {/* Utility buttons moved to bottom of page */}
-                <View style={{ 
-                  flexDirection: "column", 
+                {/* Kasa i waluty - karty jak w panelu admina */}
+                <View style={{
+                  flexDirection: "column",
                   marginTop: 24,
                   marginBottom: 20,
-                  paddingHorizontal: 16,
                 }}>
+                  <Text style={[styles.sectionLabel, { marginBottom: 12 }]}>Kasa i waluty</Text>
                   <TouchableOpacity
                     testID="deduct-amount-button"
-                    style={{
-                      backgroundColor: '#0D6EFD',
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: 'transparent',
-                      width: '100%',
-                      marginBottom: 8,
-                      alignItems: 'center',
-                    }}
+                    style={styles.menuCard}
                     onPress={() => setDeductionModalVisible(true)}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
-                      Odpisz kwotę
-                    </Text>
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#DC354526' }]}>
+                      <Ionicons name="remove-circle" size={26} color="#DC3545" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Odpisz kwotę</Text>
+                      <Text style={styles.menuCardSubtitle}>Wypłata z kasy, zaliczka pracownika, inne wydatki</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                   
                   <TouchableOpacity
                     testID="add-amount-button"
-                    style={{
-                      backgroundColor: '#0D6EFD',
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: 'transparent',
-                      width: '100%',
-                      marginBottom: 8,
-                      alignItems: 'center',
-                    }}
+                    style={styles.menuCard}
                     onPress={() => setAddAmountModalVisible(true)}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
-                      Dopisz kwotę
-                    </Text>
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#10B98126' }]}>
+                      <Ionicons name="add-circle" size={26} color="#10B981" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Dopisz kwotę</Text>
+                      <Text style={styles.menuCardSubtitle}>Wpłata do kasy, zaliczka klienta na produkt</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                   
                   <TouchableOpacity
                     testID="currency-rates-button"
-                    style={{
-                      backgroundColor: '#0D6EFD',
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: 'transparent',
-                      width: '100%',
-                      marginBottom: 8,
-                      alignItems: 'center',
-                    }}
+                    style={styles.menuCard}
                     onPress={() => setCurrencyRatesModalVisible(true)}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
-                      Aktualne kursy walut
-                    </Text>
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#0EA5E926' }]}>
+                      <Ionicons name="trending-up" size={26} color="#0EA5E9" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Aktualne kursy walut</Text>
+                      <Text style={styles.menuCardSubtitle}>Kupno i sprzedaż walut w PLN</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                   
                   <TouchableOpacity
                     testID="currency-calculator-button"
-                    style={{
-                      backgroundColor: '#0D6EFD',
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: 'transparent',
-                      width: '100%',
-                      alignItems: 'center',
-                    }}
+                    style={styles.menuCard}
                     onPress={() => setCalculatorModalVisible(true)}
                   >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
-                      Kalkulator walut
-                    </Text>
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#8B5CF626' }]}>
+                      <Ionicons name="calculator" size={26} color="#8B5CF6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Kalkulator walut</Text>
+                      <Text style={styles.menuCardSubtitle}>Przelicz kwotę między walutami</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -3880,7 +3861,7 @@ const Home = () => {
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { width: '85%', maxHeight: '90%' }]}>
-              <Text style={styles.modalTitle}>Odpisz kwotę</Text>
+              <ModalHeader icon="remove-circle" color="#DC3545" title="Odpisz kwotę" />
               
               <ScrollView 
                 style={{ width: '100%' }}
@@ -3897,8 +3878,10 @@ const Home = () => {
                     width: '100%', 
                     marginBottom: 15, 
                     backgroundColor: tc('surface2', '#374151'), 
+                    borderWidth: 1, 
+                    borderColor: tc('border', '#334155'), 
                     padding: 10, 
-                    borderRadius: 10 
+                    borderRadius: 12 
                   }}>
                     <Text style={{ 
                       color: '#10b981', 
@@ -3927,18 +3910,9 @@ const Home = () => {
               
               {/* Amount input */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Kwota:</Text>
+                <Text style={styles.formLabel}>Kwota:</Text>
                 <TextInput
-                  style={{
-                    backgroundColor: tc('surface', 'black'),
-                    borderRadius: 8,
-                    padding: 12,
-                    fontSize: 16,
-                    color: tc('text', 'white'),
-                    borderWidth: 1,
-                    borderColor: tc('border', '#475569'),
-                    textAlign: 'center',
-                  }}
+                  style={[styles.formInput, { textAlign: 'center' }]}
                   placeholder="0.00"
                   placeholderTextColor={tc('muted', "#ccc")}
                   value={deductionAmount}
@@ -3949,42 +3923,26 @@ const Home = () => {
               
               {/* Currency selection */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Waluta:</Text>
+                <Text style={styles.formLabel}>Waluta:</Text>
                 <TouchableOpacity
-                  style={{
-                    backgroundColor: '#dc3545', // Red for deduction
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                    borderRadius: 8,
-                    alignItems: 'center',
-                    borderWidth: 1,
-                    borderColor: 'transparent',
-                  }}
+                  style={styles.selectField}
                   onPress={() => setDeductionCurrencyModalVisible(true)}
                 >
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={styles.selectFieldText}>
                     {deductionCurrency}
                   </Text>
-                </TouchableOpacity>
+                    <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
               </View>
               
               {/* Currency rate input - show only for non-PLN currencies */}
               {showDeductionRateInput && deductionCurrency !== 'PLN' && (
                 <View style={{ width: '100%', marginBottom: 20 }}>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>
+                  <Text style={styles.formLabel}>
                     Kurs {deductionCurrency} (1 {deductionCurrency} = ? PLN):
                   </Text>
                   <TextInput
-                    style={{
-                      backgroundColor: tc('surface', '#1a1a1a'),
-                      borderRadius: 8,
-                      padding: 12,
-                      fontSize: 16,
-                      color: tc('text', 'white'),
-                      borderWidth: 2,
-                      borderColor: '#f39c12',
-                      textAlign: 'center',
-                    }}
+                    style={[styles.formInput, { textAlign: 'center', borderColor: '#f39c12', borderWidth: 2 }]}
                     placeholder="0.00"
                     placeholderTextColor={tc('muted', "#666")}
                     value={deductionCurrencyRate}
@@ -4012,7 +3970,7 @@ const Home = () => {
               
               {/* Typ odpisania */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Typ odpisania:</Text>
+                <Text style={styles.formLabel}>Typ odpisania:</Text>
                 
                 <TouchableOpacity
                   style={{
@@ -4042,7 +4000,7 @@ const Home = () => {
                       }} />
                     )}
                   </View>
-                  <Text style={{ color: '#fff', fontSize: 14 }}>Inne odpisanie</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Inne odpisanie</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
@@ -4073,52 +4031,36 @@ const Home = () => {
                       }} />
                     )}
                   </View>
-                  <Text style={{ color: '#fff', fontSize: 14 }}>Zaliczka pracownika</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Zaliczka pracownika</Text>
                 </TouchableOpacity>
               </View>
               
               {/* Wybór pracownika dla zaliczki */}
               {deductionType === "employee_advance" && (
                 <View style={{ width: '100%', marginBottom: 15 }}>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Wybierz pracownika:</Text>
+                  <Text style={styles.formLabel}>Wybierz pracownika:</Text>
                   <TouchableOpacity
-                    style={{
-                      backgroundColor: selectedEmployeeForAdvance ? '#10b981' : '#0d6efd',
-                      borderWidth: 1,
-                      borderColor: 'transparent',
-                      borderRadius: 8,
-                      padding: 12,
-                      alignItems: 'center',
-                    }}
+                    style={styles.selectField}
                     onPress={() => setDeductionEmployeeModalVisible(true)}
                   >
-                    <Text style={{ color: tc('text', '#fff'), fontSize: 14, fontWeight: 'bold' }}>
+                    <Text style={styles.selectFieldText}>
                       {selectedEmployeeForAdvance 
                         ? `${selectedEmployeeForAdvance.firstName} ${selectedEmployeeForAdvance.lastName}${selectedEmployeeForAdvance.employeeId ? ` (ID: ${selectedEmployeeForAdvance.employeeId})` : ''}`
                         : 'Wybierz pracownika'
                       }
                     </Text>
+                    <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                 </View>
               )}
               
               {/* Reason input */}
               <View style={{ width: '100%', marginBottom: 20 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>
+                <Text style={styles.formLabel}>
                   {deductionType === "employee_advance" ? "Dodatkowe uwagi (opcjonalne):" : "Powód odpisania:"}
                 </Text>
                 <TextInput
-                  style={{
-                    backgroundColor: tc('surface', 'black'),
-                    borderRadius: 8,
-                    padding: 12,
-                    fontSize: 14,
-                    color: tc('text', 'white'),
-                    borderWidth: 1,
-                    borderColor: tc('border', '#475569'),
-                    minHeight: 80,
-                    textAlignVertical: 'top',
-                  }}
+                  style={[styles.formInput, { minHeight: 80, textAlignVertical: 'top' }]}
                   placeholder={deductionType === "employee_advance" ? "Dodatkowe uwagi do zaliczki (opcjonalne)..." : "Wpisz powód odpisania kwoty..."}
                   placeholderTextColor={tc('muted', "#ccc")}
                   value={deductionReason}
@@ -4133,6 +4075,7 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#28a745',
+                    flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -4150,6 +4093,7 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
+                    flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -4292,9 +4236,7 @@ const Home = () => {
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { width: '85%', maxHeight: '90%' }]}>
-              <Text style={styles.modalTitle}>
-                {isEditingAddAmount ? 'Edytuj zaliczkę' : 'Dopisz kwotę'}
-              </Text>
+              <ModalHeader icon="add-circle" color="#10B981" title={isEditingAddAmount ? 'Edytuj zaliczkę' : 'Dopisz kwotę'} />
               
               <ScrollView 
                 style={{ width: '100%' }}
@@ -4305,18 +4247,9 @@ const Home = () => {
               
               {/* Amount input */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Kwota jaką klient wpłaca:</Text>
+                <Text style={styles.formLabel}>Kwota jaką klient wpłaca:</Text>
                 <TextInput
-                  style={{
-                    backgroundColor: tc('surface', 'black'),
-                    borderRadius: 8,
-                    padding: 12,
-                    fontSize: 16,
-                    color: tc('text', 'white'),
-                    borderWidth: 1,
-                    borderColor: '#0d6efd', // Blue border for addition
-                    textAlign: 'center',
-                  }}
+                  style={[styles.formInput, { textAlign: 'center', borderColor: '#0d6efd', borderWidth: 2 }]}
                   placeholder="0.00"
                   placeholderTextColor={tc('muted', "#ccc")}
                   value={addAmountAmount}
@@ -4327,23 +4260,16 @@ const Home = () => {
               
               {/* Currency selection */}
               <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Waluta zaliczki:</Text>
+                <Text style={styles.formLabel}>Waluta zaliczki:</Text>
                 <TouchableOpacity
-                  style={{
-                    backgroundColor: '#0d6efd', // Blue for addition
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                    borderRadius: 8,
-                    alignItems: 'center',
-                    borderWidth: 1,
-                    borderColor: 'transparent',
-                  }}
+                  style={styles.selectField}
                   onPress={() => setAddAmountCurrencyModalVisible(true)}
                 >
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
+                  <Text style={styles.selectFieldText}>
                     {addAmountCurrency}
                   </Text>
-                </TouchableOpacity>
+                    <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
               </View>
               
               {/* Currency rate input - show only for non-PLN currencies */}
@@ -4362,7 +4288,7 @@ const Home = () => {
               
               {/* Reason selection */}
               <View style={{ width: '100%', marginBottom: 20 }}>
-                <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginBottom: 8 }}>Powód dopisania:</Text>
+                <Text style={styles.formLabel}>Powód dopisania:</Text>
                 
                 {/* Radio buttons */}
                 <View style={{ marginBottom: 15 }}>
@@ -4389,7 +4315,7 @@ const Home = () => {
                       backgroundColor: reasonType === 'product' ? '#0d6efd' : 'transparent',
                       marginRight: 10,
                     }} />
-                    <Text style={{ color: '#fff', fontSize: 14 }}>Zaliczka na produkt</Text>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Zaliczka na produkt</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity
@@ -4412,7 +4338,7 @@ const Home = () => {
                       backgroundColor: reasonType === 'other' ? '#0d6efd' : 'transparent',
                       marginRight: 10,
                     }} />
-                    <Text style={{ color: '#fff', fontSize: 14 }}>Inny powód dopisania</Text>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 14 }}>Inny powód dopisania</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -4421,16 +4347,14 @@ const Home = () => {
                   <View style={{ marginBottom: 15 }}>
                     {/* Standard Product Selection */}
                     <View>
-                      <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>Produkt standardowy:</Text>
+                      <Text style={styles.formLabel}>Produkt standardowy:</Text>
                       <TouchableOpacity
                         style={{
                           backgroundColor: '#0d6efd',
-                          paddingVertical: 10,
+                          paddingVertical: 14,
                           paddingHorizontal: 12,
-                          borderRadius: 8,
+                          borderRadius: 12,
                           alignItems: 'center',
-                          borderWidth: 1,
-                          borderColor: 'transparent',
                           marginBottom: 10,
                         }}
                         onPress={() => {
@@ -4439,23 +4363,14 @@ const Home = () => {
                           setScanned(false);
                         }}
                       >
-                        <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
                           Skanuj produkt
                         </Text>
                       </TouchableOpacity>
 
-                      <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>Wybierz produkt:</Text>
+                      <Text style={styles.formLabel}>Wybierz produkt:</Text>
                       <TextInput
-                        style={{
-                          backgroundColor: tc('surface', 'black'),
-                          borderRadius: 8,
-                          padding: 12,
-                          fontSize: 14,
-                          color: tc('text', 'white'),
-                          borderWidth: 1,
-                          borderColor: '#0d6efd',
-                          marginBottom: 10,
-                        }}
+                        style={[styles.formInput, { marginBottom: 10, borderColor: '#0d6efd', borderWidth: 2 }]}
                         placeholder="Wpisz nazwę lub kod produktu..."
                         placeholderTextColor={tc('muted', "#ccc")}
                         value={productSearchQuery}
@@ -4514,7 +4429,7 @@ const Home = () => {
                                     setShowProductDropdown(false);
                                   }}
                                 >
-                                  <Text style={{ color: '#fff', fontSize: 13 }}>
+                                  <Text style={{ color: tc('text', '#fff'), fontSize: 13 }}>
                                     {product.fullName || product.Tow_Opis || product.code || product.Tow_Kod || product.name || 'Nieznany produkt'}
                                   </Text>
                                   {(product.code || product.Tow_Kod) && (product.fullName || product.Tow_Opis) && (
@@ -4537,18 +4452,9 @@ const Home = () => {
 
                       {!productScanned && (
                         <>
-                          <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5, marginTop: 10 }}>Wybierz rozmiar:</Text>
+                          <Text style={[styles.formLabel, { marginTop: 10 }]}>Wybierz rozmiar:</Text>
                           <TextInput
-                            style={{
-                              backgroundColor: tc('surface', 'black'),
-                              borderRadius: 8,
-                              padding: 12,
-                              fontSize: 14,
-                              color: tc('text', 'white'),
-                              borderWidth: 1,
-                              borderColor: '#0d6efd',
-                              marginBottom: 10,
-                            }}
+                            style={[styles.formInput, { marginBottom: 10, borderColor: '#0d6efd', borderWidth: 2 }]}
                             placeholder="Wpisz rozmiar..."
                             placeholderTextColor={tc('muted', "#ccc")}
                             value={sizeSearchQuery}
@@ -4602,7 +4508,7 @@ const Home = () => {
                                         setShowSizeDropdown(false);
                                       }}
                                     >
-                                      <Text style={{ color: '#fff', fontSize: 13 }}>
+                                      <Text style={{ color: tc('text', '#fff'), fontSize: 13 }}>
                                         {size.Roz_Opis || size.name || 'Nieznany rozmiar'}
                                       </Text>
                                     </TouchableOpacity>
@@ -4622,20 +4528,11 @@ const Home = () => {
                     {/* Product final price input - when product advance is selected */}
                     {reasonType === 'product' && (
                       <View style={{ marginTop: 15 }}>
-                        <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>
+                        <Text style={styles.formLabel}>
                           Uzgodniona cena finalna produktu (w PLN - dla obrotu):
                         </Text>
                         <TextInput
-                          style={{
-                            backgroundColor: tc('surface', 'black'),
-                            borderRadius: 8,
-                            padding: 12,
-                            fontSize: 14,
-                            color: tc('text', 'white'),
-                            borderWidth: 1,
-                            borderColor: '#0d6efd',
-                            textAlign: 'center',
-                          }}
+                          style={[styles.formInput, { textAlign: 'center', borderColor: '#0d6efd', borderWidth: 2 }]}
                           placeholder="0.00 PLN"
                           placeholderTextColor={tc('muted', "#ccc")}
                           value={productFinalPrice}
@@ -4651,24 +4548,18 @@ const Home = () => {
 
                         {/* Product Currency Selection */}
                         <View style={{ marginTop: 15 }}>
-                          <Text style={{ color: tc('text', '#fff'), fontSize: 12, marginBottom: 5 }}>
+                          <Text style={styles.formLabel}>
                             Waluta w której klient dopłaci:
                           </Text>
                           <TouchableOpacity
                             testID="product-currency-select-button"
-                            style={{
-                              backgroundColor: '#0d6efd',
-                              borderRadius: 8,
-                              padding: 12,
-                              borderWidth: 1,
-                              borderColor: 'transparent',
-                              alignItems: 'center',
-                            }}
+                            style={styles.selectField}
                             onPress={() => setProductCurrencyModalVisible(true)}
                           >
-                            <Text style={{ color: tc('text', 'white'), fontSize: 14, fontWeight: 'bold' }}>
+                            <Text style={styles.selectFieldText}>
                               {productSaleCurrency}
                             </Text>
+                            <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
                           </TouchableOpacity>
                         </View>
 
@@ -4845,17 +4736,7 @@ const Home = () => {
                 {/* Conditional text input */}
                 {reasonType === 'other' && (
                   <TextInput
-                    style={{
-                      backgroundColor: tc('surface', 'black'),
-                      borderRadius: 8,
-                      padding: 12,
-                      fontSize: 14,
-                      color: tc('text', 'white'),
-                      borderWidth: 1,
-                      borderColor: '#10b981',
-                      minHeight: 80,
-                      textAlignVertical: 'top',
-                    }}
+                    style={[styles.formInput, { minHeight: 80, textAlignVertical: 'top', borderColor: '#10b981', borderWidth: 2 }]}
                     placeholder="Wpisz powód dopisania kwoty..."
                     placeholderTextColor={tc('muted', "#ccc")}
                     value={addAmountReason}
@@ -4871,6 +4752,7 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#0d6efd',
+                    flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -4888,6 +4770,7 @@ const Home = () => {
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#dc3545',
+                    flex: 1,
                     paddingVertical: 14,
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -6005,28 +5888,9 @@ const Home = () => {
           visible={currencyRatesModalVisible}
           onRequestClose={() => setCurrencyRatesModalVisible(false)}
         >
-          <View style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          }}>
-            <View style={{
-              backgroundColor: tc('surface', '#1f2937'),
-              borderRadius: 10,
-              padding: 20,
-              width: '90%',
-              maxHeight: '80%',
-            }}>
-              <Text style={{
-                fontSize: 20,
-                fontWeight: 'bold',
-                color: tc('text', 'white'),
-                marginBottom: 15,
-                textAlign: 'center',
-              }}>
-                Aktualne kursy walut
-              </Text>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { alignItems: 'stretch' }]}>
+              <ModalHeader icon="trending-up" color="#0EA5E9" title="Aktualne kursy walut" />
 
               {loadingCurrencyRates ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
@@ -6038,9 +5902,9 @@ const Home = () => {
                   <TouchableOpacity
                     style={{
                       backgroundColor: '#0D6EFD',
-                      paddingVertical: 10,
+                      paddingVertical: 14,
                       paddingHorizontal: 20,
-                      borderRadius: 10,
+                      borderRadius: 12,
                     }}
                     onPress={fetchCurrencyRates}
                   >
@@ -6052,8 +5916,10 @@ const Home = () => {
                   <View style={{
                     flexDirection: 'row',
                     backgroundColor: tc('surface2', '#374151'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
                     padding: 10,
-                    borderRadius: 10,
+                    borderRadius: 12,
                     marginBottom: 5,
                   }}>
                     <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1 }}>Waluta</Text>
@@ -6099,26 +5965,28 @@ const Home = () => {
                   style={{
                     flex: 1,
                     backgroundColor: '#0D6EFD',
-                    paddingVertical: 12,
-                    borderRadius: 10,
+                    paddingVertical: 14,
+                    borderRadius: 12,
                     alignItems: 'center',
                   }}
                   onPress={fetchCurrencyRates}
                 >
-                  <Text style={{ color: 'white', fontWeight: 'bold' }}>Odśwież</Text>
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Odśwież</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={{
                     flex: 1,
-                    backgroundColor: '#6c757d',
-                    paddingVertical: 12,
-                    borderRadius: 10,
+                    backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
+                    paddingVertical: 14,
+                    borderRadius: 12,
                     alignItems: 'center',
                   }}
                   onPress={() => setCurrencyRatesModalVisible(false)}
                 >
-                  <Text style={{ color: 'white', fontWeight: 'bold' }}>Zamknij</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontWeight: 'bold', fontSize: 16 }}>Zamknij</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -6132,27 +6000,9 @@ const Home = () => {
           visible={calculatorModalVisible}
           onRequestClose={() => setCalculatorModalVisible(false)}
         >
-          <View style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          }}>
-            <View style={{
-              backgroundColor: tc('surface', '#1f2937'),
-              borderRadius: 10,
-              padding: 20,
-              width: '90%',
-            }}>
-              <Text style={{
-                fontSize: 20,
-                fontWeight: 'bold',
-                color: tc('text', 'white'),
-                marginBottom: 20,
-                textAlign: 'center',
-              }}>
-                Kalkulator walut
-              </Text>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { alignItems: 'stretch' }]}>
+              <ModalHeader icon="calculator" color="#8B5CF6" title="Kalkulator walut" />
 
               {loadingCurrencyRates ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
@@ -6162,17 +6012,11 @@ const Home = () => {
                 <>
                   {/* Amount Input */}
                   <View style={{ marginBottom: 15 }}>
-                    <Text style={{ color: tc('text', 'white'), marginBottom: 5, fontWeight: 'bold' }}>
+                    <Text style={styles.formLabel}>
                       Kwota:
                     </Text>
                     <TextInput
-                      style={{
-                        backgroundColor: tc('surface2', '#374151'),
-                        color: tc('text', 'white'),
-                        padding: 12,
-                        borderRadius: 10,
-                        fontSize: 16,
-                      }}
+                      style={[styles.formInput]}
                       placeholder="Wprowadź kwotę"
                       placeholderTextColor={tc('muted', "#9ca3af")}
                       keyboardType="decimal-pad"
@@ -6183,27 +6027,20 @@ const Home = () => {
 
                   {/* From Currency Picker */}
                   <View style={{ marginBottom: 15 }}>
-                    <Text style={{ color: tc('text', 'white'), marginBottom: 5, fontWeight: 'bold' }}>
+                    <Text style={styles.formLabel}>
                       Z waluty:
                     </Text>
                     <TouchableOpacity
-                      style={{
-                        backgroundColor: tc('surface2', '#374151'),
-                        borderRadius: 10,
-                        padding: 15,
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
+                      style={styles.selectField}
                       onPress={() => setFromCurrencyModalVisible(true)}
                     >
-                      <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>
+                      <Text style={styles.selectFieldText}>
                         {calculatorFromCurrency === 'PLN' 
                           ? 'PLN - Polski złoty'
                           : `${calculatorFromCurrency} - ${currencyRates.find(r => r.currency.code === calculatorFromCurrency)?.currency.name || calculatorFromCurrency}`
                         }
                       </Text>
-                      <Text style={{ color: tc('text', 'white'), fontSize: 18 }}>▼</Text>
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
                     </TouchableOpacity>
                   </View>
 
@@ -6222,35 +6059,26 @@ const Home = () => {
                       }}
                       onPress={swapCurrencies}
                     >
-                      <Text style={{ color: tc('text', 'white'), fontSize: 24, fontWeight: 'bold' }}>
-                        ⇅
-                      </Text>
+                      <Ionicons name="swap-vertical" size={26} color="#fff" />
                     </TouchableOpacity>
                   </View>
 
                   {/* To Currency Picker */}
                   <View style={{ marginBottom: 15 }}>
-                    <Text style={{ color: tc('text', 'white'), marginBottom: 5, fontWeight: 'bold' }}>
+                    <Text style={styles.formLabel}>
                       Na walutę:
                     </Text>
                     <TouchableOpacity
-                      style={{
-                        backgroundColor: tc('surface2', '#374151'),
-                        borderRadius: 10,
-                        padding: 15,
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
+                      style={styles.selectField}
                       onPress={() => setToCurrencyModalVisible(true)}
                     >
-                      <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>
+                      <Text style={styles.selectFieldText}>
                         {calculatorToCurrency === 'PLN' 
                           ? 'PLN - Polski złoty'
                           : `${calculatorToCurrency} - ${currencyRates.find(r => r.currency.code === calculatorToCurrency)?.currency.name || calculatorToCurrency}`
                         }
                       </Text>
-                      <Text style={{ color: tc('text', 'white'), fontSize: 18 }}>▼</Text>
+                      <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
                     </TouchableOpacity>
                   </View>
 
@@ -6258,8 +6086,8 @@ const Home = () => {
                   <TouchableOpacity
                     style={{
                       backgroundColor: '#0D6EFD',
-                      paddingVertical: 12,
-                      borderRadius: 10,
+                      paddingVertical: 14,
+                      borderRadius: 12,
                       alignItems: 'center',
                       marginBottom: 15,
                     }}
@@ -6274,8 +6102,10 @@ const Home = () => {
                   {calculatorResult !== null && (
                     <View style={{
                       backgroundColor: tc('surface2', '#374151'),
+                      borderWidth: 1,
+                      borderColor: tc('border', '#334155'),
                       padding: 15,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       marginBottom: 15,
                       alignItems: 'center',
                     }}>
@@ -6293,9 +6123,11 @@ const Home = () => {
               {/* Close Button */}
               <TouchableOpacity
                 style={{
-                  backgroundColor: '#6c757d',
-                  paddingVertical: 12,
-                  borderRadius: 10,
+                  backgroundColor: tc('surface2', '#2a2a3e'),
+                    borderWidth: 1,
+                    borderColor: tc('border', '#334155'),
+                  paddingVertical: 14,
+                  borderRadius: 12,
                   alignItems: 'center',
                 }}
                 onPress={() => {
@@ -6304,7 +6136,7 @@ const Home = () => {
                   setCalculatorResult(null);
                 }}
               >
-                <Text style={{ color: tc('text', 'white'), fontWeight: 'bold' }}>Zamknij</Text>
+                <Text style={{ color: tc('text', '#fff'), fontWeight: 'bold', fontSize: 16 }}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -6511,8 +6343,98 @@ const Home = () => {
   );
 };
 
+// Nagłówek okienka jak w panelu admina: kolorowy kafelek z ikoną i tytuł
+const ModalHeader = ({ icon, color = '#0D6EFD', title }) => (
+  <View style={styles.modalHeader}>
+    <View style={[styles.modalHeaderIcon, { backgroundColor: `${color}26` }]}>
+      <Ionicons name={icon} size={28} color={color} />
+    </View>
+    <Text style={styles.modalHeaderTitle}>{title}</Text>
+  </View>
+);
+
 const styles = createThemedStyles(() => StyleSheet.create({
   // ---- wygląd jak w panelu admina ----
+  menuCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: tc('surface', "#161622"),
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: tc('border', "#1E293B"),
+  },
+  menuCardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  menuCardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: tc('text', "#fff"),
+    marginBottom: 3,
+  },
+  menuCardSubtitle: {
+    fontSize: 13,
+    color: tc('muted', "#94A3B8"),
+  },
+  modalHeader: {
+    alignItems: "center",
+    width: '100%',
+    marginBottom: 18,
+  },
+  modalHeaderIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  modalHeaderTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: tc('text', "#fff"),
+    textAlign: "center",
+  },
+  formLabel: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  formInput: {
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: tc('text', "#fff"),
+  },
+  selectField: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  selectFieldText: {
+    color: tc('text', "#fff"),
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
   screenHeader: {
     alignItems: "center",
     paddingBottom: 16,
