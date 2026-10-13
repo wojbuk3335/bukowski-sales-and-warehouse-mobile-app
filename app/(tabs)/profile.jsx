@@ -8,6 +8,7 @@ import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
+import { isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { appAlert } from '../../services/appAlert';
 
 const Profile = () => {
@@ -63,6 +64,8 @@ const Profile = () => {
   const [citySearchText, setCitySearchText] = useState('');
   const [customerNameFocused, setCustomerNameFocused] = useState(false);
   const [postalCodeFocused, setPostalCodeFocused] = useState(false);
+  // Sprawdzenie kodu w Google (przez backend): { status: idle|checking|ok|not_found|unavailable, localities }
+  const [postalCheck, setPostalCheck] = useState({ status: 'idle', localities: [] });
   const [cityInputFocused, setCityInputFocused] = useState(false);
   
   // Street data states
@@ -121,6 +124,43 @@ const Profile = () => {
     
     setPostalCode(formatted);
   };
+
+  // Po wpisaniu pełnego kodu XX-XXX pytamy backend (Google Geocoding); pusta miejscowość uzupełnia się sama
+  useEffect(() => {
+    if (deliveryOption !== 'shipping' || !isPostalCodeFormatValid(postalCode)) {
+      setPostalCheck({ status: 'idle', localities: [] });
+      return undefined;
+    }
+    let cancelled = false;
+    setPostalCheck({ status: 'checking', localities: [] });
+    const timer = setTimeout(async () => {
+      try {
+        const response = await tokenService.authenticatedFetch(getApiUrl(`/orders/postal-code/${postalCode}`));
+        const data = await response.json();
+        if (cancelled) return;
+        if (!response.ok || !data.checked) {
+          setPostalCheck({ status: 'unavailable', localities: [] });
+          return;
+        }
+        if (!data.valid) {
+          setPostalCheck({ status: 'not_found', localities: [] });
+          return;
+        }
+        setPostalCheck({ status: 'ok', localities: data.localities || [] });
+        if ((data.localities || []).length === 1) {
+          setCitySearchText((current) => (current.trim() ? current : data.localities[0]));
+        }
+      } catch (error) {
+        if (!cancelled) setPostalCheck({ status: 'unavailable', localities: [] });
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [postalCode, deliveryOption]);
+
+  const postalHint = postalCodeHint(postalCheck, citySearchText);
 
   // Handle city text change (simple text input, no API)
   const handleCityChange = (text) => {
@@ -508,6 +548,10 @@ const Profile = () => {
     if (deliveryOption === 'shipping') {
       if (!postalCode.trim()) {
         appAlert('Błąd', 'Kod pocztowy jest wymagany dla wysyłki');
+        return false;
+      }
+      if (!isPostalCodeFormatValid(postalCode)) {
+        appAlert('Błąd', 'Kod pocztowy musi mieć format XX-XXX (np. 34-500)');
         return false;
       }
       if (!citySearchText.trim()) {
@@ -1148,7 +1192,20 @@ const Profile = () => {
                         placeholderTextColor="#666"
                         keyboardType="numeric"
                         maxLength={6}
+                        testID="postal-code-input"
                       />
+                      {postalHint === 'checking' && (
+                        <Text style={postalHintStyles.muted}>Sprawdzam kod…</Text>
+                      )}
+                      {postalHint === 'ok' && (
+                        <Text style={postalHintStyles.ok} testID="postal-hint-ok">✓ {postalCheck.localities.join(', ') || 'kod istnieje'}</Text>
+                      )}
+                      {postalHint === 'not_found' && (
+                        <Text style={postalHintStyles.warn} testID="postal-hint-not-found">⚠️ Google nie zna takiego kodu - sprawdź go z klientem</Text>
+                      )}
+                      {postalHint === 'unavailable' && (
+                        <Text style={postalHintStyles.muted}>Nie udało się sprawdzić kodu (można kontynuować)</Text>
+                      )}
                     </View>
                   )}
 
@@ -1164,7 +1221,23 @@ const Profile = () => {
                         onFocus={() => setCityInputFocused(true)}
                         onBlur={() => setCityInputFocused(false)}
                         placeholderTextColor="#666"
+                        testID="city-input"
                       />
+                      {postalHint === 'mismatch' && (
+                        <View testID="postal-hint-mismatch">
+                          <Text style={postalHintStyles.warn}>
+                            ⚠️ Kod {postalCode} nie pasuje do „{citySearchText.trim()}”. Wg Google to:
+                          </Text>
+                          <View style={postalHintStyles.chips}>
+                            {postalCheck.localities.slice(0, 6).map((place) => (
+                              <TouchableOpacity key={place} style={postalHintStyles.chip} onPress={() => setCitySearchText(place)}>
+                                <Text style={postalHintStyles.chipText}>{place}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          <Text style={postalHintStyles.muted}>Możesz zostawić swoją nazwę (np. wieś z kodem gminy).</Text>
+                        </View>
+                      )}
                     </View>
                   )}
 
@@ -2014,3 +2087,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },});
+
+// Podpowiedzi pod kodem pocztowym / miejscowością
+const postalHintStyles = StyleSheet.create({
+  muted: { color: '#94A3B8', fontSize: 13, marginTop: 6 },
+  ok: { color: '#22C55E', fontSize: 13, marginTop: 6, fontWeight: '600' },
+  warn: { color: '#F59E0B', fontSize: 13, marginTop: 6, fontWeight: '600' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  chip: { backgroundColor: '#1E293B', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  chipText: { color: '#F59E0B', fontSize: 13, fontWeight: '600' },
+});
