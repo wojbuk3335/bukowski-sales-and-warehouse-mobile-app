@@ -3,6 +3,7 @@ import { router } from "expo-router"; // Import router
 import React, { createContext, useState, useContext } from "react";
 import { getApiUrl, API_CONFIG } from "../config/api"; // Import API config
 import tokenService from "../services/tokenService"; // Import token service
+import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfikator telefonu do blokady „jedna osoba na punkcie”
 import AuthErrorHandler from "../utils/authErrorHandler"; // Import auth error handler
 import { AuthContext } from './AuthContext'; // Import auth context
 
@@ -255,13 +256,18 @@ export const GlobalStateProvider = ({ children }) => {
             console.log(`🔐 [LOGIN][${loginAttemptId}] Panel: ${isAdminPanel ? 'Admin' : 'User'}`);
             console.log(`🔐 [LOGIN][${loginAttemptId}] Email: ${email}`);
             console.log(`🔐 [LOGIN][${loginAttemptId}] URL: ${url}`);
-            
+
+            // Blokada „jedna osoba na punkcie”: backend rozpoznaje telefon po deviceId,
+            // a deviceName pokazuje drugiej osobie, kto zajmuje punkt (dla admina nieszkodliwe)
+            const deviceId = await getDeviceId();
+            const deviceName = getDeviceName();
+
             const response = await fetch(url, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, deviceId, deviceName }),
             });
 
             console.log(`🔐 [LOGIN][${loginAttemptId}] Response Status: ${response.status}`);
@@ -309,6 +315,8 @@ export const GlobalStateProvider = ({ children }) => {
                     const error = new Error(errorData.message);
                     error.code = 'SESSION_ACTIVE';
                     error.status = 403;
+                    // { startedAt, lastSeenAt, deviceName } - ekran logowania pokazuje, kto i od kiedy zajmuje punkt
+                    error.session = errorData.session || null;
                     throw error;
                 }
 
@@ -464,6 +472,34 @@ export const GlobalStateProvider = ({ children }) => {
 
         // Register the callback with tokenService
         tokenService.setAutoLogoutCallback(handleAutoLogout);
+
+        // 🔒 SESSION_REVOKED: serwer zakończył sesję (admin wylogował z panelu albo ten telefon
+        // zalogował się ponownie). Tokeny czyści tokenService, tu tylko lokalny stan użytkownika -
+        // bez wywołania /user/logout i bez router.replace("/"), bo przekierowanie na logowanie
+        // z powodem robi AuthErrorHandler.
+        const handleSessionRevoked = async () => {
+            setUser(null);
+            setIsLoggedIn(false);
+            setStateData(null);
+            setSizes([]);
+            setColors([]);
+            setGoods([]);
+            setStocks([]);
+            setUsers([]);
+            setBags([]);
+            setWallets([]);
+            setMatchedItems([]);
+            setTransferredJackets([]);
+            if (authContext?.logout) {
+                authContext.logout();
+            }
+            try {
+                await AsyncStorage.removeItem("user");
+            } catch (_error) {
+                // Brak danych użytkownika w AsyncStorage nie blokuje wylogowania
+            }
+        };
+        tokenService.setSessionRevokedCallback?.(handleSessionRevoked);
 
         // Start monitoring if user is already logged in
         if (isLoggedIn && user) {

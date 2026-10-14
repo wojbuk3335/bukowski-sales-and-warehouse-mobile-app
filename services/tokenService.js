@@ -2,6 +2,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { getApiUrl, API_CONFIG } from '../config/api';
 import AuthErrorHandler from '../utils/authErrorHandler';
+import { SESSION_REVOKED_MESSAGE } from '../utils/sessionLockMessages';
 import Logger from './logger';
 
 class TokenService {
@@ -10,6 +11,8 @@ class TokenService {
         this.isRefreshingToken = false;
         this.autoLogoutTimer = null; // Timer for automatic logout
         this.onAutoLogout = null; // Callback for automatic logout
+        this.onSessionRevoked = null; // 🔒 Callback: serwer zakończył sesję (SESSION_REVOKED)
+        this.sessionRevokedHandled = false; // 🔒 Wiele równoległych zapytań dostaje 401 - wylogowujemy raz
         this.isLoggingOut = false; // Flag to indicate logout in progress
         this.isInitializing = true; // Flag for first app launch
         this.isInitialized = false; // Flag to track if init was called
@@ -58,8 +61,9 @@ class TokenService {
     async setTokens(accessToken, refreshToken) {
         try {
             // Reset logout flag when setting new tokens (user is logging in)
-            this.isLoggingOut = false;            
+            this.isLoggingOut = false;
             this.isInitializing = false;
+            this.sessionRevokedHandled = false; // nowa sesja - kolejne SESSION_REVOKED ma znów wylogować
             
             if (accessToken) {
                 await SecureStore.setItemAsync('BukowskiAccessToken', accessToken);
@@ -226,6 +230,14 @@ class TokenService {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                // 🔒 Sesja zakończona przez serwer - refresh token też jest nieważny, nie ma co odświeżać
+                if (response.status === 401 && errorData?.code === 'SESSION_REVOKED') {
+                    await this.handleSessionRevoked();
+                    const revokedError = new Error(errorData.message || SESSION_REVOKED_MESSAGE);
+                    revokedError.code = 'SESSION_REVOKED';
+                    revokedError.isAuthError = true;
+                    throw revokedError;
+                }
                 throw new Error(errorData.message || 'Token refresh failed');
             }
 
@@ -336,6 +348,16 @@ class TokenService {
                 clearTimeout(timeoutId);
             }
 
+            // 🔒 401 {code:'SESSION_REVOKED'}: admin wylogował z panelu albo ten telefon zalogował się
+            // ponownie. NIE odświeżamy tokenu - wylogowanie lokalne i ekran logowania z powodem.
+            if (response.status === 401 && await this.isSessionRevokedResponse(response)) {
+                await this.handleSessionRevoked();
+                const revokedError = new Error(SESSION_REVOKED_MESSAGE);
+                revokedError.code = 'SESSION_REVOKED';
+                revokedError.isAuthError = true;
+                throw revokedError;
+            }
+
             // If we get 401, try to refresh token and retry once
             if (response.status === 401 && !options._retry && !this.isLoggingOut) {
                 // Don't handle error yet - first try to refresh token
@@ -397,8 +419,11 @@ class TokenService {
             if (error?.name === 'AbortError') {
                 error.message = 'Żądanie przekroczyło limit czasu połączenia';
             }
-            // Handle auth errors with automatic redirect (but not during logout)
-            const wasHandled = !this.isLoggingOut ? await AuthErrorHandler.handleFetchError(error, 'Authenticated Fetch') : true;
+            // Handle auth errors with automatic redirect (but not during logout).
+            // SESSION_REVOKED jest już obsłużone (tokeny wyczyszczone, przekierowanie z powodem)
+            const wasHandled = (error?.code === 'SESSION_REVOKED' || this.isLoggingOut)
+                ? true
+                : await AuthErrorHandler.handleFetchError(error, 'Authenticated Fetch');
             // Błąd sesji (przekierowanie do logowania już trwa) - ekrany nie pokazują wtedy własnego komunikatu
             if (wasHandled && error && typeof error === 'object' && AuthErrorHandler.isAuthError(error)) {
                 error.isAuthError = true;
@@ -456,6 +481,48 @@ class TokenService {
     // 🧪 AUTO-LOGOUT: Set callback for automatic logout
     setAutoLogoutCallback(callback) {
         this.onAutoLogout = callback;
+    }
+
+    // 🔒 SESSION_REVOKED: callback czyszczący lokalny stan użytkownika (GlobalState)
+    setSessionRevokedCallback(callback) {
+        this.onSessionRevoked = callback;
+    }
+
+    // 🔒 Czy odpowiedź 401 ma body { code: 'SESSION_REVOKED' } (sesja zakończona po stronie serwera)
+    async isSessionRevokedResponse(response) {
+        if (!response || response.status !== 401) return false;
+        try {
+            // clone - body czytamy tylko do sprawdzenia kodu, odpowiedź może być jeszcze potrzebna
+            const source = typeof response.clone === 'function' ? response.clone() : response;
+            const data = await source.json();
+            return data?.code === 'SESSION_REVOKED';
+        } catch (_error) {
+            return false; // brak body / nie-JSON - zwykłe 401
+        }
+    }
+
+    // 🔒 Sesja zakończona przez serwer: wylogowanie lokalne (bez /user/logout - serwer już ją zamknął)
+    // i ekran logowania z powodem. Wiele równoległych zapytań dostaje 401 - wykonujemy to raz.
+    async handleSessionRevoked() {
+        if (this.sessionRevokedHandled) return;
+        this.sessionRevokedHandled = true;
+        this.isLoggingOut = true; // pozostałe zapytania w locie kończą się cicho
+
+        try {
+            await this.clearTokens();
+            this.clearAutoLogoutTimer();
+
+            if (this.onSessionRevoked) {
+                await this.onSessionRevoked();
+            }
+
+            await AuthErrorHandler.handleSessionRevoked();
+        } catch (error) {
+            Logger.error('SESSION_REVOKED: błąd podczas wylogowania:', error);
+        } finally {
+            // Jak w GlobalState.logout - chwila, żeby zapytania w locie zakończyły się bez komunikatów
+            setTimeout(() => { this.isLoggingOut = false; }, 500);
+        }
     }
 
     // 🧪 AUTO-LOGOUT: Start monitoring token expiration

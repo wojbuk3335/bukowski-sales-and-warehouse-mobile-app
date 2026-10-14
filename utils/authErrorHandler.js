@@ -99,6 +99,29 @@ class AuthErrorHandler {
         }
     }
     
+    // 🔒 SESSION_REVOKED: tokeny są już wyczyszczone przez tokenService, tu tylko przekierowanie
+    // na logowanie z powodem (sign-in pokazuje „Zostałeś wylogowany…”). Bez sprawdzania isLoggingOut
+    // ani cooldownu - tokenService.handleSessionRevoked wywołuje to raz.
+    static async handleSessionRevoked() {
+        this.isRedirecting = true;
+        this.lastRedirectTime = Date.now();
+
+        try {
+            router.replace({ pathname: "/(auth)/sign-in", params: { reason: "SESSION_REVOKED" } });
+        } catch (redirectError) {
+            Logger.error('❌ Error during SESSION_REVOKED redirect:', redirectError);
+            try {
+                router.replace("/(auth)/sign-in");
+            } catch (fallbackError) {
+                Logger.error('❌ Fallback redirect failed:', fallbackError);
+            }
+        } finally {
+            setTimeout(() => {
+                this.isRedirecting = false;
+            }, 500);
+        }
+    }
+
     // Wrapper for fetch operations with automatic auth error handling
     static async handleFetchError(error, context = 'API Request') {
         if (this.isAuthError(error)) {

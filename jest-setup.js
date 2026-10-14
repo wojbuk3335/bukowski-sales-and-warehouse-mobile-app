@@ -18,6 +18,23 @@ jest.mock('expo-constants', () => ({
   },
 }));
 
+// Mock expo-secure-store (pamięć w Map - używane m.in. przez services/deviceId)
+jest.mock('expo-secure-store', () => {
+  const store = new Map();
+  return {
+    __esModule: true,
+    getItemAsync: jest.fn((key) => Promise.resolve(store.has(key) ? store.get(key) : null)),
+    setItemAsync: jest.fn((key, value) => {
+      store.set(key, String(value));
+      return Promise.resolve();
+    }),
+    deleteItemAsync: jest.fn((key) => {
+      store.delete(key);
+      return Promise.resolve();
+    }),
+  };
+});
+
 // Mock expo-router
 jest.mock('expo-router', () => ({
   useNavigation: () => ({
@@ -34,6 +51,7 @@ jest.mock('expo-router', () => ({
 // Mock tokenService
 jest.mock('./services/tokenService', () => {
   const mockTokenService = {
+    initialize: jest.fn(() => Promise.resolve()),
     getTokens: jest.fn(() => Promise.resolve({ accessToken: null, refreshToken: null })),
     setTokens: jest.fn(() => Promise.resolve()),
     clearTokens: jest.fn(() => Promise.resolve()),
@@ -54,6 +72,8 @@ jest.mock('./services/tokenService', () => {
     isAuthenticated: jest.fn(() => Promise.resolve(false)),
     logout: jest.fn(() => Promise.resolve()),
     setAutoLogoutCallback: jest.fn(),
+    setSessionRevokedCallback: jest.fn(),
+    handleSessionRevoked: jest.fn(() => Promise.resolve()),
     startAutoLogoutMonitoring: jest.fn(),
     performAutoLogout: jest.fn(() => Promise.resolve()),
     clearAutoLogoutTimer: jest.fn(),
