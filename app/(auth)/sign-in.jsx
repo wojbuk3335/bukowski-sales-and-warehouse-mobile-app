@@ -95,6 +95,8 @@ const SignIn = () => {
             userId: response.userId,
             email: response.email,
             step: response.step || "2fa_verification",
+            // bilet logowania (ważny 10 min) - wymagany przez endpointy 2FA i ustawiania hasła
+            loginTicket: response.loginTicket || "",
           },
         });
         return;
