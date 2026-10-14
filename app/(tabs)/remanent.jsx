@@ -1118,7 +1118,6 @@ const Remanent = () => {
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: tabBarSpace }}>
-      <LogoutButton position="top-right" />
       <View style={styles.header}>
         <ScreenHeader icon="clipboard" title="Remanent" subtitle="Stan magazynowy" />
         

@@ -1045,7 +1045,6 @@ const Cudzych = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <LogoutButton position="top-right" />
       <ScrollView 
         style={styles.scrollView}
         refreshControl={
@@ -1054,17 +1053,16 @@ const Cudzych = () => {
       >
         {/* Header with balance */}
         <View style={{ paddingHorizontal: 12 }}>
-          <ScreenHeader icon="person" title="Cudzich" subtitle="Tomasz Cudzich">
-            <View style={[styles.balanceCard, { borderColor: balance >= 0 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)' }]}>
-              <Text style={styles.balanceLabel}>Saldo do zapłaty</Text>
-              <Text style={[
-                styles.balanceAmount,
-                { color: balance >= 0 ? '#EF4444' : '#10B981' }
-              ]}>
-                {balance} zł
-              </Text>
-            </View>
-          </ScreenHeader>
+          <ScreenHeader
+            icon="person"
+            title="Cudzich"
+            subtitle="Saldo do zapłaty"
+            right={(
+              <View style={[styles.balancePill, { borderColor: balance >= 0 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)', backgroundColor: balance >= 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)' }]}>
+                <Text style={[styles.balancePillText, { color: balance >= 0 ? '#EF4444' : '#10B981' }]}>{balance} zł</Text>
+              </View>
+            )}
+          />
         </View>
 
         {/* Action buttons */}
@@ -1918,6 +1916,16 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   balanceContainer: {
     alignItems: 'center',
+  },
+  balancePill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  balancePillText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   balanceCard: {
     alignSelf: 'stretch',

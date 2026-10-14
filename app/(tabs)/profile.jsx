@@ -1029,7 +1029,6 @@ const Profile = () => {
   return (
     <>
       <SafeAreaView style={{ backgroundColor: themeColors.bg, flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
-        <LogoutButton position="top-right" />
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
@@ -1044,12 +1043,7 @@ const Profile = () => {
             keyboardDismissMode="interactive"
           >
           <View style={styles.container}>
-            <ScreenHeader icon="document-text" title="Zamówienia" subtitle={user?.email}>
-              <View style={look.chip}>
-                <Ionicons name="calendar-outline" size={16} color="#0D6EFD" />
-                <Text style={[look.chipText, { textTransform: 'capitalize' }]}>{getTodayDate()}</Text>
-              </View>
-            </ScreenHeader>
+            <ScreenHeader icon="document-text" title="Zamówienia" subtitle={getTodayDate()} />
 
             {loading ? (
               <ActivityIndicator size="large" color="#0d6efd" style={styles.loader} />

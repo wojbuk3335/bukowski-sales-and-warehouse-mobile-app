@@ -10,7 +10,7 @@ import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CurrencyPickerModal, MessageModal, look } from '../../components/AdminLook';
+import { CurrencyPickerModal, MessageModal, ScreenHeader, look } from '../../components/AdminLook';
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
@@ -2482,7 +2482,6 @@ const Home = () => {
   return (
     <>
       <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
-        <LogoutButton position="top-right" />
         <FlatList
           testID="home-flatlist"
           data={filteredData}
@@ -2535,22 +2534,14 @@ const Home = () => {
           )}
           ListHeaderComponent={() => {
             return (
-              <View style={{ marginVertical: 24, paddingHorizontal: 8 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <View style={{ marginTop: 4, marginBottom: 16, paddingHorizontal: 8 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <View style={{ width: '100%' }}>
-                    <View style={styles.screenHeader}>
-                      <View style={styles.screenHeaderIcon}>
-                        <Ionicons name="cart" size={30} color="#fff" />
-                      </View>
-                      <Text style={styles.screenHeaderTitle}>Sprzedaż</Text>
-                      <Text style={styles.screenHeaderSubtitle}>
-                        {user?.email} · {new Date().toLocaleDateString('pl-PL', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                        })}
-                      </Text>
-                    </View>
+                    <ScreenHeader
+                      icon="cart"
+                      title="Sprzedaż"
+                      subtitle={`${user?.email || ''} · ${new Date().toLocaleDateString('pl-PL', { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
+                    />
                     {assignedSalespeople.length > 0 && (
                       <>
                         {assignedSalespeople.map((salesperson, index) => {

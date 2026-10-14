@@ -158,7 +158,6 @@ const SearchScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LogoutButton position="top-right" />
       <View style={{ paddingHorizontal: 12 }}>
         <ScreenHeader icon="search" title="Szukaj" subtitle="Znajdź produkt w stanach wszystkich punktów" />
         <MenuCard

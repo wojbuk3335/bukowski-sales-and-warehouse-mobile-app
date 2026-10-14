@@ -20,6 +20,7 @@ import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
+import { ScreenHeader } from '../../components/AdminLook';
 import { appAlert } from '../../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -419,18 +420,14 @@ const Dashboard = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <LogoutButton position="top-right" />
       <ScrollView 
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Sprawdź Kurtki</Text>
-          <Text style={styles.subtitle}>
-            Weryfikacja kurtek dobranych w systemie
-          </Text>
+        <View style={{ paddingHorizontal: 12 }}>
+          <ScreenHeader icon="checkmark-done-circle" title="Sprawdź kurtki" subtitle="Weryfikacja kurtek dobranych w systemie" />
         </View>
 
         {/* User Selection */}

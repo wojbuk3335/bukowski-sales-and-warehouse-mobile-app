@@ -15,6 +15,7 @@ import { router } from "expo-router";
 import { GlobalStateContext } from "../../context/GlobalState";
 import Logger from "../../services/logger";
 import LogoutButton from "../../components/LogoutButton";
+import { ScreenHeader } from '../../components/AdminLook';
 import { createThemedStyles, tc, useAppTheme } from '../../context/ThemeContext';
 import { appAlert } from '../../services/appAlert';
 
@@ -64,22 +65,14 @@ const Profile = () => {
       backgroundColor: colors.bg,
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <LogoutButton position="top-right" />
       <ScrollView 
         contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={{ height: 56 }} />
-        <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person-circle" size={80} color="#dc3545" />
-          </View>
-          <Text style={styles.userName}>{user?.email}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>ADMINISTRATOR</Text>
-          </View>
+        <View style={{ paddingHorizontal: 12 }}>
+          <ScreenHeader icon="person-circle" title="Profil" subtitle={`${user?.email || ''} · Administrator`} />
         </View>
 
         <View style={styles.section}>

@@ -8,19 +8,32 @@ import { createThemedStyles, tc } from '../context/ThemeContext';
 // nagłówek z ikoną w kółku, karty z cienką ramką, kolorowe kafelki ikon, okienka z nagłówkiem.
 // Kolory z motywu (biały / szary / czarny).
 
-/** Nagłówek ekranu: ikona w kółku, tytuł, podtytuł, przełącznik motywu i opcjonalna dodatkowa treść. */
-// Przełącznik motywu tylko na pierwszej zakładce („Sprzedaż”) - na pozostałych ekranach domyślnie wyłączony
-export const ScreenHeader = ({ icon, title, subtitle, children, showThemeSwitch = false }) => (
-  <View style={look.screenHeader}>
-    <View style={look.screenHeaderIcon}>
-      <Ionicons name={icon} size={30} color="#fff" />
+/**
+ * Nagłówek zakładki - jeden niski wiersz (max ~10% wysokości ekranu): kafelek z ikoną, tytuł i podtytuł,
+ * opcjonalnie coś po prawej (right, np. saldo) i przycisk wylogowania (kafelek). children - dodatkowy wiersz pod spodem.
+ */
+export const ScreenHeader = ({ icon, title, subtitle, children, right, showThemeSwitch = false, showLogout = true }) => {
+  // wczytywane leniwie: LogoutButton korzysta z kontekstu aplikacji (nie obciąża ekranów i testów bez wylogowania)
+  // eslint-disable-next-line global-require
+  const LogoutButton = showLogout ? require('./LogoutButton').default : null;
+  return (
+    <View style={look.screenHeader}>
+      <View style={look.screenHeaderRow}>
+        <View style={look.screenHeaderIcon}>
+          <Ionicons name={icon} size={20} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={look.screenHeaderTitle} numberOfLines={1}>{title}</Text>
+          {!!subtitle && <Text style={look.screenHeaderSubtitle} numberOfLines={1}>{subtitle}</Text>}
+        </View>
+        {right}
+        {LogoutButton && <LogoutButton position="inline" compact />}
+      </View>
+      {showThemeSwitch && <ThemeSwitch compact style={{ marginTop: 8 }} />}
+      {children ? <View style={{ marginTop: 8 }}>{children}</View> : null}
     </View>
-    <Text style={look.screenHeaderTitle}>{title}</Text>
-    {!!subtitle && <Text style={look.screenHeaderSubtitle}>{subtitle}</Text>}
-    {showThemeSwitch && <ThemeSwitch compact style={{ marginTop: 14, alignSelf: 'stretch' }} />}
-    {children}
-  </View>
-);
+  );
+};
 
 /** Nagłówek okienka: kolorowy kafelek z ikoną i tytuł. */
 export const ModalHeader = ({ icon, color = '#0D6EFD', title, subtitle }) => (
@@ -228,33 +241,34 @@ export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, di
 
 export const look = createThemedStyles(() => StyleSheet.create({
   screenHeader: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 16,
-    paddingHorizontal: 8,
-    marginBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: tc('border', '#1E293B'),
   },
+  screenHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   screenHeaderIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#0D6EFD',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
   screenHeaderTitle: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: tc('text', '#fff'),
-    marginBottom: 4,
   },
   screenHeaderSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: tc('muted', '#94A3B8'),
-    textAlign: 'center',
+    marginTop: 1,
   },
   chip: {
     flexDirection: 'row',
