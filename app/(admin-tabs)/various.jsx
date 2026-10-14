@@ -234,7 +234,7 @@ const Various = () => {
         <ScreenHeader icon="grid" title="Różne" subtitle="Dodatkowe funkcje i narzędzia" />
       </View>
 
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         refreshControl={

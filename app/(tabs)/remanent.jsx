@@ -1209,7 +1209,7 @@ const Remanent = () => {
           <Text style={styles.emptySubtext}>Kliknij „Skanuj” i zeskanuj sztuki. Każdy skan to jedna sztuka.</Text>
         </View>
       ) : (
-        <FlatList
+        <FlatList alwaysBounceVertical
           data={filteredRemanentData}
           renderItem={renderRemanentItem}
           keyExtractor={(item, index) => item.id?.toString() || index.toString()}

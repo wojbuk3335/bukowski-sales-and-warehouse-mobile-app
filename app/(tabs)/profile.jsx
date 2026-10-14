@@ -17,6 +17,7 @@ import { amountError, amountOrZero, formatAmount, parseAmount, validateOrderAmou
 import { formatPhoneNumber, isValidPolishPhone } from '../../utils/phoneNumber';
 import { isConnectionError, readJson, serverErrorMessage } from '../../utils/readJson';
 import { localDateString } from '../../utils/orderCompletionMessage';
+import usePullToRefresh from '../../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 
 // Ponowne wysłanie tego samego formularza jest bezpieczne (clientRequestId) - backend odsyła już zapisane zamówienie
 const RETRY_SAFE_HINT = 'Zamówienie mogło zostać zapisane - naciśnij „Zatwierdź zamówienie” ponownie; nie powstanie duplikat.';
@@ -887,39 +888,46 @@ const Profile = () => {
   };
 
   // Fetch data from APIs
-  useEffect(() => {
-    const fetchOrderData = async () => {
-      setLoading(true);
-      try {
-        // Fetch products (stock)
-        const stockResponse = await tokenService.authenticatedFetch(getApiUrl('/excel/stock/get-all-stocks'));
-        if (stockResponse.ok) {
-          const stockData = await stockResponse.json();
-          setProducts(Array.isArray(stockData) ? stockData : stockData.stocks || []);
-        }
-
-        // Fetch colors
-        const colorsResponse = await tokenService.authenticatedFetch(getApiUrl('/excel/color/get-all-colors'));
-        if (colorsResponse.ok) {
-          const colorsData = await colorsResponse.json();
-          setColors(Array.isArray(colorsData) ? colorsData : colorsData.colors || []);
-        }
-
-        // Fetch sizes
-        const sizesResponse = await tokenService.authenticatedFetch(getApiUrl('/excel/size/get-all-sizes'));
-        if (sizesResponse.ok) {
-          const sizesData = await sizesResponse.json();
-          setSizes(Array.isArray(sizesData) ? sizesData : sizesData.sizes || []);
-        }
-      } catch (error) {
-        Logger.error('Error fetching order data:', error);
-      } finally {
-        setLoading(false);
+  // silent - odświeżanie przeciągnięciem: formularz zostaje na ekranie (bez kręciołka zamiast formularza)
+  const fetchOrderData = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try {
+      // Fetch products (stock)
+      const stockResponse = await tokenService.authenticatedFetch(getApiUrl('/excel/stock/get-all-stocks'));
+      if (stockResponse.ok) {
+        const stockData = await stockResponse.json();
+        setProducts(Array.isArray(stockData) ? stockData : stockData.stocks || []);
       }
-    };
 
+      // Fetch colors
+      const colorsResponse = await tokenService.authenticatedFetch(getApiUrl('/excel/color/get-all-colors'));
+      if (colorsResponse.ok) {
+        const colorsData = await colorsResponse.json();
+        setColors(Array.isArray(colorsData) ? colorsData : colorsData.colors || []);
+      }
+
+      // Fetch sizes
+      const sizesResponse = await tokenService.authenticatedFetch(getApiUrl('/excel/size/get-all-sizes'));
+      if (sizesResponse.ok) {
+        const sizesData = await sizesResponse.json();
+        setSizes(Array.isArray(sizesData) ? sizesData : sizesData.sizes || []);
+      }
+    } catch (error) {
+      Logger.error('Error fetching order data:', error);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrderData();
   }, []);
+
+  // Przeciągnięcie w dół: odświeża tylko dane słownikowe (produkty, kolory, rozmiary, kursy walut);
+  // wpisane w formularz wartości zostają bez zmian
+  const { refreshControl } = usePullToRefresh(() =>
+    Promise.all([fetchOrderData({ silent: true }), fetchCurrencyRates()])
+  );
 
   useEffect(() => {
     fetchCurrencyRates();
@@ -1041,6 +1049,8 @@ const Profile = () => {
             showsVerticalScrollIndicator={false}
             contentInsetAdjustmentBehavior="automatic"
             keyboardDismissMode="interactive"
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           >
           <View style={styles.container}>
             <ScreenHeader icon="document-text" title="Zamówienia" subtitle={getTodayDate()} />

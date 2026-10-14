@@ -783,7 +783,7 @@ const fetchSales = async () => {
                 </View>
             ) : (
                 <View style={styles.container}>
-                    <FlatList
+                    <FlatList alwaysBounceVertical
                         testID="writeoff-flatlist"
                         ListHeaderComponent={
                             <ScreenHeader

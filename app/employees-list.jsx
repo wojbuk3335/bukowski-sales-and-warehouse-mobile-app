@@ -17,6 +17,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
@@ -50,9 +51,10 @@ const EmployeesList = () => {
     fetchLocations();
   }, []);
 
-  const fetchEmployees = async () => {
+  // silent - odświeżanie przeciągnięciem: lista zostaje widoczna zamiast kręciołka na cały ekran
+  const fetchEmployees = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const url = getApiUrl("/employees");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -86,6 +88,11 @@ const EmployeesList = () => {
       setLocations(['Warszawa', 'Kraków', 'Gdańsk']);
     }
   };
+
+  // Przeciągnięcie listy w dół: pracownicy i lokalizacje, jak przy wejściu na ekran
+  const { refreshControl } = usePullToRefresh(() =>
+    Promise.all([fetchEmployees({ silent: true }), fetchLocations()])
+  );
 
   const handleAddEmployee = () => {
     setIsEditing(false);
@@ -337,7 +344,7 @@ const EmployeesList = () => {
           <ActivityIndicator size="large" color="#0D6EFD" />
         </View>
       ) : filteredEmployees.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="people-outline" size={64} color={tc('muted', "#475569")} />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono pracowników" : "Brak pracowników"}
@@ -347,7 +354,7 @@ const EmployeesList = () => {
               Naciśnij "+" aby dodać nowego pracownika
             </Text>
           )}
-        </View>
+        </ScrollView>
       ) : (
         <>
           <View style={styles.countContainer}>
@@ -361,6 +368,8 @@ const EmployeesList = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           />
         </>
       )}

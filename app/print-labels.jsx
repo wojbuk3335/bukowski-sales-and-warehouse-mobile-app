@@ -1009,7 +1009,7 @@ const PrintLabels = () => {
         onBack={() => router.back()}
       />
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

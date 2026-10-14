@@ -126,7 +126,7 @@ const SearchScreen = () => {
           </View>
         </View>
         <Text style={styles.resultCount}>Wyników: {filteredData.length}</Text>
-        <FlatList
+        <FlatList alwaysBounceVertical
           testID="search-flatlist"
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
           data={filteredData}

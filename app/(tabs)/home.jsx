@@ -2482,7 +2482,7 @@ const Home = () => {
   return (
     <>
       <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
-        <FlatList
+        <FlatList alwaysBounceVertical
           testID="home-flatlist"
           data={filteredData}
           keyExtractor={(item, index) => item?._id?.toString() || index.toString()}

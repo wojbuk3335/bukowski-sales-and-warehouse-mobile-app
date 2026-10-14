@@ -81,7 +81,7 @@ const Reports = () => {
         <ScreenHeader icon="bar-chart" title="Raporty" subtitle="Wybierz rodzaj raportu" />
       </View>
 
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}

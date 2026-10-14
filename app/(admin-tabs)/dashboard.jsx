@@ -420,7 +420,7 @@ const Dashboard = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

@@ -2183,7 +2183,7 @@ const Users = () => {
         <ScreenHeader icon="shirt" title="Dobierz" subtitle="Dobieranie produktów z magazynu" />
       </View>
 
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}

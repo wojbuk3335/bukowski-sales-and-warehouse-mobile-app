@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
@@ -40,9 +41,12 @@ const WalletsList = () => {
     fetchWallets();
   }, []);
 
-  const fetchWallets = async () => {
+  // Odświeżanie listy przeciągnięciem w dół - bez pełnoekranowego kręciołka
+  const { refreshControl } = usePullToRefresh(() => fetchWallets({ silent: true }));
+
+  const fetchWallets = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true); // silent: odświeżanie gestem, lista zostaje na ekranie
       const url = getApiUrl("/excel/wallets/get-all-wallets");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -301,7 +305,7 @@ const WalletsList = () => {
           <ActivityIndicator size="large" color="#A855F7" />
         </View>
       ) : filteredWallets.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="wallet-outline" size={64} color="#475569" />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono portfeli" : "Brak portfeli"}
@@ -311,7 +315,7 @@ const WalletsList = () => {
               Naciśnij "+" aby dodać nowy portfel
             </Text>
           )}
-        </View>
+        </ScrollView>
       ) : (
         <>
           <View style={styles.countContainer}>
@@ -325,6 +329,8 @@ const WalletsList = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           />
         </>
       )}

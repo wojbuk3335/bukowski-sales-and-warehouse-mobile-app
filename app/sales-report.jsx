@@ -307,7 +307,7 @@ const SalesReport = () => {
           <View style={styles.headerRightSpace} />
         </View>
 
-        <ScrollView
+        <ScrollView alwaysBounceVertical
           style={styles.content}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
