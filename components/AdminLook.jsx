@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ThemeSwitch from './ThemeSwitch';
 import { createThemedStyles, tc } from '../context/ThemeContext';
@@ -146,6 +146,74 @@ export const IconButton = ({ icon, onPress, color = '#0D6EFD', accessibilityLabe
     <Ionicons name={icon} size={22} color={color} />
   </TouchableOpacity>
 );
+
+/**
+ * Okienko wyboru waluty (jak reszta okienek): nagłówek z ikoną, waluty jako karty (kod, nazwa, kurs kupna),
+ * zaznaczona waluta z ptaszkiem, neutralne „Zamknij”. options: [{ code, name, buyRate }].
+ */
+export const CurrencyPickerModal = ({
+  visible, onClose, onSelect, options = [], selected, title = 'Wybierz walutę', subtitle, color = '#10B981',
+  testID, optionTestID, closeTestID, closeLabel = 'Zamknij',
+}) => (
+  <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+    <View style={look.modalOverlay}>
+      <View style={[look.modalContent, { maxHeight: '80%' }]}>
+        <ModalHeader icon="cash" color={color} title={title} subtitle={subtitle} />
+        <FlatList
+          testID={testID}
+          data={options}
+          keyExtractor={(item) => item.code}
+          style={{ flexGrow: 0 }}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => {
+            const active = selected === item.code;
+            const rate = item.buyRate !== null && item.buyRate !== undefined && item.buyRate !== '' ? Number(item.buyRate) : null;
+            return (
+              <TouchableOpacity
+                testID={optionTestID ? optionTestID(item.code) : undefined}
+                style={[look.optionCard, active && { borderColor: color, backgroundColor: `${color}1F` }]}
+                onPress={() => onSelect(item.code)}
+              >
+                <View style={[look.currencyCode, { backgroundColor: `${color}26` }]}>
+                  <Text style={[look.currencyCodeText, { color }]}>{item.code}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={look.optionCardLabel} numberOfLines={1}>{item.name || item.code}</Text>
+                  {rate !== null && !Number.isNaN(rate) && item.code !== 'PLN' && (
+                    <Text style={look.currencyRate}>Kupno: {rate.toFixed(4)} PLN</Text>
+                  )}
+                </View>
+                {active && <Ionicons name="checkmark-circle" size={22} color={color} />}
+              </TouchableOpacity>
+            );
+          }}
+        />
+        <TouchableOpacity testID={closeTestID} style={[look.neutralButton, { flex: 0, marginTop: 12 }]} onPress={onClose}>
+          <Text style={look.neutralButtonText}>{closeLabel}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
+
+/** Okienko komunikatu (sukces / błąd) w stylu aplikacji. */
+export const MessageModal = ({ visible, onClose, type = 'success', title, message }) => {
+  const success = type === 'success';
+  const color = success ? '#10B981' : '#DC3545';
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+      <View style={look.modalOverlay}>
+        <View style={look.modalContent}>
+          <ModalHeader icon={success ? 'checkmark-circle' : 'alert-circle'} color={color} title={title || (success ? 'Gotowe' : 'Błąd')} />
+          {!!message && <Text style={look.modalMessage}>{message}</Text>}
+          <TouchableOpacity style={[look.primaryButton, { flex: 0, backgroundColor: success ? '#0D6EFD' : color }]} onPress={onClose}>
+            <Text style={look.buttonText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 /** Pozycja menu w okienku akcji: ikona w kolorze akcji, tytuł, strzałka. */
 export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, disabled = false }) => (
@@ -440,6 +508,24 @@ export const look = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
     fontSize: 15,
     fontWeight: '600',
+  },
+  currencyCode: {
+    minWidth: 48,
+    height: 36,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  currencyCodeText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  currencyRate: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 2,
   },
   // pola
   formLabel: {
