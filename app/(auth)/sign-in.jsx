@@ -13,6 +13,7 @@ import { checkAndApplyUpdate, getVersionLabel } from "../../services/appUpdates"
 import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../../context/ThemeContext'; // kolory zależne od motywu
 import Logger from "../../services/logger"; // Import logger service
 import tokenService from "../../services/tokenService"; // Import token service
+import { buildSessionActiveMessage, SESSION_REVOKED_MESSAGE } from "../../utils/sessionLockMessages"; // blokada „jedna osoba na punkcie”
 import bukowskiLogo from "./bukowski.png"; // Import the image
 
 const SignIn = () => {
@@ -23,6 +24,8 @@ const SignIn = () => {
     password: "",
   });
   const [error, setError] = useState("");
+  // Informacja (nie błąd) po przekierowaniu z aplikacji, np. zakończona sesja
+  const [notice, setNotice] = useState("");
   const [isAdminPanel, setIsAdminPanel] = useState(false);
   const navigation = useNavigation();
   const { setUser, bukowski_login, isLoading, user } = useContext(GlobalStateContext);
@@ -41,6 +44,13 @@ const SignIn = () => {
       active = false;
     };
   }, []);
+
+  // 🔒 SESSION_REVOKED: przekierowanie z tokenService/AuthErrorHandler po zakończeniu sesji przez serwer
+  useEffect(() => {
+    if (params?.reason === "SESSION_REVOKED") {
+      setNotice(SESSION_REVOKED_MESSAGE);
+    }
+  }, [params?.reason]);
 
   // Usunięto automatyczne przekierowanie przy wejściu - użytkownik musi wybrać panel
 
@@ -86,6 +96,7 @@ const SignIn = () => {
   const submit = async () => {
     try {
       setError(""); // Clear any previous errors
+      setNotice("");
       const response = await bukowski_login(form.email, form.password, navigation, isAdminPanel);
 
       if (response?.requiresVerification) {
@@ -126,9 +137,10 @@ const SignIn = () => {
         router.replace("/home"); // User panel
       }
     } catch (error) {
-      // 🔒 SESSION BLOCKING: Jeśli k toś już zalogowany
+      // 🔒 SESSION BLOCKING: na tym punkcie jest już zalogowany inny telefon
       if (error.code === 'SESSION_ACTIVE' || error.message?.includes('Konto jest już zalogowane')) {
-        setError("⚠️ Ktoś jest już zalogowany na tym koncie. Wyloguj się z innego urządzenia, aby kontynuować.");
+        // error.session = { startedAt, lastSeenAt, deviceName } z backendu; bez niego ogólny komunikat
+        setError(buildSessionActiveMessage(error.session));
       } else if (error.code === 'INVALID_CREDENTIALS') {
         setError("Nieprawidłowy email lub hasło. Spróbuj ponownie.");
       } else if (error.code === 'FORBIDDEN') {
@@ -226,6 +238,13 @@ const SignIn = () => {
               <Text style={styles.updateText}>
                 {updateStage === "downloading" ? "Pobieranie aktualizacji…" : "Sprawdzanie aktualizacji…"}
               </Text>
+            </View>
+          ) : null}
+
+          {notice ? (
+            <View style={styles.noticeContainer}>
+              <Ionicons name="information-circle" size={20} color="#0D6EFD" />
+              <Text style={styles.errorText}>{notice}</Text>
             </View>
           ) : null}
 
@@ -338,6 +357,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: "rgba(239, 68, 68, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.5)",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  noticeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(13, 110, 253, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(13, 110, 253, 0.5)",
     borderRadius: 12,
     padding: 12,
     marginTop: 12,
