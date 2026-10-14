@@ -19,6 +19,7 @@ import { GlobalStateContext } from "../../context/GlobalState";
 import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import LogoutButton from "../../components/LogoutButton";
+import { ScreenHeader } from '../../components/AdminLook';
 import { appAlert } from '../../services/appAlert';
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -2177,17 +2178,12 @@ const Users = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LogoutButton position="top-right" />
       
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="shirt" size={32} color="#fff" />
-        </View>
-        <Text style={styles.title}>Dobierz</Text>
-        <Text style={styles.subtitle}>Dobieranie produktów z magazynu</Text>
+      <View style={{ paddingHorizontal: 12 }}>
+        <ScreenHeader icon="shirt" title="Dobierz" subtitle="Dobieranie produktów z magazynu" />
       </View>
 
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}

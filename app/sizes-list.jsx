@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
@@ -39,9 +40,12 @@ const SizesList = () => {
     fetchSizes();
   }, []);
 
-  const fetchSizes = async () => {
+  // Odświeżanie listy przeciągnięciem w dół - bez pełnoekranowego kręciołka
+  const { refreshControl } = usePullToRefresh(() => fetchSizes({ silent: true }));
+
+  const fetchSizes = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true); // silent: odświeżanie gestem, lista zostaje na ekranie
       const url = getApiUrl("/excel/size/get-all-sizes");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -185,12 +189,12 @@ const SizesList = () => {
           <ActivityIndicator size="large" color="#06B6D4" />
         </View>
       ) : filteredSizes.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="resize-outline" size={64} color="#475569" />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono rozmiarów" : "Brak rozmiarów"}
           </Text>
-        </View>
+        </ScrollView>
       ) : (
         <>
           <View style={styles.countContainer}>
@@ -204,6 +208,8 @@ const SizesList = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           />
         </>
       )}

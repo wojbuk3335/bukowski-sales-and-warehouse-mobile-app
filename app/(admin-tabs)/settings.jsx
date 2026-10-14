@@ -11,6 +11,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import LogoutButton from "../../components/LogoutButton";
+import { ScreenHeader } from '../../components/AdminLook';
 import { appAlert } from '../../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -59,16 +60,14 @@ const Settings = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <LogoutButton position="top-right" />
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Ustawienia</Text>
-          <Text style={styles.subtitle}>Konfiguracja systemu</Text>
+        <View style={{ paddingHorizontal: 12 }}>
+          <ScreenHeader icon="settings" title="Ustawienia" subtitle="Konfiguracja systemu" />
         </View>
 
         <View style={styles.section}>

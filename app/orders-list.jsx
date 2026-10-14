@@ -555,7 +555,7 @@ const OrdersList = () => {
         </Text>
       </View>
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 120 }}

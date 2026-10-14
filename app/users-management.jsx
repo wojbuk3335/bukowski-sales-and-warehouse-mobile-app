@@ -593,7 +593,7 @@ const UsersManagement = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

@@ -492,7 +492,7 @@ const MovementsReport = () => {
         }}
       />
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

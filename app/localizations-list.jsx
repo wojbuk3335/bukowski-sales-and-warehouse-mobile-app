@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
@@ -39,9 +40,12 @@ const LocalizationsList = () => {
     fetchLocalizations();
   }, []);
 
-  const fetchLocalizations = async () => {
+  // Odświeżanie listy przeciągnięciem w dół - bez pełnoekranowego kręciołka
+  const { refreshControl } = usePullToRefresh(() => fetchLocalizations({ silent: true }));
+
+  const fetchLocalizations = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true); // silent: odświeżanie gestem, lista zostaje na ekranie
       const url = getApiUrl("/excel/localization/get-all-localizations");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -242,7 +246,7 @@ const LocalizationsList = () => {
           <ActivityIndicator size="large" color="#EF4444" />
         </View>
       ) : filteredLocalizations.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="location-outline" size={64} color="#475569" />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono lokalizacji" : "Brak lokalizacji"}
@@ -252,7 +256,7 @@ const LocalizationsList = () => {
               Naciśnij "+" aby dodać nową lokalizację
             </Text>
           )}
-        </View>
+        </ScrollView>
       ) : (
         <>
           <View style={styles.countContainer}>
@@ -266,6 +270,8 @@ const LocalizationsList = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           />
         </>
       )}

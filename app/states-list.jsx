@@ -111,7 +111,7 @@ const StatesList = () => {
     <SafeAreaView style={styles.container}>
       <PageHeader title="Stany" icon="layers-outline" onBack={() => router.back()} />
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         style={styles.content}
         contentContainerStyle={styles.contentInner}
         refreshControl={

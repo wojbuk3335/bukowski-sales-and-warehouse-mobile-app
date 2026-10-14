@@ -326,7 +326,7 @@ const History = () => {
           <Text style={styles.loadingText}>Ładowanie historii...</Text>
         </View>
       ) : (
-        <ScrollView
+        <ScrollView alwaysBounceVertical
           style={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={

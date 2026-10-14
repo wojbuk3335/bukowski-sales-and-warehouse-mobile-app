@@ -265,7 +265,7 @@ const PanKazek = () => {
         onBack={() => router.back()}
       />
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

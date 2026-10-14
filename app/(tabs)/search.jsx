@@ -126,7 +126,7 @@ const SearchScreen = () => {
           </View>
         </View>
         <Text style={styles.resultCount}>Wyników: {filteredData.length}</Text>
-        <FlatList
+        <FlatList alwaysBounceVertical
           testID="search-flatlist"
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
           data={filteredData}
@@ -158,7 +158,6 @@ const SearchScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LogoutButton position="top-right" />
       <View style={{ paddingHorizontal: 12 }}>
         <ScreenHeader icon="search" title="Szukaj" subtitle="Znajdź produkt w stanach wszystkich punktów" />
         <MenuCard
