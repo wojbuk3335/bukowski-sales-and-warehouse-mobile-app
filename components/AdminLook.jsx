@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ThemeSwitch from './ThemeSwitch';
 import { createThemedStyles, tc } from '../context/ThemeContext';
@@ -8,19 +8,32 @@ import { createThemedStyles, tc } from '../context/ThemeContext';
 // nagłówek z ikoną w kółku, karty z cienką ramką, kolorowe kafelki ikon, okienka z nagłówkiem.
 // Kolory z motywu (biały / szary / czarny).
 
-/** Nagłówek ekranu: ikona w kółku, tytuł, podtytuł, przełącznik motywu i opcjonalna dodatkowa treść. */
-// Przełącznik motywu tylko na pierwszej zakładce („Sprzedaż”) - na pozostałych ekranach domyślnie wyłączony
-export const ScreenHeader = ({ icon, title, subtitle, children, showThemeSwitch = false }) => (
-  <View style={look.screenHeader}>
-    <View style={look.screenHeaderIcon}>
-      <Ionicons name={icon} size={30} color="#fff" />
+/**
+ * Nagłówek zakładki - jeden niski wiersz (max ~10% wysokości ekranu): kafelek z ikoną, tytuł i podtytuł,
+ * opcjonalnie coś po prawej (right, np. saldo) i przycisk wylogowania (kafelek). children - dodatkowy wiersz pod spodem.
+ */
+export const ScreenHeader = ({ icon, title, subtitle, children, right, showThemeSwitch = false, showLogout = true }) => {
+  // wczytywane leniwie: LogoutButton korzysta z kontekstu aplikacji (nie obciąża ekranów i testów bez wylogowania)
+  // eslint-disable-next-line global-require
+  const LogoutButton = showLogout ? require('./LogoutButton').default : null;
+  return (
+    <View style={look.screenHeader}>
+      <View style={look.screenHeaderRow}>
+        <View style={look.screenHeaderIcon}>
+          <Ionicons name={icon} size={20} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={look.screenHeaderTitle} numberOfLines={1}>{title}</Text>
+          {!!subtitle && <Text style={look.screenHeaderSubtitle} numberOfLines={1}>{subtitle}</Text>}
+        </View>
+        {right}
+        {LogoutButton && <LogoutButton position="inline" compact />}
+      </View>
+      {showThemeSwitch && <ThemeSwitch compact style={{ marginTop: 8 }} />}
+      {children ? <View style={{ marginTop: 8 }}>{children}</View> : null}
     </View>
-    <Text style={look.screenHeaderTitle}>{title}</Text>
-    {!!subtitle && <Text style={look.screenHeaderSubtitle}>{subtitle}</Text>}
-    {showThemeSwitch && <ThemeSwitch compact style={{ marginTop: 14, alignSelf: 'stretch' }} />}
-    {children}
-  </View>
-);
+  );
+};
 
 /** Nagłówek okienka: kolorowy kafelek z ikoną i tytuł. */
 export const ModalHeader = ({ icon, color = '#0D6EFD', title, subtitle }) => (
@@ -147,6 +160,74 @@ export const IconButton = ({ icon, onPress, color = '#0D6EFD', accessibilityLabe
   </TouchableOpacity>
 );
 
+/**
+ * Okienko wyboru waluty (jak reszta okienek): nagłówek z ikoną, waluty jako karty (kod, nazwa, kurs kupna),
+ * zaznaczona waluta z ptaszkiem, neutralne „Zamknij”. options: [{ code, name, buyRate }].
+ */
+export const CurrencyPickerModal = ({
+  visible, onClose, onSelect, options = [], selected, title = 'Wybierz walutę', subtitle, color = '#10B981',
+  testID, optionTestID, closeTestID, closeLabel = 'Zamknij',
+}) => (
+  <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+    <View style={look.modalOverlay}>
+      <View style={[look.modalContent, { maxHeight: '80%' }]}>
+        <ModalHeader icon="cash" color={color} title={title} subtitle={subtitle} />
+        <FlatList
+          testID={testID}
+          data={options}
+          keyExtractor={(item) => item.code}
+          style={{ flexGrow: 0 }}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => {
+            const active = selected === item.code;
+            const rate = item.buyRate !== null && item.buyRate !== undefined && item.buyRate !== '' ? Number(item.buyRate) : null;
+            return (
+              <TouchableOpacity
+                testID={optionTestID ? optionTestID(item.code) : undefined}
+                style={[look.optionCard, active && { borderColor: color, backgroundColor: `${color}1F` }]}
+                onPress={() => onSelect(item.code)}
+              >
+                <View style={[look.currencyCode, { backgroundColor: `${color}26` }]}>
+                  <Text style={[look.currencyCodeText, { color }]}>{item.code}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={look.optionCardLabel} numberOfLines={1}>{item.name || item.code}</Text>
+                  {rate !== null && !Number.isNaN(rate) && item.code !== 'PLN' && (
+                    <Text style={look.currencyRate}>Kupno: {rate.toFixed(4)} PLN</Text>
+                  )}
+                </View>
+                {active && <Ionicons name="checkmark-circle" size={22} color={color} />}
+              </TouchableOpacity>
+            );
+          }}
+        />
+        <TouchableOpacity testID={closeTestID} style={[look.neutralButton, { flex: 0, marginTop: 12 }]} onPress={onClose}>
+          <Text style={look.neutralButtonText}>{closeLabel}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
+
+/** Okienko komunikatu (sukces / błąd) w stylu aplikacji. */
+export const MessageModal = ({ visible, onClose, type = 'success', title, message }) => {
+  const success = type === 'success';
+  const color = success ? '#10B981' : '#DC3545';
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+      <View style={look.modalOverlay}>
+        <View style={look.modalContent}>
+          <ModalHeader icon={success ? 'checkmark-circle' : 'alert-circle'} color={color} title={title || (success ? 'Gotowe' : 'Błąd')} />
+          {!!message && <Text style={look.modalMessage}>{message}</Text>}
+          <TouchableOpacity style={[look.primaryButton, { flex: 0, backgroundColor: success ? '#0D6EFD' : color }]} onPress={onClose}>
+            <Text style={look.buttonText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 /** Pozycja menu w okienku akcji: ikona w kolorze akcji, tytuł, strzałka. */
 export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, disabled = false }) => (
   <TouchableOpacity testID={testID} disabled={disabled} style={[look.actionItem, disabled && { opacity: 0.5 }]} onPress={onPress}>
@@ -160,33 +241,34 @@ export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, di
 
 export const look = createThemedStyles(() => StyleSheet.create({
   screenHeader: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 16,
-    paddingHorizontal: 8,
-    marginBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: tc('border', '#1E293B'),
   },
+  screenHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   screenHeaderIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#0D6EFD',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
   screenHeaderTitle: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: tc('text', '#fff'),
-    marginBottom: 4,
   },
   screenHeaderSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: tc('muted', '#94A3B8'),
-    textAlign: 'center',
+    marginTop: 1,
   },
   chip: {
     flexDirection: 'row',
@@ -440,6 +522,24 @@ export const look = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
     fontSize: 15,
     fontWeight: '600',
+  },
+  currencyCode: {
+    minWidth: 48,
+    height: 36,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  currencyCodeText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  currencyRate: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 2,
   },
   // pola
   formLabel: {

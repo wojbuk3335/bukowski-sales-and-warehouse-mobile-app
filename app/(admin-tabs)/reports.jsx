@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import LogoutButton from "../../components/LogoutButton";
+import { ScreenHeader } from '../../components/AdminLook';
 import { appAlert } from '../../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -76,16 +77,11 @@ const Reports = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <LogoutButton position="top-right" />
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="bar-chart" size={32} color="#fff" />
-        </View>
-        <Text style={styles.title}>Raporty</Text>
-        <Text style={styles.subtitle}>Wybierz rodzaj raportu</Text>
+      <View style={{ paddingHorizontal: 12 }}>
+        <ScreenHeader icon="bar-chart" title="Raporty" subtitle="Wybierz rodzaj raportu" />
       </View>
 
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}

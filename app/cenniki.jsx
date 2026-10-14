@@ -16,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import useLiveRefresh from "../services/useLiveRefresh"; // zmiany cenników na żywo (także z panelu)
+import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 import { API_CONFIG, getApiUrl } from "../config/api";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -146,9 +147,10 @@ const Cenniki = () => {
     return `${baseUrl}/images/${picturePath}`;
   };
 
-  const fetchUsers = async () => {
+  // silent - odświeżanie przeciągnięciem: bez pełnoekranowego ładowania i bez zmiany wybranego punktu
+  const fetchUsers = async ({ silent = false } = {}) => {
     try {
-      setLoadingUsers(true);
+      if (!silent) setLoadingUsers(true);
       const url = getApiUrl("/user");
       const response = await tokenService.authenticatedFetch(url);
       if (response.ok) {
@@ -167,17 +169,20 @@ const Cenniki = () => {
         setUsers(filtered);
         if (filtered.length > 0) {
           const firstPoint = filtered.find((user) => String(user.role || "").toLowerCase() === "user") || filtered[0];
-          setSelectedSellingPoint(firstPoint._id);
+          // przy odświeżaniu zostaje wybrany punkt, o ile nadal istnieje
+          setSelectedSellingPoint((prev) =>
+            silent && prev && filtered.some((user) => user._id === prev) ? prev : firstPoint._id
+          );
         }
       } else {
         console.error("Failed to fetch users:", response.status);
-        setUsers([]);
+        if (!silent) setUsers([]);
       }
     } catch (error) {
       console.error("Error fetching users:", error);
-      setUsers([]);
+      if (!silent) setUsers([]);
     } finally {
-      setLoadingUsers(false);
+      if (!silent) setLoadingUsers(false);
     }
   };
 
@@ -230,6 +235,15 @@ const Cenniki = () => {
   useLiveRefresh(["pricelists", "goods"], () => {
     if (selectedSellingPoint) fetchPriceList(selectedSellingPoint, { silent: true });
   });
+
+  // Przeciągnięcie listy w dół: punkty, rozmiary i cennik aktualnie wybranego punktu (lista zostaje widoczna)
+  const { refreshControl } = usePullToRefresh(() =>
+    Promise.all([
+      fetchUsers({ silent: true }),
+      fetchSizes(),
+      selectedSellingPoint ? fetchPriceList(selectedSellingPoint, { silent: true }) : null,
+    ])
+  );
 
   const checkSynchronization = async (sellingPointId, isStale = () => false) => {
     try {
@@ -634,7 +648,7 @@ const Cenniki = () => {
               <Text style={styles.loadingText}>Ładowanie cennika...</Text>
             </View>
           ) : filteredPriceList.length === 0 ? (
-            <View style={styles.emptyContainer}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
               <Ionicons name="pricetag-outline" size={64} color="#475569" />
               <Text style={styles.emptyText}>
                 {priceListError
@@ -643,7 +657,7 @@ const Cenniki = () => {
                     ? "Brak cennika dla tego punktu"
                     : "Brak wyników"}
               </Text>
-            </View>
+            </ScrollView>
           ) : (
             <FlatList
               data={filteredPriceList}
@@ -651,6 +665,8 @@ const Cenniki = () => {
               keyExtractor={(item) => item._id}
               contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
               showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
             />
           )}
         </>

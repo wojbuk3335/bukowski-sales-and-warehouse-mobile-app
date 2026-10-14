@@ -10,6 +10,7 @@ import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { CurrencyPickerModal, MessageModal, ScreenHeader, look } from '../../components/AdminLook';
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
@@ -2481,8 +2482,7 @@ const Home = () => {
   return (
     <>
       <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
-        <LogoutButton position="top-right" />
-        <FlatList
+        <FlatList alwaysBounceVertical
           testID="home-flatlist"
           data={filteredData}
           keyExtractor={(item, index) => item?._id?.toString() || index.toString()}
@@ -2534,22 +2534,14 @@ const Home = () => {
           )}
           ListHeaderComponent={() => {
             return (
-              <View style={{ marginVertical: 24, paddingHorizontal: 8 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <View style={{ marginTop: 4, marginBottom: 16, paddingHorizontal: 8 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <View style={{ width: '100%' }}>
-                    <View style={styles.screenHeader}>
-                      <View style={styles.screenHeaderIcon}>
-                        <Ionicons name="cart" size={30} color="#fff" />
-                      </View>
-                      <Text style={styles.screenHeaderTitle}>Sprzedaż</Text>
-                      <Text style={styles.screenHeaderSubtitle}>
-                        {user?.email} · {new Date().toLocaleDateString('pl-PL', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                        })}
-                      </Text>
-                    </View>
+                    <ScreenHeader
+                      icon="cart"
+                      title="Sprzedaż"
+                      subtitle={`${user?.email || ''} · ${new Date().toLocaleDateString('pl-PL', { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
+                    />
                     {assignedSalespeople.length > 0 && (
                       <>
                         {assignedSalespeople.map((salesperson, index) => {
@@ -3638,44 +3630,15 @@ const Home = () => {
         </Modal>
         {/* Currency Modal */}
         {currencyModalVisible && (
-          <Modal
-            transparent
-            animationType="slide"
+          <CurrencyPickerModal
             visible={currencyModalVisible}
-            onRequestClose={() => setCurrencyModalVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Wybierz walutę</Text>
-                <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
-                  Wybierz walutę dla płatności
-                </Text>
-                
-                <ScrollView style={{ maxHeight: 400, width: '100%', marginVertical: 15 }}>
-                  {availableCurrencies.map((item) => (
-                    <TouchableOpacity
-                      key={item.code}
-                      style={styles.optionButton}
-                      onPress={() => selectCurrencyFromModal(item.code)}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={[styles.optionText, { width: 60 }]}>{item.code}</Text>
-                        <Text style={{ color: '#a1a1aa', fontSize: 12, flex: 1, marginLeft: 10 }}>{item.name}</Text>
-                        <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '500', marginLeft: 10 }}>{item.buyRate}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                
-                <TouchableOpacity
-                  style={[styles.optionButton, styles.closeButton]}
-                  onPress={() => setCurrencyModalVisible(false)}
-                >
-                  <Text style={styles.closeText}>Zamknij</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
+            onClose={() => setCurrencyModalVisible(false)}
+            onSelect={selectCurrencyFromModal}
+            options={availableCurrencies}
+            title="Wybierz walutę"
+            subtitle="Waluta płatności"
+            color="#0D6EFD"
+          />
         )}
         
         {/* Deduction Modal */}
@@ -3835,6 +3798,7 @@ const Home = () => {
                   {deductionType === "employee_advance" ? "Dodatkowe uwagi (opcjonalne):" : "Powód odpisania:"}
                 </Text>
                 <TextInput
+                  scrollEnabled={false}
                   style={[styles.formInput, { minHeight: 80, textAlignVertical: 'top' }]}
                   placeholder={deductionType === "employee_advance" ? "Dodatkowe uwagi do zaliczki (opcjonalne)..." : "Wpisz powód odpisania kwoty..."}
                   placeholderTextColor={tc('muted', "#ccc")}
@@ -4489,6 +4453,7 @@ const Home = () => {
                 {/* Conditional text input */}
                 {reasonType === 'other' && (
                   <TextInput
+                  scrollEnabled={false}
                     style={[styles.formInput, { minHeight: 80, textAlignVertical: 'top', borderColor: '#10b981', borderWidth: 2 }]}
                     placeholder="Wpisz powód dopisania kwoty..."
                     placeholderTextColor={tc('muted', "#ccc")}
@@ -4888,6 +4853,7 @@ const Home = () => {
               <View style={styles.workHoursNotesContainer}>
                 <Text style={styles.formLabel}>Notatki (opcjonalne)</Text>
                 <TextInput
+                  scrollEnabled={false}
                   style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
                   value={workNotes}
                   onChangeText={setWorkNotes}
@@ -4942,58 +4908,22 @@ const Home = () => {
         </Modal>
 
         {/* Success Modal */}
-        <Modal
-          animationType="fade"
-          transparent={true}
+        <MessageModal
           visible={successModalVisible}
-          onRequestClose={() => setSuccessModalVisible(false)}
-        >
-          <View style={styles.successModalOverlay}>
-            <View style={styles.successModalContent}>
-              <View style={styles.successIconContainer}>
-                <Text style={styles.successIcon}>✓</Text>
-              </View>
-              <Text style={styles.successModalTitle}>Sukces!</Text>
-              <Text style={styles.successModalMessage}>
-                {successMessage}
-              </Text>
-              
-              <TouchableOpacity
-                style={[styles.optionButton, { backgroundColor: '#0D6EFD', marginTop: 20, width: '90%' }]}
-                onPress={() => setSuccessModalVisible(false)}
-              >
-                <Text style={styles.optionText}>OK</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setSuccessModalVisible(false)}
+          type="success"
+          title="Gotowe"
+          message={successMessage}
+        />
 
         {/* Error Modal */}
-        <Modal
-          animationType="fade"
-          transparent={true}
+        <MessageModal
           visible={errorModalVisible}
-          onRequestClose={() => setErrorModalVisible(false)}
-        >
-          <View style={styles.errorModalOverlay}>
-            <View style={styles.errorModalContent}>
-              <View style={styles.errorIconContainer}>
-                <Text style={styles.errorIcon}>⚠</Text>
-              </View>
-              <Text style={styles.errorModalTitle}>Błąd!</Text>
-              <Text style={styles.errorModalMessage}>
-                {errorMessage}
-              </Text>
-              
-              <TouchableOpacity
-                style={[styles.optionButton, { backgroundColor: '#dc3545', marginTop: 20, width: '90%' }]}
-                onPress={() => setErrorModalVisible(false)}
-              >
-                <Text style={styles.optionText}>OK</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setErrorModalVisible(false)}
+          type="error"
+          title="Błąd"
+          message={errorMessage}
+        />
 
         {/* Delete Confirmation Modal */}
         <Modal
@@ -5107,156 +5037,42 @@ const Home = () => {
         </Modal>
 
         {/* Add Amount Currency Selection Modal */}
-        <Modal
-          transparent={true}
-          animationType="slide"
+        <CurrencyPickerModal
           visible={addAmountCurrencyModalVisible}
-          onRequestClose={() => setAddAmountCurrencyModalVisible(false)}
-        >
-          <View style={styles.currencyModalContainer}>
-            <View style={styles.currencyModalContent}>
-              <Text style={styles.currencyModalTitle}>Wybierz walutę</Text>
-              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
-                Wybierz walutę dla płatności
-              </Text>
-              
-              <FlatList
-                data={currencyOptions}
-                keyExtractor={(item) => item.code}
-                style={{ width: '100%', marginVertical: 15 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.currencyModalItem}
-                    onPress={() => selectCurrencyForAddAmount(item.code)}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={[styles.currencyModalItemText, { width: 60 }]}>
-                        {item.code}
-                      </Text>
-                      <Text style={{ color: '#a1a1aa', fontSize: 12, flex: 1, marginLeft: 10 }}>
-                        {item.name}
-                      </Text>
-                      <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '500', marginLeft: 10 }}>
-                        {item.buyRate !== null && item.buyRate !== undefined ? item.buyRate : '-'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-              
-              <TouchableOpacity
-                style={styles.currencyModalCloseButton}
-                onPress={() => setAddAmountCurrencyModalVisible(false)}
-              >
-                <Text style={styles.currencyModalCloseButtonText}>Zamknij</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setAddAmountCurrencyModalVisible(false)}
+          onSelect={selectCurrencyForAddAmount}
+          options={currencyOptions}
+          selected={addAmountCurrency}
+          title="Wybierz walutę"
+          subtitle="Waluta dopisanej kwoty"
+          color="#10B981"
+        />
 
         {/* Deduction Currency Selection Modal */}
-        <Modal
-          transparent={true}
-          animationType="slide"
+        <CurrencyPickerModal
           visible={deductionCurrencyModalVisible}
-          onRequestClose={() => setDeductionCurrencyModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { width: '80%', maxHeight: '70%' }]}>
-              <Text style={styles.modalTitle}>Wybierz walutę</Text>
-              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
-                Wybierz walutę dla odpisanej kwoty
-              </Text>
-              
-              <FlatList
-                data={availableCurrencies}
-                keyExtractor={(item) => item.code}
-                style={{ width: '100%', marginVertical: 20 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: deductionCurrency === item.code ? '#dc3545' : 'transparent',
-                      padding: 15,
-                      borderRadius: 8,
-                      marginBottom: 8,
-                      borderWidth: 1,
-                      borderColor: deductionCurrency === item.code ? 'white' : tc('border', '#444'),
-                    }}
-                    onPress={() => selectCurrencyForDeduction(item.code)}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={{ 
-                        color: deductionCurrency === item.code ? tc('text', 'white') : tc('muted', '#ccc'), 
-                        fontSize: 16, 
-                        fontWeight: deductionCurrency === item.code ? 'bold' : 'normal',
-                        width: 60
-                      }}>
-                        {item.code}
-                      </Text>
-                      <Text style={{ color: tc('muted', '#a1a1aa'), fontSize: 12, flex: 1, marginLeft: 10 }}>{item.name}</Text>
-                      <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '500', marginLeft: 10 }}>{item.buyRate}</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-              
-              <TouchableOpacity
-                style={[styles.optionButton, { backgroundColor: '#6c757d', marginTop: 10, width: '90%' }]}
-                onPress={() => setDeductionCurrencyModalVisible(false)}
-              >
-                <Text style={styles.optionText}>Zamknij</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setDeductionCurrencyModalVisible(false)}
+          onSelect={selectCurrencyForDeduction}
+          options={availableCurrencies}
+          selected={deductionCurrency}
+          title="Wybierz walutę"
+          subtitle="Waluta odpisanej kwoty"
+          color="#DC3545"
+        />
 
         {/* Product Currency Selection Modal */}
-        <Modal
-          transparent={true}
-          animationType="slide"
+        <CurrencyPickerModal
           visible={productCurrencyModalVisible}
-          onRequestClose={() => setProductCurrencyModalVisible(false)}
-        >
-          <View style={styles.currencyModalContainer}>
-            <View style={styles.currencyModalContent}>
-              <Text style={styles.currencyModalTitle}>Wybierz walutę dla klienta</Text>
-              
-              <FlatList
-                testID="product-currency-flatlist"
-                data={currencyOptions}
-                keyExtractor={(item) => item.code}
-                style={{ width: '100%', marginVertical: 15 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    testID={`product-currency-option-${item.code}`}
-                    style={styles.currencyModalItem}
-                    onPress={() => selectProductCurrency(item.code)}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={[styles.currencyModalItemText, { width: 60 }]}>
-                        {item.code}
-                      </Text>
-                      <Text style={{ color: '#a1a1aa', fontSize: 12, flex: 1, marginLeft: 10 }}>
-                        {item.name}
-                      </Text>
-                      <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '500', marginLeft: 10 }}>
-                        {item.buyRate !== null && item.buyRate !== undefined ? item.buyRate : '-'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-              
-              <TouchableOpacity
-                testID="product-currency-close-button"
-                style={styles.currencyModalCloseButton}
-                onPress={() => setProductCurrencyModalVisible(false)}
-              >
-                <Text style={styles.currencyModalCloseButtonText}>Zamknij</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setProductCurrencyModalVisible(false)}
+          onSelect={selectProductCurrency}
+          options={currencyOptions}
+          selected={productSaleCurrency}
+          title="Wybierz walutę dla klienta"
+          color="#10B981"
+          testID="product-currency-flatlist"
+          optionTestID={(code) => `product-currency-option-${code}`}
+          closeTestID="product-currency-close-button"
+        />
 
         {/* Currency Rate Edit Modal */}
         <Modal
@@ -5413,79 +5229,36 @@ const Home = () => {
         {/* Employee Selection Modal for Deduction */}
         <Modal
           key="deduction-employee-modal"
-          animationType="slide"
+          animationType="fade"
           transparent={true}
           visible={deductionEmployeeModalVisible}
           onRequestClose={() => setDeductionEmployeeModalVisible(false)}
         >
-          <View style={styles.salespersonModalOverlay}>
-            <View style={styles.salespersonModalContent}>
-              <Text style={styles.salespersonModalTitle}>Wybierz pracownika</Text>
-              <Text style={{ color: tc('muted', '#a1a1aa'), textAlign: 'center', fontSize: 14, marginBottom: 15 }}>
-                Wybierz pracownika dla zaliczki
-              </Text>
-              
-              <ScrollView style={{ maxHeight: 400, width: '100%', marginVertical: 15 }}>
+          <View style={look.modalOverlay}>
+            <View style={[look.modalContent, { maxHeight: '80%' }]}>
+              <ModalHeader icon="person" color="#DC3545" title="Wybierz pracownika" subtitle="Pracownik, który bierze zaliczkę" />
+              <ScrollView style={{ flexGrow: 0 }}>
                 {employees.length > 0 ? (
-                  employees.map((employee) => {
-                    const isSelected = selectedEmployeeForAdvance?._id === employee._id;
-                    
-                    return (
-                      <TouchableOpacity
-                        key={employee._id}
-                        style={[styles.salespersonOptionButton, {
-                          backgroundColor: isSelected ? '#10b981' : '#0d6efd'
-                        }]}
-                        onPress={() => {
-                          setSelectedEmployeeForAdvance(employee);
-                          setDeductionEmployeeModalVisible(false);
-                        }}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.salespersonOptionText}>
-                              {employee.firstName} {employee.lastName}
-                            </Text>
-                            {employee.employeeId && (
-                              <Text style={[styles.salespersonOptionText, { fontSize: 12, opacity: 0.8 }]}>
-                                ID: {employee.employeeId}
-                              </Text>
-                            )}
-                          </View>
-                          
-                          <View style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
-                            backgroundColor: isSelected ? '#ffffff' : 'transparent',
-                            borderWidth: 2,
-                            borderColor: tc('border', '#475569'),
-                            justifyContent: 'center',
-                            alignItems: 'center'
-                          }}>
-                            {isSelected && (
-                              <Text style={{ color: '#10b981', fontSize: 14, fontWeight: 'bold' }}>✓</Text>
-                            )}
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
+                  employees.map((employee) => (
+                    <OptionCard
+                      key={employee._id}
+                      icon="person-outline"
+                      color="#DC3545"
+                      label={`${employee.firstName} ${employee.lastName}${employee.employeeId ? ` (ID: ${employee.employeeId})` : ''}`}
+                      selected={selectedEmployeeForAdvance?._id === employee._id}
+                      onPress={() => {
+                        setSelectedEmployeeForAdvance(employee);
+                        setDeductionEmployeeModalVisible(false);
+                      }}
+                    />
+                  ))
                 ) : (
-                  <Text style={{ color: tc('text', '#ffffff'), textAlign: 'center', fontSize: 16, marginVertical: 20 }}>
-                    Brak dostępnych pracowników
-                  </Text>
+                  <Text style={look.modalMessage}>Brak dostępnych pracowników</Text>
                 )}
               </ScrollView>
-              
-              <View style={styles.salespersonModalButtonsContainer}>
-                <TouchableOpacity
-                  style={styles.salespersonModalCancelButton}
-                  onPress={() => setDeductionEmployeeModalVisible(false)}
-                >
-                  <Text style={styles.salespersonModalButtonText}>Anuluj</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={[look.neutralButton, { flex: 0, marginTop: 12 }]} onPress={() => setDeductionEmployeeModalVisible(false)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -5895,200 +5668,36 @@ const Home = () => {
         </Modal>
 
         {/* From Currency Selection Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
+        <CurrencyPickerModal
           visible={fromCurrencyModalVisible}
-          onRequestClose={() => setFromCurrencyModalVisible(false)}
-        >
-          <View style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          }}>
-            <View style={{
-              backgroundColor: tc('surface', '#1f2937'),
-              borderRadius: 10,
-              padding: 20,
-              width: '90%',
-              maxHeight: '70%',
-            }}>
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: tc('text', 'white'),
-                marginBottom: 15,
-                textAlign: 'center',
-              }}>
-                Wybierz walutę źródłową
-              </Text>
-
-              <ScrollView style={{ maxHeight: 400 }}>
-                {/* PLN Option */}
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: calculatorFromCurrency === 'PLN' ? '#0D6EFD' : tc('surface2', '#374151'),
-                    padding: 15,
-                    borderRadius: 10,
-                    marginBottom: 8,
-                  }}
-                  onPress={() => {
-                    setCalculatorFromCurrency('PLN');
-                    setFromCurrencyModalVisible(false);
-                    setCalculatorResult(null);
-                  }}
-                >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
-                    PLN
-                  </Text>
-                  <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
-                    Polski złoty
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Foreign Currencies */}
-                {currencyRates.map((rate) => (
-                  <TouchableOpacity
-                    key={rate.currency.code}
-                    style={{
-                      backgroundColor: calculatorFromCurrency === rate.currency.code ? '#0D6EFD' : tc('surface2', '#374151'),
-                      padding: 15,
-                      borderRadius: 10,
-                      marginBottom: 8,
-                    }}
-                    onPress={() => {
-                      setCalculatorFromCurrency(rate.currency.code);
-                      setFromCurrencyModalVisible(false);
-                      setCalculatorResult(null);
-                    }}
-                  >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
-                      {rate.currency.code}
-                    </Text>
-                    <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
-                      {rate.currency.name}
-                    </Text>
-                    <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 4 }}>
-                      Kupno: {rate.buyRate.toFixed(4)} PLN
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#6c757d',
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  alignItems: 'center',
-                  marginTop: 15,
-                }}
-                onPress={() => setFromCurrencyModalVisible(false)}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setFromCurrencyModalVisible(false)}
+          onSelect={(code) => {
+            setCalculatorFromCurrency(code);
+            setFromCurrencyModalVisible(false);
+            setCalculatorResult(null);
+          }}
+          options={[{ code: 'PLN', name: 'Polski złoty' }, ...currencyRates.map((rate) => ({ code: rate.currency.code, name: rate.currency.name, buyRate: rate.buyRate }))]}
+          selected={calculatorFromCurrency}
+          title="Wybierz walutę źródłową"
+          color="#8B5CF6"
+          closeLabel="Anuluj"
+        />
 
         {/* To Currency Selection Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
+        <CurrencyPickerModal
           visible={toCurrencyModalVisible}
-          onRequestClose={() => setToCurrencyModalVisible(false)}
-        >
-          <View style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          }}>
-            <View style={{
-              backgroundColor: tc('surface', '#1f2937'),
-              borderRadius: 10,
-              padding: 20,
-              width: '90%',
-              maxHeight: '70%',
-            }}>
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: tc('text', 'white'),
-                marginBottom: 15,
-                textAlign: 'center',
-              }}>
-                Wybierz walutę docelową
-              </Text>
-
-              <ScrollView style={{ maxHeight: 400 }}>
-                {/* PLN Option */}
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: calculatorToCurrency === 'PLN' ? '#0D6EFD' : tc('surface2', '#374151'),
-                    padding: 15,
-                    borderRadius: 10,
-                    marginBottom: 8,
-                  }}
-                  onPress={() => {
-                    setCalculatorToCurrency('PLN');
-                    setToCurrencyModalVisible(false);
-                    setCalculatorResult(null);
-                  }}
-                >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
-                    PLN
-                  </Text>
-                  <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
-                    Polski złoty
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Foreign Currencies */}
-                {currencyRates.map((rate) => (
-                  <TouchableOpacity
-                    key={rate.currency.code}
-                    style={{
-                      backgroundColor: calculatorToCurrency === rate.currency.code ? '#0D6EFD' : tc('surface2', '#374151'),
-                      padding: 15,
-                      borderRadius: 10,
-                      marginBottom: 8,
-                    }}
-                    onPress={() => {
-                      setCalculatorToCurrency(rate.currency.code);
-                      setToCurrencyModalVisible(false);
-                      setCalculatorResult(null);
-                    }}
-                  >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>
-                      {rate.currency.code}
-                    </Text>
-                    <Text style={{ color: tc('muted', '#9ca3af'), fontSize: 14 }}>
-                      {rate.currency.name}
-                    </Text>
-                    <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 4 }}>
-                      Kupno: {rate.buyRate.toFixed(4)} PLN
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#6c757d',
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  alignItems: 'center',
-                  marginTop: 15,
-                }}
-                onPress={() => setToCurrencyModalVisible(false)}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setToCurrencyModalVisible(false)}
+          onSelect={(code) => {
+            setCalculatorToCurrency(code);
+            setToCurrencyModalVisible(false);
+            setCalculatorResult(null);
+          }}
+          options={[{ code: 'PLN', name: 'Polski złoty' }, ...currencyRates.map((rate) => ({ code: rate.currency.code, name: rate.currency.name, buyRate: rate.buyRate }))]}
+          selected={calculatorToCurrency}
+          title="Wybierz walutę docelową"
+          color="#8B5CF6"
+          closeLabel="Anuluj"
+        />
 
       </SafeAreaView>
     </>

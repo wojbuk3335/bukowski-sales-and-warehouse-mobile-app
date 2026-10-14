@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { useContext, useEffect, useRef, useState } from "react";
-import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import CustomButton from "../../components/CustomButton";
@@ -11,10 +11,22 @@ import { getApiUrl } from "../../config/api";
 import tokenService from "../../services/tokenService";
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+
+// Zasady hasła zgodne z backendem (/user/first-password)
+const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+const PASSWORD_RULE_MESSAGE =
+  "Hasło: min. 8 znaków, mała i wielka litera, cyfra oraz znak specjalny (@$!%*?&).";
+
 const TwoFactorScreen = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const params = useLocalSearchParams();
-  const { userId, email, step = "2fa_verification" } = params || {};
+  const { userId, email } = params || {};
+  // Krok i bilet logowania zmieniają się w trakcie (po ustawieniu hasła backend zwraca nowe),
+  // więc trzymamy je w stanie - parametry trasy to tylko wartości początkowe
+  const [step, setStep] = useState(params?.step || "2fa_verification");
+  const [loginTicket, setLoginTicket] = useState(params?.loginTicket || "");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   // Cały kod w jednym polu tekstowym - wklejenie trafia w całości do jednego pola,
   // bez przeskakiwania fokusu między okienkami (to powodowało nadpisywanie cyfr).
   const [code, setCode] = useState("");
@@ -28,6 +40,17 @@ const TwoFactorScreen = () => {
 
   const { setUser, setIsLoggedIn } = useContext(GlobalStateContext);
   const authContext = useContext(AuthContext);
+  const isPasswordSetup = step === "password_setup";
+
+  // Wygasły/nieprawidłowy bilet logowania - nie da się kontynuować, wracamy do logowania
+  const handleTicketInvalid = (response, data) => {
+    if (response?.status !== 401 || data?.code !== "LOGIN_TICKET_INVALID") return false;
+    const message = "Sesja logowania wygasła, zaloguj się ponownie";
+    setError(message);
+    Alert.alert("Sesja wygasła", message);
+    router.replace("/(auth)/sign-in");
+    return true;
+  };
 
   useEffect(() => {
     const loadSetup = async () => {
@@ -36,10 +59,11 @@ const TwoFactorScreen = () => {
         const response = await fetch(getApiUrl("/user/2fa/setup"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId }),
+          body: JSON.stringify({ userId, loginTicket }),
         });
 
         const data = await response.json();
+        if (handleTicketInvalid(response, data)) return;
         if (!response.ok || !data?.success) {
           setError(data?.message || "Błąd inicjalizacji 2FA");
           return;
@@ -53,7 +77,7 @@ const TwoFactorScreen = () => {
     };
 
     loadSetup();
-  }, [step, userId]);
+  }, [step, userId, loginTicket]);
 
   // `codeArg` podawany przy auto-submicie po wklejeniu (stan jeszcze się nie odświeżył);
   // przy kliknięciu przycisku CustomButton może przekazać zdarzenie - wtedy bierzemy stan
@@ -81,12 +105,14 @@ const TwoFactorScreen = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
+          loginTicket,
           verificationCode: codeValue,
           rememberMe: false,
         }),
       });
 
       const data = await response.json();
+      if (handleTicketInvalid(response, data)) return;
       if (!response.ok || !data?.success) {
         setError(data?.message || "Niepoprawny kod weryfikacyjny");
         setCode(""); // czyste pole na kolejną próbę/wklejenie
@@ -113,6 +139,58 @@ const TwoFactorScreen = () => {
       router.replace("/(admin-tabs)/dashboard");
     } catch {
       setError("Wystąpił błąd podczas weryfikacji. Spróbuj ponownie.");
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  // Pierwsze logowanie nowego admina: ustawienie własnego hasła, potem konfiguracja 2FA
+  const handleSetPassword = async () => {
+    if (submittingRef.current) return;
+
+    if (!newPassword || !confirmPassword) {
+      setError("Wpisz nowe hasło w obu polach");
+      return;
+    }
+    if (!PASSWORD_RULE.test(newPassword)) {
+      setError(PASSWORD_RULE_MESSAGE);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Hasła nie są identyczne");
+      return;
+    }
+    if (!userId) {
+      setError("Brak danych użytkownika");
+      return;
+    }
+
+    submittingRef.current = true;
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(getApiUrl("/user/first-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, loginTicket, newPassword }),
+      });
+
+      const data = await response.json();
+      if (handleTicketInvalid(response, data)) return;
+      if (!response.ok || !data?.success) {
+        setError(data?.message || "Nie udało się ustawić hasła");
+        return;
+      }
+
+      setNewPassword("");
+      setConfirmPassword("");
+      // Nowy bilet + nowy krok - zmiana kroku na '2fa_setup' uruchamia ładowanie klucza 2FA
+      if (data.loginTicket) setLoginTicket(data.loginTicket);
+      setStep(data.step || "2fa_setup");
+    } catch {
+      setError("Wystąpił błąd podczas ustawiania hasła. Spróbuj ponownie.");
     } finally {
       submittingRef.current = false;
       setLoading(false);
@@ -153,10 +231,52 @@ const TwoFactorScreen = () => {
   return (
     <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Weryfikacja dwuetapowa</Text>
-        <Text style={styles.subtitle}>
-          Użyj aplikacji Google Authenticator i wpisz 6-cyfrowy kod.
+        <Text style={styles.title}>
+          {isPasswordSetup ? "Ustaw własne hasło" : "Weryfikacja dwuetapowa"}
         </Text>
+        <Text style={styles.subtitle}>
+          {isPasswordSetup
+            ? "To pierwsze logowanie. Ustaw własne hasło, potem skonfigurujesz Google Authenticator."
+            : "Użyj aplikacji Google Authenticator i wpisz 6-cyfrowy kod."}
+        </Text>
+
+        {isPasswordSetup && (
+          <View>
+            <Text style={styles.tileLabel}>Nowe hasło</Text>
+            <TextInput
+              value={newPassword}
+              onChangeText={(value) => {
+                setNewPassword(value);
+                if (error) setError("");
+              }}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Nowe hasło"
+              placeholderTextColor={tc('muted', "#4b5563")}
+              selectionColor="#0d6efd"
+              style={styles.passwordInput}
+              testID="new-password-input"
+            />
+            <Text style={styles.tileLabel}>Powtórz hasło</Text>
+            <TextInput
+              value={confirmPassword}
+              onChangeText={(value) => {
+                setConfirmPassword(value);
+                if (error) setError("");
+              }}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Powtórz hasło"
+              placeholderTextColor={tc('muted', "#4b5563")}
+              selectionColor="#0d6efd"
+              style={styles.passwordInput}
+              testID="confirm-password-input"
+            />
+            <Text style={styles.hint}>{PASSWORD_RULE_MESSAGE}</Text>
+          </View>
+        )}
 
         {step === "2fa_setup" && (
           <View style={styles.setupBlock}>
@@ -184,24 +304,28 @@ const TwoFactorScreen = () => {
           </View>
         )}
 
-        <Text style={styles.tileLabel}>Kod weryfikacyjny</Text>
-        {/* Jedno zwykłe pole na cały kod: wklejanie (przytrzymaj -> Wklej) działa natywnie,
-            bez przeskakiwania fokusu między sześcioma okienkami */}
-        <TextInput
-          ref={inputRef}
-          value={code}
-          onChangeText={handleCodeChange}
-          keyboardType="number-pad"
-          autoFocus
-          autoComplete="off"
-          importantForAutofill="no"
-          placeholder="000000"
-          placeholderTextColor={tc('muted', "#4b5563")}
-          selectionColor="#0d6efd"
-          textAlign="center"
-          style={styles.codeInput}
-          testID="otp-input"
-        />
+        {!isPasswordSetup && (
+          <>
+            <Text style={styles.tileLabel}>Kod weryfikacyjny</Text>
+            {/* Jedno zwykłe pole na cały kod: wklejanie (przytrzymaj -> Wklej) działa natywnie,
+                bez przeskakiwania fokusu między sześcioma okienkami */}
+            <TextInput
+              ref={inputRef}
+              value={code}
+              onChangeText={handleCodeChange}
+              keyboardType="number-pad"
+              autoFocus
+              autoComplete="off"
+              importantForAutofill="no"
+              placeholder="000000"
+              placeholderTextColor={tc('muted', "#4b5563")}
+              selectionColor="#0d6efd"
+              textAlign="center"
+              style={styles.codeInput}
+              testID="otp-input"
+            />
+          </>
+        )}
 
         {error ? (
           <View style={styles.errorContainer}>
@@ -209,12 +333,21 @@ const TwoFactorScreen = () => {
           </View>
         ) : null}
 
-        <CustomButton
-          title={loading ? "Weryfikacja..." : "Zweryfikuj kod"}
-          handlePress={handleSubmit}
-          containerStyles={styles.button}
-          isLoading={loading}
-        />
+        {isPasswordSetup ? (
+          <CustomButton
+            title={loading ? "Zapisywanie..." : "Ustaw hasło"}
+            handlePress={handleSetPassword}
+            containerStyles={styles.button}
+            isLoading={loading}
+          />
+        ) : (
+          <CustomButton
+            title={loading ? "Weryfikacja..." : "Zweryfikuj kod"}
+            handlePress={handleSubmit}
+            containerStyles={styles.button}
+            isLoading={loading}
+          />
+        )}
 
 
         <CustomButton
@@ -307,6 +440,24 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 10,
     marginBottom: 8,
+  },
+  passwordInput: {
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: tc('surface', "#18181b"),
+    borderWidth: 2,
+    borderColor: "#0d6efd",
+    color: tc('text', "#fff"),
+    fontSize: 16,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  hint: {
+    color: tc('muted', "#9ca3af"),
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 4,
   },
   manualKey: {
     color: tc('text', "#e5e7eb"),

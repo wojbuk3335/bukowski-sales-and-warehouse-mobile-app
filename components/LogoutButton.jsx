@@ -4,7 +4,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { GlobalStateContext } from '../context/GlobalState';
 
 import { useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
-const LogoutButton = ({ position = 'top-right', style = {} }) => {
+// compact: sam kafelek z ikoną (w nagłówku zakładki, obok tytułu)
+const LogoutButton = ({ position = 'top-right', style = {}, compact = false }) => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, logout } = useContext(GlobalStateContext);
 
@@ -63,6 +64,7 @@ const LogoutButton = ({ position = 'top-right', style = {} }) => {
   const buttonStyle = {
     ...getPositionStyle(),
     ...defaultButtonStyle,
+    ...(compact ? { width: 40, height: 40, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' } : {}),
     ...style,
   };
 
@@ -72,15 +74,15 @@ const LogoutButton = ({ position = 'top-right', style = {} }) => {
       style={buttonStyle}
       accessibilityLabel="Wyloguj"
     >
-      <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-      <Text style={{
+      <Ionicons name="log-out-outline" size={compact ? 20 : 18} color="#EF4444" />
+      {!compact && <Text style={{
         fontSize: 13,
         color: '#EF4444',
         fontWeight: "700",
         textAlign: 'center'
       }}>
         Wyloguj
-      </Text>
+      </Text>}
     </TouchableOpacity>
   );
 };

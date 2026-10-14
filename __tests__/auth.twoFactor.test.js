@@ -39,6 +39,7 @@ describe('TwoFactorScreen (mobile)', () => {
       userId: 'user_1',
       email: 'admin@test.pl',
       step: '2fa_setup',
+      loginTicket: 'ticket_1',
     });
 
     global.fetch.mockResolvedValueOnce({
@@ -57,6 +58,12 @@ describe('TwoFactorScreen (mobile)', () => {
     });
 
     expect(screen.getByText('Klucz ręczny: SECRET123')).toBeTruthy();
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/user/2fa/setup',
+      expect.objectContaining({
+        body: JSON.stringify({ userId: 'user_1', loginTicket: 'ticket_1' }),
+      })
+    );
     expect(screen.getByText('Otwórz w Authenticatorze')).toBeTruthy();
   });
 
@@ -65,6 +72,7 @@ describe('TwoFactorScreen (mobile)', () => {
       userId: 'user_1',
       email: 'admin@test.pl',
       step: '2fa_verification',
+      loginTicket: 'ticket_1',
     });
 
     global.fetch.mockResolvedValueOnce({
@@ -102,6 +110,7 @@ describe('TwoFactorScreen (mobile)', () => {
           method: 'POST',
           body: JSON.stringify({
             userId: 'user_1',
+            loginTicket: 'ticket_1',
             verificationCode: '123456',
             rememberMe: false,
           }),
@@ -126,14 +135,14 @@ describe('TwoFactorScreen (mobile)', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:3000/api/user/verify-2fa',
         expect.objectContaining({
-          body: JSON.stringify({ userId: 'user_1', verificationCode: code, rememberMe: false }),
+          body: JSON.stringify({ userId: 'user_1', loginTicket: 'ticket_1', verificationCode: code, rememberMe: false }),
         })
       );
     });
   };
 
   beforeEach(() => {
-    mockUseParams.mockReturnValue({ userId: 'user_1', email: 'admin@test.pl', step: '2fa_verification' });
+    mockUseParams.mockReturnValue({ userId: 'user_1', email: 'admin@test.pl', step: '2fa_verification', loginTicket: 'ticket_1' });
   });
 
   test('pasting a full code (with a space) shows it in the field and submits once', async () => {
@@ -184,5 +193,119 @@ describe('TwoFactorScreen (mobile)', () => {
     fireEvent.changeText(input, '123456105650');
 
     await expectVerifiedWith('105650');
+  });
+
+  describe('first login - password_setup step', () => {
+    beforeEach(() => {
+      mockUseParams.mockReturnValue({
+        userId: 'user_1',
+        email: 'admin@test.pl',
+        step: 'password_setup',
+        loginTicket: 'ticket_1',
+      });
+    });
+
+    test('shows password form instead of code field', () => {
+      const screen = renderWithProviders(<TwoFactorScreen />);
+      expect(screen.getByText('Ustaw własne hasło')).toBeTruthy();
+      expect(screen.getByTestId('new-password-input')).toBeTruthy();
+      expect(screen.getByTestId('confirm-password-input')).toBeTruthy();
+      expect(screen.queryByTestId('otp-input')).toBeNull();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('validates password rules and matching fields on the client', () => {
+      const screen = renderWithProviders(<TwoFactorScreen />);
+
+      fireEvent.changeText(screen.getByTestId('new-password-input'), 'slabe');
+      fireEvent.changeText(screen.getByTestId('confirm-password-input'), 'slabe');
+      fireEvent.press(screen.getByText('Ustaw hasło'));
+      // komunikat błędu + stała podpowiedź pod polami
+      expect(screen.getAllByText(/min\. 8 znaków/)).toHaveLength(2);
+
+      fireEvent.changeText(screen.getByTestId('new-password-input'), 'Mocne1!haslo');
+      fireEvent.changeText(screen.getByTestId('confirm-password-input'), 'Mocne1!inne');
+      fireEvent.press(screen.getByText('Ustaw hasło'));
+      expect(screen.getByText('Hasła nie są identyczne')).toBeTruthy();
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('sets password via /user/first-password, then loads 2FA setup with the new ticket', async () => {
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true, step: '2fa_setup', loginTicket: 'ticket_2' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            success: true,
+            secret: 'SECRET123',
+            otpauthUrl: 'otpauth://totp/BukowskiApp?secret=SECRET123',
+          }),
+        });
+
+      const screen = renderWithProviders(<TwoFactorScreen />);
+      fireEvent.changeText(screen.getByTestId('new-password-input'), 'Mocne1!haslo');
+      fireEvent.changeText(screen.getByTestId('confirm-password-input'), 'Mocne1!haslo');
+      fireEvent.press(screen.getByText('Ustaw hasło'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Klucz ręczny: SECRET123')).toBeTruthy();
+      });
+
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        1,
+        'http://localhost:3000/api/user/first-password',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ userId: 'user_1', loginTicket: 'ticket_1', newPassword: 'Mocne1!haslo' }),
+        })
+      );
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        'http://localhost:3000/api/user/2fa/setup',
+        expect.objectContaining({
+          body: JSON.stringify({ userId: 'user_1', loginTicket: 'ticket_2' }),
+        })
+      );
+      expect(screen.getByTestId('otp-input')).toBeTruthy();
+      expect(screen.queryByTestId('new-password-input')).toBeNull();
+    });
+
+    test('shows backend validation message', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ message: 'Hasło jest za słabe' }),
+      });
+
+      const screen = renderWithProviders(<TwoFactorScreen />);
+      fireEvent.changeText(screen.getByTestId('new-password-input'), 'Mocne1!haslo');
+      fireEvent.changeText(screen.getByTestId('confirm-password-input'), 'Mocne1!haslo');
+      fireEvent.press(screen.getByText('Ustaw hasło'));
+
+      await waitFor(() => expect(screen.getByText('Hasło jest za słabe')).toBeTruthy());
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
+
+    test('expired login ticket returns to sign-in', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ code: 'LOGIN_TICKET_INVALID', message: 'expired' }),
+      });
+
+      const screen = renderWithProviders(<TwoFactorScreen />);
+      fireEvent.changeText(screen.getByTestId('new-password-input'), 'Mocne1!haslo');
+      fireEvent.changeText(screen.getByTestId('confirm-password-input'), 'Mocne1!haslo');
+      fireEvent.press(screen.getByText('Ustaw hasło'));
+
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/sign-in'));
+      expect(screen.getByText('Sesja logowania wygasła, zaloguj się ponownie')).toBeTruthy();
+    });
   });
 });

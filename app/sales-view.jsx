@@ -15,6 +15,7 @@ import { router } from "expo-router";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
@@ -68,10 +69,11 @@ const SalesView = () => {
     }
   };
 
-  const fetchSales = async () => {
+  // silent - odświeżanie przeciągnięciem: lista zostaje widoczna zamiast kręciołka na cały ekran
+  const fetchSales = async ({ silent = false } = {}) => {
     if (!selectedUser) return;
-    
-    setLoading(true);
+
+    if (!silent) setLoading(true);
     try {
       // Format date as YYYY-MM-DD
       const formattedDate = selectedDate.toISOString().split('T')[0];
@@ -96,6 +98,11 @@ const SalesView = () => {
       setLoading(false);
     }
   };
+
+  // Przeciągnięcie listy w dół: punkty + sprzedaż dla AKTUALNIE wybranego punktu i dnia
+  const { refreshControl } = usePullToRefresh(() =>
+    Promise.all([fetchUsers(), fetchSales({ silent: true })])
+  );
 
   const formatDate = (date) => {
     const day = date.getDate().toString().padStart(2, '0');
@@ -270,10 +277,10 @@ const SalesView = () => {
           <Text style={styles.emptyText}>Wybierz użytkownika</Text>
         </View>
       ) : sales.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="receipt-outline" size={64} color={tc('muted', "#475569")} />
           <Text style={styles.emptyText}>Brak sprzedaży w tym dniu</Text>
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={sales}
@@ -281,6 +288,8 @@ const SalesView = () => {
           keyExtractor={(item) => item._id}
           contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+          alwaysBounceVertical
         />
       )}
 

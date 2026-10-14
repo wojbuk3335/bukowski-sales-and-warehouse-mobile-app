@@ -1115,7 +1115,7 @@ const WarehouseMobile = () => {
         onBack={() => router.back()}
       />
 
-      <ScrollView
+      <ScrollView alwaysBounceVertical
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }

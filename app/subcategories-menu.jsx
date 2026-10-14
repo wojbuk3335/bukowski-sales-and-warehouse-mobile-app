@@ -5,11 +5,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
+import usePullToRefresh from '../hooks/usePullToRefresh';
+
+// Menu statyczne - nic do pobrania; gest odświeżania tylko dla spójności z innymi ekranami
+const noopRefresh = () => Promise.resolve();
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, MenuCard } from '../components/AdminLook'; // wspólny wygląd panelu admina
 const SubcategoriesMenu = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
+  const { refreshControl } = usePullToRefresh(noopRefresh);
   const subcategories = [
     {
       id: "coats",
@@ -80,6 +85,8 @@ const SubcategoriesMenu = () => {
         style={styles.content}
         contentContainerStyle={styles.contentInner}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        alwaysBounceVertical
       >
         {subcategories.map((item) => (
           <MenuCard

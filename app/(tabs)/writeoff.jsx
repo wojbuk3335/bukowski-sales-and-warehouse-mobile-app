@@ -718,7 +718,6 @@ const fetchSales = async () => {
 
     return (
         <>
-            <LogoutButton position="top-right" />
             {isLoading ? (
                 <View style={styles.loadingContainer}>
                     <View style={styles.spinnerContainer}>
@@ -784,15 +783,14 @@ const fetchSales = async () => {
                 </View>
             ) : (
                 <View style={styles.container}>
-                    <FlatList
+                    <FlatList alwaysBounceVertical
                         testID="writeoff-flatlist"
                         ListHeaderComponent={
-                            <ScreenHeader icon="layers" title="Stan" subtitle={user?.email || "Nieznany użytkownik"}>
-                                <View style={look.chip}>
-                                    <Ionicons name="cube-outline" size={16} color="#0D6EFD" />
-                                    <Text style={look.chipText}>Produktów: {filteredData.length}</Text>
-                                </View>
-                            </ScreenHeader>
+                            <ScreenHeader
+                                icon="layers"
+                                title="Stan"
+                                subtitle={`Produktów: ${filteredData.length} · ${user?.email || "Nieznany użytkownik"}`}
+                            />
                         }
                         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
                         data={filteredData}

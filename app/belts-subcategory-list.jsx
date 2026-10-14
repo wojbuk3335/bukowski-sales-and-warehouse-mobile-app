@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -49,9 +50,12 @@ const BeltsSubcategoryList = () => {
     fetchSubcategories();
   }, []);
 
-  const fetchSubcategories = async () => {
+  // Odświeżanie listy przeciągnięciem w dół - bez pełnoekranowego kręciołka
+  const { refreshControl } = usePullToRefresh(() => fetchSubcategories({ silent: true }));
+
+  const fetchSubcategories = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true); // silent: odświeżanie gestem, lista zostaje na ekranie
       const url = getApiUrl("/excel/belts");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -292,6 +296,8 @@ const BeltsSubcategoryList = () => {
         keyExtractor={(item) => item._id}
         contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        alwaysBounceVertical
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name={SCREEN_ICON} size={64} color={tc('muted', "#475569")} />

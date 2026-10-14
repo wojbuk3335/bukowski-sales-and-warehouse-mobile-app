@@ -18,6 +18,7 @@ import { router } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import tokenService from "../services/tokenService";
 import useLiveRefresh from "../services/useLiveRefresh"; // zmiany produktów na żywo (także z panelu)
+import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 import { getApiUrl, API_CONFIG } from "../config/api";
 import { appAlert } from '../services/appAlert';
 
@@ -324,6 +325,11 @@ const ProductsList = () => {
       setLoading(false);
     }
   };
+
+  // Przeciągnięcie listy w dół: produkty (bez chowania listy) + słowniki, jak przy wejściu na ekran
+  const { refreshControl } = usePullToRefresh(() =>
+    Promise.all([fetchProducts({ silent: true }), fetchAllData()])
+  );
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -952,12 +958,12 @@ const ProductsList = () => {
           <ActivityIndicator size="large" color="#0D6EFD" />
         </View>
       ) : filteredProducts.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="pricetags-outline" size={64} color="#475569" />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono produktów" : "Brak produktów"}
           </Text>
-        </View>
+        </ScrollView>
       ) : (
         <>
           <View style={styles.countContainer}>
@@ -972,8 +978,10 @@ const ProductsList = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           />
-          
+
           {/* Scroll to Bottom Button */}
           {filteredProducts.length > 5 && (
             <TouchableOpacity 

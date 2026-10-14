@@ -1118,7 +1118,6 @@ const Remanent = () => {
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: tabBarSpace }}>
-      <LogoutButton position="top-right" />
       <View style={styles.header}>
         <ScreenHeader icon="clipboard" title="Remanent" subtitle="Stan magazynowy" />
         
@@ -1210,7 +1209,7 @@ const Remanent = () => {
           <Text style={styles.emptySubtext}>Kliknij „Skanuj” i zeskanuj sztuki. Każdy skan to jedna sztuka.</Text>
         </View>
       ) : (
-        <FlatList
+        <FlatList alwaysBounceVertical
           data={filteredRemanentData}
           renderItem={renderRemanentItem}
           keyExtractor={(item, index) => item.id?.toString() || index.toString()}

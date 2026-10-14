@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import LogoutButton from "../../components/LogoutButton";
+import { ScreenHeader } from '../../components/AdminLook';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Various = () => {
@@ -229,18 +230,11 @@ const Various = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <LogoutButton position="top-right" />
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="grid-outline" size={32} color="#fff" />
-        </View>
-        <Text style={styles.title}>Różne</Text>
-        <Text style={styles.subtitle}>
-          Dodatkowe funkcje i narzędzia
-        </Text>
+      <View style={{ paddingHorizontal: 12 }}>
+        <ScreenHeader icon="grid" title="Różne" subtitle="Dodatkowe funkcje i narzędzia" />
       </View>
 
-      <ScrollView 
+      <ScrollView alwaysBounceVertical 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         refreshControl={

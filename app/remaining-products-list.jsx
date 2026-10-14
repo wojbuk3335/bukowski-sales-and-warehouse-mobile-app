@@ -16,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh';
 import { REMAINING_PRODUCT_TYPES, getRemainingProductType, normalizeRemainingProductCode, validateRemainingProductCode } from "../config/remainingProductTypes";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -44,15 +45,18 @@ const RemainingProductsList = () => {
     fetchProducts();
   }, []);
 
+  // Odświeżanie listy przeciągnięciem w dół - bez pełnoekranowego kręciołka
+  const { refreshControl } = usePullToRefresh(() => fetchProducts({ silent: true }));
+
   // Walidacja Poz_Kod wg typu produktu (ta sama lista wzorców co w panelu i na serwerze)
   const validatePozKod = (value, type) => {
     const check = validateRemainingProductCode(type, value);
     return { isValid: check.valid, message: check.valid ? '' : check.message };
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true); // silent: odświeżanie gestem, lista zostaje na ekranie
       const url = getApiUrl("/excel/remaining-products/get-all-remaining-products");
       const response = await tokenService.authenticatedFetch(url);
       
@@ -342,7 +346,7 @@ const RemainingProductsList = () => {
           <ActivityIndicator size="large" color="#F59E0B" />
         </View>
       ) : filteredProducts.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
           <Ionicons name="cube-outline" size={64} color="#475569" />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono produktów" : "Brak produktów"}
@@ -352,7 +356,7 @@ const RemainingProductsList = () => {
               Naciśnij "+" aby dodać nowy produkt
             </Text>
           )}
-        </View>
+        </ScrollView>
       ) : (
         <>
           <View style={styles.countContainer}>
@@ -366,6 +370,8 @@ const RemainingProductsList = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
           />
         </>
       )}

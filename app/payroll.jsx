@@ -16,6 +16,7 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
+import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
@@ -248,6 +249,17 @@ const Payroll = () => {
     }
   }, [employees.length, hasRestoredFilters, selectedEmployee, selectedMonth, selectedYear, fetchWorkHours]);
 
+  // Przeciągnięcie w dół: lista pracowników + godziny/wypłaty dla AKTUALNIE wybranego pracownika, miesiąca i roku
+  const refreshAll = useCallback(
+    () =>
+      Promise.all([
+        fetchEmployees(),
+        selectedEmployee && selectedMonth && selectedYear ? fetchWorkHours() : null,
+      ]),
+    [fetchEmployees, fetchWorkHours, selectedEmployee, selectedMonth, selectedYear]
+  );
+  const { refreshControl } = usePullToRefresh(refreshAll);
+
   const formatDate = (dateString) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleDateString("pl-PL");
@@ -417,7 +429,11 @@ const Payroll = () => {
     <SafeAreaView style={styles.container}>
       <PageHeader title="Wypłaty" icon="wallet" color="#10B981" onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(120, insets.bottom + 120) }]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+        refreshControl={refreshControl}
+        alwaysBounceVertical
+      >
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>System wypłat pracowników</Text>
           <Text style={styles.sectionSubtitle}>
