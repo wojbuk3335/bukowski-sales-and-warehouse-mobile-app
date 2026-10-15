@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
+import React, { useContext, useState, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -7,93 +7,109 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
-  FlatList,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCameraPermissions } from "expo-camera";
 import { GlobalStateContext } from "../../context/GlobalState";
 import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
-import Logger from "../../services/logger";
-import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
 import { appAlert } from '../../services/appAlert';
+import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
+import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
+import useProductCatalog from '../../hooks/useProductCatalog';
+import { compareScans } from '../../utils/compareScans';
+import { isUnknownProductName } from '../../utils/productName';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+
+// „Sprawdź”: weryfikacja kurtek dobranych w systemie przez punkt w danym dniu.
+// Admin skanuje kurtki tym samym skanerem co w Remanencie; skany są trzymane TYLKO w pamięci ekranu
+// (nic nie jest zapisywane na serwerze), a „Sprawdź zgodność” porównuje je z listą dobranych.
+
+// Data w czasie lokalnym (toISOString dawał UTC - między 0:00 a 2:00 wychodził poprzedni dzień)
+const localDateString = (date) => [
+  date.getFullYear(),
+  String(date.getMonth() + 1).padStart(2, "0"),
+  String(date.getDate()).padStart(2, "0"),
+].join("-");
+
+// Nazwa dobranej kurtki: nazwa + rozmiar (rozmiar „-” pomijamy)
+const expectedNameOf = (jacket) => {
+  const name = jacket?.fullName || jacket?.barcode || "Nieznany produkt";
+  const size = jacket?.size && jacket.size !== "-" ? ` ${jacket.size}` : "";
+  return `${name}${size}`;
+};
+
+const COMPARE_LABELS = {
+  expected: "Dobrane",
+  missingSubtitle: "Kurtki dobrane w systemie, ale nie zeskanowane",
+  extraSubtitle: "Kurtki zeskanowane, ale nie ma ich w dobranych",
+  missingLine: (item) => `Dobrane: ${item.expectedCount || 0}, zeskanowano: ${item.actualCount || 0}`,
+  extraLine: (item) => (item.expectedCount === 0
+    ? `Nie było w dobieranych, zeskanowano: ${item.actualCount}`
+    : `Dobrane: ${item.expectedCount}, zeskanowano: ${item.actualCount}`),
+  successTitle: "🎉 Wszystko się zgadza!",
+  successSubtitle: "Zeskanowane kurtki są zgodne z dobranymi w systemie",
+};
+
 const Dashboard = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
-  const { user, users, fetchUsers } = useContext(GlobalStateContext);
+  const { users = [], fetchUsers } = useContext(GlobalStateContext);
   const insets = useSafeAreaInsets(); // Get safe area insets
-  
+  const catalog = useProductCatalog();
+
   // Selection states
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
-  
+
   // Data states
   const [expectedJackets, setExpectedJackets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [totalExpected, setTotalExpected] = useState(0);
   const [verificationStarted, setVerificationStarted] = useState(false);
-  
-  // Scanner states
+
+  // Skaner (wspólny z Remanentem) i zeskanowane sztuki - tylko w pamięci ekranu
   const [scannerVisible, setScannerVisible] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
-  const [scannedJackets, setScannedJackets] = useState([]);
-  const [scanningEnabled, setScanningEnabled] = useState(true);
-  const [recentlyScannedCodes, setRecentlyScannedCodes] = useState(new Map());
-  const [lastScannedCode, setLastScannedCode] = useState("");
-  const [facing, setFacing] = useState("back");
-  const [pendingScan, setPendingScan] = useState(null);
-  const [showPendingUI, setShowPendingUI] = useState(false);
-  const isProcessingRef = useRef(false);
-  
-  // Progress states
-  const [scanProgress, setScanProgress] = useState({
-    totalExpected: 0,
-    totalScanned: 0,
-    percentage: 0,
-  });
-  
-  // Comparison modal states
+  const [scannedItems, setScannedItems] = useState([]); // [{ id, code, name, manual }] - jedna pozycja = jedna sztuka
+
+  // Wynik porównania
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false);
   const [comparisonResults, setComparisonResults] = useState(null);
-  
+
   // Info modal state
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [infoModalMessage, setInfoModalMessage] = useState("");
-  
+
   // Confirm clear modal state
   const [confirmClearModalVisible, setConfirmClearModalVisible] = useState(false);
 
   useEffect(() => {
-    if (users.length === 0) {
+    if (users.length === 0 && fetchUsers) {
       fetchUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (expectedJackets.length > 0) {
-      calculateProgress();
-    }
-  }, [scannedJackets, expectedJackets]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchUsers();
-    if (verificationStarted && selectedUserId && selectedDate) {
-      await startVerification();
-    }
-    setRefreshing(false);
+  // Zmiana punktu albo daty: weryfikacja od nowa
+  const resetVerification = () => {
+    setVerificationStarted(false);
+    setExpectedJackets([]);
+    setTotalExpected(0);
+    setScannedItems([]);
+    setComparisonResults(null);
+    setComparisonModalVisible(false);
   };
 
-  const startVerification = async () => {
+  // keepScans: odświeżenie listy dobranych bez gubienia zeskanowanych (przeciągnięcie w dół)
+  const startVerification = async ({ keepScans = false } = {}) => {
     if (!selectedUserId || !selectedDate) {
       appAlert("Uwaga", "Wybierz najpierw użytkownika i datę");
       return;
@@ -101,33 +117,33 @@ const Dashboard = () => {
 
     try {
       setLoading(true);
-      // Data w czasie lokalnym (toISOString dawał UTC - między 0:00 a 2:00 wychodził poprzedni dzień)
-      const dateStr = [
-        selectedDate.getFullYear(),
-        String(selectedDate.getMonth() + 1).padStart(2, "0"),
-        String(selectedDate.getDate()).padStart(2, "0"),
-      ].join("-");
-      const url = getApiUrl(`/verification/jackets/${selectedUserId}/${dateStr}`);
-      
+      const url = getApiUrl(`/verification/jackets/${selectedUserId}/${localDateString(selectedDate)}`);
+
       const response = await tokenService.authenticatedFetch(url);
-      
+
       if (response.ok) {
         const data = await response.json();
-        
-        setExpectedJackets(data.data.jackets || []);
-        setTotalExpected(data.data.totalJackets || 0);
+        const jackets = Array.isArray(data?.data?.jackets) ? data.data.jackets : [];
+        const total = data?.data?.totalJackets ?? jackets.length;
+
+        setExpectedJackets(jackets);
+        setTotalExpected(total || 0);
         setVerificationStarted(true);
-        setScannedJackets([]);
-        
-        if (data.data.totalJackets === 0) {
+        if (!keepScans) {
+          setScannedItems([]);
+          setComparisonResults(null);
+        }
+
+        if (!total) {
           setInfoModalMessage("Brak kurtek do weryfikacji dla wybranego użytkownika i daty");
           setInfoModalVisible(true);
         }
       } else {
-        const errorText = await response.text();
         appAlert("Błąd", "Nie udało się pobrać danych");
-        setExpectedJackets([]);
-        setTotalExpected(0);
+        if (!keepScans) {
+          setExpectedJackets([]);
+          setTotalExpected(0);
+        }
       }
     } catch (error) {
       appAlert("Błąd", "Wystąpił błąd podczas pobierania danych");
@@ -136,45 +152,130 @@ const Dashboard = () => {
     }
   };
 
-  const calculateProgress = () => {
-    const scannedBarcodes = {};
-    scannedJackets.forEach((jacket) => {
-      const code = jacket.barcode || jacket.code;
-      if (!scannedBarcodes[code]) {
-        scannedBarcodes[code] = 0;
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (fetchUsers) await fetchUsers();
+      if (verificationStarted && selectedUserId && selectedDate) {
+        await startVerification({ keepScans: true });
       }
-      scannedBarcodes[code]++;
-    });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
-    const expectedBarcodes = {};
+  // Dobrane kurtki pogrupowane po kodzie
+  const expectedGroups = useMemo(() => {
+    const groups = new Map();
     expectedJackets.forEach((jacket) => {
       const code = jacket.barcode;
-      if (!expectedBarcodes[code]) {
-        expectedBarcodes[code] = 0;
+      const group = groups.get(code) || { code, name: expectedNameOf(jacket), count: 0 };
+      group.count += 1;
+      groups.set(code, group);
+    });
+    return [...groups.values()];
+  }, [expectedJackets]);
+  const expectedByCode = useMemo(
+    () => Object.fromEntries(expectedGroups.map((group) => [group.code, group])),
+    [expectedGroups]
+  );
+
+  // Zeskanowane pogrupowane po kodzie (ostatnio skanowane na początku)
+  const scannedGroups = useMemo(() => {
+    const groups = new Map();
+    scannedItems.forEach((item) => {
+      const group = groups.get(item.code) || { code: item.code, name: item.name, count: 0, manual: 0 };
+      group.count += 1;
+      if (item.manual) group.manual += 1;
+      groups.set(item.code, group);
+    });
+    return [...groups.values()].reverse();
+  }, [scannedItems]);
+  const scannedCountByCode = useMemo(
+    () => Object.fromEntries(scannedGroups.map((group) => [group.code, group.count])),
+    [scannedGroups]
+  );
+
+  // Postęp: sztuki zgodne z dobranymi (dla każdego kodu min(dobrane, zeskanowane))
+  const progress = useMemo(() => {
+    let matched = 0;
+    expectedGroups.forEach((group) => {
+      matched += Math.min(group.count, scannedCountByCode[group.code] || 0);
+    });
+    const total = expectedJackets.length;
+    return {
+      total,
+      matched,
+      scanned: scannedItems.length,
+      excess: scannedItems.length - matched,
+      percentage: total > 0 ? Math.round((matched / total) * 100) : 0,
+    };
+  }, [expectedGroups, expectedJackets.length, scannedCountByCode, scannedItems.length]);
+
+  // Nazwa po kodzie: z listy dobranych, a gdy jej tam nie ma - z kart produktów i słowników
+  const nameForCode = (code) => expectedByCode[code]?.name || catalog.getProductNameFromBarcode(code);
+
+  // Nazwa z serwera dla kodu spoza kart produktów (stan albo historia)
+  const fetchServerName = async (code) => {
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/verification/barcode/${encodeURIComponent(code)}`));
+      if (response.status === 404) return { found: false };
+      if (!response.ok) return { error: true };
+      const data = await response.json();
+      const fullName = data?.data?.fullName;
+      if (!fullName) return { found: false };
+      const size = data?.data?.size && data.data.size !== "-" ? ` ${data.data.size}` : "";
+      return { found: true, name: `${fullName}${size}` };
+    } catch (error) {
+      return { error: true };
+    }
+  };
+
+  // Decyzja „Sprawdź” dla kodu ze skanera:
+  //  - kod z dobranych (i nie przekroczono liczby sztuk) -> zgodna (zielony komunikat)
+  //  - kod spoza dobranych albo więcej sztuk niż dobrano -> przyjęty jako nadwyżka (bursztynowy komunikat)
+  //  - obcy kod (nie EAN-13 / nie ma go w bazie) -> odrzucony jak w Remanencie
+  const validateCode = async (code, { name, alreadyCounted }) => {
+    const expected = expectedByCode[code];
+    if (expected) {
+      if (alreadyCounted < expected.count) {
+        return {
+          ok: true,
+          tone: "success",
+          name: expected.name,
+          message: `Zgodna: ${expected.name}${expected.count > 1 ? ` (${alreadyCounted + 1}/${expected.count})` : ""}`,
+        };
       }
-      expectedBarcodes[code]++;
-    });
+      return {
+        ok: true,
+        tone: "warn",
+        name: expected.name,
+        message: `Nie było w dobieranych: ${expected.name}\nDobrano ${expected.count} szt. - to ${alreadyCounted + 1}. sztuka (nadwyżka).`,
+      };
+    }
 
-    let matchedCount = 0;
-    Object.keys(expectedBarcodes).forEach((barcode) => {
-      const expected = expectedBarcodes[barcode];
-      const scanned = scannedBarcodes[barcode] || 0;
-      matchedCount += Math.min(expected, scanned);
-    });
+    if (!/^\d{13}$/.test(String(code || "").trim())) {
+      return { ok: false, tone: "warn", message: `Nieznany kod: ${code}\nTo nie jest metka z bazy produktów - pominięto.` };
+    }
 
-    const percentage =
-      totalExpected > 0 ? Math.round((matchedCount / totalExpected) * 100) : 0;
+    let productName = name;
+    if (isUnknownProductName(productName)) {
+      const server = await fetchServerName(code);
+      if (server.found) {
+        productName = server.name;
+      } else if (server.error && !catalog.catalogLoaded) {
+        productName = productName || code; // nie da się sprawdzić - przyjmujemy jak w Remanencie
+      } else {
+        return { ok: false, tone: "warn", message: `Nieznany kod: ${code}\nTo nie jest metka z bazy produktów - pominięto.` };
+      }
+    }
 
-    setScanProgress({
-      totalExpected,
-      totalScanned: scannedJackets.length,
-      percentage,
-    });
+    return { ok: true, tone: "warn", name: productName, message: `Nie było w dobieranych: ${productName}` };
   };
 
   const openQRScanner = async () => {
-    if (!selectedUserId || !selectedDate) {
-      appAlert("Uwaga", "Wybierz najpierw użytkownika i datę");
+    if (!verificationStarted) {
+      appAlert("Uwaga", "Najpierw kliknij „Rozpocznij weryfikację”");
       return;
     }
 
@@ -185,199 +286,54 @@ const Dashboard = () => {
 
     if (!permission?.granted) {
       const result = await requestPermission();
-      if (!result.granted) {
-        appAlert("Błąd", "Brak uprawnień do kamery");
+      if (!result?.granted) {
+        appAlert("Błąd", "Brak dostępu do kamery. Włącz go w ustawieniach telefonu dla tej aplikacji.");
         return;
       }
     }
 
     setScannerVisible(true);
-    setScanningEnabled(true);
-    setLastScannedCode("");
-    setRecentlyScannedCodes(new Map());
-    setPendingScan(null); // Reset pending scan when opening scanner
   };
 
-  const handleScan = ({ data }) => {
-    // Jeśli jest już oczekujący skan, nie pozwalaj na kolejny
-    if (isProcessingRef.current) {
-      return;
-    }
-    
-    // WAŻNE: Jeśli nie ma listy oczekiwanych kurtek, nie skanuj
-    if (!expectedJackets || expectedJackets.length === 0) {
-      appAlert(
-        "Brak listy weryfikacji", 
-        "Najpierw pobierz listę kurtek do weryfikacji, klikając 'Rozpocznij weryfikację'"
-      );
-      closeScanner();
-      return;
-    }
-
-    const now = Date.now();
-    const lastScanTime = recentlyScannedCodes.get(data);
-
-    // Blokada na 5 sekund dla tego samego kodu
-    if (!scanningEnabled || (lastScanTime && now - lastScanTime < 5000)) {
-      return;
-    }
-    setLastScannedCode(data);
-    setRecentlyScannedCodes((prev) => new Map(prev).set(data, now));
-
-    // Wyłącz skanowanie dopóki nie zostanie zatwierdzony skan
-    setScanningEnabled(false);
-    isProcessingRef.current = true;
-    
-    const jacket = expectedJackets.find((j) => j.barcode === data);
-
-    if (jacket) {
-      // Pokaż do weryfikacji - NIE dodawaj jeszcze do listy
-      setPendingScan({
-        ...jacket,
-        scannedAt: new Date().toISOString(),
-        status: "correct",
-      });
-      setShowPendingUI(true);
-    } else {
-      // Product not in expected list - check what it actually is
-      fetchProductByBarcode(data);
-    }
-  };
-  
-  const fetchProductByBarcode = async (barcode) => {
-    try {
-      const url = getApiUrl(`/verification/barcode/${barcode}`);
-      const response = await tokenService.authenticatedFetch(url);
-      
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Nadmiarowy produkt - pokaż do weryfikacji
-        setPendingScan({
-          barcode: barcode,
-          code: barcode,
-          fullName: data.data.fullName,
-          size: data.data.size,
-          scannedAt: new Date().toISOString(),
-          status: "unexpected",
-          sellingPoint: data.data.sellingPoint,
-        });
-        setShowPendingUI(true);
-      } else {
-        // Kompletnie nieznany produkt
-        setPendingScan({
-          barcode: barcode,
-          code: barcode,
-          fullName: "Nieznany produkt",
-          scannedAt: new Date().toISOString(),
-          status: "unexpected",
-        });
-        setShowPendingUI(true);
-      }
-    } catch (error) {
-      // W przypadku błędu
-      setPendingScan({
-        barcode: barcode,
-        code: barcode,
-        fullName: "Nieznany produkt",
-        scannedAt: new Date().toISOString(),
-        status: "unexpected",
-      });
-      setShowPendingUI(true);
-    }
+  // „Zatwierdź (N)” w skanerze: skany trafiają na listę ekranu (bez zapisu na serwerze)
+  const confirmScans = async (pieces, { showToast }) => {
+    setScannedItems((prev) => [
+      ...prev,
+      ...pieces.map((piece) => ({ id: piece.id, code: piece.code, name: piece.name, manual: Boolean(piece.manual) })),
+    ]);
+    showToast(`Dodano do listy: ${pieces.length} szt.`);
+    return true;
   };
 
-  const closeScanner = () => {
-    setScannerVisible(false);
-    setLastScannedCode("");
-    setPendingScan(null); // Reset pending scan
-    setShowPendingUI(false);
-    setScanningEnabled(true); // Re-enable scanning
-    isProcessingRef.current = false;
+  // −1 / +1 na liście zeskanowanych
+  const removeOnePiece = (code) => {
+    setScannedItems((prev) => {
+      const index = prev.map((item) => item.code).lastIndexOf(code);
+      return index === -1 ? prev : [...prev.slice(0, index), ...prev.slice(index + 1)];
+    });
+  };
+  const addOnePiece = (code) => {
+    setScannedItems((prev) => {
+      const template = prev.find((item) => item.code === code);
+      if (!template) return prev;
+      return [...prev, { ...template, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }];
+    });
   };
 
+  // „Sprawdź zgodność”: dobrane vs zeskanowane
   const checkVerification = () => {
     try {
-      const missingItems = [];
-      const extraItems = [];
-
-      // Grupuj oczekiwane kurtki według kodu
-      const expectedByBarcode = {};
-      expectedJackets.forEach((jacket) => {
-        const code = jacket.barcode;
-        if (!expectedByBarcode[code]) {
-          expectedByBarcode[code] = [];
-        }
-        expectedByBarcode[code].push(jacket);
+      const result = compareScans(expectedJackets, scannedItems, {
+        describeExpected: (first) => ({ name: first.fullName || first.barcode, size: first.size && first.size !== "-" ? first.size : undefined }),
+        describeScanned: (first) => ({ name: first.name || first.code }),
       });
-
-      // Grupuj zeskanowane kurtki według kodu
-      const scannedByBarcode = {};
-      scannedJackets.forEach((jacket) => {
-        const code = jacket.barcode || jacket.code;
-        if (!scannedByBarcode[code]) {
-          scannedByBarcode[code] = [];
-        }
-        scannedByBarcode[code].push(jacket);
-      });
-
-      // Sprawdź czego brakuje
-      Object.keys(expectedByBarcode).forEach((barcode) => {
-        const expectedItems = expectedByBarcode[barcode];
-        const scannedItems = scannedByBarcode[barcode] || [];
-
-        const expectedCount = expectedItems.length;
-        const actualCount = scannedItems.length;
-
-        if (actualCount === 0) {
-          missingItems.push({
-            name: expectedItems[0].fullName || expectedItems[0].barcode,
-            size: expectedItems[0].size,
-            code: barcode,
-            expectedCount: expectedCount,
-            actualCount: 0,
-          });
-        } else if (actualCount < expectedCount) {
-          missingItems.push({
-            name: expectedItems[0].fullName || expectedItems[0].barcode,
-            size: expectedItems[0].size,
-            code: barcode,
-            expectedCount: expectedCount,
-            actualCount: actualCount,
-            missingCount: expectedCount - actualCount,
-          });
-        } else if (actualCount > expectedCount) {
-          extraItems.push({
-            name: scannedItems[0].fullName || scannedItems[0].barcode,
-            size: scannedItems[0].size,
-            code: barcode,
-            expectedCount: expectedCount,
-            actualCount: actualCount,
-            excessCount: actualCount - expectedCount,
-          });
-        }
-      });
-
-      // Sprawdź nadwyżki (zeskanowane ale nie oczekiwane)
-      Object.keys(scannedByBarcode).forEach((barcode) => {
-        if (!expectedByBarcode[barcode]) {
-          const scannedItems = scannedByBarcode[barcode];
-          extraItems.push({
-            name: scannedItems[0].fullName || scannedItems[0].barcode,
-            size: scannedItems[0].size,
-            code: barcode,
-            expectedCount: 0,
-            actualCount: scannedItems.length,
-            excessCount: scannedItems.length,
-          });
-        }
-      });
-
       setComparisonResults({
-        currentStateCount: totalExpected,
-        remanentCount: scannedJackets.length,
-        missingItems: missingItems,
-        extraItems: extraItems,
+        currentStateCount: expectedJackets.length,
+        remanentCount: scannedItems.length,
+        missingCount: result.missingCount,
+        excessCount: result.excessCount,
+        missingItems: result.missingItems,
+        extraItems: result.extraItems,
       });
       setComparisonModalVisible(true);
     } catch (error) {
@@ -385,46 +341,21 @@ const Dashboard = () => {
     }
   };
 
-  const clearScannedJackets = () => {
-    setConfirmClearModalVisible(true);
-  };
-
-  const renderScannedJacket = ({ item }) => (
-    <View
-      style={[
-        styles.jacketItem,
-        item.status === "unexpected" && styles.jacketItemError,
-      ]}
-    >
-      <View style={styles.jacketInfo}>
-        <Text style={styles.jacketName}>{item.fullName || item.barcode}</Text>
-        <Text style={styles.jacketCode}>
-          {item.barcode || item.code} | {item.size || "-"}
-        </Text>
-      </View>
-      {item.status === "unexpected" && (
-        <Ionicons name="alert-circle" size={24} color="#dc3545" />
-      )}
-      {item.status === "correct" && (
-        <Ionicons name="checkmark-circle" size={24} color="#0D6EFD" />
-      )}
-    </View>
-  );
-
-  const filteredUsers = users.filter((u) => 
-    u.role !== "admin" && 
-    u.role !== "magazyn" && 
+  const filteredUsers = users.filter((u) =>
+    u.role !== "admin" &&
+    u.role !== "magazyn" &&
     u.username !== "Cudzich" &&
     u.email !== "admin2@bukowski.com" &&
     u.email !== "cudzich@wp.pl"
   );
+  const selectedUser = filteredUsers.find((u) => u._id === selectedUserId);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={{
       flex: 1,
       backgroundColor: tc('bg', "#000000"),
     }}>
-      <ScrollView alwaysBounceVertical 
+      <ScrollView alwaysBounceVertical
         style={styles.scrollView}
         // Pasek zakładek leży na treści (position: absolute, wysokość jak w _layout) - zapas, żeby ostatni przycisk nie chował się pod nim
         contentContainerStyle={{ paddingBottom: Math.max(90, 70 + insets.bottom) + 24 }}
@@ -436,7 +367,7 @@ const Dashboard = () => {
           <ScreenHeader icon="checkmark-done-circle" title="Sprawdź kurtki" subtitle="Weryfikacja kurtek dobranych w systemie" />
         </View>
 
-        {/* User Selection */}
+        {/* Wybór punktu i daty */}
         <View style={styles.section}>
           <Text style={styles.label}>Wybierz użytkownika:</Text>
           <TouchableOpacity
@@ -444,17 +375,14 @@ const Dashboard = () => {
             onPress={() => setShowUserModal(true)}
           >
             <Text style={styles.userSelectButtonText}>
-              {selectedUserId 
-                ? filteredUsers.find(u => u._id === selectedUserId)?.username || 
-                  filteredUsers.find(u => u._id === selectedUserId)?.email || 
-                  "Użytkownik"
+              {selectedUserId
+                ? selectedUser?.username || selectedUser?.email || "Użytkownik"
                 : "Wybierz użytkownika..."}
             </Text>
             <Ionicons name="people" size={24} color={tc('text', "#fff")} />
           </TouchableOpacity>
         </View>
 
-        {/* Date Selection */}
         <View style={styles.section}>
           <Text style={styles.label}>Wybierz datę:</Text>
           <TouchableOpacity
@@ -475,24 +403,19 @@ const Dashboard = () => {
                 setShowDatePicker(false);
                 if (date) {
                   setSelectedDate(date);
-                  // Reset weryfikacji przy zmianie daty
-                  setVerificationStarted(false);
-                  setExpectedJackets([]);
-                  setTotalExpected(0);
-                  setScannedJackets([]);
-                  setComparisonResults(null);
+                  resetVerification(); // zmiana daty = weryfikacja od nowa
                 }
               }}
             />
           )}
         </View>
 
-        {/* Expected Count */}
         {!verificationStarted ? (
           <TouchableOpacity
-            style={styles.startButton}
-            onPress={startVerification}
+            style={[styles.startButton, (!selectedUserId || loading) && { opacity: 0.6 }]}
+            onPress={() => startVerification()}
             disabled={!selectedUserId || !selectedDate || loading}
+            testID="start-verification"
           >
             {loading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -504,319 +427,159 @@ const Dashboard = () => {
             )}
           </TouchableOpacity>
         ) : (
-          <>
-            <View style={styles.countSection}>
-              <Text style={styles.countLabel}>Liczba kurtek do sprawdzenia:</Text>
-              <Text style={styles.countValue}>{totalExpected}</Text>
-            </View>
-
-            {/* Expected Jackets List */}
-            {expectedJackets.length > 0 && (
-              <View style={styles.expectedSection}>
-                <Text style={styles.expectedTitle}>Oczekiwane kurtki ({totalExpected})</Text>
-                <ScrollView style={styles.expectedList} nestedScrollEnabled>
-                  {expectedJackets.map((jacket, index) => (
-                    <View key={`expected-${index}`} style={styles.expectedItem}>
-                      <Text style={styles.expectedName}>
-                        {jacket.fullName || jacket.barcode} {jacket.size}
-                      </Text>
-                      <Text style={styles.expectedCode}>{jacket.barcode}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Progress */}
-            {totalExpected > 0 && (
-              <View style={styles.progressSection}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressTitle}>Postęp skanowania</Text>
-                  <Text style={styles.progressPercentage}>{scanProgress.percentage}%</Text>
-                </View>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${scanProgress.percentage}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.progressText}>
-                  Zeskanowano: {scanProgress.totalScanned} / {scanProgress.totalExpected}
+          <View style={styles.verificationBody}>
+            {/* Postęp (jak w Remanencie) */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressTitle}>Do sprawdzenia: {totalExpected} szt.</Text>
+                <Text style={styles.progressStats} testID="verification-progress">
+                  {progress.matched}/{progress.total} ({progress.percentage}%)
                 </Text>
               </View>
-            )}
-
-            {/* Scanner Button */}
-            {totalExpected > 0 && (
-              <TouchableOpacity style={styles.scanButton} onPress={openQRScanner}>
-                <Ionicons name="qr-code-outline" size={32} color="#fff" />
-                <Text style={styles.scanButtonText}>Skanuj Kurtki</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Check Button */}
-            {scannedJackets.length > 0 && (
-              <TouchableOpacity style={styles.checkButton} onPress={checkVerification}>
-                <Ionicons name="checkmark-done-circle" size={32} color="#fff" />
-                <Text style={styles.checkButtonText}>Sprawdź zgodność</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Scanned Jackets List */}
-            {scannedJackets.length > 0 && (
-              <View style={styles.scannedSection}>
-                <View style={styles.scannedHeader}>
-                  <Text style={styles.scannedTitle}>
-                    Zeskanowane ({scannedJackets.length})
-                  </Text>
-                  <TouchableOpacity onPress={clearScannedJackets}>
-                    <Text style={styles.clearButton}>Wyczyść</Text>
-                  </TouchableOpacity>
-                </View>
-                <FlatList
-                  data={scannedJackets}
-                  renderItem={renderScannedJacket}
-                  keyExtractor={(item, index) => `${item.barcode || item.code}-${index}`}
-                  scrollEnabled={false}
-                />
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarFill, { width: `${progress.percentage}%` }]} />
               </View>
-            )}
-          </>
+              <View style={styles.progressDetails}>
+                <Text style={styles.progressDetailText}>
+                  <Ionicons name="checkmark-circle-outline" size={12} color={tc('muted', '#94A3B8')} /> Zgodne: {progress.matched}/{progress.total}
+                </Text>
+                <Text style={styles.progressDetailText}>
+                  <Ionicons name="scan-outline" size={12} color={tc('muted', '#94A3B8')} /> Skanowania: {progress.scanned}
+                </Text>
+                <Text style={[styles.progressDetailText, progress.excess > 0 && { color: '#F59E0B' }]}>
+                  <Ionicons name="alert-circle-outline" size={12} color={progress.excess > 0 ? '#F59E0B' : tc('muted', '#94A3B8')} /> Nadwyżki: {progress.excess}
+                </Text>
+              </View>
+            </View>
+
+            {/* Akcje (jak stopka Remanentu) */}
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={[styles.addButton, totalExpected === 0 && { opacity: 0.5 }]}
+                onPress={openQRScanner}
+                disabled={totalExpected === 0}
+                testID="open-scanner"
+              >
+                <Ionicons name="qr-code" size={20} color="white" />
+                <Text style={styles.actionButtonText}>Skanuj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.checkButton, totalExpected === 0 && scannedItems.length === 0 && { opacity: 0.5 }]}
+                onPress={checkVerification}
+                disabled={totalExpected === 0 && scannedItems.length === 0}
+                testID="check-verification"
+              >
+                <Ionicons name="checkmark-circle" size={20} color="white" />
+                <Text style={styles.actionButtonText}>Sprawdź</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.clearAllButton, scannedItems.length === 0 && { opacity: 0.5 }]}
+                onPress={() => setConfirmClearModalVisible(true)}
+                disabled={scannedItems.length === 0}
+                testID="clear-scans"
+              >
+                <Ionicons name="trash" size={20} color="white" />
+                <Text style={styles.actionButtonText}>Wyczyść</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Dobrane w systemie */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Dobrane w systemie ({totalExpected})</Text>
+              {expectedGroups.length === 0 ? (
+                <Text style={styles.emptyHint}>Brak kurtek dobranych w tym dniu.</Text>
+              ) : (
+                expectedGroups.map((group) => {
+                  const scanned = scannedCountByCode[group.code] || 0;
+                  const done = scanned >= group.count;
+                  return (
+                    <View key={`expected-${group.code}`} style={[styles.listItem, done && styles.listItemDone]}>
+                      <Ionicons
+                        name={done ? "checkmark-circle" : "ellipse-outline"}
+                        size={22}
+                        color={done ? "#10B981" : tc('muted', "#94A3B8")}
+                      />
+                      <View style={styles.listItemContent}>
+                        <Text style={styles.itemName}>{group.name}</Text>
+                        <Text style={styles.itemCode}>{group.code}</Text>
+                      </View>
+                      <Text style={[styles.itemCounter, done && { color: "#10B981" }]}>
+                        {Math.min(scanned, group.count)}/{group.count}
+                      </Text>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            {/* Zeskanowane (tylko w pamięci ekranu) */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Zeskanowane ({scannedItems.length})</Text>
+              {scannedGroups.length === 0 ? (
+                <Text style={styles.emptyHint}>Kliknij „Skanuj” i zeskanuj kurtki. Każdy skan to jedna sztuka.</Text>
+              ) : (
+                scannedGroups.map((group) => {
+                  const expected = expectedByCode[group.code];
+                  const status = !expected
+                    ? { text: "Nie było w dobieranych", color: "#F59E0B" }
+                    : group.count > expected.count
+                      ? { text: `Nadwyżka: dobrano ${expected.count} szt.`, color: "#F59E0B" }
+                      : { text: group.count < expected.count ? `Zgodna (${group.count}/${expected.count})` : "Zgodna", color: "#10B981" };
+                  return (
+                    <View key={`scanned-${group.code}`} style={styles.listItem}>
+                      <View style={styles.listItemContent}>
+                        <Text style={styles.itemName}>{group.name || group.code}</Text>
+                        <Text style={styles.itemCode}>{group.code}</Text>
+                        <Text style={[styles.itemStatus, { color: status.color }]}>{status.text}</Text>
+                        {group.manual > 0 ? <Text style={styles.manualBadge}>wpisane ręcznie: {group.manual} szt.</Text> : null}
+                      </View>
+                      <View style={styles.pieceCounterRow}>
+                        <TouchableOpacity onPress={() => removeOnePiece(group.code)} style={[styles.pieceButton, styles.pieceButtonMinus]}>
+                          <Ionicons name={group.count === 1 ? "close" : "remove"} size={18} color="white" />
+                        </TouchableOpacity>
+                        <Text style={styles.pieceCount}>×{group.count}</Text>
+                        <TouchableOpacity onPress={() => addOnePiece(group.code)} style={[styles.pieceButton, styles.pieceButtonPlus]}>
+                          <Ionicons name="add" size={18} color="white" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </View>
         )}
       </ScrollView>
 
-      {/* QR Scanner Modal */}
-      <Modal visible={scannerVisible} animationType="slide" onRequestClose={closeScanner}>
-        <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
-          <View style={styles.scannerHeader}>
-            <TouchableOpacity onPress={closeScanner} style={styles.closeButton}>
-              <Ionicons name="close" size={28} color={tc('text', "white")} />
-            </TouchableOpacity>
-            <Text style={styles.scannerTitle}>Skanuj kody kurtek</Text>
-            <TouchableOpacity
-              onPress={() => setFacing(facing === "back" ? "front" : "back")}
-              style={styles.cameraFlipButton}
-            >
-              <Ionicons name="camera-reverse" size={24} color={tc('text', "white")} />
-            </TouchableOpacity>
-          </View>
+      {/* Skaner (ten sam co w Remanencie) */}
+      <BarcodeScannerModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        title="Skanuj kody kurtek"
+        permission={permission}
+        requestPermission={requestPermission}
+        resolveName={nameForCode}
+        previewName={nameForCode}
+        validateCode={validateCode}
+        countSaved={(code) => scannedCountByCode[code] || 0}
+        onConfirm={confirmScans}
+        goods={catalog.goodsList}
+        pickerSizes={catalog.pickerSizes}
+      />
 
-          <View style={styles.scannerCameraContainer}>
-            <CameraView
-              style={styles.camera}
-              facing={facing}
-              barcodeScannerSettings={{
-                barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code39", "code128"],
-              }}
-              onBarcodeScanned={scanningEnabled ? handleScan : undefined}
-            >
-              {/* Scanner overlay */}
-              <View style={styles.overlay}>
-                <View
-                  style={[
-                    styles.scanArea,
-                    { borderColor: scanningEnabled ? "#0D6EFD" : "#6c757d" },
-                  ]}
-                />
-                {showPendingUI && pendingScan && (
-                  <View style={styles.pendingScanOverlay}>
-                    <Text style={styles.pendingScanText}>
-                      Zeskanowano: {pendingScan.fullName || pendingScan.barcode} {pendingScan.size}
-                    </Text>
-                    <Text style={styles.pendingScanSubtext}>
-                      Zatwierdź skan, aby kontynuować
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </CameraView>
-          </View>
-
-          {/* Scanned jackets list */}
-          {scannedJackets.length > 0 && (
-            <View style={styles.scannedListContainer}>
-              <View style={styles.scannedListHeader}>
-                <Text style={styles.scannedListTitle}>
-                  Zeskanowane kurtki ({scannedJackets.length} / {totalExpected})
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setConfirmClearModalVisible(true);
-                  }}
-                  style={styles.clearListButtonSmall}
-                >
-                  <Ionicons name="trash-outline" size={18} color="#ff4444" />
-                </TouchableOpacity>
-              </View>
-              <FlatList
-                data={scannedJackets}
-                horizontal
-                keyExtractor={(item, index) => `${item.barcode || item.code}-${index}`}
-                renderItem={({ item, index }) => (
-                  <View style={styles.scannedJacket}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setScannedJackets(prev => prev.filter((_, i) => i !== index));
-                      }}
-                      style={styles.removeJacketButton}
-                    >
-                      <Ionicons name="close" size={16} color="white" />
-                    </TouchableOpacity>
-                    <Text style={styles.jacketName} numberOfLines={2}>
-                      {item.fullName || item.name || "Nieznany"} {item.size}
-                    </Text>
-                    <Text style={styles.jacketCode}>{item.barcode || item.code}</Text>
-                    <Text style={styles.jacketTime}>
-                      {new Date(item.scannedAt).toLocaleTimeString()}
-                    </Text>
-                  </View>
-                )}
-                showsHorizontalScrollIndicator={false}
-              />
-            </View>
-          )}
-
-          {/* Action buttons */}
-          <View style={styles.scannerFooter}>
-            <View style={styles.actionButtonsRow}>
-              {showPendingUI && pendingScan && (
-                <TouchableOpacity
-                  onPress={() => {
-                    // Dodaj do listy po zatwierdzeniu
-                    setScannedJackets((prev) => [pendingScan, ...prev]);
-                    
-                    // Natychmiast ukryj UI i odblokuj przetwarzanie
-                    setShowPendingUI(false);
-                    setPendingScan(null);
-                    isProcessingRef.current = false;
-                    
-                    // Wyczyść lastScannedCode (NIE czyścimy mapy - zachowujemy blokadę 5s)
-                    setLastScannedCode("");
-                    
-                    // Włącz skanowanie ponownie
-                    setTimeout(() => {
-                      setScanningEnabled(true);
-                    }, 100);
-                  }}
-                  style={styles.confirmScanButton}
-                >
-                  <Ionicons name="checkmark-circle" size={24} color="white" />
-                  <Text style={styles.confirmScanButtonText}>
-                    Zatwierdź skan
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              {(pendingScan || scannedJackets.length > 0) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    closeScanner();
-                    setTimeout(() => checkVerification(), 100);
-                  }}
-                  style={styles.confirmButton}
-                >
-                  <Ionicons name="document-text" size={24} color="white" />
-                  <Text style={styles.confirmButtonText}>
-                    Sprawdź zgodność
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Comparison Modal */}
-      <Modal visible={comparisonModalVisible} animationType="slide" transparent>
-        <View style={styles.comparisonModalContainer}>
-          <View style={styles.comparisonModal}>
-            <View style={styles.comparisonHeader}>
-              <Text style={styles.comparisonTitle}>Wynik weryfikacji</Text>
-              <TouchableOpacity onPress={() => setComparisonModalVisible(false)}>
-                <Ionicons name="close" size={32} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.comparisonContent}>
-              <View style={styles.comparisonSummary}>
-                <Text style={styles.summaryText}>
-                  Oczekiwano: {comparisonResults?.currentStateCount || 0}
-                </Text>
-                <Text style={styles.summaryText}>
-                  Zeskanowano: {comparisonResults?.remanentCount || 0}
-                </Text>
-              </View>
-
-              {comparisonResults?.missingItems?.length > 0 && (
-                <View style={styles.comparisonSection}>
-                  <Text style={styles.comparisonSectionTitle}>
-                    ❌ Brakujące ({comparisonResults.missingItems.length})
-                  </Text>
-                  {comparisonResults.missingItems.map((item, index) => (
-                    <View key={`missing-${index}`} style={styles.comparisonItem}>
-                      <View style={styles.comparisonItemInfo}>
-                        <Text style={styles.comparisonItemName}>{item.name}</Text>
-                        <Text style={styles.comparisonItemDetails}>
-                          {item.code} | {item.size}
-                        </Text>
-                        <Text style={styles.comparisonItemCount}>
-                          Oczekiwano: {item.expectedCount}, Zeskanowano: {item.actualCount}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {comparisonResults?.extraItems?.length > 0 && (
-                <View style={styles.comparisonSection}>
-                  <Text style={styles.comparisonSectionTitle}>
-                    ➕ Nadwyżki ({comparisonResults.extraItems.length})
-                  </Text>
-                  {comparisonResults.extraItems.map((item, index) => (
-                    <View key={`extra-${index}`} style={styles.comparisonItem}>
-                      <View style={styles.comparisonItemInfo}>
-                        <Text style={styles.comparisonItemName}>{item.name}</Text>
-                        <Text style={styles.comparisonItemDetails}>
-                          {item.code} | {item.size}
-                        </Text>
-                        <Text style={styles.comparisonItemCount}>
-                          Oczekiwano: {item.expectedCount}, Zeskanowano: {item.actualCount}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {comparisonResults?.missingItems?.length === 0 &&
-                comparisonResults?.extraItems?.length === 0 && (
-                  <View style={styles.successContainer}>
-                    <Ionicons name="checkmark-circle" size={64} color="#0D6EFD" />
-                    <Text style={styles.successText}>
-                      Weryfikacja zakończona pomyślnie!
-                    </Text>
-                    <Text style={styles.successSubtext}>
-                      Wszystkie kurtki się zgadzają
-                    </Text>
-                  </View>
-                )}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={styles.closeModalButton}
-              onPress={() => setComparisonModalVisible(false)}
-            >
-              <Text style={styles.closeModalButtonText}>Zamknij</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Wynik porównania (jak w Remanencie) */}
+      <ScanCompareResultModal
+        visible={comparisonModalVisible}
+        onClose={() => setComparisonModalVisible(false)}
+        title="Dobrane vs zeskanowane"
+        subtitle={`${selectedUser?.symbol || selectedUser?.username || selectedUser?.email || ""}${selectedUser ? " · " : ""}${selectedDate.toLocaleDateString("pl-PL")}`}
+        results={comparisonResults}
+        labels={COMPARE_LABELS}
+        showCloseButton
+      />
 
       {/* User Selection Modal */}
-      <Modal visible={showUserModal} animationType="slide" transparent>
+      <Modal visible={showUserModal} animationType="slide" transparent onRequestClose={() => setShowUserModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.userModal}>
             <View style={styles.userModalHeader}>
@@ -825,7 +588,7 @@ const Dashboard = () => {
                 <Ionicons name="close" size={28} color={tc('text', "#fff")} />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.userList}>
               {filteredUsers.map((u) => (
                 <TouchableOpacity
@@ -837,19 +600,14 @@ const Dashboard = () => {
                   onPress={() => {
                     setSelectedUserId(u._id);
                     setShowUserModal(false);
-                    // Reset weryfikacji przy zmianie użytkownika
-                    setVerificationStarted(false);
-                    setExpectedJackets([]);
-                    setTotalExpected(0);
-                    setScannedJackets([]);
-                    setComparisonResults(null);
+                    resetVerification(); // zmiana punktu = weryfikacja od nowa
                   }}
                 >
                   <View style={styles.userItemContent}>
-                    <Ionicons 
-                      name="person-circle" 
-                      size={40} 
-                      color={selectedUserId === u._id ? "#0d6efd" : "#6c757d"} 
+                    <Ionicons
+                      name="person-circle"
+                      size={40}
+                      color={selectedUserId === u._id ? "#0d6efd" : "#6c757d"}
                     />
                     <View style={styles.userItemText}>
                       <Text style={styles.userItemName}>
@@ -871,7 +629,7 @@ const Dashboard = () => {
       </Modal>
 
       {/* Info Modal */}
-      <Modal visible={infoModalVisible} animationType="fade" transparent>
+      <Modal visible={infoModalVisible} animationType="fade" transparent onRequestClose={() => setInfoModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.infoModal}>
             <View style={styles.infoModalHeader}>
@@ -891,8 +649,8 @@ const Dashboard = () => {
         </View>
       </Modal>
 
-      {/* Confirm Clear Modal */}
-      <Modal visible={confirmClearModalVisible} animationType="fade" transparent>
+      {/* Potwierdzenie „Wyczyść” */}
+      <Modal visible={confirmClearModalVisible} animationType="fade" transparent onRequestClose={() => setConfirmClearModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.confirmModal}>
             <View style={styles.confirmModalHeader}>
@@ -901,7 +659,7 @@ const Dashboard = () => {
             <View style={styles.confirmModalContent}>
               <Text style={styles.confirmModalTitle}>Wyczyść listę</Text>
               <Text style={styles.confirmModalMessage}>
-                Czy na pewno chcesz usunąć wszystkie zeskanowane kurtki?
+                Czy na pewno chcesz usunąć wszystkie zeskanowane kurtki ({scannedItems.length} szt.)?
               </Text>
             </View>
             <View style={styles.confirmModalButtons}>
@@ -914,11 +672,8 @@ const Dashboard = () => {
               <TouchableOpacity
                 style={styles.confirmModalConfirmButton}
                 onPress={() => {
-                  setScannedJackets([]);
-                  setPendingScan(null);
-                  setScanningEnabled(true);
-                  setLastScannedCode("");
-                  setRecentlyScannedCodes(new Map());
+                  setScannedItems([]);
+                  setComparisonResults(null);
                   setConfirmClearModalVisible(false);
                 }}
               >
@@ -933,30 +688,12 @@ const Dashboard = () => {
 };
 
 const styles = createThemedStyles(() => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: tc('bg', "#000000"),
-  },
   scrollView: {
     flex: 1,
   },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#232533"),
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: tc('text', "#fff"),
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: tc('muted', "#CDCDE0"),
-  },
   section: {
     padding: 20,
+    paddingBottom: 0,
   },
   label: {
     fontSize: 16,
@@ -1007,363 +744,183 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-  expectedSection: {
-    padding: 20,
-    maxHeight: 300,
+  verificationBody: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    gap: 12,
   },
-  expectedTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  expectedList: {
-    maxHeight: 250,
-  },
-  expectedItem: {
-    backgroundColor: tc('surface', "#1E1E2D"),
+  // Pasek postępu (jak w Remanencie)
+  progressContainer: {
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 12,
     padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
     borderWidth: 1,
-    borderColor: tc('border', "#232533"),
-  },
-  expectedName: {
-    color: tc('text', "#fff"),
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  expectedCode: {
-    color: tc('muted', "#CDCDE0"),
-    fontSize: 12,
-  },
-  countSection: {
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: tc('surface', "#1E1E2D"),
-    marginHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#232533"),
-  },
-  countLabel: {
-    color: tc('muted', "#CDCDE0"),
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  countValue: {
-    color: "#dc3545",
-    fontSize: 48,
-    fontWeight: "bold",
-  },
-  progressSection: {
-    padding: 20,
-    marginHorizontal: 20,
-    backgroundColor: tc('surface', "#1E1E2D"),
-    borderRadius: 12,
-    marginTop: 16,
+    borderColor: tc('border', '#1E293B'),
   },
   progressHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  progressTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  progressPercentage: {
-    color: "#dc3545",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  progressBar: {
-    height: 12,
-    backgroundColor: tc('surface', "#232533"),
-    borderRadius: 6,
-    overflow: "hidden",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#dc3545",
-    borderRadius: 6,
-  },
-  progressText: {
-    color: "#CDCDE0",
+  progressTitle: {
     fontSize: 14,
-    textAlign: "center",
-  },
-  scanButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D6EFD",
-    padding: 20,
-    margin: 20,
-    borderRadius: 12,
-    gap: 12,
-  },
-  scanButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  checkButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D6EFD",
-    padding: 20,
-    margin: 20,
-    marginTop: 0,
-    borderRadius: 12,
-    gap: 12,
-  },
-  checkButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  scannedSection: {
-    padding: 20,
-  },
-  scannedHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  scannedTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  clearButton: {
-    color: "#dc3545",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  jacketItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: tc('surface', "#1E1E2D"),
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#232533"),
-  },
-  jacketItemError: {
-    borderColor: "#dc3545",
-    borderWidth: 2,
-  },
-  jacketInfo: {
-    flex: 1,
-  },
-  jacketName: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  jacketCode: {
-    color: tc('muted', "#CDCDE0"),
-    fontSize: 14,
-  },
-  scannerContainer: {
-    flex: 1,
-    backgroundColor: tc('bg', "#000"),
-  },
-  scannerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: tc('bg', "#000"),
-  },
-  closeButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cameraFlipButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scannerCameraContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    pointerEvents: 'none',
-  },
-  scanArea: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: '#dc3545',
-    borderRadius: 12,
-    backgroundColor: 'transparent',
-  },
-  pendingScanOverlay: {
-    position: 'absolute',
-    top: '50%',
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(13, 110, 253, 0.95)',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    transform: [{ translateY: -50 }],
-  },
-  pendingScanText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  pendingScanSubtext: {
-    color: 'white',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  scannedListContainer: {
-    backgroundColor: tc('surface', '#1E1E2D'),
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: tc('border', '#232533'),
-    maxHeight: 140,
-  },
-  scannedListHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scannedListTitle: {
     color: tc('text', 'white'),
-    fontSize: 16,
     fontWeight: '600',
   },
-  clearListButtonSmall: {
-    backgroundColor: 'rgba(255, 68, 68, 0.1)',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ff4444',
-  },
-  scannedJacket: {
-    backgroundColor: tc('surface', '#232533'),
-    borderRadius: 8,
-    padding: 12,
-    marginRight: 12,
-    minWidth: 120,
-    position: 'relative',
-  },
-  removeJacketButton: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#dc3545',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  jacketTime: {
-    color: '#CDCDE0',
-    fontSize: 12,
-  },
-  scannerFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: tc('border', '#232533'),
-    backgroundColor: tc('bg', '#000'),
-  },
-  scannerProgressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  scannerInfo: {
-    color: tc('text', '#fff'),
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  scannerProgress: {
-    color: '#dc3545',
-    fontSize: 18,
+  progressStats: {
+    fontSize: 14,
+    color: '#0D6EFD',
     fontWeight: 'bold',
   },
-  actionButtonsRow: {
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 4,
+  },
+  progressDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
+    flexWrap: 'wrap',
   },
-  confirmScanButton: {
-    backgroundColor: '#0d6efd',
+  progressDetailText: {
+    fontSize: 12,
+    color: tc('muted', '#94A3B8'),
+    marginRight: 8,
+  },
+  // Przyciski (jak stopka Remanentu)
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  addButton: {
+    backgroundColor: '#0D6EFD',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderRadius: 12,
-    gap: 8,
     flex: 1,
-    minWidth: 140,
   },
-  confirmScanButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-    flexShrink: 0,
-  },
-  confirmButton: {
-    backgroundColor: '#28a745',
+  checkButton: {
+    backgroundColor: '#10B981',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderRadius: 12,
-    gap: 8,
     flex: 1,
-    minWidth: 140,
   },
-  confirmButtonText: {
+  clearAllButton: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    flex: 1,
+  },
+  actionButtonText: {
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
-    flexShrink: 0,
+    marginLeft: 6,
   },
-  scannerTitle: {
-    color: tc('text', "#fff"),
+  // Karty list
+  card: {
+    backgroundColor: tc('surface', '#161622'),
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: tc('border', '#1E293B'),
+  },
+  cardTitle: {
+    color: tc('text', 'white'),
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  emptyHint: {
+    color: tc('muted', '#CDCDE0'),
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
+  },
+  listItemDone: {
+    borderColor: 'rgba(16, 185, 129, 0.5)',
+  },
+  listItemContent: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: tc('text', 'white'),
+    marginBottom: 2,
+  },
+  itemCode: {
+    fontSize: 12,
+    color: tc('muted', '#CDCDE0'),
+  },
+  itemCounter: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: tc('muted', '#CDCDE0'),
+  },
+  itemStatus: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  manualBadge: {
+    color: '#F59E0B',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  pieceCounterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pieceButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pieceButtonMinus: {
+    backgroundColor: '#DC2626',
+  },
+  pieceButtonPlus: {
+    backgroundColor: '#16A34A',
+  },
+  pieceCount: {
+    color: tc('text', 'white'),
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: '700',
+    marginHorizontal: 10,
   },
+  // Okienka
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -1484,7 +1041,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
     borderColor: tc('border', "#444"),
   },
   confirmModalCancelButtonText: {
-    color: "#fff",
+    color: tc('text', "#fff"),
     fontSize: 16,
     fontWeight: "600",
   },
@@ -1533,123 +1090,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   userItemDetails: {
     color: tc('muted', "#CDCDE0"),
     fontSize: 14,
-  },
-  comparisonModalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  comparisonModal: {
-    backgroundColor: tc('surface', "#161622"),
-    width: "90%",
-    maxHeight: "80%",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  comparisonHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: tc('surface', "#1E1E2D"),
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', "#232533"),
-  },
-  comparisonTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  comparisonContent: {
-    padding: 20,
-  },
-  comparisonSummary: {
-    backgroundColor: tc('surface', "#1E1E2D"),
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  summaryText: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  comparisonSection: {
-    marginBottom: 20,
-  },
-  comparisonSectionTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  comparisonItem: {
-    backgroundColor: tc('surface', "#1E1E2D"),
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#232533"),
-  },
-  comparisonItemInfo: {
-    flex: 1,
-  },
-  comparisonItemName: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  comparisonItemDetails: {
-    color: tc('muted', "#CDCDE0"),
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  comparisonItemCount: {
-    color: "#ffc107",
-    fontSize: 12,
-  },
-  successContainer: {
-    alignItems: "center",
-    padding: 40,
-  },
-  successText: {
-    color: "#198754",
-    fontSize: 20,
-    fontWeight: "bold",
-    marginTop: 16,
-  },
-  successSubtext: {
-    color: "#CDCDE0",
-    fontSize: 14,
-    marginTop: 8,
-  },
-  closeModalButton: {
-    backgroundColor: "#dc3545",
-    padding: 16,
-    alignItems: "center",
-    margin: 20,
-    borderRadius: 12,
-  },
-  closeModalButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  scannerFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 20,
-    backgroundColor: tc('bg', "#000"),
-  },
-  scannerInfo: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-  },
-  scannerProgress: {
-    color: "#dc3545",
-    fontSize: 18,
-    fontWeight: "bold",
   },
 }));
 

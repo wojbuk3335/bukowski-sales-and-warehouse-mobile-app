@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import { GlobalStateContext } from '../../context/GlobalState';
 import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
@@ -22,6 +22,10 @@ import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../c
 import LogoutButton from '../../components/LogoutButton';
 import { ScreenHeader } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
+import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
+import { compareScans } from '../../utils/compareScans';
+import { productNameFromBarcode } from '../../utils/productName';
 const Remanent = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -43,56 +47,13 @@ const Remanent = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // QR Scanner states
+  // Skaner (components/scanner/BarcodeScannerModal - wspólny z zakładką „Sprawdź” w panelu admina)
   const [scannerVisible, setScannerVisible] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
-  const [scannedJackets, setScannedJackets] = useState([]);
-  const [facing, setFacing] = useState('back');
-  
-  // Price list state for remanent
-  const [scanningEnabled, setScanningEnabled] = useState(true);
-  // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
-  // Identyczne sztuki mają ten sam kod, więc kolejne skany tego kodu po przerwie to kolejne sztuki.
-  const SAME_LABEL_PAUSE_MS = 1500;
-  const lastScanRef = useRef({ code: "", time: 0 });
-  const scanBusyRef = useRef(false);
-  // Ponowny skan kodu, który jest już policzony: pytamy, czy to ta sama metka, czy kolejna sztuka
-  const [duplicatePrompt, setDuplicatePrompt] = useState(null); // { code, name, count }
-  const lastAcceptedCodeRef = useRef(''); // kod ostatnio dodanej sztuki (pytamy tylko przy skanie POD RZĄD)
-  // Ręczne dodawanie, gdy kamera nie odczyta metki (deszcz, mróz, zniszczona metka)
-  const [manualCodeOpen, setManualCodeOpen] = useState(false);
-  const [manualCode, setManualCode] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState('');
-  const [pickerGood, setPickerGood] = useState(null); // kurtka czekająca na wybór rozmiaru
-  // Wpisanie ilości jedną liczbą (czapki, paski: skan jednej sztuki + ilość z wieszaka)
-  const [quantityEdit, setQuantityEdit] = useState(null); // { code, name, value }
   const [confirmClearOpen, setConfirmClearOpen] = useState(false); // potwierdzenie „Wyczyść wszystko”
   const [clearingAll, setClearingAll] = useState(false);
   const [clearResult, setClearResult] = useState(null); // { ok, text } - wynik czyszczenia w oknie aplikacji
-  const [scanToast, setScanToast] = useState(null); // { text, kind: 'ok' | 'warn' } - potwierdzenie skanu nad kamerą
-  const scanToastTimer = useRef(null);
-  const showScanToast = (text, kind = "ok") => {
-    setScanToast({ text, kind });
-    clearTimeout(scanToastTimer.current);
-    scanToastTimer.current = setTimeout(() => setScanToast(null), kind === "warn" ? 4000 : 1800);
-  };
-  // Wibracja: krótka przy dodanej sztuce, inna (ostrzegawcza) przy powtórce metki albo produkcie spoza filtrów,
-  // żeby dało się skanować bez patrzenia w ekran
-  const scanFeedback = (kind = "ok") => {
-    try {
-      const Haptics = require("expo-haptics");
-      if (kind === "warn") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 180);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      // bez wibracji (np. Expo Go bez modułu)
-    }
-  };
-  
+
   // Comparison modal states
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false);
   const [comparisonResults, setComparisonResults] = useState(null);
@@ -208,12 +169,6 @@ const Remanent = () => {
   };
 
   // { category, item, color, size } dla kodu kreskowego sztuki
-  // Cyfra kontrolna EAN-13 (ostatnia cyfra metki) - chroni ręcznie wpisany kod przed literówką
-  const ean13Checksum = (digits12) => {
-    const sum = String(digits12).split("").reduce((acc, digit, index) => acc + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
-    return String((10 - (sum % 10)) % 10);
-  };
-  const isValidEan13 = (code) => /^\d{13}$/.test(code) && ean13Checksum(code.slice(0, 12)) === code[12];
 
   const describeBarcode = (barcode) => {
     const code = String(barcode || "").trim();
@@ -486,7 +441,6 @@ const Remanent = () => {
       setComparisonModalVisible(false);
       setSession(null);
       setRemanentData([]);
-      setScannedJackets([]);
       const result = data?.session?.result || {};
       setClearResult({
         ok: true,
@@ -506,7 +460,7 @@ const Remanent = () => {
     setRefreshing(false);
   };
 
-  // QR Scanner functions
+  // Skaner
   const openQRScanner = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
@@ -515,139 +469,35 @@ const Remanent = () => {
         return;
       }
     }
-    
-    setScannedJackets([]);
+
     setScannerVisible(true);
-    setScanningEnabled(true);
   };
 
-  const handleScan = async ({ data, type }) => {
-    // Ta sama metka odczytana ponownie w krótkim czasie = ten sam odczyt kamery, ignorujemy.
-    // Po przerwie ten sam kod to KOLEJNA SZTUKA (identyczne kurtki mają identyczny kod).
-    const now = Date.now();
-    if (scanBusyRef.current) return;
-    if (lastScanRef.current.code === data && now - lastScanRef.current.time < SAME_LABEL_PAUSE_MS) {
-      return;
-    }
-    if (!scanningEnabled) {
-      return;
-    }
-    scanBusyRef.current = true;
-    lastScanRef.current = { code: data, time: now };
-
-    // Disable scanning temporarily
-    setScanningEnabled(false);
-    await processCode(data, false);
-  };
-
-  // Wspólna ścieżka dla skanu i kodu dodanego ręcznie: nazwa, obcy kod, filtry, powtórka pod rząd, dodanie.
-  // Wywołujący ustawia scanBusyRef = true; ta funkcja zwalnia blokadę po zakończeniu.
-  const processCode = async (data, manual) => {
-    // Get jacket name from barcode (błąd nie może zablokować skanera na stałe)
-    let jacketName = '';
-    try {
-      jacketName = await getJacketNameFromBarcode(data);
-    } catch (error) {
-      jacketName = data;
-    }
-
+  // Decyzja remanentu dla kodu ze skanera (skan, „Wpisz kod”, „Z bazy”): obcy kod i kod spoza filtrów są odrzucane
+  const validateRemanentCode = (data, { name: jacketName }) => {
     // Obcy kod (opakowanie, kod QR, metka spoza naszej bazy) nie jest sztuką remanentu:
     // odrzucamy go z komunikatem zamiast dopisywać jako „nadwyżkę”
     if (!isKnownProductCode(data, jacketName)) {
-      scanFeedback("warn");
-      showScanToast(`Nieznany kod: ${data}\nTo nie jest metka z bazy produktów - pominięto.`, "warn");
-      setTimeout(() => {
-        setScanningEnabled(true);
-        scanBusyRef.current = false;
-      }, 800);
-      return;
+      return { ok: false, tone: 'warn', message: `Nieznany kod: ${data}\nTo nie jest metka z bazy produktów - pominięto.` };
     }
 
-    // Check if advanced filters are active and if jacket matches them
-    const activeFilters = [];
-    let shouldBlock = false;
-    
+    // Czy sztuka pasuje do aktywnych filtrów
     if (!matchesFilters(data)) {
+      const activeFilters = [];
       const info = describeBarcode(data);
       if (advancedFilters.category && info.category !== advancedFilters.category) activeFilters.push(`Kategoria: ${advancedFilters.category} (zeskanowano: ${info.category || "nieznana"})`);
       if (advancedFilters.models.length > 0 && !advancedFilters.models.includes(info.model)) activeFilters.push(`Modele: ${advancedFilters.models.join(", ")} (zeskanowano: ${info.model || "nieznany"})`);
       if (advancedFilters.items.length > 0 && !advancedFilters.items.includes(info.item)) activeFilters.push(`${ITEM_FILTER_TITLES[advancedFilters.category] || "Wybór"}: ${advancedFilters.items.join(", ")} (zeskanowano: ${info.item || "nieznany"})`);
       if (advancedFilters.colors.length > 0 && !advancedFilters.colors.includes(info.color)) activeFilters.push(`Kolor: ${advancedFilters.colors.join(", ")} (zeskanowano: ${info.color || "nieznany"})`);
       if (advancedFilters.sizes.length > 0 && !advancedFilters.sizes.includes(info.size)) activeFilters.push(`Rozmiar: ${advancedFilters.sizes.join(", ")} (zeskanowano: ${info.size || "brak"})`);
-      shouldBlock = true;
-    }
-    
-    if (shouldBlock) {
       // Komunikat nad kamerą (bez blokującego okienka): co zeskanowano i czego nie spełnia
-      scanFeedback("warn");
-      showScanToast(`Nie pasuje do filtrów: ${jacketName || data}\n${activeFilters.join("\n")}`, "warn");
-      
-      // Re-enable scanning
-      setTimeout(() => {
-        setScanningEnabled(true);
-        scanBusyRef.current = false;
-      }, 800);
-      return;
+      return { ok: false, tone: 'warn', message: `Nie pasuje do filtrów: ${jacketName || data}\n${activeFilters.join("\n")}` };
     }
 
-    // Ten sam kod co POPRZEDNI skan (pod rząd): pytamy, czy to ta sama metka.
-    // Ten sam kod po innych skanach przechodzi normalnie jako kolejna sztuka.
-    const alreadyCounted =
-      scannedJackets.filter((jacket) => jacket.code === data).length +
-      remanentData.filter((item) => item.code === data).length;
-    if (alreadyCounted > 0 && lastAcceptedCodeRef.current === data) {
-      scanFeedback("warn");
-      setDuplicatePrompt({ code: data, name: jacketName || data, count: alreadyCounted, manual });
-      return; // skanowanie wznawia się po wyborze w okienku
-    }
-
-    addScannedPiece(data, jacketName, alreadyCounted, manual);
-    scanFeedback();
-
-    // Re-enable scanning after short delay
-    setTimeout(() => {
-      setScanningEnabled(true);
-      scanBusyRef.current = false;
-    }, 800);
+    return { ok: true }; // domyślny komunikat skanera „Dodano: …”
   };
 
-  // Dodaje jedną sztukę do listy skanera
-  const addScannedPiece = (code, name, alreadyCounted = 0, manual = false) => {
-    lastAcceptedCodeRef.current = code;
-    setScannedJackets(prev => [...prev, {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      code,
-      name,
-      manual,
-      scannedAt: new Date().toLocaleTimeString()
-    }]);
-    const pieceNumber = alreadyCounted + 1;
-    showScanToast(`${manual ? "Dodano ręcznie" : "Dodano"}: ${name || code}${pieceNumber > 1 ? ` (${pieceNumber}. sztuka)` : ""}`);
-  };
-
-  // „Wpisz kod”: 13 cyfr z metki wpisane z klawiatury, sprawdzane cyfrą kontrolną
-  const manualCodeValid = isValidEan13(manualCode);
-  const submitManualCode = async () => {
-    if (!manualCodeValid || scanBusyRef.current) return;
-    const code = manualCode;
-    setManualCodeOpen(false);
-    setManualCode('');
-    scanBusyRef.current = true;
-    setScanningEnabled(false);
-    lastScanRef.current = { code, time: Date.now() };
-    await processCode(code, true);
-  };
-
-  // „Z bazy”: produkt z kart produktów (cała baza, nie tylko stan punktu); kurtka wymaga wyboru rozmiaru
-  const pickerResults = React.useMemo(() => {
-    const query = pickerSearch.trim().toLowerCase();
-    const words = query.split(/\s+/).filter(Boolean);
-    return goodsList
-      .filter((good) => good?.fullName && good?.code)
-      .filter((good) => words.every((word) => `${good.fullName} ${good.category || ""}`.toLowerCase().includes(word)))
-      .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), "pl"))
-      .slice(0, 60);
-  }, [goodsList, pickerSearch]);
+  // Rozmiary do „Z bazy” (kurtka wymaga wyboru rozmiaru)
   const pickerSizes = React.useMemo(
     () => stableList(sizes, "sizes", lastSizesRef)
       .filter((size) => size?.Roz_Kod && size?.Roz_Opis && !/NIEOKRE/i.test(size.Roz_Opis))
@@ -655,77 +505,11 @@ const Remanent = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sizes]
   );
-  const addFromPicker = async (code) => {
-    if (scanBusyRef.current) return;
-    setPickerOpen(false);
-    setPickerGood(null);
-    setPickerSearch('');
-    scanBusyRef.current = true;
-    setScanningEnabled(false);
-    lastScanRef.current = { code, time: Date.now() };
-    await processCode(code, true);
-  };
-  const choosePickerGood = (good) => {
-    if (good.category === "Kurtki kożuchy futra") {
-      setPickerGood(good); // kod kurtki = model+kolor z karty + rozmiar + 0000 + cyfra kontrolna
-      return;
-    }
-    addFromPicker(String(good.code));
-  };
-  const choosePickerSize = (size) => {
-    const base = `${String(pickerGood.code).slice(0, 5)}${String(size.Roz_Kod).padStart(3, "0")}0000`;
-    addFromPicker(`${base}${ean13Checksum(base)}`);
-  };
 
-  // Wybór w okienku powtórnego skanu
-  const resolveDuplicate = (addAnother) => {
-    const prompt = duplicatePrompt;
-    setDuplicatePrompt(null);
-    if (prompt && addAnother) {
-      addScannedPiece(prompt.code, prompt.name, prompt.count, Boolean(prompt.manual));
-    } else if (prompt) {
-      showScanToast(`Pominięto - ta metka jest już policzona (${prompt.count} szt.)`, "warn");
-    }
-    // ten sam kod jeszcze przez chwilę ignorujemy (kamera wciąż widzi metkę)
-    lastScanRef.current = { code: prompt?.code || "", time: Date.now() };
-    setTimeout(() => {
-      setScanningEnabled(true);
-      scanBusyRef.current = false;
-    }, 800);
-  };
-
-  // Ustawia łączną liczbę sztuk danego kodu w skanerze (np. 12 czapek z wieszaka)
-  const applyQuantity = () => {
-    const edit = quantityEdit;
-    setQuantityEdit(null);
-    if (!edit) return;
-    const target = Math.max(0, Math.min(999, parseInt(String(edit.value).replace(/[^0-9]/g, ""), 10) || 0));
-    setScannedJackets((prev) => {
-      const same = prev.filter((jacket) => jacket.code === edit.code);
-      if (same.length === target) return prev;
-      if (target < same.length) {
-        const keepIds = new Set(same.slice(0, target).map((jacket) => jacket.id));
-        return prev.filter((jacket) => jacket.code !== edit.code || keepIds.has(jacket.id));
-      }
-      const template = same[0] || { code: edit.code, name: edit.name };
-      const extra = Array.from({ length: target - same.length }, (_, index) => ({
-        ...template,
-        id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-        scannedAt: new Date().toLocaleTimeString()
-      }));
-      return [...prev, ...extra];
-    });
-  };
-
-  const savingScansRef = useRef(false);
-  const confirmScannedJackets = async () => {
-    if (scannedJackets.length === 0 || savingScansRef.current) {
-      return; // nic do zapisania albo zapis już trwa (podwójne kliknięcie)
-    }
-    savingScansRef.current = true;
-
+  // „Zatwierdź (N)” w skanerze: zapis skanów do sesji punktu. true = zapisane (lista skanera się czyści),
+  // false = skany zostają w skanerze i można zatwierdzić ponownie
+  const confirmScannedJackets = async (scannedJackets, { showToast: showScanToast }) => {
     try {
-      // Prepare data for API
       // Autora (scannedBy) i punkt ustawia serwer z tokenu; ceny w remanencie nie są używane
       const remanentItemsForAPI = scannedJackets.map(jacket => ({
         name: jacket.name,
@@ -739,7 +523,7 @@ const Remanent = () => {
       const activeSession = session || await startSession();
       if (!activeSession) {
         showScanToast('Nie zapisano - nie udało się rozpocząć remanentu. Skany zostają, spróbuj ponownie.', 'warn');
-        return;
+        return false;
       }
       const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${activeSession._id}/items`), {
         method: 'POST',
@@ -751,48 +535,18 @@ const Remanent = () => {
         // Skany NIE giną: zostają na liście skanera, można zatwierdzić ponownie
         showScanToast(data?.message || 'Nie zapisano skanów - sprawdź połączenie i zatwierdź ponownie.', 'warn');
         if (response.status === 409) fetchRemanentData();
-        return;
+        return false;
       }
       setRemanentData(prev => [...prev, ...(data.added || []).map((item) => toRemanentItem(item, activeSession._id))]);
-      setScannedJackets([]);
-      setScanningEnabled(true);
       showScanToast(`Zapisano ${remanentItemsForAPI.length} szt.`);
+      return true;
     } catch (error) {
       Logger.error('Error saving scanned jackets:', error);
       showScanToast('Nie zapisano skanów - sprawdź połączenie i zatwierdź ponownie.', 'warn');
-    } finally {
-      savingScansRef.current = false;
+      return false;
     }
   };
 
-
-  // Identyczne sztuki (ten sam kod) pokazywane jako jedna pozycja z licznikiem
-  const scannedGroups = React.useMemo(() => {
-    const groups = new Map();
-    scannedJackets.forEach((jacket) => {
-      const group = groups.get(jacket.code) || { code: jacket.code, name: jacket.name, ids: [] };
-      group.ids.push(jacket.id);
-      groups.set(jacket.code, group);
-    });
-    return [...groups.values()].reverse(); // ostatnio skanowane na początku
-  }, [scannedJackets]);
-
-  // −1: cofnięcie ostatniego skanu tego kodu
-  const removeOnePiece = (code) => {
-    setScannedJackets((prev) => {
-      const index = prev.map((jacket) => jacket.code).lastIndexOf(code);
-      return index === -1 ? prev : [...prev.slice(0, index), ...prev.slice(index + 1)];
-    });
-  };
-
-  // +1: dodanie sztuki bez skanowania (np. metka nieczytelna, a produkt ten sam)
-  const addOnePiece = (code) => {
-    setScannedJackets((prev) => {
-      const template = prev.find((jacket) => jacket.code === code);
-      if (!template) return prev;
-      return [...prev, { ...template, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, scannedAt: new Date().toLocaleTimeString() }];
-    });
-  };
 
   // Wyczyść wszystko: usuwa WSZYSTKIE zapisane skany remanentu tego użytkownika na serwerze
   // (nie tylko te widoczne na liście - lista pokazuje ostatnie zapisy), potem odświeża widok.
@@ -808,7 +562,6 @@ const Remanent = () => {
         return;
       }
       setRemanentData([]);
-      setScannedJackets([]);
       setClearResult({ ok: true, text: 'Skany tego remanentu zostały wyczyszczone. Możesz liczyć od nowa.' });
     } catch (error) {
       setClearResult({ ok: false, text: 'Nie udało się wyczyścić remanentu. Sprawdź połączenie i spróbuj ponownie.' });
@@ -871,16 +624,9 @@ const Remanent = () => {
     }
   };
 
-  const cancelScanning = () => {
+  // Zamknięcie skanera (X / wstecz) - niezatwierdzone skany odrzuca sam skaner
+  const closeScanner = () => {
     setScannerVisible(false);
-    setDuplicatePrompt(null);
-    setQuantityEdit(null);
-    setManualCodeOpen(false);
-    setPickerOpen(false);
-    setPickerGood(null);
-    scanBusyRef.current = false;
-    setScannedJackets([]);
-    setScanningEnabled(true);
   };
 
   const checkCurrentState = async () => {
@@ -895,100 +641,19 @@ const Remanent = () => {
   const performStateCheck = async () => {
     try {
       // NIE resetuj wysłanych korekt - pozostaw je zapamiętane
-      
+
       // Świeży stan punktu (jedno zapytanie, tylko ten punkt)
       const freshState = await fetchPointState();
       if (freshState) {
         let currentState = freshState;
-        
+
         // Te same filtry co na liście (po kodzie kreskowym: asortyment, kolor, rozmiar)
         currentState = currentState.filter(item => matchesFilters(item.barcode));
-        
-        // Porównaj remanent z aktualnym stanem (uwzględniając filtr asortymentu)
-        const missingItems = []; // Produkty w stanie, ale nie w remanencie
-        const extraItems = []; // Produkty w remanencie, ale nie w stanie
-        
-        // Grupuj zeskanowane produkty według kodu i policz ilości
-        const remanentByBarcode = {};
-        filteredRemanentData.forEach(remanentItem => {
-          const code = remanentItem.code;
-          if (!remanentByBarcode[code]) {
-            remanentByBarcode[code] = [];
-          }
-          remanentByBarcode[code].push(remanentItem);
-        });
-        
-        // Grupuj produkty ze stanu według kodu
-        const stateByBarcode = {};
-        currentState.forEach(stateItem => {
-          const code = stateItem.barcode;
-          if (!stateByBarcode[code]) {
-            stateByBarcode[code] = [];
-          }
-          stateByBarcode[code].push(stateItem);
-        });
 
-        // Sprawdź co brakuje lub jest w nadwyżce
-        Object.keys(stateByBarcode).forEach(barcode => {
-          const stateItems = stateByBarcode[barcode];
-          const remanentItems = remanentByBarcode[barcode] || [];
-          
-          const expectedCount = stateItems.length;
-          const actualCount = remanentItems.length;
-          
-          if (actualCount === 0) {
-            // Brak całkowity - jest w stanie, ale nie zeskanowany
-            missingItems.push({
-              name: stateItems[0].fullName,
-              size: stateItems[0].size,
-              code: barcode,
-              price: stateItems[0].price,
-              expectedCount: expectedCount,
-              actualCount: 0,
-              missingCount: expectedCount
-            });
-          } else if (actualCount < expectedCount) {
-            // Częściowy brak - zeskanowano mniej niż powinno być
-            missingItems.push({
-              name: stateItems[0].fullName,
-              size: stateItems[0].size,
-              code: barcode,
-              price: stateItems[0].price,
-              expectedCount: expectedCount,
-              actualCount: actualCount,
-              missingCount: expectedCount - actualCount
-            });
-          } else if (actualCount > expectedCount) {
-            // Nadwyżka - zeskanowano więcej niż powinno być
-            extraItems.push({
-              name: remanentItems[0].name,
-              size: remanentItems[0].size,
-              code: barcode,
-              price: remanentItems[0].value,
-              expectedCount: expectedCount,
-              actualCount: actualCount,
-              excessCount: actualCount - expectedCount
-            });
-          }
-          // Jeśli actualCount === expectedCount, to jest OK (nie dodajemy do żadnej listy)
-        });
-        
-        // Sprawdź produkty zeskanowane, których nie ma w stanie
-        Object.keys(remanentByBarcode).forEach(barcode => {
-          if (!stateByBarcode[barcode]) {
-            const remanentItems = remanentByBarcode[barcode];
-            extraItems.push({
-              name: remanentItems[0].name,
-              size: remanentItems[0].size,
-              code: barcode,
-              price: remanentItems[0].value,
-              expectedCount: 0,
-              actualCount: remanentItems.length,
-              excessCount: remanentItems.length
-            });
-          }
-        });
-        
+        // Porównaj remanent z aktualnym stanem (uwzględniając filtr asortymentu):
+        // braki - produkty w stanie, ale nie w remanencie; nadwyżki - w remanencie, ale nie w stanie
+        const { missingItems, extraItems, missingCount, excessCount } = compareScans(currentState, filteredRemanentData);
+
         // Pokaż wyniki w modalu
         Logger.debug('🔍 Porównanie:', {
           currentStateCount: currentState.length,
@@ -996,18 +661,18 @@ const Remanent = () => {
           missingItems: missingItems,
           extraItems: extraItems
         });
-        
+
         setComparisonResults({
           currentStateCount: currentState.length,
           remanentCount: filteredRemanentData.length,
           manualCount: filteredRemanentData.filter((item) => item.manual).length,
-          missingCount: missingItems.reduce((sum, item) => sum + (item.missingCount || 0), 0),
-          excessCount: extraItems.reduce((sum, item) => sum + (item.excessCount || 0), 0),
+          missingCount,
+          excessCount,
           missingItems: missingItems,
           extraItems: extraItems
         });
         setComparisonModalVisible(true);
-        
+
       } else {
         Logger.error('❌ Failed to fetch current state');
         setClearResult({ ok: false, text: 'Nie udało się pobrać stanu punktu. Sprawdź połączenie i spróbuj ponownie.' });
@@ -1044,33 +709,9 @@ const Remanent = () => {
 
   // Nazwa produktu po kodzie z metki - WYŁĄCZNIE z bazy głównej (karty produktów i słowniki),
   // bez list testowych. Kod, którego nie ma w bazie, jest pokazany jako „Nieznany kod …”.
-  const getProductNameFromBarcode = (barcodeData) => {
-    const code = String(barcodeData || "").trim();
-
-    if (/^\d{13}$/.test(code) && code.slice(0, 3) !== "000") {
-      // Kurtki: karta produktu (model + kolor) po 5 pierwszych cyfrach + rozmiar ze słownika
-      const sizeName = sizeByKod[code.slice(5, 8)] || "";
-      const size = /NIEOKRE/i.test(sizeName) ? "" : sizeName;
-      const good = jacketGoodsByPrefix[code.slice(0, 5)];
-      if (good?.fullName) return `${good.fullName}${size ? ` ${size}` : ""}`;
-      const model = stockByKod[code.slice(0, 3)];
-      const color = colorByKod[code.slice(3, 5)];
-      if (model && color) return `${model} ${color}${size ? ` ${size}` : ""}`;
-    } else {
-      // Torebki, portfele, pozostały asortyment: kod z metki = kod karty produktu
-      const good = goodsByCode[code];
-      if (good?.fullName) return good.fullName;
-    }
-
-    // Zapas: sztuka na stanie z tym kodem (nazwa ze stanu)
-    const stateList = Array.isArray(stateData) ? stateData : [];
-    const matchedItem = stateList.find((item) => item.barcode === code);
-    if (matchedItem?.fullName) {
-      return matchedItem.size && matchedItem.size !== "-" ? `${matchedItem.fullName} ${matchedItem.size}` : matchedItem.fullName;
-    }
-
-    return `Nieznany kod ${code}`;
-  };
+  const getProductNameFromBarcode = (barcodeData) => productNameFromBarcode(barcodeData, {
+    sizeByKod, stockByKod, colorByKod, goodsByCode, jacketGoodsByPrefix, stateData,
+  });
 
   // Zachowana nazwa dla istniejących wywołań
   const getJacketNameFromBarcode = async (barcodeData) => getProductNameFromBarcode(barcodeData);
@@ -1291,271 +932,21 @@ const Remanent = () => {
         </View>
       </Modal>
 
-      {/* QR Scanner Modal */}
-      <Modal
+      {/* Skaner (wspólny z zakładką „Sprawdź” w panelu admina) */}
+      <BarcodeScannerModal
         visible={scannerVisible}
-        animationType="slide"
-        onRequestClose={cancelScanning}
-      >
-        <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
-          <View style={styles.scannerHeader}>
-            <TouchableOpacity onPress={cancelScanning} style={styles.closeButton}>
-              <Ionicons name="close" size={28} color={tc('text', "white")} />
-            </TouchableOpacity>
-            <Text style={styles.scannerTitle}>Skanuj kody kurtek</Text>
-            <View style={styles.placeholderButton} />
-          </View>
-
-          <View style={styles.scannerContainer}>
-            {permission?.granted ? (
-              <CameraView
-                style={styles.camera}
-                facing={facing}
-                barcodeScannerSettings={{
-                  barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code39", "code128"],
-                }}
-                onBarcodeScanned={scanningEnabled ? handleScan : undefined}
-              />
-            ) : (
-              <View style={styles.permissionContainer}>
-                <Text style={styles.permissionText}>Brak uprawnień do kamery</Text>
-                <TouchableOpacity onPress={requestPermission} style={styles.permissionButton}>
-                  <Text style={styles.permissionButtonText}>Udziel uprawnień</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Scanner overlay */}
-            <View style={styles.overlay}>
-              <View style={[
-                styles.scanArea, 
-                { borderColor: scanningEnabled ? '#0d6efd' : '#dc3545' }
-              ]} />
-              {!scanningEnabled && (
-                <View style={styles.scanningDisabled}>
-                  <Text style={styles.scanningDisabledText}>Przetwarzanie...</Text>
-                </View>
-              )}
-            </View>
-            {scanToast && (
-              <View style={[styles.scanToast, scanToast.kind === "warn" && styles.scanToastWarn]} pointerEvents="none">
-                <Ionicons name={scanToast.kind === "warn" ? "alert-circle" : "checkmark-circle"} size={20} color="white" />
-                <Text style={styles.scanToastText} numberOfLines={6}>{scanToast.text}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Scanned jackets list */}
-          {scannedJackets.length > 0 && (
-            <View style={styles.scannedListContainer}>
-              <Text style={styles.scannedListTitle}>
-                Zeskanowano: {scannedJackets.length} szt. ({scannedGroups.length} {scannedGroups.length === 1 ? "produkt" : "produktów"})
-              </Text>
-              <FlatList
-                data={scannedGroups}
-                horizontal
-                keyExtractor={(item) => item.code}
-                renderItem={({ item }) => (
-                  <View style={styles.scannedJacket}>
-                    <Text style={styles.jacketName} numberOfLines={2}>{item.name}</Text>
-                    <Text style={styles.jacketCode}>{item.code}</Text>
-                    <View style={styles.pieceCounterRow}>
-                      <TouchableOpacity onPress={() => removeOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonMinus]}>
-                        <Ionicons name="remove" size={18} color="white" />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setQuantityEdit({ code: item.code, name: item.name, value: String(item.ids.length) })}>
-                        <Text style={[styles.pieceCount, styles.pieceCountEditable]}>×{item.ids.length}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => addOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonPlus]}>
-                        <Ionicons name="add" size={18} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                showsHorizontalScrollIndicator={false}
-              />
-            </View>
-          )}
-
-          {duplicatePrompt && (
-            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
-              <View style={styles.filterCard}>
-                <View style={{ alignItems: 'center', marginBottom: 10 }}>
-                  <Ionicons name="copy-outline" size={48} color="#F59E0B" />
-                </View>
-                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ten kod jest już policzony</Text>
-                <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{duplicatePrompt.name}</Text>
-                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 14 }}>
-                  Policzono już {duplicatePrompt.count} szt. Czy to ta sama metka, czy kolejna, identyczna sztuka?
-                </Text>
-                <View style={{ gap: 10 }}>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => resolveDuplicate(false)}>
-                    <Ionicons name="close" size={18} color={tc('text', "white")} />
-                    <Text style={styles.filterCardButtonText}>Ta sama metka - pomiń</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={() => resolveDuplicate(true)}>
-                    <Ionicons name="add" size={18} color="white" />
-                    <Text style={styles.filterCardButtonText}>Kolejna sztuka - dodaj</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {quantityEdit && (
-            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
-              <View style={styles.filterCard}>
-                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ile sztuk łącznie?</Text>
-                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 12 }}>{quantityEdit.name}</Text>
-                <TextInput
-                  style={styles.quantityInput}
-                  value={quantityEdit.value}
-                  onChangeText={(text) => setQuantityEdit((prev) => ({ ...prev, value: text.replace(/[^0-9]/g, '').slice(0, 3) }))}
-                  keyboardType="number-pad"
-                  autoFocus
-                  selectTextOnFocus
-                  onSubmitEditing={applyQuantity}
-                />
-                <View style={{ gap: 10, marginTop: 14 }}>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={applyQuantity}>
-                    <Ionicons name="checkmark" size={18} color="white" />
-                    <Text style={styles.filterCardButtonText}>Ustaw ilość</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setQuantityEdit(null)}>
-                    <Text style={styles.filterCardButtonText}>Anuluj</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {manualCodeOpen && (
-            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
-              <View style={styles.filterCard}>
-                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Wpisz kod z metki</Text>
-                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 14, textAlign: 'center', marginBottom: 12 }}>13 cyfr spod kodu kreskowego</Text>
-                <TextInput
-                  style={[styles.quantityInput, { fontSize: 22, letterSpacing: 2 }]}
-                  value={manualCode}
-                  onChangeText={(text) => setManualCode(text.replace(/[^0-9]/g, '').slice(0, 13))}
-                  keyboardType="number-pad"
-                  autoFocus
-                  maxLength={13}
-                  onSubmitEditing={submitManualCode}
-                />
-                <Text style={{ color: manualCodeValid ? '#10B981' : tc('muted', '#94A3B8'), fontSize: 14, textAlign: 'center', marginTop: 10, minHeight: 20 }}>
-                  {manualCode.length < 13
-                    ? `${manualCode.length}/13 cyfr`
-                    : manualCodeValid
-                      ? getProductNameFromBarcode(manualCode)
-                      : 'Błędna cyfra kontrolna - sprawdź wpisane cyfry'}
-                </Text>
-                <View style={{ gap: 10, marginTop: 14 }}>
-                  <TouchableOpacity
-                    style={[styles.dialogStackButton, styles.filterCardButtonPrimary, !manualCodeValid && { opacity: 0.5 }]}
-                    onPress={submitManualCode}
-                    disabled={!manualCodeValid}
-                  >
-                    <Ionicons name="add" size={18} color="white" />
-                    <Text style={styles.filterCardButtonText}>Dodaj sztukę</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => { setManualCodeOpen(false); setManualCode(''); }}>
-                    <Text style={styles.filterCardButtonText}>Anuluj</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {pickerOpen && (
-            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
-              <View style={[styles.filterCard, { maxHeight: '85%' }]}>
-                <View style={styles.filterCardHeader}>
-                  <Text style={styles.filterCardTitle}>{pickerGood ? 'Wybierz rozmiar' : 'Wybierz z bazy produktów'}</Text>
-                  <TouchableOpacity onPress={() => (pickerGood ? setPickerGood(null) : setPickerOpen(false))} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Ionicons name={pickerGood ? 'arrow-back' : 'close'} size={24} color={tc('text', "white")} />
-                  </TouchableOpacity>
-                </View>
-                {pickerGood ? (
-                  <>
-                    <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, marginBottom: 10 }}>{pickerGood.fullName}</Text>
-                    <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
-                      <View style={styles.pickerSizeGrid}>
-                        {pickerSizes.map((size) => (
-                          <TouchableOpacity key={size.Roz_Kod} style={styles.pickerSizeChip} onPress={() => choosePickerSize(size)}>
-                            <Text style={styles.pickerSizeText}>{size.Roz_Opis}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  </>
-                ) : (
-                  <>
-                    <View style={[styles.selectSearchBox, { marginBottom: 8 }]}>
-                      <Ionicons name="search" size={16} color={tc('muted', "#94A3B8")} />
-                      <TextInput
-                        style={styles.selectSearchInput}
-                        placeholder="Szukaj: np. amanda czarny, aps 056"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={pickerSearch}
-                        onChangeText={setPickerSearch}
-                        autoFocus
-                        autoCorrect={false}
-                      />
-                      {pickerSearch ? (
-                        <TouchableOpacity onPress={() => setPickerSearch('')}>
-                          <Ionicons name="close-circle" size={16} color={tc('muted', "#94A3B8")} />
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                    <FlatList
-                      data={pickerResults}
-                      keyExtractor={(good) => String(good._id || good.code)}
-                      keyboardShouldPersistTaps="handled"
-                      style={{ maxHeight: 380 }}
-                      ListEmptyComponent={<Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 16 }}>{goodsList.length === 0 ? 'Karty produktów jeszcze się wczytują…' : 'Brak produktów dla tego wyszukiwania'}</Text>}
-                      renderItem={({ item: good }) => (
-                        <TouchableOpacity style={styles.pickerRow} onPress={() => choosePickerGood(good)}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.pickerRowTitle}>{good.fullName}</Text>
-                            <Text style={styles.pickerRowSub}>{good.category || ''}{good.category === 'Kurtki kożuchy futra' ? ' · wybierz rozmiar' : ''}</Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={18} color={tc('muted', "#94A3B8")} />
-                        </TouchableOpacity>
-                      )}
-                    />
-                  </>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* Action buttons */}
-          <View style={styles.scannerFooter}>
-            <View style={styles.manualRow}>
-              <TouchableOpacity style={styles.manualButton} onPress={() => { setManualCode(''); setManualCodeOpen(true); }}>
-                <Ionicons name="keypad-outline" size={18} color="white" />
-                <Text style={styles.manualButtonText}>Wpisz kod</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.manualButton} onPress={() => { setPickerSearch(''); setPickerGood(null); setPickerOpen(true); }}>
-                <Ionicons name="list-outline" size={18} color="white" />
-                <Text style={styles.manualButtonText}>Z bazy</Text>
-              </TouchableOpacity>
-            </View>
-            {scannedJackets.length > 0 && (
-              <TouchableOpacity 
-                onPress={confirmScannedJackets}
-                style={styles.confirmButton}
-              >
-                <Ionicons name="checkmark" size={24} color="white" />
-                <Text style={styles.confirmButtonText}>
-                  Zatwierdź ({scannedJackets.length})
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
+        onClose={closeScanner}
+        title="Skanuj kody kurtek"
+        permission={permission}
+        requestPermission={requestPermission}
+        resolveName={getJacketNameFromBarcode}
+        previewName={getProductNameFromBarcode}
+        validateCode={validateRemanentCode}
+        countSaved={(code) => remanentData.filter((item) => item.code === code).length}
+        onConfirm={confirmScannedJackets}
+        goods={goodsList}
+        pickerSizes={pickerSizes}
+      />
 
       {/* Historia zakończonych remanentów punktu */}
       <Modal
@@ -1697,152 +1088,46 @@ const Remanent = () => {
       </Modal>
 
       {/* Modal porównania remanent vs stan */}
-      <Modal
+      <ScanCompareResultModal
         visible={comparisonModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setComparisonModalVisible(false)}
-      >
-        <SafeAreaView style={[styles.modalContainer]}>
-          {/* Nagłówek jak w innych ekranach: powrót po lewej, krótki tytuł, filtry w drugiej linii */}
-          <View style={styles.comparisonHeader}>
-            <TouchableOpacity
-              onPress={() => setComparisonModalVisible(false)}
-              style={styles.comparisonBackButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="arrow-back" size={24} color={tc('text', "white")} />
+        onClose={() => setComparisonModalVisible(false)}
+        title="Remanent vs stan"
+        subtitle={hasActiveFilters ? `Filtry: ${activeFilterLabels.join(' · ')}` : null}
+        results={comparisonResults}
+        actions={session ? (
+          // Zakończenie remanentu: zapis wyniku w historii punktu
+          <View style={styles.finishSection}>
+            <TouchableOpacity style={styles.finishSessionButton} onPress={() => setConfirmFinishOpen(true)} disabled={sessionBusy}>
+              {sessionBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="flag" size={20} color="white" />}
+              <Text style={styles.startSessionText}>Zakończ remanent i zapisz wynik</Text>
             </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.comparisonTitle} numberOfLines={1}>Remanent vs stan</Text>
-              {hasActiveFilters ? (
-                <Text style={styles.comparisonSubtitle} numberOfLines={2}>Filtry: {activeFilterLabels.join(' · ')}</Text>
-              ) : null}
+            <Text style={styles.finishHint}>Po zakończeniu skany tego remanentu zostaną zamknięte, a kolejny remanent zacznie się od zera.</Text>
+          </View>
+        ) : null}
+      >
+        {confirmFinishOpen && (
+          <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+            <View style={styles.filterCard}>
+              <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                <Ionicons name="flag" size={52} color="#F59E0B" />
+              </View>
+              <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Zakończyć remanent?</Text>
+              <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 12 }}>
+                Wynik (braki i nadwyżki) zostanie zapisany w historii punktu. Kolejny remanent zacznie się od pustej listy.
+              </Text>
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={finishSession}>
+                  <Ionicons name="flag" size={18} color="white" />
+                  <Text style={styles.filterCardButtonText}>Tak, zakończ remanent</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setConfirmFinishOpen(false)}>
+                  <Text style={styles.filterCardButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-
-          {comparisonResults ? (
-            <ScrollView style={styles.comparisonContent} showsVerticalScrollIndicator={false}>
-              {/* Statystyki */}
-              <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{comparisonResults.currentStateCount || 0}</Text>
-                  <Text style={styles.statLabel}>Na stanie</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{comparisonResults.remanentCount || 0}</Text>
-                  <Text style={styles.statLabel}>Zeskanowane</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statNumber, { color: '#dc3545' }]}>{countsOf(comparisonResults).missing}</Text>
-                  <Text style={styles.statLabel}>Braki</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statNumber, { color: '#ffc107' }]}>{countsOf(comparisonResults).excess}</Text>
-                  <Text style={styles.statLabel}>Nadwyżki</Text>
-                </View>
-              </View>
-
-              {/* Produkty brakujące */}
-              {comparisonResults.missingItems && comparisonResults.missingItems.length > 0 && (
-                <View style={styles.resultSection}>
-                  <Text style={styles.sectionTitle}>
-                    ❌ Brakuje: {piecesSummary(countsOf(comparisonResults).missing, comparisonResults.missingItems.length)}
-                  </Text>
-                  <Text style={styles.sectionSubtitle}>Produkty w stanie, ale nie zeskanowane</Text>
-                  {comparisonResults.missingItems.map((item, index) => (
-                    <View key={index} style={styles.resultItem}>
-                      <View style={styles.resultItemContent}>
-                        <Text style={styles.itemName}>
-                          {item.name && item.size ? `${item.name} ${item.size}` : item.name || 'Nieznany produkt'}
-                        </Text>
-                        <Text style={styles.itemQuantity}>
-                          Na stanie: {item.expectedCount || 0}, zeskanowano: {item.actualCount || 0}
-                        </Text>
-                      </View>
-                      <Text style={[styles.historyDelta, { color: '#dc3545' }]}>
-                        -{item.missingCount ?? ((item.expectedCount || 0) - (item.actualCount || 0))}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Produkty nadwyżkowe */}
-              {comparisonResults.extraItems && comparisonResults.extraItems.length > 0 && (
-                <View style={styles.resultSection}>
-                  <Text style={styles.sectionTitle}>
-                    ⚠️ Nadwyżka: {piecesSummary(countsOf(comparisonResults).excess, comparisonResults.extraItems.length)}
-                  </Text>
-                  <Text style={styles.sectionSubtitle}>Produkty zeskanowane, ale nie ma ich w stanie</Text>
-                  {comparisonResults.extraItems.map((item, index) => (
-                    <View key={index} style={styles.resultItem}>
-                      <View style={styles.resultItemContent}>
-                        <Text style={styles.itemName}>{item.name || 'Nieznany produkt'}</Text>
-                        <Text style={styles.itemQuantity}>
-                          {item.expectedCount === 0
-                            ? `Nie ma na stanie, zeskanowano: ${item.actualCount}`
-                            : `Na stanie: ${item.expectedCount}, zeskanowano: ${item.actualCount}`}
-                        </Text>
-                      </View>
-                      <Text style={[styles.historyDelta, { color: '#ffc107' }]}>
-                        +{item.excessCount ?? ((item.actualCount || 0) - (item.expectedCount || 0))}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Zakończenie remanentu: zapis wyniku w historii punktu */}
-              {session ? (
-                <View style={styles.finishSection}>
-                  <TouchableOpacity style={styles.finishSessionButton} onPress={() => setConfirmFinishOpen(true)} disabled={sessionBusy}>
-                    {sessionBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="flag" size={20} color="white" />}
-                    <Text style={styles.startSessionText}>Zakończ remanent i zapisz wynik</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.finishHint}>Po zakończeniu skany tego remanentu zostaną zamknięte, a kolejny remanent zacznie się od zera.</Text>
-                </View>
-              ) : null}
-
-              {/* Wszystko OK */}
-              {(!comparisonResults.missingItems || comparisonResults.missingItems.length === 0) && 
-               (!comparisonResults.extraItems || comparisonResults.extraItems.length === 0) && (
-                <View style={styles.resultSection}>
-                  <Text style={styles.successTitle}>🎉 Wszystko się zgadza!</Text>
-                  <Text style={styles.successSubtitle}>Remanent jest zgodny ze stanem magazynowym</Text>
-                </View>
-              )}
-            </ScrollView>
-          ) : (
-            <View style={styles.comparisonContent}>
-              <Text style={[styles.sectionTitle, { textAlign: 'center' }]}>Ładowanie danych...</Text>
-            </View>
-          )}
-
-          {confirmFinishOpen && (
-            <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
-              <View style={styles.filterCard}>
-                <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                  <Ionicons name="flag" size={52} color="#F59E0B" />
-                </View>
-                <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Zakończyć remanent?</Text>
-                <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 12 }}>
-                  Wynik (braki i nadwyżki) zostanie zapisany w historii punktu. Kolejny remanent zacznie się od pustej listy.
-                </Text>
-                <View style={{ gap: 10 }}>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={finishSession}>
-                    <Ionicons name="flag" size={18} color="white" />
-                    <Text style={styles.filterCardButtonText}>Tak, zakończ remanent</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setConfirmFinishOpen(false)}>
-                    <Text style={styles.filterCardButtonText}>Anuluj</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-        </SafeAreaView>
-      </Modal>
+        )}
+      </ScanCompareResultModal>
 
       {/* Modal filtrów zaawansowanych - w stylu aplikacji (karta na przyciemnionym tle) */}
       <Modal
