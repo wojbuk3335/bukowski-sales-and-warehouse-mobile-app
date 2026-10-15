@@ -101,7 +101,12 @@ const Dashboard = () => {
 
     try {
       setLoading(true);
-      const dateStr = selectedDate.toISOString().split("T")[0];
+      // Data w czasie lokalnym (toISOString dawał UTC - między 0:00 a 2:00 wychodził poprzedni dzień)
+      const dateStr = [
+        selectedDate.getFullYear(),
+        String(selectedDate.getMonth() + 1).padStart(2, "0"),
+        String(selectedDate.getDate()).padStart(2, "0"),
+      ].join("-");
       const url = getApiUrl(`/verification/jackets/${selectedUserId}/${dateStr}`);
       
       const response = await tokenService.authenticatedFetch(url);
