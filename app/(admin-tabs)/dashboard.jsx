@@ -420,13 +420,14 @@ const Dashboard = () => {
   );
 
   return (
-    <SafeAreaView style={{
+    <SafeAreaView edges={['top', 'left', 'right']} style={{
       flex: 1,
       backgroundColor: tc('bg', "#000000"),
-      paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
       <ScrollView alwaysBounceVertical 
         style={styles.scrollView}
+        // Pasek zakładek leży na treści (position: absolute, wysokość jak w _layout) - zapas, żeby ostatni przycisk nie chował się pod nim
+        contentContainerStyle={{ paddingBottom: Math.max(90, 70 + insets.bottom) + 24 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
