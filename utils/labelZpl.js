@@ -6,9 +6,10 @@
 //  ┌──────────────────────────────────────────┐
 //  │ Amanda CZARNY                      888 zł │  nazwa (do 2 linii) | cena - duża, pogrubiona
 //  │  ▌▌▐ ▌▐▐▌ ▌▌▐▐ ▌ ▐▌▌▐ ▐▌ ▌▐▌▌ ▐▐ ▌▐▌ ▌▐   │  kod - duży, wyśrodkowany, z marginesami
-//  │               0100600300002              │  cyfry kodu
-//  │ 2XL                             Punkt: 01 │  rozmiar - duży, pogrubiony | punkt
+//  │ 2XL         0100600300002     Punkt: 01   │  rozmiar - pogrubiony | cyfry kodu | punkt
 //  └──────────────────────────────────────────┘
+//
+// Fizyczna metka ma ok. 290 punktów wysokości (ok. 36 mm) - cała treść musi się skończyć przed ok. 265.
 //
 // Kod: Code 128 w trybie automatycznym (cyfry parami - kod krótszy), grubość kreski 3 punkty, gdy się mieści
 // z pełnymi marginesami (min. 10 szerokości kreski z każdej strony), inaczej 2, w ostateczności 1.
@@ -16,8 +17,9 @@
 const LABEL_WIDTH = 450;
 const LABEL_HEIGHT = 400;
 const EDGE = 12;
-const BARCODE_TOP = 96;
-const BARCODE_HEIGHT = 170;
+const BARCODE_TOP = 92;
+const BARCODE_HEIGHT = 120; // wcześniej 85 - wyższy kod łatwiej złapać aparatem
+const BOTTOM_LINE = BARCODE_TOP + BARCODE_HEIGHT + 8; // linia rozmiar | cyfry | punkt
 
 const toZplUtf8Hex = (text) => {
     const value = (text ?? '').toString().replace(/\s+/g, ' ').trim();
@@ -75,7 +77,7 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) 
     const priceX = LABEL_WIDTH - EDGE - priceWidth;
     const nameWidth = priceX - EDGE - 8;
     const { moduleWidth, x: barcodeX } = barcodeGeometry(code);
-    const digitsFont = code.length > 15 ? 20 : 26;
+    const digitsFont = code.length > 15 ? 18 : 24;
 
     const lines = [
         '^XA',
@@ -95,15 +97,15 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) 
         // kod: wyśrodkowany, tryb automatyczny (A), bez napisu kreskowego (cyfry osobno niżej)
         `^BY${moduleWidth},3,${BARCODE_HEIGHT}`,
         `^FO${barcodeX},${BARCODE_TOP}^BCN,${BARCODE_HEIGHT},N,N,N,A^FD${code}^FS`,
-        `^FO0,${BARCODE_TOP + BARCODE_HEIGHT + 8}^A0N,${digitsFont},${digitsFont}^FB${LABEL_WIDTH},1,0,C,0^FD${code}^FS`,
+        `^FO0,${BOTTOM_LINE + 10}^A0N,${digitsFont},${digitsFont}^FB${LABEL_WIDTH},1,0,C,0^FD${code}^FS`,
     );
     if (sizeText) {
         // rozmiar: lewy dolny róg, duży, pogrubiony
-        lines.push(boldField(EDGE, 318, 64, '', toZplUtf8Hex(sizeText)));
+        lines.push(boldField(EDGE, BOTTOM_LINE, 46, '', toZplUtf8Hex(sizeText)));
     }
     if (pointText) {
         // punkt: prawy dolny róg
-        lines.push(`^FO${LABEL_WIDTH - EDGE - 190},340^A0N,30,30^FB190,1,0,R,0^FH_^FD${toZplUtf8Hex(pointText)}^FS`);
+        lines.push(`^FO${LABEL_WIDTH - EDGE - 120},${BOTTOM_LINE + 10}^A0N,24,24^FB120,1,0,R,0^FH_^FD${toZplUtf8Hex(pointText)}^FS`);
     }
     lines.push('^XZ');
     return lines.join('\n');
