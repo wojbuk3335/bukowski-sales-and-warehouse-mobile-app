@@ -1,7 +1,8 @@
 import axios from "axios"; // Import axios for HTTP requests
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
 import { useEffect, useRef, useState } from "react";
-import { FlatList, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
+import { FlatList, Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zaslania pola tekstowego
 import { SmartScanOverlay, useSmartBarcodeScan } from "../components/scanner/SmartScanOverlay"; // kod tylko z ramki, potwierdzony kilkoma odczytami
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -66,6 +67,54 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     enabled: !scanned && !modalVisible,
     onConfirmed: (result) => handleScanRef.current?.(result),
   });
+  // „Odczytaj ze zdjęcia”: zdjęcie z galerii pokazywane zamiast kamery, kod odczytany z pliku
+  const [photoUri, setPhotoUri] = useState(null);
+  const [photoScanning, setPhotoScanning] = useState(false);
+  // „Wpisz kod”: ręczne wpisanie kodu kreskowego - dalej dokładnie jak po zeskanowaniu
+  const [manualCodeVisible, setManualCodeVisible] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+
+  // Po zamknięciu formularza sprzedaży wracamy do kamery (zdjęcie znika)
+  useEffect(() => {
+    if (!modalVisible) setPhotoUri(null);
+  }, [modalVisible]);
+
+  const pickPhotoAndScan = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        appAlert("Brak dostępu", "Zezwól aplikacji na dostęp do zdjęć, aby odczytać kod ze zdjęcia.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
+      if (result.canceled || !result.assets?.length) return;
+      const uri = result.assets[0].uri;
+      setPhotoUri(uri);
+      setPhotoScanning(true);
+      const found = await scanFromURLAsync(uri, ["code128", "ean13", "qr"]);
+      setPhotoScanning(false);
+      const first = (found || []).find((item) => item?.data);
+      if (!first) {
+        setPhotoUri(null);
+        appAlert("Nie znaleziono kodu", "Na tym zdjęciu nie udało się odczytać kodu kreskowego. Spróbuj wyraźniejszego zdjęcia.");
+        return;
+      }
+      handleScanRef.current?.({ data: String(first.data), type: first.type });
+    } catch (error) {
+      setPhotoScanning(false);
+      setPhotoUri(null);
+      Logger.error("Scan from photo failed:", error);
+      appAlert("Błąd", "Nie udało się odczytać kodu ze zdjęcia.");
+    }
+  };
+
+  const submitManualCode = () => {
+    const code = manualCode.trim();
+    if (!code) return;
+    setManualCodeVisible(false);
+    setManualCode("");
+    handleScanRef.current?.({ data: code, type: "manual" });
+  };
   const [cameraVisible, setCameraVisible] = useState(true); // Widoczność kamery
   const [successModalVisible, setSuccessModalVisible] = useState(false); // State for success modal
   const [successMessage, setSuccessMessage] = useState(""); // Message for success modal
@@ -802,6 +851,10 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       {/* Kamera tylko gdy formularz sprzedaży jest zamknięty - po zamknięciu formularza wraca do skanowania */}
       {!modalVisible && (
       <View style={{ flex: 1 }}>
+        {photoUri ? (
+          // zdjęcie z galerii zamiast podglądu kamery
+          <Image source={{ uri: photoUri }} style={styles.camera} resizeMode="contain" testID="scan-photo" />
+        ) : (
         <CameraView
           style={styles.camera}
           facing={facing}
@@ -810,8 +863,53 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           }}
           onBarcodeScanned={scanned ? undefined : smartScan.onBarcodeScanned}
         />
-        {/* Ramka: kod przyjmowany tylko z jej wnętrza; obrys „leci” do znalezionego kodu */}
-        <SmartScanOverlay {...smartScan.overlayProps} />
+        )}
+        {/* Ramka: kod przyjmowany tylko z jej wnętrza; obrys „leci” do znalezionego kodu.
+            Pod napisem: odczyt kodu ze zdjęcia z galerii i ręczne wpisanie kodu */}
+        <SmartScanOverlay
+          {...smartScan.overlayProps}
+          hint={photoScanning ? "Odczytuję kod ze zdjęcia…" : null}
+          actions={scanned ? [] : [
+            { label: "Odczytaj ze zdjęcia", icon: "images-outline", onPress: pickPhotoAndScan, disabled: photoScanning, testID: "scan-from-photo" },
+            { label: "Wpisz kod", icon: "keypad-outline", onPress: () => setManualCodeVisible(true), testID: "enter-code" },
+          ]}
+        />
+
+        {/* Ręczne wpisanie kodu kreskowego */}
+        <Modal visible={manualCodeVisible} transparent animationType="fade" onRequestClose={() => setManualCodeVisible(false)}>
+          <KeyboardSafeScreen>
+            <View style={look.modalOverlay}>
+              <View style={look.modalContent}>
+                <ModalHeader icon="keypad" color="#0D6EFD" title="Wpisz kod kreskowy" subtitle="Kod z metki, np. 0040408300005" />
+                <TextInput
+                  testID="manual-code-input"
+                  style={look.formInput}
+                  value={manualCode}
+                  onChangeText={(text) => setManualCode(text.replace(/\s+/g, ""))}
+                  placeholder="Kod kreskowy"
+                  placeholderTextColor={tc('muted', "#64748B")}
+                  keyboardType="number-pad"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={submitManualCode}
+                />
+                <View style={look.buttonRow}>
+                  <TouchableOpacity style={look.neutralButton} onPress={() => { setManualCodeVisible(false); setManualCode(""); }}>
+                    <Text style={look.neutralButtonText}>Anuluj</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    testID="manual-code-submit"
+                    style={[look.primaryButton, !manualCode.trim() && { opacity: 0.5 }]}
+                    onPress={submitManualCode}
+                    disabled={!manualCode.trim()}
+                  >
+                    <Text style={look.buttonText}>Dalej</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </KeyboardSafeScreen>
+        </Modal>
         
         {/* Przycisk do resetowania skanowania - pokazuje się tylko gdy scanned=true */}
         {scanned && (

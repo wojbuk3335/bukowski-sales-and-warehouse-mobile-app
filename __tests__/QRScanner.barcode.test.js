@@ -2,14 +2,23 @@ import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
 // Mock expo-camera
+const mockScanFromURLAsync = jest.fn();
 jest.mock('expo-camera', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
     CameraView: (props) => <View testID="camera-view" {...props} />,
-    useCameraPermissions: () => [{ granted: true }, jest.fn()]
+    useCameraPermissions: () => [{ granted: true }, jest.fn()],
+    scanFromURLAsync: (...args) => mockScanFromURLAsync(...args),
   };
 });
+
+// „Odczytaj ze zdjęcia”: galeria zwraca jedno zdjęcie
+const mockLaunchImageLibraryAsync = jest.fn();
+jest.mock('expo-image-picker', () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+  launchImageLibraryAsync: (...args) => mockLaunchImageLibraryAsync(...args),
+}));
 
 // Mock react-native-safe-area-context
 jest.mock('react-native-safe-area-context', () => ({
@@ -269,6 +278,44 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
     await waitFor(() => {
       expect(queryByDisplayValue('Torebka Brązowa')).toBeTruthy();
       expect(queryByDisplayValue('Torebka Brązowa -')).toBeFalsy();
+    });
+  });
+
+  // Pod napisem w ramce: „Odczytaj ze zdjęcia” i „Wpisz kod” - oba kończą się tak samo jak zeskanowanie
+  describe('Odczyt ze zdjęcia i ręczne wpisanie kodu', () => {
+    test('„Wpisz kod” otwiera pole, a wpisany kod otwiera formularz sprzedaży z produktem', async () => {
+      const { getByTestId, getByPlaceholderText, queryByDisplayValue } = render(<QRScanner {...mockProps} />);
+
+      fireEvent.press(getByTestId('enter-code'));
+      fireEvent.changeText(getByTestId('manual-code-input'), ' 1234567890 ');
+      fireEvent.press(getByTestId('manual-code-submit'));
+
+      await waitFor(() => getByPlaceholderText('Wpisz lub zeskanuj kod kreskowy'));
+      await waitFor(() => expect(queryByDisplayValue(/Kurtka Czarna/)).toBeTruthy());
+    });
+
+    test('„Odczytaj ze zdjęcia” bierze zdjęcie z galerii, odczytuje kod i otwiera formularz', async () => {
+      mockLaunchImageLibraryAsync.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///metka.jpg' }] });
+      mockScanFromURLAsync.mockResolvedValueOnce([{ data: '1234567890', type: 'code128' }]);
+      const { getByTestId, getByPlaceholderText, queryByDisplayValue } = render(<QRScanner {...mockProps} />);
+
+      fireEvent.press(getByTestId('scan-from-photo'));
+
+      await waitFor(() => expect(mockScanFromURLAsync).toHaveBeenCalledWith('file:///metka.jpg', ['code128', 'ean13', 'qr']));
+      await waitFor(() => getByPlaceholderText('Wpisz lub zeskanuj kod kreskowy'));
+      await waitFor(() => expect(queryByDisplayValue(/Kurtka Czarna/)).toBeTruthy());
+    });
+
+    test('zdjęcie bez kodu: komunikat, kamera wraca', async () => {
+      mockLaunchImageLibraryAsync.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///pusto.jpg' }] });
+      mockScanFromURLAsync.mockResolvedValueOnce([]);
+      const { getByTestId, queryByTestId } = render(<QRScanner {...mockProps} />);
+
+      fireEvent.press(getByTestId('scan-from-photo'));
+
+      await waitFor(() => expect(mockScanFromURLAsync).toHaveBeenCalled());
+      await waitFor(() => expect(queryByTestId('scan-photo')).toBeNull());
+      expect(queryByTestId('camera-view')).toBeTruthy();
     });
   });
 });

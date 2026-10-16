@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import {
   codeRectFromScan,
@@ -128,17 +129,20 @@ const HINTS = {
   locked: "Zeskanowano",
 };
 
-export const SmartScanOverlay = ({ box, status, progress, onFrameLayout }) => {
+// `actions`: przyciski pod napisem (np. „Odczytaj ze zdjęcia”, „Wpisz kod”) w tym samym stylu co napis;
+// `hint`: własny napis zamiast domyślnego (np. „Odczytuję kod ze zdjęcia…”)
+export const SmartScanOverlay = ({ box, status, progress, onFrameLayout, actions = [], hint = null }) => {
   const color = COLORS[status] || COLORS.searching;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* stała ramka - obszar, w którym kod jest przyjmowany */}
-      <View style={styles.center}>
+      <View style={styles.center} pointerEvents="none">
         <View style={styles.frame} onLayout={onFrameLayout} />
       </View>
 
       {/* animowany obrys: na środku, a po znalezieniu kodu - na kodzie */}
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.box,
           { left: box.x, top: box.y, width: box.w, height: box.h, borderColor: color },
@@ -150,15 +154,32 @@ export const SmartScanOverlay = ({ box, status, progress, onFrameLayout }) => {
         <View style={[styles.corner, styles.br, { borderColor: color }]} />
       </Animated.View>
 
-      <View style={styles.hintWrap}>
-        <View style={[styles.hint, { borderColor: color }]}>
-          <Text style={styles.hintText}>{HINTS[status]}</Text>
+      <View style={styles.hintWrap} pointerEvents="box-none">
+        <View style={[styles.hint, { borderColor: color }]} pointerEvents="none">
+          <Text style={styles.hintText}>{hint || HINTS[status]}</Text>
           {status === "locking" && (
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: color }]} />
             </View>
           )}
         </View>
+        {actions.length > 0 && (
+          <View style={styles.actionsRow}>
+            {actions.map((action) => (
+              <TouchableOpacity
+                key={action.label}
+                testID={action.testID}
+                style={[styles.hint, styles.actionButton, { borderColor: color }]}
+                onPress={action.onPress}
+                disabled={action.disabled}
+                accessibilityRole="button"
+              >
+                {!!action.icon && <Ionicons name={action.icon} size={18} color="#fff" />}
+                <Text style={styles.hintText}>{action.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -214,6 +235,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+    paddingHorizontal: 14,
   },
   progressTrack: {
     marginTop: 6,
