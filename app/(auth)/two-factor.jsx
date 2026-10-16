@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { useContext, useEffect, useRef, useState } from "react";
-import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import CustomButton from "../../components/CustomButton";
@@ -230,7 +230,9 @@ const TwoFactorScreen = () => {
 
   return (
     <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container}>
+      {/* Klawiatura nie zasłania pola kodu / hasła (jak na ekranie logowania) */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <Text style={styles.title}>
           {isPasswordSetup ? "Ustaw własne hasło" : "Weryfikacja dwuetapowa"}
         </Text>
@@ -373,6 +375,7 @@ const TwoFactorScreen = () => {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

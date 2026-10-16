@@ -21,6 +21,7 @@ import { getApiUrl } from "../../config/api";
 import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
 import { appAlert } from '../../services/appAlert';
+import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Users = () => {
@@ -1081,15 +1082,21 @@ const Users = () => {
       const lastPrintedDate = lastPrintedDateRaw ? String(lastPrintedDateRaw).slice(0, 10) : null;
 
       if (lastPrintedDate && lastPrintedDate !== dateStr) {
-      setOnlyOrangeData({
-        count: onlyOrangeItemsCount,
-          date: dateStr,
+        setOnlyOrangeData({
+          count: onlyOrangeItemsCount,
+          date: dateStr, // data z kalendarza
           lastPrintedDate,
+          // domyślnie kalendarz; wyjątek: kalendarz = dzisiaj i ostatni wydruk = wczoraj → ostatni wydruk
+          defaultChoice: pickDefaultOrangeDate({
+            calendarDate: dateStr,
+            lastPrintedDate,
+            today: formatDateLocal(new Date())
+          }),
           alternativeDate: dateStr,
           awaitingAlternativeDate: false
-      });
-      setShowOnlyOrangeModal(true);
-      return;
+        });
+        setShowOnlyOrangeModal(true);
+        return;
       }
     }
 
@@ -1183,6 +1190,48 @@ const Users = () => {
       // No items to print, proceed directly
       executeProcessItems(effectiveDate);
     }
+  };
+
+  // Okienko „Potwierdzenie daty przetwarzania”: zamknij i przetwórz partię pomarańczowych
+  // pod wskazaną datą ('calendar' = data z kalendarza, 'lastPrinted' = ostatni wydruk).
+  const assignOnlyOrangeBatch = (choice) => {
+    const ymd = choice === 'lastPrinted' ? onlyOrangeData?.lastPrintedDate : onlyOrangeData?.date;
+    setShowOnlyOrangeModal(false);
+    handleProcessItems({
+      skipOnlyOrangeGate: true,
+      processingDateOverride: parseDateFromYmd(ymd) || selectedDate
+    });
+  };
+
+  // Przyciski A (kalendarz) i B (ostatni wydruk) - domyślny pierwszy i w stylu głównego przycisku
+  const renderOnlyOrangeDateChoices = () => {
+    const calendarYmd = onlyOrangeData?.date || formatDateLocal(selectedDate);
+    const lastPrintedYmd = onlyOrangeData?.lastPrintedDate || calendarYmd;
+    const defaultChoice = onlyOrangeData?.defaultChoice || 'calendar';
+
+    const choices = [
+      { key: 'calendar', icon: 'calendar', label: `Przypisz do ${formatDayLabel(calendarYmd)} — data z kalendarza` },
+      { key: 'lastPrinted', icon: 'print', label: `Przypisz do ${formatDayLabel(lastPrintedYmd)} — ostatni wydruk` },
+    ];
+    if (defaultChoice === 'lastPrinted') {
+      choices.reverse();
+    }
+
+    return choices.map((choice) => {
+      const isDefault = choice.key === defaultChoice;
+      return (
+        <TouchableOpacity
+          key={choice.key}
+          style={isDefault ? styles.printConfirmButton : styles.printCancelButton}
+          onPress={() => assignOnlyOrangeBatch(choice.key)}
+        >
+          <Ionicons name={choice.icon} size={22} color={isDefault ? '#ffffff' : tc('muted', '#94A3B8')} />
+          <Text style={[isDefault ? styles.printConfirmButtonText : styles.printCancelButtonText, styles.onlyOrangeChoiceText]}>
+            {choice.label}
+          </Text>
+        </TouchableOpacity>
+      );
+    });
   };
 
   const executeProcessItems = async (processingDateOverride = null) => {
@@ -3053,32 +3102,15 @@ const Users = () => {
                 Nie wykryto sprzedaży ani transferów dla tego dnia.
               </Text>
               <Text style={styles.confirmModalSubtext}>
-                Ostatnio pracowałeś nad dniem: {onlyOrangeData?.lastPrintedDate || onlyOrangeData?.date || formatDateLocal(selectedDate)}
-              </Text>
-              <Text style={styles.confirmModalSubtext}>
-                Czy to uzupełnienie tego dnia?
-              </Text>
-              <Text style={styles.confirmModalSubtext}>
-                Jeśli nie, wybierz inną datę do przypisania:
+                Do którego dnia przypisać dobrane kurtki?
               </Text>
             </View>
 
             <View style={styles.printModalButtons}>
-              <TouchableOpacity
-                style={styles.printConfirmButton}
-                onPress={() => {
-                  setShowOnlyOrangeModal(false);
-                  const suggestedDate = parseDateFromYmd(onlyOrangeData?.lastPrintedDate || onlyOrangeData?.date);
-                  handleProcessItems({
-                    skipOnlyOrangeGate: true,
-                    processingDateOverride: suggestedDate || selectedDate
-                  });
-                }}
-              >
-                <Ionicons name="checkmark-circle" size={22} color={tc('text', "#fff")} />
-                <Text style={styles.printConfirmButtonText}>Tak, przypisz do {onlyOrangeData?.lastPrintedDate || onlyOrangeData?.date}</Text>
-              </TouchableOpacity>
+              {/* A (kalendarz) / B (ostatni wydruk) - domyślny pierwszy i wyróżniony */}
+              {renderOnlyOrangeDateChoices()}
 
+              {/* C - inna data: otwiera DateTimePicker, po wyborze od razu przetwarza */}
               <TouchableOpacity
                 style={styles.printCancelButton}
                 onPress={() => {
@@ -3087,9 +3119,21 @@ const Users = () => {
                   setShowDatePicker(true);
                 }}
               >
-                <Ionicons name="calendar" size={22} color={tc('muted', "#94A3B8")} />
-                <Text style={styles.printCancelButtonText}>Nie, wybierz inną datę</Text>
+                <Ionicons name="calendar-outline" size={22} color={tc('muted', "#94A3B8")} />
+                <Text style={styles.printCancelButtonText}>Inna data…</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.printCancelButton}
+                onPress={() => setShowOnlyOrangeModal(false)}
+              >
+                <Ionicons name="close-circle" size={22} color={tc('muted', "#94A3B8")} />
+                <Text style={styles.printCancelButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.confirmModalSubtext}>
+                Przypisanie do dnia, który był już wydrukowany, wymusi wydruk korekcyjny za ten dzień.
+              </Text>
             </View>
           </View>
         </View>
@@ -4036,6 +4080,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: tc('muted', "#94A3B8"),
+  },
+  // Długie etykiety dat w okienku „Potwierdzenie daty przetwarzania” - mniejsza czcionka, łamanie w 2 linie
+  onlyOrangeChoiceText: {
+    fontSize: 15,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   printErrorButton: {
     backgroundColor: "#ef4444",

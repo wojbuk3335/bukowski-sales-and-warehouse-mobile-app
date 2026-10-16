@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useNavigation, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useContext, useEffect, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -156,8 +156,16 @@ const SignIn = () => {
   return (
     <SafeAreaView style={{ backgroundColor: tc('bg', "#000"), flex: 1 }}>
       <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola
+          (tryb „pan” z app.json bywa ignorowany na Androidzie w SDK 54) */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       {/* Mieści się na ekranie bez przewijania; przewijanie tylko przy otwartej klawiaturze / małym ekranie */}
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.container}>
           <Image
             source={bukowskiLogo}
@@ -261,6 +269,7 @@ const SignIn = () => {
           <Text style={styles.versionText}>{getVersionLabel()}</Text>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
