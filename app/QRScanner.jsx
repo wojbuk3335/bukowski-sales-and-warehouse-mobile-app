@@ -1,8 +1,9 @@
 import axios from "axios"; // Import axios for HTTP requests
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zaslania pola tekstowego
+import { SmartScanOverlay, useSmartBarcodeScan } from "../components/scanner/SmartScanOverlay"; // kod tylko z ramki, potwierdzony kilkoma odczytami
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
@@ -58,6 +59,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false); // State for currency modal
   const [currentCurrencyPairIndex, setCurrentCurrencyPairIndex] = useState(null); // Track the index of the pair being edited
   const [cameraActive, setCameraActive] = useState(true); // Zarządzanie aktywnością kamery - rozpoczynamy z aktywną kamerą
+  // Skaner: przyjmuje tylko kod w ramce, po kilku zgodnych odczytach pod rząd (bez błędnych pojedynczych klatek);
+  // ramka „leci” do znalezionego kodu. handleScan jest zdefiniowany niżej - wołamy go przez ref.
+  const handleScanRef = useRef(null);
+  const smartScan = useSmartBarcodeScan({
+    enabled: !scanned && !modalVisible,
+    onConfirmed: (result) => handleScanRef.current?.(result),
+  });
   const [cameraVisible, setCameraVisible] = useState(true); // Widoczność kamery
   const [successModalVisible, setSuccessModalVisible] = useState(false); // State for success modal
   const [successMessage, setSuccessMessage] = useState(""); // Message for success modal
@@ -491,6 +499,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       setModalVisible(true);
     }
   };
+  handleScanRef.current = handleScan;
 
   const toggleCameraFacing = () => {
     setFacing((prev) => (prev === "back" ? "front" : "back"));
@@ -799,12 +808,10 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           barcodeScannerSettings={{
             barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code39", "code128"],
           }}
-          onBarcodeScanned={handleScan}
+          onBarcodeScanned={scanned ? undefined : smartScan.onBarcodeScanned}
         />
-        {/* Overlay using absolute positioning */}
-        <View style={[styles.overlay, { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }]}>
-          <View style={styles.scanArea} />
-        </View>
+        {/* Ramka: kod przyjmowany tylko z jej wnętrza; obrys „leci” do znalezionego kodu */}
+        <SmartScanOverlay {...smartScan.overlayProps} />
         
         {/* Przycisk do resetowania skanowania - pokazuje się tylko gdy scanned=true */}
         {scanned && (

@@ -19,6 +19,15 @@ jest.mock('expo-constants', () => ({
 }));
 
 // Mock expo-secure-store (pamięć w Map - używane m.in. przez services/deviceId)
+// Wibracje (skaner) - w testach bez natywnego modułu
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(() => Promise.resolve()),
+  impactAsync: jest.fn(() => Promise.resolve()),
+  selectionAsync: jest.fn(() => Promise.resolve()),
+  NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+}));
+
 jest.mock('expo-secure-store', () => {
   const store = new Map();
   return {

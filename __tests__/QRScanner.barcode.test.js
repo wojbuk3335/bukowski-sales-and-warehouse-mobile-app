@@ -72,8 +72,10 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
   };
 
   const openModalAndGetBarcodeInput = async (utils, initialBarcode = '1234567890') => {
-    const cameraView = utils.getByTestId('camera-view');
-    fireEvent(cameraView, 'onBarcodeScanned', { data: initialBarcode, type: 'code128' });
+    // Skaner przyjmuje kod dopiero po kilku zgodnych odczytach pod rząd (jak kamera: kolejne klatki)
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent(utils.getByTestId('camera-view'), 'onBarcodeScanned', { data: initialBarcode, type: 'code128' });
+    }
     return await waitFor(() => utils.getByPlaceholderText('Wpisz lub zeskanuj kod kreskowy'));
   };
 
