@@ -20,6 +20,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const CudzichList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -232,85 +233,90 @@ const CudzichList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-      {/* Nagłówek podstrony */}
-      <PageHeader
-        title="Cudzich"
-        icon="people-outline"
-        onBack={() => router.back()}
-      />
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        <Stack.Screen options={{ headerShown: false }} />
+        {/* Nagłówek podstrony */}
+        <PageHeader
+          title="Cudzich"
+          icon="people-outline"
+          onBack={() => router.back()}
+        />
 
-      {/* Balance Card */}
-      <View style={styles.balanceCard}>
-        <View style={styles.balanceHeader}>
-          <View style={styles.balanceIcon}>
-            <Ionicons name="wallet-outline" size={24} color="#10B981" />
+        {/* Balance Card */}
+        <View style={styles.balanceCard}>
+          <View style={styles.balanceHeader}>
+            <View style={styles.balanceIcon}>
+              <Ionicons name="wallet-outline" size={24} color="#10B981" />
+            </View>
+            <Text style={styles.balanceLabel}>Saldo aktualnie</Text>
           </View>
-          <Text style={styles.balanceLabel}>Saldo aktualnie</Text>
+          <Text style={styles.balanceAmount}>{balance.toFixed(2)} PLN</Text>
         </View>
-        <Text style={styles.balanceAmount}>{balance.toFixed(2)} PLN</Text>
-      </View>
 
-      {/* Search and Filter Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Szukaj transakcji..."
-            placeholderTextColor={tc('muted', "#64748B")}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Search and Filter Bar */}
+        <View style={styles.topBar}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Szukaj transakcji..."
+              placeholderTextColor={tc('muted', "#64748B")}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
+              </TouchableOpacity>
+            )}
+          </View>
         
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setFilterModalVisible(true)}
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Ionicons 
+              name={
+                selectedType !== 'all' || selectedProduct || selectedSize
+                  ? 'funnel'
+                  : 'funnel-outline'
+              } 
+              size={20} 
+              color={
+                selectedType !== 'all' || selectedProduct || selectedSize
+                  ? '#0D6EFD'
+                  : tc('text', '#fff')
+              } 
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsBar}>
+          <Text style={styles.statsText}>
+            Znaleziono: {filteredTransactions.length} z {transactions.length}
+          </Text>
+        </View>
+
+        <ScrollView alwaysBounceVertical
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          style={styles.scrollView}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ paddingBottom: 120 }}
         >
-          <Ionicons 
-            name={
-              selectedType !== 'all' || selectedProduct || selectedSize
-                ? 'funnel'
-                : 'funnel-outline'
-            } 
-            size={20} 
-            color={
-              selectedType !== 'all' || selectedProduct || selectedSize
-                ? '#0D6EFD'
-                : tc('text', '#fff')
-            } 
-          />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statsBar}>
-        <Text style={styles.statsText}>
-          Znaleziono: {filteredTransactions.length} z {transactions.length}
-        </Text>
-      </View>
-
-      <ScrollView alwaysBounceVertical
-        style={styles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
-        {filteredTransactions.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="swap-horizontal-outline" size={64} color={tc('muted', "#64748B")} />
-            <Text style={styles.emptyStateText}>
-              {transactions.length === 0 ? 'Brak transakcji do wyświetlenia' : 'Brak transakcji pasujących do filtrów'}
-            </Text>
-          </View>
-        ) : (
-          filteredTransactions.map(renderTransactionCard)
-        )}
-      </ScrollView>
+          {filteredTransactions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="swap-horizontal-outline" size={64} color={tc('muted', "#64748B")} />
+              <Text style={styles.emptyStateText}>
+                {transactions.length === 0 ? 'Brak transakcji do wyświetlenia' : 'Brak transakcji pasujących do filtrów'}
+              </Text>
+            </View>
+          ) : (
+            filteredTransactions.map(renderTransactionCard)
+          )}
+        </ScrollView>
+      </KeyboardSafeScreen>
 
       {/* Filter Modal */}
       <Modal
@@ -319,87 +325,90 @@ const CudzichList = () => {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="funnel-outline" title="Filtry" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="funnel-outline" title="Filtry" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Type Filter */}
-              <View style={styles.filterGroup}>
-                <Text style={look.formLabel}>Typ transakcji:</Text>
-                <View style={styles.filterOptions}>
-                  {[
-                    { value: 'all', label: 'Wszystkie' },
-                    { value: 'odbior', label: 'Odbiór' },
-                    { value: 'zwrot', label: 'Zwrot' },
-                    { value: 'wplata', label: 'Wpłata' },
-                    { value: 'wyplata', label: 'Wypłata' }
-                  ].map(option => (
-                    <TouchableOpacity
-                      key={option.value}
-                      style={[
-                        styles.filterOption,
-                        selectedType === option.value && styles.filterOptionActive
-                      ]}
-                      onPress={() => setSelectedType(option.value)}
-                    >
-                      <Text
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Type Filter */}
+                <View style={styles.filterGroup}>
+                  <Text style={look.formLabel}>Typ transakcji:</Text>
+                  <View style={styles.filterOptions}>
+                    {[
+                      { value: 'all', label: 'Wszystkie' },
+                      { value: 'odbior', label: 'Odbiór' },
+                      { value: 'zwrot', label: 'Zwrot' },
+                      { value: 'wplata', label: 'Wpłata' },
+                      { value: 'wyplata', label: 'Wypłata' }
+                    ].map(option => (
+                      <TouchableOpacity
+                        key={option.value}
                         style={[
-                          styles.filterOptionText,
-                          selectedType === option.value && styles.filterOptionTextActive
+                          styles.filterOption,
+                          selectedType === option.value && styles.filterOptionActive
                         ]}
+                        onPress={() => setSelectedType(option.value)}
                       >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            styles.filterOptionText,
+                            selectedType === option.value && styles.filterOptionTextActive
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
 
-              {/* Product Filter */}
-              <View style={styles.filterGroup}>
-                <Text style={look.formLabel}>Produkt:</Text>
-                <TextInput
-                  style={look.formInput}
-                  value={selectedProduct}
-                  onChangeText={setSelectedProduct}
-                  placeholder="Wpisz nazwę produktu..."
-                  placeholderTextColor={tc('muted', "#64748B")}
-                />
-              </View>
+                {/* Product Filter */}
+                <View style={styles.filterGroup}>
+                  <Text style={look.formLabel}>Produkt:</Text>
+                  <TextInput
+                    style={look.formInput}
+                    value={selectedProduct}
+                    onChangeText={setSelectedProduct}
+                    placeholder="Wpisz nazwę produktu..."
+                    placeholderTextColor={tc('muted', "#64748B")}
+                  />
+                </View>
 
-              {/* Size Filter */}
-              <View style={styles.filterGroup}>
-                <Text style={look.formLabel}>Rozmiar:</Text>
-                <TextInput
-                  style={look.formInput}
-                  value={selectedSize}
-                  onChangeText={setSelectedSize}
-                  placeholder="Wpisz rozmiar..."
-                  placeholderTextColor={tc('muted', "#64748B")}
-                />
-              </View>
-            </ScrollView>
+                {/* Size Filter */}
+                <View style={styles.filterGroup}>
+                  <Text style={look.formLabel}>Rozmiar:</Text>
+                  <TextInput
+                    style={look.formInput}
+                    value={selectedSize}
+                    onChangeText={setSelectedSize}
+                    placeholder="Wpisz rozmiar..."
+                    placeholderTextColor={tc('muted', "#64748B")}
+                  />
+                </View>
+              </ScrollView>
 
-            <View style={look.buttonRow}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => {
-                  resetFilters();
-                  setFilterModalVisible(false);
-                }}
-              >
-                <Text style={look.neutralButtonText}>Resetuj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={look.primaryButton}
-                onPress={() => setFilterModalVisible(false)}
-              >
-                <Text style={look.buttonText}>Zastosuj</Text>
-              </TouchableOpacity>
+              <View style={look.buttonRow}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => {
+                    resetFilters();
+                    setFilterModalVisible(false);
+                  }}
+                >
+                  <Text style={look.neutralButtonText}>Resetuj</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={look.primaryButton}
+                  onPress={() => setFilterModalVisible(false)}
+                >
+                  <Text style={look.buttonText}>Zastosuj</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
     </SafeAreaView>
   );

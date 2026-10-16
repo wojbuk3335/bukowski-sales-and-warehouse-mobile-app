@@ -19,6 +19,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const ManufacturersList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -206,75 +207,80 @@ const ManufacturersList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Tabela grup"
-        icon="briefcase-outline"
-        color="#8B5CF6"
-        onBack={() => router.back()}
-        right={<IconButton icon="add" color="#8B5CF6" onPress={handleAddManufacturer} disabled={loading} accessibilityLabel="Dodaj" />}
-      />
-
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Ionicons name="information-circle" size={20} color="#8B5CF6" />
-        <Text style={styles.infoText}>
-          Numeracja automatyczna od 1
-        </Text>
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj grupy..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Tabela grup"
+          icon="briefcase-outline"
+          color="#8B5CF6"
+          onBack={() => router.back()}
+          right={<IconButton icon="add" color="#8B5CF6" onPress={handleAddManufacturer} disabled={loading} accessibilityLabel="Dodaj" />}
         />
-        {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Manufacturers List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-        </View>
-      ) : filteredManufacturers.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
-          <Ionicons name="briefcase-outline" size={64} color="#475569" />
-          <Text style={styles.emptyText}>
-            {searchTerm ? "Nie znaleziono grup" : "Brak grup"}
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle" size={20} color="#8B5CF6" />
+          <Text style={styles.infoText}>
+            Numeracja automatyczna od 1
           </Text>
-          {!searchTerm && (
-            <Text style={styles.emptyHint}>
-              Naciśnij "+" aby dodać nową grupę
-            </Text>
-          )}
-        </ScrollView>
-      ) : (
-        <>
-          <View style={styles.countContainer}>
-            <Text style={styles.countText}>
-              Znaleziono: {filteredManufacturers.length} / {manufacturers.length} grup
-            </Text>
-          </View>
-          <FlatList
-            data={filteredManufacturers}
-            renderItem={renderManufacturer}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-            alwaysBounceVertical
+        </View>
+
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj grupy..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
           />
-        </>
-      )}
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Manufacturers List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#8B5CF6" />
+          </View>
+        ) : filteredManufacturers.length === 0 ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+            <Ionicons name="briefcase-outline" size={64} color="#475569" />
+            <Text style={styles.emptyText}>
+              {searchTerm ? "Nie znaleziono grup" : "Brak grup"}
+            </Text>
+            {!searchTerm && (
+              <Text style={styles.emptyHint}>
+                Naciśnij "+" aby dodać nową grupę
+              </Text>
+            )}
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.countContainer}>
+              <Text style={styles.countText}>
+                Znaleziono: {filteredManufacturers.length} / {manufacturers.length} grup
+              </Text>
+            </View>
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              data={filteredManufacturers}
+              renderItem={renderManufacturer}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
+            />
+          </>
+        )}
+      </KeyboardSafeScreen>
 
       {/* Edit Modal */}
       <Modal
@@ -283,55 +289,58 @@ const ManufacturersList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#8B5CF6" title="Edytuj grupę" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="create-outline" color="#8B5CF6" title="Edytuj grupę" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Kod grupy */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kod grupy</Text>
-                <TextInput
-                  style={[look.formInput, styles.formInputDisabled]}
-                  value={prodKod}
-                  editable={false}
-                />
-                <Text style={styles.formHint}>Kod nie może być edytowany</Text>
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Kod grupy */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Kod grupy</Text>
+                  <TextInput
+                    style={[look.formInput, styles.formInputDisabled]}
+                    value={prodKod}
+                    editable={false}
+                  />
+                  <Text style={styles.formHint}>Kod nie może być edytowany</Text>
+                </View>
+
+                {/* Nazwa grupy */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Nazwa grupy</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder="Wpisz nazwę grupy"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={prodOpis}
+                    onChangeText={setProdOpis}
+                  />
+                  <Text style={styles.formHint}>
+                    Nazwa musi być unikalna (jeśli podana)
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSaveManufacturer}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Nazwa grupy */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Nazwa grupy</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder="Wpisz nazwę grupy"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={prodOpis}
-                  onChangeText={setProdOpis}
-                />
-                <Text style={styles.formHint}>
-                  Nazwa musi być unikalna (jeśli podana)
-                </Text>
-              </View>
-            </ScrollView>
-
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSaveManufacturer}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

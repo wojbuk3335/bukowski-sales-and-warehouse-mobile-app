@@ -19,6 +19,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const ColorsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -161,61 +162,66 @@ const ColorsList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Lista kolorów"
-        icon="color-palette-outline"
-        color="#8B5CF6"
-        onBack={() => router.back()}
-      />
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj koloru..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Lista kolorów"
+          icon="color-palette-outline"
+          color="#8B5CF6"
+          onBack={() => router.back()}
         />
-        {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Colors List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-        </View>
-      ) : filteredColors.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
-          <Ionicons name="color-palette-outline" size={64} color="#475569" />
-          <Text style={styles.emptyText}>
-            {searchTerm ? "Nie znaleziono kolorów" : "Brak kolorów"}
-          </Text>
-        </ScrollView>
-      ) : (
-        <>
-          <View style={styles.countContainer}>
-            <Text style={styles.countText}>
-              Znaleziono: {filteredColors.length} kolorów
-            </Text>
-          </View>
-          <FlatList
-            data={filteredColors}
-            renderItem={renderColor}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-            alwaysBounceVertical
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj koloru..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
           />
-        </>
-      )}
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Colors List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#8B5CF6" />
+          </View>
+        ) : filteredColors.length === 0 ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+            <Ionicons name="color-palette-outline" size={64} color="#475569" />
+            <Text style={styles.emptyText}>
+              {searchTerm ? "Nie znaleziono kolorów" : "Brak kolorów"}
+            </Text>
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.countContainer}>
+              <Text style={styles.countText}>
+                Znaleziono: {filteredColors.length} kolorów
+              </Text>
+            </View>
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              data={filteredColors}
+              renderItem={renderColor}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
+            />
+          </>
+        )}
+      </KeyboardSafeScreen>
 
       {/* Add/Edit Modal */}
       <Modal
@@ -224,59 +230,62 @@ const ColorsList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#8B5CF6" title="Edytuj kolor" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="create-outline" color="#8B5CF6" title="Edytuj kolor" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Kod koloru */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kod koloru *</Text>
-                <TextInput
-                  style={[look.formInput, editingColor && styles.formInputDisabled]}
-                  placeholder="Wpisz kod (np. 01)"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={kolKod}
-                  onChangeText={setKolKod}
-                  editable={!editingColor}
-                />
-                {editingColor && (
-                  <Text style={styles.formHint}>Kod nie może być edytowany</Text>
-                )}
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Kod koloru */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Kod koloru *</Text>
+                  <TextInput
+                    style={[look.formInput, editingColor && styles.formInputDisabled]}
+                    placeholder="Wpisz kod (np. 01)"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={kolKod}
+                    onChangeText={setKolKod}
+                    editable={!editingColor}
+                  />
+                  {editingColor && (
+                    <Text style={styles.formHint}>Kod nie może być edytowany</Text>
+                  )}
+                </View>
+
+                {/* Nazwa koloru */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Nazwa koloru *</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder="Wpisz nazwę (np. CZERWONY)"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={kolOpis}
+                    onChangeText={setKolOpis}
+                    autoCapitalize="characters"
+                  />
+                  <Text style={styles.formHint}>Nazwa będzie zapisana dużymi literami</Text>
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSaveColor}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Nazwa koloru */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Nazwa koloru *</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder="Wpisz nazwę (np. CZERWONY)"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={kolOpis}
-                  onChangeText={setKolOpis}
-                  autoCapitalize="characters"
-                />
-                <Text style={styles.formHint}>Nazwa będzie zapisana dużymi literami</Text>
-              </View>
-            </ScrollView>
-
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSaveColor}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

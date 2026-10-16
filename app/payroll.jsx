@@ -20,6 +20,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przec
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const FILTERS_KEY = "payrollFilters";
 
 const Payroll = () => {
@@ -719,6 +720,7 @@ const Payroll = () => {
         animationType="slide"
         onRequestClose={() => setShowPaymentModal(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
             <ModalHeader icon="card" color="#10B981" title="Rozlicz wypłatę" />
@@ -766,6 +768,7 @@ const Payroll = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Employee Modal */}

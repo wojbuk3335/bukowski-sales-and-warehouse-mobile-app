@@ -21,6 +21,7 @@ import { REMAINING_PRODUCT_TYPES, getRemainingProductType, normalizeRemainingPro
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const RemainingProductsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -281,100 +282,105 @@ const RemainingProductsList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Pozostały asortyment"
-        icon="cube-outline"
-        color="#F59E0B"
-        onBack={() => router.back()}
-        right={<IconButton icon="add" color="#F59E0B" onPress={handleAddProduct} disabled={loading} accessibilityLabel="Dodaj" />}
-      />
-
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Ionicons name="information-circle" size={20} color="#F59E0B" />
-        <Text style={styles.infoText}>
-          Zakres: 10-99 (max 90 pozycji)
-        </Text>
-      </View>
-
-      {/* Starting Number Input - only visible when list is empty */}
-      {products.length === 0 && !loading && (
-        <View style={styles.startingNumberContainer}>
-          <Text style={styles.startingNumberLabel}>Numer początkowy:</Text>
-          <TextInput
-            style={styles.startingNumberInput}
-            value={startingNumber.toString()}
-            onChangeText={(text) => {
-              const num = parseInt(text) || 10;
-              if (num < 10) {
-                setStartingNumber(10);
-              } else if (num > 99) {
-                setStartingNumber(99);
-              } else {
-                setStartingNumber(num);
-              }
-            }}
-            keyboardType="numeric"
-            placeholder="10"
-            placeholderTextColor={tc('muted', "#64748B")}
-          />
-          <Text style={styles.startingNumberHint}>(zakres: 10-99)</Text>
-        </View>
-      )}
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj produktu..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Pozostały asortyment"
+          icon="cube-outline"
+          color="#F59E0B"
+          onBack={() => router.back()}
+          right={<IconButton icon="add" color="#F59E0B" onPress={handleAddProduct} disabled={loading} accessibilityLabel="Dodaj" />}
         />
-        {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Products List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#F59E0B" />
-        </View>
-      ) : filteredProducts.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
-          <Ionicons name="cube-outline" size={64} color="#475569" />
-          <Text style={styles.emptyText}>
-            {searchTerm ? "Nie znaleziono produktów" : "Brak produktów"}
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle" size={20} color="#F59E0B" />
+          <Text style={styles.infoText}>
+            Zakres: 10-99 (max 90 pozycji)
           </Text>
-          {!searchTerm && (
-            <Text style={styles.emptyHint}>
-              Naciśnij "+" aby dodać nowy produkt
-            </Text>
-          )}
-        </ScrollView>
-      ) : (
-        <>
-          <View style={styles.countContainer}>
-            <Text style={styles.countText}>
-              Znaleziono: {filteredProducts.length} / {products.length} produktów
-            </Text>
+        </View>
+
+        {/* Starting Number Input - only visible when list is empty */}
+        {products.length === 0 && !loading && (
+          <View style={styles.startingNumberContainer}>
+            <Text style={styles.startingNumberLabel}>Numer początkowy:</Text>
+            <TextInput
+              style={styles.startingNumberInput}
+              value={startingNumber.toString()}
+              onChangeText={(text) => {
+                const num = parseInt(text) || 10;
+                if (num < 10) {
+                  setStartingNumber(10);
+                } else if (num > 99) {
+                  setStartingNumber(99);
+                } else {
+                  setStartingNumber(num);
+                }
+              }}
+              keyboardType="numeric"
+              placeholder="10"
+              placeholderTextColor={tc('muted', "#64748B")}
+            />
+            <Text style={styles.startingNumberHint}>(zakres: 10-99)</Text>
           </View>
-          <FlatList
-            data={filteredProducts}
-            renderItem={renderProduct}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-            alwaysBounceVertical
+        )}
+
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj produktu..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
           />
-        </>
-      )}
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Products List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#F59E0B" />
+          </View>
+        ) : filteredProducts.length === 0 ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+            <Ionicons name="cube-outline" size={64} color="#475569" />
+            <Text style={styles.emptyText}>
+              {searchTerm ? "Nie znaleziono produktów" : "Brak produktów"}
+            </Text>
+            {!searchTerm && (
+              <Text style={styles.emptyHint}>
+                Naciśnij "+" aby dodać nowy produkt
+              </Text>
+            )}
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.countContainer}>
+              <Text style={styles.countText}>
+                Znaleziono: {filteredProducts.length} / {products.length} produktów
+              </Text>
+            </View>
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              data={filteredProducts}
+              renderItem={renderProduct}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
+            />
+          </>
+        )}
+      </KeyboardSafeScreen>
 
       {/* Edit Modal */}
       <Modal
@@ -386,85 +392,88 @@ const RemainingProductsList = () => {
           setValidationMessage('');
         }}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#F59E0B" title="Edytuj produkt" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="create-outline" color="#F59E0B" title="Edytuj produkt" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Numer produktu */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Numer produktu</Text>
-                <TextInput
-                  style={[look.formInput, styles.formInputDisabled]}
-                  value={pozNr}
-                  editable={false}
-                />
-                <Text style={styles.formHint}>Numer nie może być edytowany</Text>
-              </View>
-
-              {/* Typ produktu */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Typ produktu</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={productType}
-                    onValueChange={handleProductTypeChange}
-                    style={styles.picker}
-                    dropdownIconColor={tc('text', '#fff')}
-                  >
-                    <Picker.Item label="- wybierz typ -" value="" />
-                    {REMAINING_PRODUCT_TYPES.map((type) => (
-                      <Picker.Item key={type.value} label={type.label} value={type.value} />
-                    ))}
-                  </Picker>
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Numer produktu */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Numer produktu</Text>
+                  <TextInput
+                    style={[look.formInput, styles.formInputDisabled]}
+                    value={pozNr}
+                    editable={false}
+                  />
+                  <Text style={styles.formHint}>Numer nie może być edytowany</Text>
                 </View>
-                <Text style={styles.formHint}>
-                  {getRemainingProductType(productType)
-                    ? `Wymagany wzór: ${getRemainingProductType(productType).formatHint}${getRemainingProductType(productType).example ? `, np. ${getRemainingProductType(productType).example}` : ''}`
-                    : 'Najpierw wybierz typ produktu - od niego zależy wzór kodu'}
-                </Text>
+
+                {/* Typ produktu */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Typ produktu</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={productType}
+                      onValueChange={handleProductTypeChange}
+                      style={styles.picker}
+                      dropdownIconColor={tc('text', '#fff')}
+                    >
+                      <Picker.Item label="- wybierz typ -" value="" />
+                      {REMAINING_PRODUCT_TYPES.map((type) => (
+                        <Picker.Item key={type.value} label={type.label} value={type.value} />
+                      ))}
+                    </Picker>
+                  </View>
+                  <Text style={styles.formHint}>
+                    {getRemainingProductType(productType)
+                      ? `Wymagany wzór: ${getRemainingProductType(productType).formatHint}${getRemainingProductType(productType).example ? `, np. ${getRemainingProductType(productType).example}` : ''}`
+                      : 'Najpierw wybierz typ produktu - od niego zależy wzór kodu'}
+                  </Text>
+                </View>
+
+                {/* Kod produktu */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Kod produktu</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder={getRemainingProductType(productType)?.example ? `np. ${getRemainingProductType(productType).example}` : "Wpisz kod z metki"}
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={pozKod}
+                    onChangeText={handlePozKodChange}
+                    autoCapitalize="characters"
+                  />
+                  {validationMessage !== '' && (
+                    <Text style={styles.validationError}>{validationMessage}</Text>
+                  )}
+                  <Text style={styles.formHint}>
+                    Kod musi być unikalny (jeśli podany)
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => {
+                    setShowModal(false);
+                    setValidationMessage('');
+                  }}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSaveProduct}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Kod produktu */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kod produktu</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder={getRemainingProductType(productType)?.example ? `np. ${getRemainingProductType(productType).example}` : "Wpisz kod z metki"}
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={pozKod}
-                  onChangeText={handlePozKodChange}
-                  autoCapitalize="characters"
-                />
-                {validationMessage !== '' && (
-                  <Text style={styles.validationError}>{validationMessage}</Text>
-                )}
-                <Text style={styles.formHint}>
-                  Kod musi być unikalny (jeśli podany)
-                </Text>
-              </View>
-            </ScrollView>
-
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => {
-                  setShowModal(false);
-                  setValidationMessage('');
-                }}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSaveProduct}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

@@ -19,6 +19,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const History = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [historyData, setHistoryData] = useState([]);
@@ -254,6 +255,7 @@ const History = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardSafeScreen>
       <Stack.Screen options={{ headerShown: false }} />
       <PageHeader
         title="Historia"
@@ -327,6 +329,8 @@ const History = () => {
         </View>
       ) : (
         <ScrollView alwaysBounceVertical
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           style={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -693,6 +697,7 @@ const History = () => {
           </View>
         </View>
       </Modal>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

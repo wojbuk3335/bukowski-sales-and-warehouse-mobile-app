@@ -24,6 +24,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 
 // Nagłówek dolnego okienka wyboru: kolorowy kafelek z ikoną, tytuł i przycisk zamknięcia
 const SheetHeader = ({ icon, title, onClose, color = '#0D6EFD' }) => (
@@ -927,6 +928,7 @@ const ProductsList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardSafeScreen>
       {/* Header */}
       <PageHeader
         title="Lista produktów"
@@ -958,7 +960,7 @@ const ProductsList = () => {
           <ActivityIndicator size="large" color="#0D6EFD" />
         </View>
       ) : filteredProducts.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <Ionicons name="pricetags-outline" size={64} color="#475569" />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono produktów" : "Brak produktów"}
@@ -972,6 +974,8 @@ const ProductsList = () => {
             </Text>
           </View>
           <FlatList
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
             ref={flatListRef}
             data={filteredProducts}
             renderItem={renderProduct}
@@ -1001,6 +1005,7 @@ const ProductsList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <SheetHeader
@@ -1009,7 +1014,7 @@ const ProductsList = () => {
               onClose={() => setShowModal(false)}
             />
 
-            <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 1. Kategoria */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Kategoria *</Text>
@@ -1981,6 +1986,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             </View>
           </View>
         )}
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Category Picker Modal */}
@@ -2101,6 +2107,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowStockPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="shirt-outline" title="Wybierz produkt" onClose={() => setShowStockPicker(false)} />
@@ -2115,6 +2122,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={stocks.filter(s => 
                 s.Tow_Opis?.toLowerCase().includes(stockSearch.toLowerCase())
               )}
@@ -2149,6 +2157,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Color Picker Modal */}
@@ -2158,6 +2167,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowColorPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="color-palette-outline" title="Wybierz kolor" onClose={() => setShowColorPicker(false)} />
@@ -2172,6 +2182,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={colors.filter(c => 
                 c.Kol_Opis?.toLowerCase().includes(colorSearch.toLowerCase())
               )}
@@ -2214,6 +2225,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Subcategory Picker Modal */}
@@ -2223,6 +2235,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowSubcategoryPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="albums-outline" title="Wybierz podkategorię" onClose={() => setShowSubcategoryPicker(false)} />
@@ -2237,6 +2250,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={subcategories.filter(s => 
                 s.Kat_1_Opis_1?.toLowerCase().includes(subcategorySearch.toLowerCase())
               )}
@@ -2271,6 +2285,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Manufacturer Picker Modal */}
@@ -2280,6 +2295,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowManufacturerPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="business-outline" title="Wybierz grupę" onClose={() => setShowManufacturerPicker(false)} />
@@ -2294,6 +2310,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={manufacturers.filter(m => 
                 m.Prod_Opis?.toLowerCase().includes(manufacturerSearch.toLowerCase())
               )}
@@ -2328,6 +2345,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Size Picker Modal (for price exceptions) */}
@@ -2337,6 +2355,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowSizePicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="resize-outline" title="Wybierz rozmiar" onClose={() => setShowSizePicker(false)} />
@@ -2351,6 +2370,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={sizes.filter(s => 
                 s.Roz_Opis?.toLowerCase().includes(sizeSearch.toLowerCase())
               )}
@@ -2379,6 +2399,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Bags Category Picker Modal */}
@@ -2433,6 +2454,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowBagsPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="bag-handle-outline" title="Wybierz torebkę" onClose={() => setShowBagsPicker(false)} />
@@ -2447,6 +2469,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={bagsData.filter(b => 
                 b.Torebki_Kod?.toLowerCase().includes(bagsSearch.toLowerCase())
               )}
@@ -2485,6 +2508,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Wallets Category Picker Modal */}
@@ -2539,6 +2563,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowWalletsPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="wallet-outline" title="Wybierz portfel" onClose={() => setShowWalletsPicker(false)} />
@@ -2553,6 +2578,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={walletsData.filter(w => 
                 w.Portfele_Kod?.toLowerCase().includes(walletsSearch.toLowerCase())
               )}
@@ -2591,6 +2617,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Remaining Category Picker Modal */}
@@ -2728,6 +2755,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
         animationType="slide"
         onRequestClose={() => setShowRemainingPicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <SheetHeader icon="cube-outline" title="Wybierz produkt" onClose={() => setShowRemainingPicker(false)} />
@@ -2742,6 +2770,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={getFilteredRemainingProducts()}
               keyExtractor={(item) => item._id}
               contentContainerStyle={{ paddingBottom: 40 }}
@@ -2778,6 +2807,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
             />
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Enlarged Image Modal */}
@@ -2890,6 +2920,7 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
           </View>
         </View>
       </Modal>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

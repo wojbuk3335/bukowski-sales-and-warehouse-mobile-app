@@ -19,6 +19,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const WalletsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -240,100 +241,105 @@ const WalletsList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Tabela portfeli"
-        icon="wallet-outline"
-        color="#A855F7"
-        onBack={() => router.back()}
-        right={<IconButton icon="add" color="#A855F7" onPress={handleAddWallet} disabled={loading} accessibilityLabel="Dodaj" />}
-      />
-
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Ionicons name="information-circle" size={20} color="#A855F7" />
-        <Text style={styles.infoText}>
-          Zakres: 100-999 (max 900 pozycji)
-        </Text>
-      </View>
-
-      {/* Starting Number Input - only visible when list is empty */}
-      {wallets.length === 0 && !loading && (
-        <View style={styles.startingNumberContainer}>
-          <Text style={styles.startingNumberLabel}>Numer początkowy:</Text>
-          <TextInput
-            style={styles.startingNumberInput}
-            value={startingNumber.toString()}
-            onChangeText={(text) => {
-              const num = parseInt(text) || 100;
-              if (num < 100) {
-                setStartingNumber(100);
-              } else if (num > 999) {
-                setStartingNumber(999);
-              } else {
-                setStartingNumber(num);
-              }
-            }}
-            keyboardType="numeric"
-            placeholder="100"
-            placeholderTextColor={tc('muted', "#64748B")}
-          />
-          <Text style={styles.startingNumberHint}>(zakres: 100-999)</Text>
-        </View>
-      )}
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj portfela..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Tabela portfeli"
+          icon="wallet-outline"
+          color="#A855F7"
+          onBack={() => router.back()}
+          right={<IconButton icon="add" color="#A855F7" onPress={handleAddWallet} disabled={loading} accessibilityLabel="Dodaj" />}
         />
-        {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Wallets List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#A855F7" />
-        </View>
-      ) : filteredWallets.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
-          <Ionicons name="wallet-outline" size={64} color="#475569" />
-          <Text style={styles.emptyText}>
-            {searchTerm ? "Nie znaleziono portfeli" : "Brak portfeli"}
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle" size={20} color="#A855F7" />
+          <Text style={styles.infoText}>
+            Zakres: 100-999 (max 900 pozycji)
           </Text>
-          {!searchTerm && (
-            <Text style={styles.emptyHint}>
-              Naciśnij "+" aby dodać nowy portfel
-            </Text>
-          )}
-        </ScrollView>
-      ) : (
-        <>
-          <View style={styles.countContainer}>
-            <Text style={styles.countText}>
-              Znaleziono: {filteredWallets.length} / {wallets.length} portfeli
-            </Text>
+        </View>
+
+        {/* Starting Number Input - only visible when list is empty */}
+        {wallets.length === 0 && !loading && (
+          <View style={styles.startingNumberContainer}>
+            <Text style={styles.startingNumberLabel}>Numer początkowy:</Text>
+            <TextInput
+              style={styles.startingNumberInput}
+              value={startingNumber.toString()}
+              onChangeText={(text) => {
+                const num = parseInt(text) || 100;
+                if (num < 100) {
+                  setStartingNumber(100);
+                } else if (num > 999) {
+                  setStartingNumber(999);
+                } else {
+                  setStartingNumber(num);
+                }
+              }}
+              keyboardType="numeric"
+              placeholder="100"
+              placeholderTextColor={tc('muted', "#64748B")}
+            />
+            <Text style={styles.startingNumberHint}>(zakres: 100-999)</Text>
           </View>
-          <FlatList
-            data={filteredWallets}
-            renderItem={renderWallet}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-            alwaysBounceVertical
+        )}
+
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj portfela..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
           />
-        </>
-      )}
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Wallets List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#A855F7" />
+          </View>
+        ) : filteredWallets.length === 0 ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+            <Ionicons name="wallet-outline" size={64} color="#475569" />
+            <Text style={styles.emptyText}>
+              {searchTerm ? "Nie znaleziono portfeli" : "Brak portfeli"}
+            </Text>
+            {!searchTerm && (
+              <Text style={styles.emptyHint}>
+                Naciśnij "+" aby dodać nowy portfel
+              </Text>
+            )}
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.countContainer}>
+              <Text style={styles.countText}>
+                Znaleziono: {filteredWallets.length} / {wallets.length} portfeli
+              </Text>
+            </View>
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              data={filteredWallets}
+              renderItem={renderWallet}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
+            />
+          </>
+        )}
+      </KeyboardSafeScreen>
 
       {/* Edit Modal */}
       <Modal
@@ -342,56 +348,59 @@ const WalletsList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#A855F7" title="Edytuj portfel" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="create-outline" color="#A855F7" title="Edytuj portfel" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Numer portfela */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Numer portfela</Text>
-                <TextInput
-                  style={[look.formInput, styles.formInputDisabled]}
-                  value={portfeleNr}
-                  editable={false}
-                />
-                <Text style={styles.formHint}>Numer nie może być edytowany</Text>
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Numer portfela */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Numer portfela</Text>
+                  <TextInput
+                    style={[look.formInput, styles.formInputDisabled]}
+                    value={portfeleNr}
+                    editable={false}
+                  />
+                  <Text style={styles.formHint}>Numer nie może być edytowany</Text>
+                </View>
+
+                {/* Kod portfela */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Kod portfela</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder="Wpisz kod (opcjonalnie, max 3 miejsca po przecinku)"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={portfeleKod}
+                    onChangeText={(text) => setPortfeleKod(validatePortfeleKod(text))}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.formHint}>
+                    Kod musi być unikalny (jeśli podany)
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSaveWallet}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Kod portfela */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kod portfela</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder="Wpisz kod (opcjonalnie, max 3 miejsca po przecinku)"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={portfeleKod}
-                  onChangeText={(text) => setPortfeleKod(validatePortfeleKod(text))}
-                  keyboardType="numeric"
-                />
-                <Text style={styles.formHint}>
-                  Kod musi być unikalny (jeśli podany)
-                </Text>
-              </View>
-            </ScrollView>
-
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSaveWallet}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

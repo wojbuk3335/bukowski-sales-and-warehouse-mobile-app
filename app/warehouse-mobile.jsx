@@ -24,6 +24,7 @@ import { GlobalStateContext } from "../context/GlobalState";
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const WarehouseMobile = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -1107,6 +1108,7 @@ const WarehouseMobile = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: tc('bg', "#000000") }]}>
+      <KeyboardSafeScreen>
       {/* Header */}
       <PageHeader
         title={headerTitle}
@@ -1116,6 +1118,8 @@ const WarehouseMobile = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -1294,6 +1298,8 @@ const WarehouseMobile = () => {
       {/* Edit Modal */}
       {showEditModal && (
         <View style={styles.modalOverlay}>
+          {/* Okienko to zwykły View (nie Modal): tło jest absolutne, więc samo robi miejsce na klawiaturę */}
+          <KeyboardSafeOverlay style={{ justifyContent: "flex-end" }}>
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
               <ModalHeader icon="pencil" color="#F59E0B" title="Edytuj produkt" />
@@ -1305,7 +1311,7 @@ const WarehouseMobile = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent}>
+            <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Nazwa produktu</Text>
               <View style={styles.dropdownContainer}>
                 <TextInput
@@ -1385,6 +1391,7 @@ const WarehouseMobile = () => {
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </View>
       )}
 
@@ -1454,6 +1461,7 @@ const WarehouseMobile = () => {
           </View>
         </View>
       )}
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

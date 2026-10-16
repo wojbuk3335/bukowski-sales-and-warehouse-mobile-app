@@ -22,6 +22,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
+import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const InventoryReport = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -453,6 +454,7 @@ const InventoryReport = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardSafeScreen>
       <StatusBar barStyle={statusBarContent()} backgroundColor={tc('bg', "#000000")} />
       
       <Stack.Screen
@@ -474,6 +476,8 @@ const InventoryReport = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -658,6 +662,7 @@ const InventoryReport = () => {
           )}
         </View>
       </ScrollView>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

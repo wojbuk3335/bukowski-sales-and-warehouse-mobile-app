@@ -21,6 +21,7 @@ import { getApiUrl } from '../../config/api';
 import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../config/remainingProductTypes';
 import LogoutButton from '../../components/LogoutButton';
 import { ScreenHeader } from '../../components/AdminLook';
+import { KeyboardSafeOverlay } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola w okienku
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
 import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
@@ -1136,6 +1137,7 @@ const Remanent = () => {
         animationType="fade"
         onRequestClose={() => { setOpenFilterSelect(null); setShowFilterModal(false); }}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.filterOverlay}>
           <View style={styles.filterCard}>
             <View style={styles.filterCardHeader}>
@@ -1319,6 +1321,7 @@ const Remanent = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
     </SafeAreaView>
   );

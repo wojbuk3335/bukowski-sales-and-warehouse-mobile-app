@@ -8,6 +8,7 @@ import QRScannerSearch from '../QRScannerSearch';
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BackButton, MenuCard, PointPill, pointColorMap, ScreenHeader, look } from '../../components/AdminLook';
+import { KeyboardSafeScreen } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const SearchScreen = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -106,6 +107,7 @@ const SearchScreen = () => {
   if (showSearchBar) {
     return (
       <View style={styles.searchBarContainer}>
+        <KeyboardSafeScreen>
         <View style={styles.searchBarRow}>
           <BackButton testID="search-back-button" onPress={() => setShowSearchBar(false)} />
           <View style={styles.searchField}>
@@ -151,7 +153,9 @@ const SearchScreen = () => {
             </View>
           }
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         />
+        </KeyboardSafeScreen>
       </View>
     );
   }

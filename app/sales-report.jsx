@@ -21,6 +21,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const SalesReport = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -297,6 +298,7 @@ const SalesReport = () => {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
+        <KeyboardSafeScreen>
         <StatusBar barStyle={statusBarContent()} backgroundColor={tc('bg', "#000000")} />
         {/* Header */}
         <View style={styles.header}>
@@ -308,6 +310,8 @@ const SalesReport = () => {
         </View>
 
         <ScrollView alwaysBounceVertical
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           style={styles.content}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
@@ -574,6 +578,7 @@ const SalesReport = () => {
           setFilterSearch('');
         }}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -592,7 +597,7 @@ const SalesReport = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {!activeFilter ? (
                 // Lista wyboru filtrów
                 <>
@@ -897,7 +902,9 @@ const SalesReport = () => {
             )}
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
+        </KeyboardSafeScreen>
       </SafeAreaView>
     </>
   );

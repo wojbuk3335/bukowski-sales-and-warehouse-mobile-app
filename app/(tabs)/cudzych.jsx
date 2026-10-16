@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useFocusEffect } from "@react-navigation/native";
 import { GlobalStateContext } from '../../context/GlobalState';
 
@@ -1165,6 +1166,7 @@ const Cudzych = () => {
           resetForm();
         }}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <ModalHeader
@@ -1455,6 +1457,7 @@ const Cudzych = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Payment Modal (shared for wpłata and wypłata) */}
@@ -1468,6 +1471,7 @@ const Cudzych = () => {
           setWyplataModalVisible(false);
         }}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <ModalHeader
@@ -1539,6 +1543,7 @@ const Cudzych = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Date Filter Modal */}
@@ -1698,8 +1703,9 @@ const Cudzych = () => {
 
       {/* Scanned Product Modal - identical to QRScanner */}
       {scannedProductModalVisible && (
+        <KeyboardSafeScreen>
         <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }}>
-          <ScrollView style={{ width: '100%' }} contentContainerStyle={[qrStyles.scrollViewContent, { padding: 0, paddingTop: Math.max(12, insets.top), paddingBottom: Math.max(120, insets.bottom + 120) }]}>
+          <ScrollView style={{ width: '100%' }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[qrStyles.scrollViewContent, { padding: 0, paddingTop: Math.max(12, insets.top), paddingBottom: Math.max(120, insets.bottom + 120) }]}>
             <View style={[qrStyles.modalContent, { flex: 1, backgroundColor: tc('bg', "black"), width: undefined, height: undefined, alignSelf: 'stretch', padding: 0, paddingHorizontal: 20, paddingTop: 64, paddingBottom: 24, justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }]}>
               <TouchableOpacity
                 style={qrStyles.closeButton}
@@ -1786,6 +1792,7 @@ const Cudzych = () => {
             </View>
           </ScrollView>
         </View>
+        </KeyboardSafeScreen>
       )}
 
       {/* Selling Point Selection Modal (copied from QRScanner) */}

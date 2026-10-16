@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext';
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
+import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłania pola w nakładce
 
 // Skaner kodów kreskowych w trybie ciągłym - ten sam w Remanencie (panel użytkownika) i w zakładce „Sprawdź” (panel admina).
 // Kamera, potwierdzenie skanu nad kamerą (toast) z wibracją, okienko „ta sama metka / kolejna sztuka”,
@@ -457,7 +458,9 @@ const BarcodeScannerModal = ({
         )}
 
         {quantityEdit && (
-          <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+          <View style={StyleSheet.absoluteFill}>
+          <KeyboardSafeOverlay>
+          <View style={styles.filterOverlay}>
             <View style={styles.filterCard}>
               <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ile sztuk łącznie?</Text>
               <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 12 }}>{quantityEdit.name}</Text>
@@ -481,10 +484,14 @@ const BarcodeScannerModal = ({
               </View>
             </View>
           </View>
+          </KeyboardSafeOverlay>
+          </View>
         )}
 
         {manualCodeOpen && (
-          <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+          <View style={StyleSheet.absoluteFill}>
+          <KeyboardSafeOverlay>
+          <View style={styles.filterOverlay}>
             <View style={styles.filterCard}>
               <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Wpisz kod z metki</Text>
               <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 14, textAlign: 'center', marginBottom: 12 }}>13 cyfr spod kodu kreskowego</Text>
@@ -520,10 +527,14 @@ const BarcodeScannerModal = ({
               </View>
             </View>
           </View>
+          </KeyboardSafeOverlay>
+          </View>
         )}
 
         {pickerOpen && (
-          <View style={[StyleSheet.absoluteFill, styles.filterOverlay]}>
+          <View style={StyleSheet.absoluteFill}>
+          <KeyboardSafeOverlay>
+          <View style={styles.filterOverlay}>
             <View style={[styles.filterCard, { maxHeight: '85%' }]}>
               <View style={styles.filterCardHeader}>
                 <Text style={styles.filterCardTitle}>{pickerGood ? 'Wybierz rozmiar' : 'Wybierz z bazy produktów'}</Text>
@@ -582,6 +593,8 @@ const BarcodeScannerModal = ({
                 </>
               )}
             </View>
+          </View>
+          </KeyboardSafeOverlay>
           </View>
         )}
 

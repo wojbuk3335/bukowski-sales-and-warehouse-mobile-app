@@ -20,6 +20,7 @@ import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
+import { KeyboardSafeScreen } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 
@@ -2232,10 +2233,13 @@ const Users = () => {
         <ScreenHeader icon="shirt" title="Dobierz" subtitle="Dobieranie produktów z magazynu" />
       </View>
 
+      <KeyboardSafeScreen>
       <ScrollView alwaysBounceVertical 
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -2583,6 +2587,7 @@ const Users = () => {
           </View>
         )}
       </ScrollView>
+      </KeyboardSafeScreen>
 
       {/* User Selection Modal */}
       <Modal

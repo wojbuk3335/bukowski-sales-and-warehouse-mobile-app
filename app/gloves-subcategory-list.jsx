@@ -20,6 +20,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 
 // Ikona i kolor ekranu – te same co na kafelku w menu podkategorii
 const SCREEN_ICON = "hand-left";
@@ -264,47 +265,52 @@ const GlovesSubcategoryList = () => {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Rękawiczki"
-        icon={SCREEN_ICON}
-        color={SCREEN_COLOR}
-        onBack={() => router.back()}
-        right={<IconButton icon="add" color="#10B981" onPress={handleAdd} accessibilityLabel="Dodaj" />}
-      />
-
-      {/* Wyszukiwarka */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+        {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+        <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Rękawiczki"
+          icon={SCREEN_ICON}
+          color={SCREEN_COLOR}
+          onBack={() => router.back()}
+          right={<IconButton icon="add" color="#10B981" onPress={handleAdd} accessibilityLabel="Dodaj" />}
         />
-        {searchTerm !== "" && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      <FlatList
-        data={filteredSubcategories}
-        renderItem={renderItem}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={refreshControl}
-        alwaysBounceVertical
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name={SCREEN_ICON} size={64} color={tc('muted', "#475569")} />
-            <Text style={styles.emptyText}>Brak rękawiczek</Text>
-          </View>
-        }
-      />
+        {/* Wyszukiwarka */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+          />
+          {searchTerm !== "" && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <FlatList
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          data={filteredSubcategories}
+          renderItem={renderItem}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+          alwaysBounceVertical
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name={SCREEN_ICON} size={64} color={tc('muted', "#475569")} />
+              <Text style={styles.emptyText}>Brak rękawiczek</Text>
+            </View>
+          }
+        />
+        </KeyboardSafeScreen>
 
       {/* Okno dodawania / edycji */}
       <Modal
@@ -313,62 +319,65 @@ const GlovesSubcategoryList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader
-              icon={editingItem ? "create-outline" : "add-circle-outline"}
-              color={SCREEN_COLOR}
-              title={editingItem ? "Edytuj rękawiczkę" : "Dodaj rękawiczkę"}
-            />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader
+                icon={editingItem ? "create-outline" : "add-circle-outline"}
+                color={SCREEN_COLOR}
+                title={editingItem ? "Edytuj rękawiczkę" : "Dodaj rękawiczkę"}
+              />
 
-            <ScrollView style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Nazwa rękawiczki:</Text>
-                <Text style={styles.formHint}>Nazwa podpodkategorii, np. {NAME_EXAMPLE}</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder={`np. ${NAME_EXAMPLE}`}
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={gloveOpis}
-                  onChangeText={setGloveOpis}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Rodzaj:</Text>
-                  <OptionCard
-                    icon="woman-outline"
-                    label="Damskie (D)"
-                    color={SCREEN_COLOR}
-                    selected={rodzaj === "D"}
-                    onPress={() => setRodzaj("D")}
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Nazwa rękawiczki:</Text>
+                  <Text style={styles.formHint}>Nazwa podpodkategorii, np. {NAME_EXAMPLE}</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder={`np. ${NAME_EXAMPLE}`}
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={gloveOpis}
+                    onChangeText={setGloveOpis}
                   />
-                  <OptionCard
-                    icon="man-outline"
-                    label="Męskie (M)"
-                    color={SCREEN_COLOR}
-                    selected={rodzaj === "M"}
-                    onPress={() => setRodzaj("M")}
-                  />
-              </View>
-            </ScrollView>
+                </View>
 
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSave}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Rodzaj:</Text>
+                    <OptionCard
+                      icon="woman-outline"
+                      label="Damskie (D)"
+                      color={SCREEN_COLOR}
+                      selected={rodzaj === "D"}
+                      onPress={() => setRodzaj("D")}
+                    />
+                    <OptionCard
+                      icon="man-outline"
+                      label="Męskie (M)"
+                      color={SCREEN_COLOR}
+                      selected={rodzaj === "M"}
+                      onPress={() => setRodzaj("M")}
+                    />
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSave}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Okno sukcesu */}

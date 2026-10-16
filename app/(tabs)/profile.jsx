@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, TextInput, FlatList, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, TextInput, FlatList, Platform, Modal } from 'react-native';
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { GlobalStateContext } from '../../context/GlobalState';
@@ -1037,14 +1038,11 @@ const Profile = () => {
   return (
     <>
       <SafeAreaView style={{ backgroundColor: themeColors.bg, flex: 1, paddingBottom: Math.max(20, insets.bottom + 20) }}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
+        <KeyboardSafeScreen offset={Platform.OS === 'ios' ? 0 : 20}>
           <ScrollView 
             style={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
             nestedScrollEnabled={true}
             showsVerticalScrollIndicator={false}
             contentInsetAdjustmentBehavior="automatic"
@@ -1757,7 +1755,7 @@ const Profile = () => {
             )}
           </View>
         </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardSafeScreen>
       </SafeAreaView>
       
       {/* Success Modal */}

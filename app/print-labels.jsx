@@ -21,6 +21,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const PrintLabels = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const authContext = useContext(AuthContext);
@@ -1002,6 +1003,7 @@ const PrintLabels = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardSafeScreen>
       {/* Nagłówek podstrony */}
       <PageHeader
         title="Wydruk etykiet"
@@ -1010,6 +1012,8 @@ const PrintLabels = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -1333,6 +1337,7 @@ const PrintLabels = () => {
           </View>
         </View>
       </Modal>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

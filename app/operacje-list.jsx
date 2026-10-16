@@ -22,6 +22,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const OperacjeList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -288,92 +289,97 @@ const OperacjeList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-      {/* Nagłówek podstrony */}
-      <PageHeader
-        title="Operacje"
-        icon="swap-vertical-outline"
-        onBack={() => router.back()}
-      />
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        <Stack.Screen options={{ headerShown: false }} />
+        {/* Nagłówek podstrony */}
+        <PageHeader
+          title="Operacje"
+          icon="swap-vertical-outline"
+          onBack={() => router.back()}
+        />
 
-      {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, { borderTopColor: '#22C55E' }]}>
-          <View style={[styles.summaryIcon, { backgroundColor: '#22C55E26' }]}>
-            <Ionicons name="add-circle-outline" size={22} color="#22C55E" />
+        {/* Summary Cards */}
+        <View style={styles.summaryContainer}>
+          <View style={[styles.summaryCard, { borderTopColor: '#22C55E' }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: '#22C55E26' }]}>
+              <Ionicons name="add-circle-outline" size={22} color="#22C55E" />
+            </View>
+            <Text style={styles.summaryLabel}>Dodania</Text>
+            <Text style={[styles.summaryValue, { color: '#22C55E' }]}>{additionCount}</Text>
           </View>
-          <Text style={styles.summaryLabel}>Dodania</Text>
-          <Text style={[styles.summaryValue, { color: '#22C55E' }]}>{additionCount}</Text>
-        </View>
-        <View style={[styles.summaryCard, { borderTopColor: '#EF4444' }]}>
-          <View style={[styles.summaryIcon, { backgroundColor: '#EF444426' }]}>
-            <Ionicons name="remove-circle-outline" size={22} color="#EF4444" />
+          <View style={[styles.summaryCard, { borderTopColor: '#EF4444' }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: '#EF444426' }]}>
+              <Ionicons name="remove-circle-outline" size={22} color="#EF4444" />
+            </View>
+            <Text style={styles.summaryLabel}>Odpisania</Text>
+            <Text style={[styles.summaryValue, { color: '#EF4444' }]}>{deductionCount}</Text>
           </View>
-          <Text style={styles.summaryLabel}>Odpisania</Text>
-          <Text style={[styles.summaryValue, { color: '#EF4444' }]}>{deductionCount}</Text>
         </View>
-      </View>
 
-      {/* Search and Filter Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Szukaj operacji..."
-            placeholderTextColor={tc('muted', "#64748B")}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Search and Filter Bar */}
+        <View style={styles.topBar}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Szukaj operacji..."
+              placeholderTextColor={tc('muted', "#64748B")}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={tc('muted', "#64748B")} />
+              </TouchableOpacity>
+            )}
+          </View>
         
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setFilterModalVisible(true)}
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Ionicons 
+              name={
+                selectedOperation !== 'all' || selectedUser
+                  ? 'funnel'
+                  : 'funnel-outline'
+              } 
+              size={20} 
+              color={
+                selectedOperation !== 'all' || selectedUser
+                  ? '#0D6EFD'
+                  : tc('text', '#fff')
+              } 
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsBar}>
+          <Text style={styles.statsText}>
+            Znaleziono: {filteredOperations.length} z {operations.length}
+          </Text>
+        </View>
+
+        <ScrollView alwaysBounceVertical
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          style={styles.scrollView}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ paddingBottom: 120 }}
         >
-          <Ionicons 
-            name={
-              selectedOperation !== 'all' || selectedUser
-                ? 'funnel'
-                : 'funnel-outline'
-            } 
-            size={20} 
-            color={
-              selectedOperation !== 'all' || selectedUser
-                ? '#0D6EFD'
-                : tc('text', '#fff')
-            } 
-          />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statsBar}>
-        <Text style={styles.statsText}>
-          Znaleziono: {filteredOperations.length} z {operations.length}
-        </Text>
-      </View>
-
-      <ScrollView alwaysBounceVertical
-        style={styles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
-        {filteredOperations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="cash-outline" size={64} color={tc('muted', "#64748B")} />
-            <Text style={styles.emptyStateText}>
-              {operations.length === 0 ? 'Brak operacji do wyświetlenia' : 'Brak operacji pasujących do filtrów'}
-            </Text>
-          </View>
-        ) : (
-          filteredOperations.map(renderOperationCard)
-        )}
-      </ScrollView>
+          {filteredOperations.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cash-outline" size={64} color={tc('muted', "#64748B")} />
+              <Text style={styles.emptyStateText}>
+                {operations.length === 0 ? 'Brak operacji do wyświetlenia' : 'Brak operacji pasujących do filtrów'}
+              </Text>
+            </View>
+          ) : (
+            filteredOperations.map(renderOperationCard)
+          )}
+        </ScrollView>
+      </KeyboardSafeScreen>
 
       {/* Filter Modal */}
       <Modal
