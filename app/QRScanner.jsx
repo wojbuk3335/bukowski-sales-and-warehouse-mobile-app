@@ -91,14 +91,22 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       const uri = result.assets[0].uri;
       setPhotoUri(uri);
       setPhotoScanning(true);
-      const found = await scanFromURLAsync(uri, ["code128", "ean13", "qr"]);
+      // 1. nasze formaty; 2. gdy nic - wszystkie formaty (zdjęcie bywa odczytane jako inny typ niż na żywo)
+      let found = await scanFromURLAsync(uri, ["code128", "ean13", "qr"]);
+      if (!(found || []).some((item) => item?.data)) {
+        found = await scanFromURLAsync(uri, ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"]);
+      }
       setPhotoScanning(false);
       const first = (found || []).find((item) => item?.data);
       if (!first) {
         setPhotoUri(null);
-        appAlert("Nie znaleziono kodu", "Na tym zdjęciu nie udało się odczytać kodu kreskowego. Spróbuj wyraźniejszego zdjęcia.");
+        const size = await new Promise((resolve) => Image.getSize(uri, (w, h) => resolve(`${w}×${h}`), () => resolve("?")));
+        appAlert("Nie znaleziono kodu", `Na tym zdjęciu nie udało się odczytać kodu kreskowego. Spróbuj zdjęcia z bliska, ostrego, z kodem poziomo.
+
+(zdjęcie ${size}, wykryto: 0 kodów)`);
         return;
       }
+      Logger.debug("Scan from photo:", first.type, first.data);
       handleScanRef.current?.({ data: String(first.data), type: first.type });
     } catch (error) {
       setPhotoScanning(false);
