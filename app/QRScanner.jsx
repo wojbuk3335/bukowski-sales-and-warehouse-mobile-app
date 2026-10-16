@@ -73,6 +73,26 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // „Wpisz kod”: ręczne wpisanie kodu kreskowego - dalej dokładnie jak po zeskanowaniu
   const [manualCodeVisible, setManualCodeVisible] = useState(false);
   const [manualCode, setManualCode] = useState("");
+  // Walidacja na bieżąco: ok (kod w bazie, nazwa produktu) / invalid (nie pasuje) / checking / idle
+  const [manualCodeCheck, setManualCodeCheck] = useState({ state: "idle", name: "" });
+  useEffect(() => {
+    const code = manualCode.trim();
+    if (!code) {
+      setManualCodeCheck({ state: "idle", name: "" });
+      return undefined;
+    }
+    let active = true;
+    setManualCodeCheck((prev) => ({ ...prev, state: "checking" }));
+    const timer = setTimeout(async () => {
+      const name = await resolveProductNameFromBarcode(code);
+      if (active) setManualCodeCheck(name ? { state: "ok", name } : { state: "invalid", name: "" });
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualCode, stateData, goods]);
 
   // Po zamknięciu formularza sprzedaży wracamy do kamery (zdjęcie znika)
   useEffect(() => {
@@ -118,7 +138,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
 
   const submitManualCode = () => {
     const code = manualCode.trim();
-    if (!code) return;
+    if (!code || manualCodeCheck.state !== "ok") return; // tylko kod z bazy kodów
     setManualCodeVisible(false);
     setManualCode("");
     handleScanRef.current?.({ data: code, type: "manual" });
@@ -482,6 +502,20 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   };
 
   // Dynamicznie aktualizuj pole "Sprzedano produkt" podczas wpisywania kodu kreskowego
+  // Nazwa produktu dla kodu (stan punktu albo karty produktów); null = kod nie pasuje do bazy kodów.
+  // Ta sama logika po zeskanowaniu, w polu kodu formularza i przy ręcznym wpisaniu („Wpisz kod”).
+  const resolveProductNameFromBarcode = async (code) => {
+    const matchedItems = stateData?.filter(item => item.barcode === code);
+    if (matchedItems && matchedItems.length > 0) {
+      return formatStateItemName(matchedItems[0]);
+    }
+    return buildJacketNameFromBarcode(code)
+      || buildBagNameFromBarcode(code)
+      || buildWalletNameFromBarcode(code)
+      || (await buildRemainingProductNameFromBarcode(code))
+      || null;
+  };
+
   const handleBarcodeChange = async (newBarcode) => {
     setBarcode(newBarcode);
     
@@ -491,42 +525,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       return;
     }
 
-    // Sprawdź czy kod istnieje w stateData
-    const matchedItems = stateData?.filter(item => item.barcode === newBarcode);
-    
-    if (matchedItems && matchedItems.length > 0) {
-      // Znaleziono w stateData
-      setModalMessage(formatStateItemName(matchedItems[0]));
-      return;
-    }
-
-    // Spróbuj zbudować nazwę z barcode'a (kurtki, torby, portfele, produkty pozostałe)
-    const builtJacketName = buildJacketNameFromBarcode(newBarcode);
-    if (builtJacketName) {
-      setModalMessage(builtJacketName);
-      return;
-    }
-
-    const builtBagName = buildBagNameFromBarcode(newBarcode);
-    if (builtBagName) {
-      setModalMessage(builtBagName);
-      return;
-    }
-
-    const builtWalletName = buildWalletNameFromBarcode(newBarcode);
-    if (builtWalletName) {
-      setModalMessage(builtWalletName);
-      return;
-    }
-
-    const builtRemainingProductName = await buildRemainingProductNameFromBarcode(newBarcode);
-    if (builtRemainingProductName) {
-      setModalMessage(builtRemainingProductName);
-      return;
-    }
-
-    // Nie znaleziono produktu
-    setModalMessage("❌ Nie znaleziono produktu");
+    const productName = await resolveProductNameFromBarcode(newBarcode);
+    setModalMessage(productName || "❌ Nie znaleziono produktu");
   };
 
   const handleScan = async ({ data, type }) => {
@@ -901,15 +901,31 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   returnKeyType="done"
                   onSubmitEditing={submitManualCode}
                 />
+                {manualCodeCheck.state !== "idle" && (
+                  <View testID="manual-code-status" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+                    <Ionicons
+                      name={manualCodeCheck.state === "ok" ? "checkmark-circle" : manualCodeCheck.state === "invalid" ? "close-circle" : "time-outline"}
+                      size={18}
+                      color={manualCodeCheck.state === "ok" ? "#10B981" : manualCodeCheck.state === "invalid" ? "#EF4444" : tc('muted', "#94A3B8")}
+                    />
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: manualCodeCheck.state === "ok" ? "#10B981" : manualCodeCheck.state === "invalid" ? "#EF4444" : tc('muted', "#94A3B8") }}>
+                      {manualCodeCheck.state === "ok"
+                        ? manualCodeCheck.name
+                        : manualCodeCheck.state === "invalid"
+                          ? "Kod niepoprawny - nie pasuje do bazy kodów"
+                          : "Sprawdzam kod…"}
+                    </Text>
+                  </View>
+                )}
                 <View style={look.buttonRow}>
                   <TouchableOpacity style={look.neutralButton} onPress={() => { setManualCodeVisible(false); setManualCode(""); }}>
                     <Text style={look.neutralButtonText}>Anuluj</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     testID="manual-code-submit"
-                    style={[look.primaryButton, !manualCode.trim() && { opacity: 0.5 }]}
+                    style={[look.primaryButton, manualCodeCheck.state !== "ok" && { opacity: 0.5 }]}
                     onPress={submitManualCode}
-                    disabled={!manualCode.trim()}
+                    disabled={manualCodeCheck.state !== "ok"}
                   >
                     <Text style={look.buttonText}>Dalej</Text>
                   </TouchableOpacity>

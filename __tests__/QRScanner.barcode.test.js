@@ -288,10 +288,25 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
 
       fireEvent.press(getByTestId('enter-code'));
       fireEvent.changeText(getByTestId('manual-code-input'), ' 1234567890 ');
+      // kod z bazy: zielona nazwa produktu, „Dalej” aktywne
+      await waitFor(() => expect(getByTestId('manual-code-status')).toHaveTextContent(/Kurtka Czarna/));
+      expect(getByTestId('manual-code-submit')).not.toBeDisabled();
       fireEvent.press(getByTestId('manual-code-submit'));
 
       await waitFor(() => getByPlaceholderText('Wpisz lub zeskanuj kod kreskowy'));
       await waitFor(() => expect(queryByDisplayValue(/Kurtka Czarna/)).toBeTruthy());
+    });
+
+    test('„Wpisz kod”: kod spoza bazy - czerwony komunikat, „Dalej” zablokowane', async () => {
+      const { getByTestId, queryByPlaceholderText } = render(<QRScanner {...mockProps} />);
+
+      fireEvent.press(getByTestId('enter-code'));
+      fireEvent.changeText(getByTestId('manual-code-input'), '9999999999999');
+
+      await waitFor(() => expect(getByTestId('manual-code-status')).toHaveTextContent('Kod niepoprawny - nie pasuje do bazy kodów'));
+      expect(getByTestId('manual-code-submit')).toBeDisabled();
+      fireEvent.press(getByTestId('manual-code-submit'));
+      expect(queryByPlaceholderText('Wpisz lub zeskanuj kod kreskowy')).toBeNull();
     });
 
     test('„Odczytaj ze zdjęcia” bierze zdjęcie z galerii, odczytuje kod i otwiera formularz', async () => {
