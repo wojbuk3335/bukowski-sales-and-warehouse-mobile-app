@@ -25,6 +25,7 @@ import { GlobalStateContext } from "../context/GlobalState";
 import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { buildLabelZpl } from "../utils/labelZpl"; // układ metki (jak na serwerze)
 const WarehouseMobile = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -769,25 +770,8 @@ const WarehouseMobile = () => {
       const barcode = item.barcode || "NO-BARCODE";
       const symbol = "02"; // MAGAZYN = 02
       
-      const safeName = fullNameStr.replace(/[^\x00-\x7F]/g, '?');
-      const safeSize = sizeStr.replace(/[^\x00-\x7F]/g, '?');
-      const safePrice = priceValue ? priceValue.toString().replace(/[^\x00-\x7F]/g, '?') : 'N/A';
-      
-      return `^XA
-^MMT
-^PW450
-^LL0400
-^LS0
-^FT3,50^A0N,40,40^FD${safeName}^FS
-^FT320,55^A0N,40,40^FDCena:^FS
-^FT320,105^A0N,55,55^FD${safePrice} zl^FS
-
-^FT3,120^A0N,38,38^FDRozmiar: ${safeSize}^FS
-^FT3,150^A0N,25,25^FDPunkt: ${symbol}^FS
-^BY2,3,85^FT80,238^BCN,,N,N
-^FD${barcode}^FS
-^FT125,280^A0N,28,28^FB200,1,0,C,0^FD${barcode}^FS
-^XZ`;
+      // Układ metki wspólny z serwerem (utils/labelZpl.js) - wydruk zapasowy wygląda tak samo
+      return buildLabelZpl({ productName: fullNameStr, price: priceValue, size: sizeStr, pointNumber: symbol, barcode });
     } catch (error) {
       console.error('Error generating ZPL:', error);
       return null;
