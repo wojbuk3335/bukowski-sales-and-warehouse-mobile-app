@@ -5362,7 +5362,7 @@ const Home = () => {
                   facing="back"
                   onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
                   barcodeScannerSettings={{
-                    barcodeTypes: ["qr", "ean13", "ean8", "code128", "code39"],
+                    barcodeTypes: ["code128", "ean13", "qr"] /* tylko formaty, które drukujemy - inne dawały błędne odczyty (np. UPC-A obcina zero) */,
                   }}
                 />
                 <View style={{

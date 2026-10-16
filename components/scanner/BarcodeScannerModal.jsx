@@ -35,7 +35,8 @@ import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłan
 //   onConfirm(pieces, { groups, showToast }) - async; true = przyjęte (lista skanera się czyści), false = skany zostają
 //   goods, pickerSizes              - karty produktów i rozmiary dla „Z bazy”
 
-const SCANNER_BARCODE_TYPES = ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code39', 'code128'];
+// Tylko formaty, które drukujemy (metki Code 128) - inne (UPC-A, Code 39, EAN-8) dawały błędne odczyty
+const SCANNER_BARCODE_TYPES = ['code128', 'ean13', 'qr'];
 // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
 // Identyczne sztuki mają ten sam kod, więc kolejne skany tego kodu po przerwie to kolejne sztuki.
 const SAME_LABEL_PAUSE_MS = 1500;

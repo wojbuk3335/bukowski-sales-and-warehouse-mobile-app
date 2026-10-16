@@ -1645,7 +1645,7 @@ const Cudzych = () => {
               style={qrStyles.camera}
               facing={facing}
               barcodeScannerSettings={{
-                barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code39", "code128"],
+                barcodeTypes: ["code128", "ean13", "qr"] /* tylko formaty, które drukujemy - inne dawały błędne odczyty (np. UPC-A obcina zero) */,
               }}
               onBarcodeScanned={handleScan}
             />
