@@ -1,6 +1,7 @@
 import axios from "axios"; // Import axios for HTTP requests
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
+import { isPhotoProcessingAvailable, scanPhotoWithVariants } from "../utils/photoBarcodeScan"; // kilka prób odczytu (obróbka zdjęcia)
 import { useEffect, useRef, useState } from "react";
 import { FlatList, Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zaslania pola tekstowego
@@ -108,22 +109,25 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       }
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
       if (result.canceled || !result.assets?.length) return;
-      const uri = result.assets[0].uri;
+      const { uri, width, height } = result.assets[0];
       setPhotoUri(uri);
       setPhotoScanning(true);
-      // 1. nasze formaty; 2. gdy nic - wszystkie formaty (zdjęcie bywa odczytane jako inny typ niż na żywo)
-      let found = await scanFromURLAsync(uri, ["code128", "ean13", "qr"]);
-      if (!(found || []).some((item) => item?.data)) {
-        found = await scanFromURLAsync(uri, ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"]);
+      // Kilka prób automatycznie: oryginał, potem pomniejszone / wycinki ze środka / obrócone wersje zdjęcia
+      // (na żywo kamera ma dziesiątki klatek, zdjęcie jedną szansę). Najpierw nasze formaty, potem wszystkie.
+      const ourFormats = ["code128", "ean13", "qr"];
+      const allFormats = ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"];
+      let { result: first, attempts } = await scanPhotoWithVariants({ uri, width, height, scan: (u) => scanFromURLAsync(u, ourFormats) });
+      if (!first) {
+        const second = await scanPhotoWithVariants({ uri, width, height, scan: (u) => scanFromURLAsync(u, allFormats) });
+        first = second.result;
+        attempts += second.attempts;
       }
       setPhotoScanning(false);
-      const first = (found || []).find((item) => item?.data);
       if (!first) {
         setPhotoUri(null);
-        const size = await new Promise((resolve) => Image.getSize(uri, (w, h) => resolve(`${w}×${h}`), () => resolve("?")));
-        appAlert("Nie znaleziono kodu", `Na tym zdjęciu nie udało się odczytać kodu kreskowego. Spróbuj zdjęcia z bliska, ostrego, z kodem poziomo.
+        appAlert("Nie znaleziono kodu", `Na tym zdjęciu nie udało się odczytać kodu kreskowego. Spróbuj zdjęcia z bliska i ostrego.
 
-(zdjęcie ${size}, wykryto: 0 kodów)`);
+(zdjęcie ${width || "?"}×${height || "?"}, prób odczytu: ${attempts}${isPhotoProcessingAvailable() ? "" : ", bez obróbki zdjęcia"})`);
         return;
       }
       Logger.debug("Scan from photo:", first.type, first.data);
