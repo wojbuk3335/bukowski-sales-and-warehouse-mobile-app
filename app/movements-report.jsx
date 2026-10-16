@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
@@ -21,7 +21,7 @@ import { getApiUrl } from '../config/api';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
-import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { KeyboardSafeScreen, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const MovementsReport = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const [startDate, setStartDate] = useState(new Date());
@@ -44,6 +44,9 @@ const MovementsReport = () => {
   // Filter dropdown state
   const [activeFilter, setActiveFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
+  // Wyszukiwarka w rozwijanym filtrze: po kliknięciu miejsce nad klawiaturą na pole i listę opcji
+  const filterReveal = useRevealInput();
+  const filterSearchRef = useRef(null);
   
   // Filter options
   const [sellingPoints, setSellingPoints] = useState([]);
@@ -345,6 +348,8 @@ const MovementsReport = () => {
             <View style={styles.searchInputContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
               <TextInput
+                ref={filterSearchRef}
+                onFocus={() => filterReveal.revealWithSpace(filterSearchRef, 240)}
                 style={styles.searchInput}
                 placeholder="Szukaj..."
                 placeholderTextColor={tc('muted', "#64748B")}
@@ -495,6 +500,7 @@ const MovementsReport = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        ref={filterReveal.scrollRef}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         style={styles.scrollView}

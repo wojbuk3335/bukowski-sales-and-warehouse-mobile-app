@@ -1,5 +1,5 @@
-import React from "react";
-import { KeyboardAvoidingView, Platform } from "react-native";
+import React, { useCallback, useRef } from "react";
+import { KeyboardAvoidingView, Platform, findNodeHandle } from "react-native";
 
 /**
  * Klawiatura nie zasłania pola tekstowego - wspólne opakowania dla całej aplikacji.
@@ -39,5 +39,35 @@ export const KeyboardSafeOverlay = ({ children, style }) => (
     {children}
   </KeyboardAvoidingView>
 );
+
+/**
+ * Pole z rozwijaną listą podpowiedzi pod spodem: po kliknięciu przewijamy JEDNYM ruchem tak, żeby nad
+ * klawiaturą zmieściło się pole RAZEM z listą (spaceBelow = wysokość listy). Bez tego pole ląduje tuż nad
+ * klawiaturą, a rozwinięta lista wpada pod klawiaturę albo ekran skacze.
+ *
+ *   const { scrollRef, revealWithSpace } = useRevealInput();
+ *   const inputRef = useRef(null);
+ *   <ScrollView ref={scrollRef} …>
+ *     <TextInput ref={inputRef} onFocus={() => revealWithSpace(inputRef, 220)} … />
+ */
+export const useRevealInput = () => {
+  const scrollRef = useRef(null);
+
+  const revealWithSpace = useCallback((inputRef, spaceBelow = 220) => {
+    // Android: klawiatura i zmiana rozmiaru ekranu dochodzą chwilę po fokusie
+    setTimeout(() => {
+      const scroll = scrollRef.current;
+      const input = inputRef?.current;
+      if (!scroll || !input) return;
+      const node = findNodeHandle(input);
+      const responder = scroll.getScrollResponder ? scroll.getScrollResponder() : scroll;
+      if (node && responder?.scrollResponderScrollNativeHandleToKeyboard) {
+        responder.scrollResponderScrollNativeHandleToKeyboard(node, spaceBelow, true);
+      }
+    }, Platform.OS === "android" ? 300 : 80);
+  }, []);
+
+  return { scrollRef, revealWithSpace };
+};
 
 export default KeyboardSafeScreen;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
@@ -21,7 +21,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
-import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { KeyboardSafeScreen, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const PrintLabels = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const authContext = useContext(AuthContext);
@@ -55,6 +55,9 @@ const PrintLabels = () => {
   // Active filter dropdown
   const [activeFilter, setActiveFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
+  // Wyszukiwarka w rozwijanym filtrze: po kliknięciu miejsce nad klawiaturą na pole i listę opcji
+  const filterReveal = useRevealInput();
+  const filterSearchRef = useRef(null);
   
   // Printing states
   const [printingId, setPrintingId] = useState(null);
@@ -927,6 +930,8 @@ const PrintLabels = () => {
             <View style={styles.searchInputContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
               <TextInput
+                ref={filterSearchRef}
+                onFocus={() => filterReveal.revealWithSpace(filterSearchRef, 240)}
                 style={styles.searchInput}
                 placeholder="Szukaj..."
                 placeholderTextColor={tc('muted', "#64748B")}
@@ -1012,6 +1017,7 @@ const PrintLabels = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        ref={filterReveal.scrollRef}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         style={styles.scrollView}

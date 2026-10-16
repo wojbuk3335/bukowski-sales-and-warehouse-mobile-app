@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import { FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'; // Import SafeAreaView for safe area handling
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
@@ -11,7 +11,7 @@ import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ScreenHeader, look } from '../../components/AdminLook';
-import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
+import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
@@ -114,6 +114,10 @@ const Home = () => {
   const [productSearchQuery, setProductSearchQuery] = useState(""); // Search query for products
   const [filteredProducts, setFilteredProducts] = useState([]); // Filtered products based on search
   const [showProductDropdown, setShowProductDropdown] = useState(false); // Control dropdown visibility
+  // Pola z podpowiedziami w „Dopisz kwotę”: po kliknięciu miejsce nad klawiaturą na pole i listę
+  const addAmountReveal = useRevealInput();
+  const addAmountProductInputRef = useRef(null);
+  const addAmountSizeInputRef = useRef(null);
   const [productScanned, setProductScanned] = useState(false); // Track if product was scanned (with size already included)
   const [productFinalPrice, setProductFinalPrice] = useState(""); // Final agreed price for product
   const [availableFunds, setAvailableFunds] = useState({}); // State for available funds to ensure re-rendering
@@ -3988,6 +3992,7 @@ const Home = () => {
               <ModalHeader icon="add-circle" color="#10B981" title={isEditingAddAmount ? 'Edytuj zaliczkę' : 'Dopisz kwotę'} />
               
               <ScrollView 
+                ref={addAmountReveal.scrollRef}
                 style={{ width: '100%' }}
                 contentContainerStyle={{ paddingBottom: 8 }}
                 showsVerticalScrollIndicator={true}
@@ -4104,7 +4109,9 @@ const Home = () => {
                           setShowProductDropdown(true);
                           setProductScanned(false);
                         }}
+                        ref={addAmountProductInputRef}
                         onFocus={() => {
+                          addAmountReveal.revealWithSpace(addAmountProductInputRef, 220); // miejsce na listę podpowiedzi
                           if (productSearchQuery && !selectedProduct) {
                             setShowProductDropdown(true);
                           }
@@ -4187,7 +4194,11 @@ const Home = () => {
                               setSizeSearchQuery(text);
                               setShowSizeDropdown(true);
                             }}
-                            onFocus={() => setShowSizeDropdown(true)}
+                            ref={addAmountSizeInputRef}
+                            onFocus={() => {
+                              addAmountReveal.revealWithSpace(addAmountSizeInputRef, 170); // miejsce na listę rozmiarów
+                              setShowSizeDropdown(true);
+                            }}
                           />
 
                           {showSizeDropdown && sizeSearchQuery && (

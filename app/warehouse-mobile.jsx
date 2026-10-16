@@ -24,7 +24,7 @@ import { GlobalStateContext } from "../context/GlobalState";
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
-import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const WarehouseMobile = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -88,6 +88,10 @@ const WarehouseMobile = () => {
 
   const productInputRef = useRef(null);
   const sizeInputRef = useRef(null);
+  const editProductInputRef = useRef(null);
+  // Pola z podpowiedziami: po kliknięciu miejsce nad klawiaturą na pole i rozwiniętą listę
+  const screenReveal = useRevealInput();
+  const editReveal = useRevealInput();
   const listRef = useRef(null);
 
   const isStatesMode = Boolean(paramUserId || paramSymbol || paramAllStates);
@@ -1118,6 +1122,7 @@ const WarehouseMobile = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        ref={screenReveal.scrollRef}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         refreshControl={
@@ -1200,6 +1205,7 @@ const WarehouseMobile = () => {
               placeholderTextColor={tc('muted', "#666")}
               value={productName}
               onChangeText={handleProductNameChange}
+              onFocus={() => screenReveal.revealWithSpace(productInputRef, 220)}
               returnKeyType="next"
               onSubmitEditing={() => sizeInputRef.current?.focus()}
             />
@@ -1233,6 +1239,7 @@ const WarehouseMobile = () => {
               placeholderTextColor={tc('muted', "#666")}
               value={selectedSize}
               onChangeText={handleSizeChange}
+              onFocus={() => screenReveal.revealWithSpace(sizeInputRef, 220)}
               returnKeyType="done"
             />
             {showSizeDropdown && filteredSizes.length > 0 && (
@@ -1311,7 +1318,7 @@ const WarehouseMobile = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={editReveal.scrollRef} style={styles.modalContent} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Nazwa produktu</Text>
               <View style={styles.dropdownContainer}>
                 <TextInput
@@ -1320,6 +1327,8 @@ const WarehouseMobile = () => {
                   placeholderTextColor={tc('muted', "#666")}
                   value={editFullName}
                   onChangeText={handleEditProductNameChange}
+                  ref={editProductInputRef}
+                  onFocus={() => editReveal.revealWithSpace(editProductInputRef, 220)}
                 />
                 {showEditProductDropdown && filteredEditProducts.length > 0 && (
                   <ScrollView

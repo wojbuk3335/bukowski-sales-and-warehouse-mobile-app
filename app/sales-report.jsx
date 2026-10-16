@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
-import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const SalesReport = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -50,6 +50,9 @@ const SalesReport = () => {
   
   // Search states for dropdowns
   const [filterSearch, setFilterSearch] = useState('');
+  // Wyszukiwarka filtra w okienku: po kliknięciu miejsce nad klawiaturą na pole i listę opcji
+  const filterReveal = useRevealInput();
+  const filterSearchRef = useRef(null);
   
   const [statistics, setStatistics] = useState({
     totalSales: 0,
@@ -597,7 +600,7 @@ const SalesReport = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={filterReveal.scrollRef} style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {!activeFilter ? (
                 // Lista wyboru filtrów
                 <>
@@ -682,6 +685,8 @@ const SalesReport = () => {
                   <View style={styles.searchContainer}>
                     <Ionicons name="search" size={18} color={tc('muted', "#64748B")} />
                     <TextInput
+                      ref={filterSearchRef}
+                      onFocus={() => filterReveal.revealWithSpace(filterSearchRef, 240)}
                       style={styles.searchInput}
                       placeholder="Szukaj..."
                       placeholderTextColor={tc('muted', "#64748B")}
