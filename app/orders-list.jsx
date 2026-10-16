@@ -23,6 +23,7 @@ import { isConnectionError, readJson, serverErrorMessage } from '../utils/readJs
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const OrdersList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -511,6 +512,7 @@ const OrdersList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardSafeScreen>
       <Stack.Screen options={{ headerShown: false }} />
       {/* Nagłówek podstrony */}
       <PageHeader
@@ -556,6 +558,8 @@ const OrdersList = () => {
       </View>
 
       <ScrollView alwaysBounceVertical
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 120 }}
@@ -824,11 +828,12 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => setCompleteModalVisible(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
             <ModalHeader icon="checkmark-circle-outline" color="#10B981" title="Realizacja zamówienia" />
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               {orderToComplete && (
                 <View>
                   <View style={styles.completeOrderInfo}>
@@ -915,6 +920,7 @@ const OrdersList = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Zmiana terminu realizacji */}
@@ -924,6 +930,7 @@ const OrdersList = () => {
         transparent={true}
         onRequestClose={() => !rescheduling && setRescheduleTarget(null)}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
             <ModalHeader icon="calendar-outline" color="#F59E0B" title="Zmień termin realizacji" />
@@ -1022,6 +1029,7 @@ const OrdersList = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Revert Confirmation Modal */}
@@ -1122,6 +1130,7 @@ const OrdersList = () => {
           </View>
         </View>
       </Modal>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

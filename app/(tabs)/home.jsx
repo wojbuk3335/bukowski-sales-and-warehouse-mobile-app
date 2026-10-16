@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import { FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'; // Import SafeAreaView for safe area handling
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
@@ -11,6 +11,7 @@ import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ScreenHeader, look } from '../../components/AdminLook';
+import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import { appAlert } from '../../services/appAlert';
 
@@ -113,6 +114,10 @@ const Home = () => {
   const [productSearchQuery, setProductSearchQuery] = useState(""); // Search query for products
   const [filteredProducts, setFilteredProducts] = useState([]); // Filtered products based on search
   const [showProductDropdown, setShowProductDropdown] = useState(false); // Control dropdown visibility
+  // Pola z podpowiedziami w „Dopisz kwotę”: po kliknięciu miejsce nad klawiaturą na pole i listę
+  const addAmountReveal = useRevealInput();
+  const addAmountProductInputRef = useRef(null);
+  const addAmountSizeInputRef = useRef(null);
   const [productScanned, setProductScanned] = useState(false); // Track if product was scanned (with size already included)
   const [productFinalPrice, setProductFinalPrice] = useState(""); // Final agreed price for product
   const [availableFunds, setAvailableFunds] = useState({}); // State for available funds to ensure re-rendering
@@ -3137,9 +3142,10 @@ const Home = () => {
           animationType="slide"
           onRequestClose={() => setEditModalVisible(false)}
         >
+          <KeyboardSafeScreen>
           <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: Math.max(120, insets.bottom + 120) }}>
+              <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: Math.max(120, insets.bottom + 120) }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
                 <View style={[{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
                   <Pressable
                     style={{
@@ -3194,6 +3200,7 @@ const Home = () => {
                     value={editData?.size || ""}
                     editable={false}
                     placeholder="Rozmiar"
+                    autoCapitalize="characters" // rozmiar wielkimi literami
                     placeholderTextColor="gray"
                   />
                   
@@ -3431,6 +3438,7 @@ const Home = () => {
               </ScrollView>
             </TouchableWithoutFeedback>
           </View>
+          </KeyboardSafeScreen>
         </Modal>
         {/* Edit From Modal */}
         <Modal
@@ -3439,7 +3447,8 @@ const Home = () => {
           animationType="fade"
           onRequestClose={() => setEditFromModalVisible(false)}
         >
-          <View className="flex-1 justify-center items-center bg-black bg-opacity-50">
+          <KeyboardSafeOverlay>
+          <View className="flex-1 justify-center items-center bg-black bg-opacity-50" style={{ flex: 1 }}>
             <View
               className="w-3/4 rounded-lg shadow-lg"
               style={{
@@ -3495,6 +3504,7 @@ const Home = () => {
               </View>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </Modal>
         {/* Symbol Selection Modal - Identyczny z QRScanner */}
         <Modal
@@ -3648,6 +3658,7 @@ const Home = () => {
           animationType="fade"
           onRequestClose={() => setDeductionModalVisible(false)}
         >
+          <KeyboardSafeOverlay>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { maxHeight: '90%', alignItems: 'stretch' }]}>
               <ModalHeader icon="remove-circle" color="#DC3545" title="Odpisz kwotę" />
@@ -3860,6 +3871,7 @@ const Home = () => {
               </ScrollView>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </Modal>
         
         {/* Operation Options Modal */}
@@ -3975,11 +3987,13 @@ const Home = () => {
             resetAddAmountForm();
           }}
         >
+          <KeyboardSafeOverlay>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { maxHeight: '90%', alignItems: 'stretch' }]}>
               <ModalHeader icon="add-circle" color="#10B981" title={isEditingAddAmount ? 'Edytuj zaliczkę' : 'Dopisz kwotę'} />
               
               <ScrollView 
+                ref={addAmountReveal.scrollRef}
                 style={{ width: '100%' }}
                 contentContainerStyle={{ paddingBottom: 8 }}
                 showsVerticalScrollIndicator={true}
@@ -4096,7 +4110,9 @@ const Home = () => {
                           setShowProductDropdown(true);
                           setProductScanned(false);
                         }}
+                        ref={addAmountProductInputRef}
                         onFocus={() => {
+                          addAmountReveal.revealWithSpace(addAmountProductInputRef, 220); // miejsce na listę podpowiedzi
                           if (productSearchQuery && !selectedProduct) {
                             setShowProductDropdown(true);
                           }
@@ -4173,13 +4189,18 @@ const Home = () => {
                           <TextInput
                             style={[styles.formInput, { marginBottom: 10, borderColor: '#0d6efd', borderWidth: 2 }]}
                             placeholder="Wpisz rozmiar..."
+                            autoCapitalize="characters" // rozmiar wielkimi literami
                             placeholderTextColor={tc('muted', "#ccc")}
                             value={sizeSearchQuery}
                             onChangeText={(text) => {
                               setSizeSearchQuery(text);
                               setShowSizeDropdown(true);
                             }}
-                            onFocus={() => setShowSizeDropdown(true)}
+                            ref={addAmountSizeInputRef}
+                            onFocus={() => {
+                              addAmountReveal.revealWithSpace(addAmountSizeInputRef, 170); // miejsce na listę rozmiarów
+                              setShowSizeDropdown(true);
+                            }}
                           />
 
                           {showSizeDropdown && sizeSearchQuery && (
@@ -4522,6 +4543,7 @@ const Home = () => {
               </ScrollView>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </Modal>
 
         {/* Salesperson selection modal */}
@@ -4668,6 +4690,7 @@ const Home = () => {
           visible={workHoursModalVisible}
           onRequestClose={() => closeWorkHoursModal()}
         >
+          <KeyboardSafeOverlay>
           <View style={styles.workHoursModalOverlay}>
             <View style={styles.workHoursModalContent}>
               <ModalHeader icon="time" color="#0EA5E9" title="Ustaw godziny pracy" />
@@ -4905,6 +4928,7 @@ const Home = () => {
               </View>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </Modal>
 
         {/* Success Modal */}
@@ -5081,6 +5105,7 @@ const Home = () => {
           visible={currencyRateModalVisible}
           onRequestClose={cancelEditingRate}
         >
+          <KeyboardSafeOverlay>
           <TouchableWithoutFeedback onPress={cancelEditingRate}>
             <View style={styles.modalOverlay}>
               <TouchableWithoutFeedback onPress={() => {}}>
@@ -5224,6 +5249,7 @@ const Home = () => {
               </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
+          </KeyboardSafeOverlay>
         </Modal>
 
         {/* Employee Selection Modal for Deduction */}
@@ -5525,6 +5551,7 @@ const Home = () => {
           visible={calculatorModalVisible}
           onRequestClose={() => setCalculatorModalVisible(false)}
         >
+          <KeyboardSafeOverlay>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { alignItems: 'stretch' }]}>
               <ModalHeader icon="calculator" color="#8B5CF6" title="Kalkulator walut" />
@@ -5665,6 +5692,7 @@ const Home = () => {
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </Modal>
 
         {/* From Currency Selection Modal */}

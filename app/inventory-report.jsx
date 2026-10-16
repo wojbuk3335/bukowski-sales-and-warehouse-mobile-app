@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
@@ -22,6 +22,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarContent } from '../context/ThemeContext'; // kolory zależne od motywu
+import { KeyboardSafeScreen, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const InventoryReport = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -51,6 +52,9 @@ const InventoryReport = () => {
   
   // Search states for dropdowns
   const [filterSearch, setFilterSearch] = useState('');
+  // Wyszukiwarka w rozwijanym filtrze: po kliknięciu miejsce nad klawiaturą na pole i listę opcji
+  const filterReveal = useRevealInput();
+  const filterSearchRef = useRef(null);
   
   const [statistics, setStatistics] = useState({
     totalItems: 0,
@@ -358,6 +362,8 @@ const InventoryReport = () => {
             <View style={styles.searchInputContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
               <TextInput
+                ref={filterSearchRef}
+                onFocus={() => filterReveal.revealWithSpace(filterSearchRef, 240)}
                 style={styles.searchInput}
                 placeholder="Szukaj..."
                 placeholderTextColor={tc('muted', "#64748B")}
@@ -453,6 +459,7 @@ const InventoryReport = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardSafeScreen>
       <StatusBar barStyle={statusBarContent()} backgroundColor={tc('bg', "#000000")} />
       
       <Stack.Screen
@@ -474,6 +481,9 @@ const InventoryReport = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        ref={filterReveal.scrollRef}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -658,6 +668,7 @@ const InventoryReport = () => {
           )}
         </View>
       </ScrollView>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

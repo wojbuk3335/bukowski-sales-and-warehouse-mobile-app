@@ -17,6 +17,7 @@ import axios from 'axios';
 import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
+import { KeyboardSafeScreen } from '../components/KeyboardSafe'; // klawiatura nie zasłania pola
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 const ChangePassword = () => {
@@ -172,10 +173,12 @@ const ChangePassword = () => {
         }}
       />
 
+      <KeyboardSafeScreen>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <View style={styles.content}>
           <View style={styles.infoBox}>
@@ -287,6 +290,7 @@ const ChangePassword = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardSafeScreen>
 
       {/* Error Modal */}
       <Modal

@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo } from "react";
+import React, { useContext, useState, useEffect, useMemo, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -20,6 +20,7 @@ import tokenService from "../../services/tokenService";
 import { getApiUrl } from "../../config/api";
 import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
+import { KeyboardSafeScreen, useRevealInput } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 
@@ -52,6 +53,9 @@ const Users = () => {
   
   // Search
   const [warehouseSearch, setWarehouseSearch] = useState("");
+  // „Szukaj w magazynie”: po kliknięciu pole podjeżdża do góry, a lista wyników mieści się nad klawiaturą
+  const warehouseReveal = useRevealInput();
+  const warehouseSearchRef = useRef(null);
   const [greyedWarehouseItems, setGreyedWarehouseItems] = useState(new Set());
   const [unprocessedCount, setUnprocessedCount] = useState(0);
   
@@ -2232,10 +2236,14 @@ const Users = () => {
         <ScreenHeader icon="shirt" title="Dobierz" subtitle="Dobieranie produktów z magazynu" />
       </View>
 
+      <KeyboardSafeScreen>
       <ScrollView alwaysBounceVertical 
+        ref={warehouseReveal.scrollRef}
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -2411,10 +2419,12 @@ const Users = () => {
                 <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
                 <TextInput
                   style={styles.searchInput}
+                  ref={warehouseSearchRef}
                   placeholder="Szukaj w magazynie..."
                   placeholderTextColor={tc('muted', "#64748B")}
                   value={warehouseSearch}
                   onChangeText={setWarehouseSearch}
+                  onFocus={() => warehouseReveal.revealWithSpace(warehouseSearchRef, 320)} // miejsce na kilka wyników
                 />
                 {warehouseSearch !== '' && (
                   <TouchableOpacity onPress={() => setWarehouseSearch('')}>
@@ -2583,6 +2593,7 @@ const Users = () => {
           </View>
         )}
       </ScrollView>
+      </KeyboardSafeScreen>
 
       {/* User Selection Modal */}
       <Modal

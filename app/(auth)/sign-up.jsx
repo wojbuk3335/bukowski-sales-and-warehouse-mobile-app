@@ -7,6 +7,7 @@ import { createUser } from "../../lib/appwrite";
 import { images } from "../../constants";
 import CustomButton from "../../components/CustomButton";
 import FormField from "../../components/FormField";
+import { KeyboardSafeScreen } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
 
 const SignUp = () => {
@@ -36,7 +37,8 @@ const SignUp = () => {
 
   return (
     <SafeAreaView className="bg-primary h-full">
-      <ScrollView>
+      <KeyboardSafeScreen>
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View
           className="w-full flex justify-center h-full px-4 my-6"
           style={{
@@ -95,6 +97,7 @@ const SignUp = () => {
           </View>
         </View>
       </ScrollView>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

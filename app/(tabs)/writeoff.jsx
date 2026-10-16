@@ -1,6 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from "../../config/api";
@@ -954,6 +955,7 @@ const fetchSales = async () => {
                     setSelectedCurrency("PLN");
                 }}
             >
+                <KeyboardSafeOverlay>
                 <View style={look.modalOverlay}>
                     <View style={look.modalContent}>
                         <ModalHeader icon="home" color="#0D6EFD" title="Powód przepisania do domu" />
@@ -1063,6 +1065,7 @@ const fetchSales = async () => {
                         </View>
                     </View>
                 </View>
+                </KeyboardSafeOverlay>
             </Modal>
 
             {/* Modal powodów przepisania do MAGAZYN */}
@@ -1076,6 +1079,7 @@ const fetchSales = async () => {
                     setSelectedReason("");
                 }}
             >
+                <KeyboardSafeOverlay>
                 <View style={look.modalOverlay}>
                     <View style={look.modalContent}>
                         <ModalHeader icon="archive" color="#F59E0B" title="Przepisać kurtkę do magazynu?" />
@@ -1154,6 +1158,7 @@ const fetchSales = async () => {
                         </View>
                     </View>
                 </View>
+                </KeyboardSafeOverlay>
             </Modal>
 
             {/* Modal wyboru waluty */}

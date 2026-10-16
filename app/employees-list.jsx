@@ -21,6 +21,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przec
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const EmployeesList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -306,6 +307,7 @@ const EmployeesList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardSafeScreen>
       {/* Nagłówek */}
       <PageHeader
         title="Tabela pracowników"
@@ -344,7 +346,7 @@ const EmployeesList = () => {
           <ActivityIndicator size="large" color="#0D6EFD" />
         </View>
       ) : filteredEmployees.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <Ionicons name="people-outline" size={64} color={tc('muted', "#475569")} />
           <Text style={styles.emptyText}>
             {searchTerm ? "Nie znaleziono pracowników" : "Brak pracowników"}
@@ -363,6 +365,8 @@ const EmployeesList = () => {
             </Text>
           </View>
           <FlatList
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
             data={filteredEmployees}
             renderItem={renderEmployee}
             keyExtractor={(item) => item._id}
@@ -381,6 +385,7 @@ const EmployeesList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={[look.modalContent, styles.formModalContent]}>
             <ModalHeader
@@ -389,7 +394,7 @@ const EmployeesList = () => {
               title={isEditing ? "Edytuj pracownika" : "Dodaj pracownika"}
             />
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               {/* Imię */}
               <View style={styles.formGroup}>
                 <Text style={look.formLabel}>Imię *</Text>
@@ -489,6 +494,7 @@ const EmployeesList = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -570,6 +576,7 @@ const EmployeesList = () => {
           </View>
         </View>
       </Modal>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

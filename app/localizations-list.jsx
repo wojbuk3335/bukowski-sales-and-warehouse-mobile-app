@@ -19,6 +19,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const LocalizationsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -214,67 +215,72 @@ const LocalizationsList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Lista lokalizacji"
-        icon="location-outline"
-        color="#EF4444"
-        onBack={() => router.back()}
-        right={<IconButton icon="add" color="#EF4444" onPress={handleAddLocalization} disabled={loading} accessibilityLabel="Dodaj" />}
-      />
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj lokalizacji..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Lista lokalizacji"
+          icon="location-outline"
+          color="#EF4444"
+          onBack={() => router.back()}
+          right={<IconButton icon="add" color="#EF4444" onPress={handleAddLocalization} disabled={loading} accessibilityLabel="Dodaj" />}
         />
-        {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Localizations List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#EF4444" />
-        </View>
-      ) : filteredLocalizations.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
-          <Ionicons name="location-outline" size={64} color="#475569" />
-          <Text style={styles.emptyText}>
-            {searchTerm ? "Nie znaleziono lokalizacji" : "Brak lokalizacji"}
-          </Text>
-          {!searchTerm && (
-            <Text style={styles.emptyHint}>
-              Naciśnij "+" aby dodać nową lokalizację
-            </Text>
-          )}
-        </ScrollView>
-      ) : (
-        <>
-          <View style={styles.countContainer}>
-            <Text style={styles.countText}>
-              Znaleziono: {filteredLocalizations.length} lokalizacji
-            </Text>
-          </View>
-          <FlatList
-            data={filteredLocalizations}
-            renderItem={renderLocalization}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-            alwaysBounceVertical
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj lokalizacji..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
           />
-        </>
-      )}
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Localizations List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#EF4444" />
+          </View>
+        ) : filteredLocalizations.length === 0 ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+            <Ionicons name="location-outline" size={64} color="#475569" />
+            <Text style={styles.emptyText}>
+              {searchTerm ? "Nie znaleziono lokalizacji" : "Brak lokalizacji"}
+            </Text>
+            {!searchTerm && (
+              <Text style={styles.emptyHint}>
+                Naciśnij "+" aby dodać nową lokalizację
+              </Text>
+            )}
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.countContainer}>
+              <Text style={styles.countText}>
+                Znaleziono: {filteredLocalizations.length} lokalizacji
+              </Text>
+            </View>
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              data={filteredLocalizations}
+              renderItem={renderLocalization}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
+            />
+          </>
+        )}
+      </KeyboardSafeScreen>
 
       {/* Edit Modal */}
       <Modal
@@ -283,53 +289,56 @@ const LocalizationsList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#EF4444" title="Edytuj lokalizację" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="create-outline" color="#EF4444" title="Edytuj lokalizację" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Kod lokalizacji */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kod lokalizacji</Text>
-                <TextInput
-                  style={[look.formInput, styles.formInputDisabled]}
-                  value={miejscKod}
-                  editable={false}
-                />
-                <Text style={styles.formHint}>Kod nie może być edytowany</Text>
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Kod lokalizacji */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Kod lokalizacji</Text>
+                  <TextInput
+                    style={[look.formInput, styles.formInputDisabled]}
+                    value={miejscKod}
+                    editable={false}
+                  />
+                  <Text style={styles.formHint}>Kod nie może być edytowany</Text>
+                </View>
+
+                {/* Opis lokalizacji */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Opis lokalizacji *</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder="Wpisz opis lokalizacji"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={miejscOpis}
+                    onChangeText={setMiejscOpis}
+                  />
+                  <Text style={styles.formHint}>Opis musi być unikalny</Text>
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSaveLocalization}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Opis lokalizacji */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Opis lokalizacji *</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder="Wpisz opis lokalizacji"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={miejscOpis}
-                  onChangeText={setMiejscOpis}
-                />
-                <Text style={styles.formHint}>Opis musi być unikalny</Text>
-              </View>
-            </ScrollView>
-
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSaveLocalization}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

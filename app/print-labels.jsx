@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { REMAINING_CATEGORY_LABELS } from "../config/remainingProductTypes";
 import {
   View,
@@ -21,6 +21,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const PrintLabels = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const authContext = useContext(AuthContext);
@@ -54,6 +55,9 @@ const PrintLabels = () => {
   // Active filter dropdown
   const [activeFilter, setActiveFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
+  // Wyszukiwarka w rozwijanym filtrze: po kliknięciu miejsce nad klawiaturą na pole i listę opcji
+  const filterReveal = useRevealInput();
+  const filterSearchRef = useRef(null);
   
   // Printing states
   const [printingId, setPrintingId] = useState(null);
@@ -620,107 +624,6 @@ const PrintLabels = () => {
     return foundColor ? { code: foundColor.Kol_Kod, colorName: foundColor.Kol_Opis } : null;
   };
 
-  const generateZplCode = (item, priceOverride = null, userId = null) => {
-    try {
-      // /state/all/inventory: product, barcodes, sellingPoints, size
-      // /state/${userId}/inventory: fullName, barcode, sellingPoint, size
-      
-      const itemName = item.product || getProductName(item.fullName);
-      
-      const itemSize = item.size ? getSizeLabel(item.size) : '-';
-      
-      let barcode = 'NO-BARCODE';
-      const itemBarcode = item.barcodes || item.barcode;
-      if (itemBarcode) {
-        // If barcodes is a string with multiple codes, take first one
-        barcode = itemBarcode.split(',')[0].trim();
-      }
-      
-      let price = null;
-      if (priceOverride !== null && priceOverride !== undefined) {
-        price = priceOverride;
-      } else if (item.price !== undefined && item.price !== null) {
-        price = item.price;
-      }
-      
-      // Get selling point label
-      const sellingPointLabel = userId 
-        ? getSellingPointLabel(userId)
-        : (item.sellingPoints || getSellingPointLabel(item.sellingPoint));
-      
-      // Dynamically get point number from user.pointNumber (never use hardcoded map)
-      let symbol = 'N/A';
-      const userToCheck = userId || item.sellingPoint || item.sellingPoints;
-      
-      if (userToCheck) {
-        let user;
-        // Check if it's a MongoDB ID
-        if (/^[0-9a-f]{24}$/i.test(userToCheck)) {
-          user = allUsers.find(u => u._id === userToCheck);
-        } else {
-          // It's a symbol like "T", "M", find user by symbol or sellingPoint
-          user = allUsers.find(u => {
-            const userSymbol = u.symbol || '';
-            const sellingPoint = u.sellingPoint || '';
-            return userSymbol === userToCheck || 
-                   sellingPoint === userToCheck ||
-                   (u.role === 'magazyn' && userToCheck === 'MAGAZYN');
-          });
-        }
-        
-        // ALWAYS use pointNumber from database - never fallback to hardcoded map
-        if (user?.pointNumber) {
-          symbol = user.pointNumber;
-        }
-      }
-
-      let processedName = (itemName || 'N/A');
-      
-      // Get color code and name from the database
-      const colorInfo = getColorCodeFromName(itemName);
-      
-      if (colorInfo && colorInfo.colorName) {
-        // Remove the found color name from the product name (case-insensitive)
-        const colorNameRegex = new RegExp('\\s*' + colorInfo.colorName + '\\s*', 'gi');
-        processedName = processedName.replace(colorNameRegex, ' ').trim();
-        
-        // Add color code at the end
-        processedName += ' ' + colorInfo.code;
-      }
-
-      const safeName = processedName.replace(/[^\x00-\x7F]/g, '?');
-      
-      let displaySize = itemSize || 'N/A';
-      if (displaySize === 'No Size' || displaySize === 'NO SIZE') {
-        displaySize = '-';
-      }
-      const safeSize = displaySize.replace(/[^\x00-\x7F]/g, '?');
-      
-      const safeTransfer = (symbol || 'N/A').replace(/[^\x00-\x7F]/g, '?');
-      const safePrice = (price !== null && price !== undefined) 
-        ? price.toString().replace(/[^\x00-\x7F]/g, '?') 
-        : 'N/A';
-
-      return `^XA
-^MMT
-^PW450
-^LL0400
-^LS0
-^FT3,50^A0N,40,40^FD${safeName}^FS
-^FT320,55^A0N,40,40^FDCena:^FS
-^FT320,105^A0N,55,55^FD${safePrice} zl^FS
-
-^FT3,120^A0N,38,38^FDRozmiar: ${safeSize}^FS
-^FT3,150^A0N,25,25^FDPunkt: ${safeTransfer}^FS
-^BY2,3,85^FT80,238^BCN,,N,N
-^FD${barcode}^FS
-^FT125,280^A0N,28,28^FB200,1,0,C,0^FD${barcode}^FS
-^XZ`;
-    } catch (error) {
-      console.error('Error generating ZPL:', error);
-      return null;
-    }
-  };
 
   const sendZplToPrinter = async (zplCode) => {
     const printerIP = '192.168.1.25';
@@ -926,6 +829,8 @@ const PrintLabels = () => {
             <View style={styles.searchInputContainer}>
               <Ionicons name="search" size={20} color={tc('muted', "#64748B")} style={styles.searchIcon} />
               <TextInput
+                ref={filterSearchRef}
+                onFocus={() => filterReveal.revealWithSpace(filterSearchRef, 240)}
                 style={styles.searchInput}
                 placeholder="Szukaj..."
                 placeholderTextColor={tc('muted', "#64748B")}
@@ -1002,6 +907,7 @@ const PrintLabels = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardSafeScreen>
       {/* Nagłówek podstrony */}
       <PageHeader
         title="Wydruk etykiet"
@@ -1010,6 +916,9 @@ const PrintLabels = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        ref={filterReveal.scrollRef}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -1333,6 +1242,7 @@ const PrintLabels = () => {
           </View>
         </View>
       </Modal>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

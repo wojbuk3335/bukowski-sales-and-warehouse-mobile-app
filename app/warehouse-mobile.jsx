@@ -24,6 +24,8 @@ import { GlobalStateContext } from "../context/GlobalState";
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { buildLabelZpl } from "../utils/labelZpl"; // układ metki (jak na serwerze)
 const WarehouseMobile = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -87,6 +89,10 @@ const WarehouseMobile = () => {
 
   const productInputRef = useRef(null);
   const sizeInputRef = useRef(null);
+  const editProductInputRef = useRef(null);
+  // Pola z podpowiedziami: po kliknięciu miejsce nad klawiaturą na pole i rozwiniętą listę
+  const screenReveal = useRevealInput();
+  const editReveal = useRevealInput();
   const listRef = useRef(null);
 
   const isStatesMode = Boolean(paramUserId || paramSymbol || paramAllStates);
@@ -764,25 +770,8 @@ const WarehouseMobile = () => {
       const barcode = item.barcode || "NO-BARCODE";
       const symbol = "02"; // MAGAZYN = 02
       
-      const safeName = fullNameStr.replace(/[^\x00-\x7F]/g, '?');
-      const safeSize = sizeStr.replace(/[^\x00-\x7F]/g, '?');
-      const safePrice = priceValue ? priceValue.toString().replace(/[^\x00-\x7F]/g, '?') : 'N/A';
-      
-      return `^XA
-^MMT
-^PW450
-^LL0400
-^LS0
-^FT3,50^A0N,40,40^FD${safeName}^FS
-^FT320,55^A0N,40,40^FDCena:^FS
-^FT320,105^A0N,55,55^FD${safePrice} zl^FS
-
-^FT3,120^A0N,38,38^FDRozmiar: ${safeSize}^FS
-^FT3,150^A0N,25,25^FDPunkt: ${symbol}^FS
-^BY2,3,85^FT80,238^BCN,,N,N
-^FD${barcode}^FS
-^FT125,280^A0N,28,28^FB200,1,0,C,0^FD${barcode}^FS
-^XZ`;
+      // Układ metki wspólny z serwerem (utils/labelZpl.js) - wydruk zapasowy wygląda tak samo
+      return buildLabelZpl({ productName: fullNameStr, price: priceValue, size: sizeStr, pointNumber: symbol, barcode });
     } catch (error) {
       console.error('Error generating ZPL:', error);
       return null;
@@ -1107,6 +1096,7 @@ const WarehouseMobile = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: tc('bg', "#000000") }]}>
+      <KeyboardSafeScreen>
       {/* Header */}
       <PageHeader
         title={headerTitle}
@@ -1116,6 +1106,9 @@ const WarehouseMobile = () => {
       />
 
       <ScrollView alwaysBounceVertical
+        ref={screenReveal.scrollRef}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -1196,6 +1189,7 @@ const WarehouseMobile = () => {
               placeholderTextColor={tc('muted', "#666")}
               value={productName}
               onChangeText={handleProductNameChange}
+              onFocus={() => screenReveal.revealWithSpace(productInputRef, 220)}
               returnKeyType="next"
               onSubmitEditing={() => sizeInputRef.current?.focus()}
             />
@@ -1226,9 +1220,11 @@ const WarehouseMobile = () => {
               ref={sizeInputRef}
               style={styles.input}
               placeholder="Wpisz rozmiar"
+              autoCapitalize="characters" // rozmiar wielkimi literami
               placeholderTextColor={tc('muted', "#666")}
               value={selectedSize}
               onChangeText={handleSizeChange}
+              onFocus={() => screenReveal.revealWithSpace(sizeInputRef, 220)}
               returnKeyType="done"
             />
             {showSizeDropdown && filteredSizes.length > 0 && (
@@ -1294,6 +1290,8 @@ const WarehouseMobile = () => {
       {/* Edit Modal */}
       {showEditModal && (
         <View style={styles.modalOverlay}>
+          {/* Okienko to zwykły View (nie Modal): tło jest absolutne, więc samo robi miejsce na klawiaturę */}
+          <KeyboardSafeOverlay style={{ justifyContent: "flex-end" }}>
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
               <ModalHeader icon="pencil" color="#F59E0B" title="Edytuj produkt" />
@@ -1305,7 +1303,7 @@ const WarehouseMobile = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent}>
+            <ScrollView ref={editReveal.scrollRef} style={styles.modalContent} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Nazwa produktu</Text>
               <View style={styles.dropdownContainer}>
                 <TextInput
@@ -1314,6 +1312,8 @@ const WarehouseMobile = () => {
                   placeholderTextColor={tc('muted', "#666")}
                   value={editFullName}
                   onChangeText={handleEditProductNameChange}
+                  ref={editProductInputRef}
+                  onFocus={() => editReveal.revealWithSpace(editProductInputRef, 220)}
                 />
                 {showEditProductDropdown && filteredEditProducts.length > 0 && (
                   <ScrollView
@@ -1340,6 +1340,7 @@ const WarehouseMobile = () => {
               <TextInput
                 style={styles.input}
                 placeholder="Rozmiar"
+                autoCapitalize="characters" // rozmiar wielkimi literami
                 placeholderTextColor={tc('muted', "#666")}
                 value={editSize}
                 onChangeText={setEditSize}
@@ -1385,6 +1386,7 @@ const WarehouseMobile = () => {
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardSafeOverlay>
         </View>
       )}
 
@@ -1454,6 +1456,7 @@ const WarehouseMobile = () => {
           </View>
         </View>
       )}
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };

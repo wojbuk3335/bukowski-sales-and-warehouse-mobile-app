@@ -19,6 +19,7 @@ import usePullToRefresh from '../hooks/usePullToRefresh';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const SizesList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -158,61 +159,66 @@ const SizesList = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Nagłówek */}
-      <PageHeader
-        title="Lista rozmiarów"
-        icon="resize-outline"
-        color="#06B6D4"
-        onBack={() => router.back()}
-      />
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Szukaj rozmiaru..."
-          placeholderTextColor={tc('muted', "#64748B")}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
+      {/* Klawiatura nie zasłania pola: ekran kurczy się nad klawiaturą i przewija do klikniętego pola */}
+      <KeyboardSafeScreen>
+        {/* Nagłówek */}
+        <PageHeader
+          title="Lista rozmiarów"
+          icon="resize-outline"
+          color="#06B6D4"
+          onBack={() => router.back()}
         />
-        {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Sizes List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#06B6D4" />
-        </View>
-      ) : filteredSizes.length === 0 ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
-          <Ionicons name="resize-outline" size={64} color="#475569" />
-          <Text style={styles.emptyText}>
-            {searchTerm ? "Nie znaleziono rozmiarów" : "Brak rozmiarów"}
-          </Text>
-        </ScrollView>
-      ) : (
-        <>
-          <View style={styles.countContainer}>
-            <Text style={styles.countText}>
-              Znaleziono: {filteredSizes.length} rozmiarów
-            </Text>
-          </View>
-          <FlatList
-            data={filteredSizes}
-            renderItem={renderSize}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-            alwaysBounceVertical
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={tc('muted', "#94A3B8")} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Szukaj rozmiaru..."
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
           />
-        </>
-      )}
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={20} color={tc('muted', "#94A3B8")} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Sizes List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#06B6D4" />
+          </View>
+        ) : filteredSizes.length === 0 ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+            <Ionicons name="resize-outline" size={64} color="#475569" />
+            <Text style={styles.emptyText}>
+              {searchTerm ? "Nie znaleziono rozmiarów" : "Brak rozmiarów"}
+            </Text>
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.countContainer}>
+              <Text style={styles.countText}>
+                Znaleziono: {filteredSizes.length} rozmiarów
+              </Text>
+            </View>
+            <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              data={filteredSizes}
+              renderItem={renderSize}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+              alwaysBounceVertical
+            />
+          </>
+        )}
+      </KeyboardSafeScreen>
 
       {/* Add/Edit Modal */}
       <Modal
@@ -221,58 +227,61 @@ const SizesList = () => {
         animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#06B6D4" title="Edytuj rozmiar" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="create-outline" color="#06B6D4" title="Edytuj rozmiar" />
 
-            <ScrollView style={styles.modalBody}>
-              {/* Kod rozmiaru */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kod rozmiaru *</Text>
-                <TextInput
-                  style={[look.formInput, editingSize && styles.formInputDisabled]}
-                  placeholder="Wpisz kod (np. XL)"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={rozKod}
-                  onChangeText={setRozKod}
-                  editable={!editingSize}
-                />
-                {editingSize && (
-                  <Text style={styles.formHint}>Kod nie może być edytowany</Text>
-                )}
+              <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                {/* Kod rozmiaru */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Kod rozmiaru *</Text>
+                  <TextInput
+                    style={[look.formInput, editingSize && styles.formInputDisabled]}
+                    placeholder="Wpisz kod (np. XL)"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={rozKod}
+                    onChangeText={setRozKod}
+                    editable={!editingSize}
+                  />
+                  {editingSize && (
+                    <Text style={styles.formHint}>Kod nie może być edytowany</Text>
+                  )}
+                </View>
+
+                {/* Nazwa rozmiaru */}
+                <View style={styles.formGroup}>
+                  <Text style={look.formLabel}>Nazwa rozmiaru *</Text>
+                  <TextInput
+                    style={look.formInput}
+                    placeholder="Wpisz nazwę (np. Extra Large)"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={rozOpis}
+                    onChangeText={setRozOpis}
+                  />
+                  <Text style={styles.formHint}>Nazwa musi być unikalna</Text>
+                </View>
+              </ScrollView>
+
+              <View style={[look.buttonRow, styles.modalActions]}>
+                <TouchableOpacity
+                  style={look.neutralButton}
+                  onPress={() => setShowModal(false)}
+                >
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSaveSize}
+                >
+                  <Text style={look.buttonText}>Zapisz</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Nazwa rozmiaru */}
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Nazwa rozmiaru *</Text>
-                <TextInput
-                  style={look.formInput}
-                  placeholder="Wpisz nazwę (np. Extra Large)"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={rozOpis}
-                  onChangeText={setRozOpis}
-                />
-                <Text style={styles.formHint}>Nazwa musi być unikalna</Text>
-              </View>
-            </ScrollView>
-
-            <View style={[look.buttonRow, styles.modalActions]}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                onPress={handleSaveSize}
-              >
-                <Text style={look.buttonText}>Zapisz</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

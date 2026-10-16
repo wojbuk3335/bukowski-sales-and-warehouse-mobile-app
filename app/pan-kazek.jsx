@@ -20,6 +20,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const monthNames = [
   "",
   "Styczeń",
@@ -443,44 +444,47 @@ const PanKazek = () => {
       </Modal>
 
       <Modal visible={showPayModal} transparent animationType="fade">
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="cash-outline" color="#10B981" title="Rozlicz wszystkie" subtitle="Podaj dane rozliczenia" />
+        {/* Klawiatura nie zasłania pól: tło okienka kurczy się nad klawiaturą */}
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="cash-outline" color="#10B981" title="Rozlicz wszystkie" subtitle="Podaj dane rozliczenia" />
 
-            <Text style={look.formLabel}>Kto rozlicza</Text>
-            <TextInput
-              style={[look.formInput, styles.input]}
-              placeholder="Kto rozlicza"
-              placeholderTextColor={tc('muted', "#64748B")}
-              value={paidBy}
-              onChangeText={setPaidBy}
-            />
-            <Text style={look.formLabel}>Kwota (PLN)</Text>
-            <TextInput
-              style={[look.formInput, styles.input]}
-              placeholder="Kwota (PLN)"
-              placeholderTextColor={tc('muted', "#64748B")}
-              value={paidAmount}
-              keyboardType="numeric"
-              onChangeText={setPaidAmount}
-            />
+              <Text style={look.formLabel}>Kto rozlicza</Text>
+              <TextInput
+                style={[look.formInput, styles.input]}
+                placeholder="Kto rozlicza"
+                placeholderTextColor={tc('muted', "#64748B")}
+                value={paidBy}
+                onChangeText={setPaidBy}
+              />
+              <Text style={look.formLabel}>Kwota (PLN)</Text>
+              <TextInput
+                style={[look.formInput, styles.input]}
+                placeholder="Kwota (PLN)"
+                placeholderTextColor={tc('muted', "#64748B")}
+                value={paidAmount}
+                keyboardType="numeric"
+                onChangeText={setPaidAmount}
+              />
 
-            <View style={look.buttonRow}>
-              <TouchableOpacity style={look.neutralButton} onPress={() => setShowPayModal(false)}>
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[look.primaryButton, styles.payConfirmButton, processing && styles.payConfirmButtonDisabled]}
-                onPress={handlePayAll}
-                disabled={processing}
-              >
-                <Text style={look.buttonText}>
-                  {processing ? "Rozliczam..." : "Potwierdź"}
-                </Text>
-              </TouchableOpacity>
+              <View style={look.buttonRow}>
+                <TouchableOpacity style={look.neutralButton} onPress={() => setShowPayModal(false)}>
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[look.primaryButton, styles.payConfirmButton, processing && styles.payConfirmButtonDisabled]}
+                  onPress={handlePayAll}
+                  disabled={processing}
+                >
+                  <Text style={look.buttonText}>
+                    {processing ? "Rozliczam..." : "Potwierdź"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardSafeOverlay>
       </Modal>
     </SafeAreaView>
   );

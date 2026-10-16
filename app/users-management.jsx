@@ -21,6 +21,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, PointPill, pointColorMap, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 
 // Kolor i ikona roli (tylko wygląd: pasek karty, plakietka, karta wyboru roli)
 const ROLE_LOOK = {
@@ -679,12 +680,14 @@ const UsersManagement = () => {
           resetForm();
         }}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={[look.modalContent, styles.modalContainer]}>
             <ModalHeader icon="person-add" color="#0D6EFD" title="Dodaj użytkownika" />
             {renderUserForm(false)}
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Edit User Modal */}
@@ -698,12 +701,14 @@ const UsersManagement = () => {
           setEditingUser(null);
         }}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={[look.modalContent, styles.modalContainer]}>
             <ModalHeader icon="create" color="#0D6EFD" title="Edytuj użytkownika" />
             {renderUserForm(true)}
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Success Modal */}

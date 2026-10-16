@@ -20,6 +20,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 const CorrectionsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
@@ -609,11 +610,12 @@ const CorrectionsList = () => {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
             <ModalHeader icon="funnel-outline" title="Filtry" />
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               {/* Status Filter */}
               <View style={styles.filterGroup}>
                 <Text style={look.formLabel}>Status:</Text>
@@ -708,6 +710,7 @@ const CorrectionsList = () => {
                   value={filters.size}
                   onChangeText={(text) => setFilters({ ...filters, size: text })}
                   placeholder="Wpisz rozmiar..."
+                  autoCapitalize="characters" // rozmiar wielkimi literami
                   placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>
@@ -732,6 +735,7 @@ const CorrectionsList = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       {/* Product Modal */}

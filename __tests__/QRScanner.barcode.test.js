@@ -72,8 +72,10 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
   };
 
   const openModalAndGetBarcodeInput = async (utils, initialBarcode = '1234567890') => {
-    const cameraView = utils.getByTestId('camera-view');
-    fireEvent(cameraView, 'onBarcodeScanned', { data: initialBarcode, type: 'code128' });
+    // Skaner przyjmuje kod dopiero po kilku zgodnych odczytach pod rząd (jak kamera: kolejne klatki)
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent(utils.getByTestId('camera-view'), 'onBarcodeScanned', { data: initialBarcode, type: 'code128' });
+    }
     return await waitFor(() => utils.getByPlaceholderText('Wpisz lub zeskanuj kod kreskowy'));
   };
 
@@ -202,12 +204,14 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
   });
 
   // 🎯 TEST 9: Autofocus na polu kodu kreskowego
-  test('Pole kodu kreskowego powinno mieć autofocus', () => {
-    const { getByPlaceholderText, getByTestId } = render(<QRScanner {...mockProps} />);
-    
+  // Po skanie formularz zajmuje cały ekran: kamera się chowa i klawiatura się NIE otwiera
+  // (wcześniej kamera + klawiatura zajmowały po pół ekranu i formularza nie było widać na iPhonie)
+  test('Po skanie: pole kodu bez autofocusu, kamera schowana', () => {
+    const { getByPlaceholderText, getByTestId, queryByTestId } = render(<QRScanner {...mockProps} />);
+
     return openModalAndGetBarcodeInput({ getByTestId, getByPlaceholderText }).then((barcodeInput) => {
-      // Sprawdzenie że inputa ma autoFocus attribute
-      expect(barcodeInput.props.autoFocus).toBe(true);
+      expect(barcodeInput.props.autoFocus).not.toBe(true);
+      expect(queryByTestId('camera-view')).toBeNull();
     });
   });
 

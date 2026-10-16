@@ -21,6 +21,7 @@ import { API_CONFIG, getApiUrl } from "../config/api";
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 // Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
 // Zwraca komunikat błędu albo null.
 // Liczba z pola ceny: akceptuje przecinek jako separator dziesiętny ("199,99"), puste = NaN
@@ -541,6 +542,7 @@ const Cenniki = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardSafeScreen>
       {/* Nagłówek podstrony */}
       <PageHeader
         title="Cenniki"
@@ -648,7 +650,7 @@ const Cenniki = () => {
               <Text style={styles.loadingText}>Ładowanie cennika...</Text>
             </View>
           ) : filteredPriceList.length === 0 ? (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]} refreshControl={refreshControl} alwaysBounceVertical keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
               <Ionicons name="pricetag-outline" size={64} color="#475569" />
               <Text style={styles.emptyText}>
                 {priceListError
@@ -660,6 +662,8 @@ const Cenniki = () => {
             </ScrollView>
           ) : (
             <FlatList
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
               data={filteredPriceList}
               renderItem={renderPriceItem}
               keyExtractor={(item) => item._id}
@@ -710,10 +714,11 @@ const Cenniki = () => {
         animationType="slide"
         onRequestClose={() => setShowEditModal(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={look.modalOverlay}>
           <View style={[look.modalContent, styles.modalContentLarge]}>
             <ModalHeader icon="pricetag-outline" title="Edytuj ceny" subtitle={editingItem?.fullName} />
-            <ScrollView style={styles.modalList}>
+            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
               <View style={styles.formGroup}>
                 <Text style={look.formLabel}>Cena</Text>
                 <TextInput
@@ -792,6 +797,7 @@ const Cenniki = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       <Modal
@@ -800,6 +806,7 @@ const Cenniki = () => {
         animationType="slide"
         onRequestClose={() => setShowSizePicker(false)}
       >
+        <KeyboardSafeOverlay>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.pickerModalContent}>
             <ModalHeader icon="resize-outline" title="Wybierz rozmiar" />
@@ -814,6 +821,7 @@ const Cenniki = () => {
               />
             </View>
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={sizes.filter((size) =>
                 size.Roz_Opis?.toLowerCase().includes(sizeSearch.toLowerCase())
                 && !editPriceExceptions.some((other, otherIndex) => otherIndex !== activeExceptionIndex && other.size === size._id)
@@ -848,6 +856,7 @@ const Cenniki = () => {
             </View>
           </View>
         </View>
+        </KeyboardSafeOverlay>
       </Modal>
 
       <Modal
@@ -965,6 +974,7 @@ const Cenniki = () => {
         </View>
       </Modal>
 
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 };
