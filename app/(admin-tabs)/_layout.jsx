@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
+import { CommonActions } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View } from "react-native";
 import { useContext } from "react";
@@ -38,6 +39,22 @@ const AdminTabLayout = () => {
       <View style={{ height: 32, backgroundColor: colors.bg }} />
       <Tabs
         options={{ headerShown: false }}
+        // Kliknięcie aktywnej zakładki otwiera ją od nowa (świeży ekran), jak po wejściu z innej zakładki
+        screenListeners={({ navigation, route }) => ({
+          tabPress: (event) => {
+            if (!navigation.isFocused()) return;
+            event.preventDefault();
+            const state = navigation.getState();
+            navigation.dispatch({
+              ...CommonActions.reset({
+                index: state.index,
+                // trasa bez klucza dostaje nowy klucz = ekran montuje się od nowa
+                routes: state.routes.map((r) => (r.key === route.key ? { name: r.name, params: r.params } : r)),
+              }),
+              target: state.key,
+            });
+          },
+        })}
         screenOptions={{
           tabBarActiveTintColor: "rgb(0, 123, 255)",
           tabBarInactiveTintColor: colors.muted,

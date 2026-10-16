@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useNavigation, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -52,13 +52,10 @@ const SignIn = () => {
     }
   }, [params?.reason]);
 
-  // Usunięto automatyczne przekierowanie przy wejściu - użytkownik musi wybrać panel
-
-  const handlePanelSwitch = async () => {
-    const newIsAdminPanel = !isAdminPanel;
-    setIsAdminPanel(newIsAdminPanel);
-    
-    // Sprawdź czy użytkownik ma ważne tokeny przed automatycznym logowaniem
+  // Zapisany i nadal zalogowany użytkownik wchodzi od razu do swojego panelu (bez wpisywania hasła),
+  // gdy wybrany panel pasuje do jego roli. Wywoływane przy wejściu na ekran, przy zmianie panelu
+  // i przy kliknięciu w już zaznaczony panel.
+  const tryAutoLogin = async (newIsAdminPanel) => {
     try {
       const userData = await AsyncStorage.getItem("user");
       if (userData) {
@@ -92,6 +89,22 @@ const SignIn = () => {
       Logger.error("Failed to check user for panel switch:", error);
     }
   };
+
+  const handlePanelSwitch = async () => {
+    const newIsAdminPanel = !isAdminPanel;
+    setIsAdminPanel(newIsAdminPanel);
+    await tryAutoLogin(newIsAdminPanel);
+  };
+
+  // Wejście na ekran: zalogowany użytkownik punktu (domyślnie zaznaczony panel „Użytkownik”) wchodzi od razu.
+  // Czekamy na koniec sprawdzania aktualizacji OTA, żeby nie przełączać ekranu w trakcie jej wgrywania.
+  const autoLoginTriedRef = useRef(false);
+  useEffect(() => {
+    if (updateStage !== null || autoLoginTriedRef.current || params?.reason === "SESSION_REVOKED") return;
+    autoLoginTriedRef.current = true;
+    tryAutoLogin(isAdminPanel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateStage]);
 
   const submit = async () => {
     try {
@@ -188,7 +201,7 @@ const SignIn = () => {
                   accessibilityRole="radio"
                   accessibilityState={{ checked: active }}
                   style={[styles.segmentOption, active && styles.segmentOptionActive]}
-                  onPress={() => { if (!active) handlePanelSwitch(); }}
+                  onPress={() => { if (active) tryAutoLogin(isAdminPanel); else handlePanelSwitch(); }}
                 >
                   <Ionicons name={active ? option.icon : `${option.icon}-outline`} size={18} color={active ? "#fff" : tc('muted', "#94A3B8")} />
                   <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{option.label}</Text>
