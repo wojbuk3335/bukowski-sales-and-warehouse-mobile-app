@@ -15,13 +15,14 @@
 // Kod: Code 128 w trybie automatycznym (cyfry parami - kod krótszy). NIE EAN-13: kod EAN-13 zaczynający się od zera
 // jest jednocześnie UPC-A i skanery w telefonach obcinają pierwsze zero (0040408300005 -> 040408300005), a prawie
 // wszystkie nasze kody zaczynają się od zera. Code 128 czyta się dokładnie tak, jak jest wydrukowany.
-// Grubość kreski: największa, przy której kod mieści się w lewej części metki z białym marginesem, jakiego wymaga
-// skaner (10 szerokości kreski z każdej strony).
+// Grubość kreski: największa, przy której kod mieści się w lewej części metki z białym marginesem. Kreska 4 pkt
+// (0,34 mm - decyzja użytkownika: grubsza kreska ważniejsza niż duża cena) z marginesem 6 szerokości kreski
+// (ok. 2 mm), cieńsze kreski z pełnym marginesem 10 szerokości kreski.
 
 const LABEL_WIDTH = 590; // 50 mm przy 300 dpi
 const LABEL_HEIGHT = 400;
 const EDGE = 12;
-const PRICE_FONT = 72; // wysokość liter ceny = szerokość kolumny ceny
+const PRICE_FONT = 40; // wysokość liter ceny = szerokość kolumny ceny (mniejsza cena = miejsce na kreskę 4 pkt)
 const PRICE_X = LABEL_WIDTH - 4 - PRICE_FONT; // cena dosunięta maksymalnie do prawej krawędzi
 const PRICE_LENGTH = 285; // długość pola ceny (wzdłuż krawędzi), cena wyśrodkowana
 const AREA_WIDTH = PRICE_X - 6; // lewa część metki: nazwa, kod, rozmiar
@@ -53,9 +54,9 @@ const code128Modules = (data) => {
 // z wymaganym białym marginesem (kod wyśrodkowany - marginesy wychodzą równe)
 const barcodeGeometry = (data, areaWidth = AREA_WIDTH) => {
     const modules = code128Modules(data);
-    const quietModules = 2 * 10;
     let moduleWidth = 1;
     for (const width of [4, 3, 2]) {
+        const quietModules = 2 * (width >= 4 ? 6 : 10);
         if ((modules + quietModules) * width <= areaWidth) {
             moduleWidth = width;
             break;
