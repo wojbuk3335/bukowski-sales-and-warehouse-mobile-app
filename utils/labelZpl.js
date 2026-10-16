@@ -11,10 +11,11 @@
 //  └──────────────────────────────────────────┘
 //
 // Fizyczna metka ma ok. 310 punktów wysokości (ok. 38 mm, zmierzone na wydruku) - treść kończy się na ok. 295.
-// Kod: EAN-13, gdy kod ma 13 cyfr z poprawną cyfrą kontrolną (wszystkie kody produktów) - jest najkrótszy (95 modułów),
-// więc ma najgrubsze kreski na tej samej szerokości i najlepiej czyta się go telefonem. Inne kody: Code 128 w trybie
-// automatycznym. Grubość kreski: największa, przy której kod mieści się w lewej części metki z minimalnym białym
-// marginesem, jakiego wymaga skaner (EAN-13: 11 modułów z lewej i 7 z prawej, Code 128: 10 z każdej strony).
+// Kod: Code 128 w trybie automatycznym (cyfry parami - kod krótszy). NIE EAN-13: kod EAN-13 zaczynający się od zera
+// jest jednocześnie UPC-A i skanery w telefonach obcinają pierwsze zero (0040408300005 -> 040408300005), a prawie
+// wszystkie nasze kody zaczynają się od zera. Code 128 czyta się dokładnie tak, jak jest wydrukowany.
+// Grubość kreski: największa, przy której kod mieści się w lewej części metki z białym marginesem, jakiego wymaga
+// skaner (10 szerokości kreski z każdej strony).
 
 const LABEL_WIDTH = 450;
 const LABEL_HEIGHT = 400;
@@ -47,19 +48,11 @@ const code128Modules = (data) => {
     return (1 + n + 1) * 11 + 13; // start B + znaki + suma kontrolna + stop
 };
 
-const isValidEan13 = (value) => {
-    if (!/^\d{13}$/.test(String(value || ''))) return false;
-    const digits = String(value).split('').map(Number);
-    const sum = digits.slice(0, 12).reduce((acc, digit, index) => acc + digit * (index % 2 ? 3 : 1), 0);
-    return (10 - (sum % 10)) % 10 === digits[12];
-};
-
-// Rodzaj kodu, grubość kreski i położenie: największa kreska, przy której kod mieści się w lewej części
-// z minimalnym wymaganym białym marginesem (kod wyśrodkowany - marginesy wychodzą równe)
+// Grubość kreski i położenie: największa kreska, przy której kod mieści się w lewej części
+// z wymaganym białym marginesem (kod wyśrodkowany - marginesy wychodzą równe)
 const barcodeGeometry = (data, areaWidth = AREA_WIDTH) => {
-    const ean = isValidEan13(data);
-    const modules = ean ? 95 : code128Modules(data);
-    const quietModules = ean ? 11 + 7 : 2 * 10;
+    const modules = code128Modules(data);
+    const quietModules = 2 * 10;
     let moduleWidth = 1;
     for (const width of [4, 3, 2]) {
         if ((modules + quietModules) * width <= areaWidth) {
@@ -68,7 +61,7 @@ const barcodeGeometry = (data, areaWidth = AREA_WIDTH) => {
         }
     }
     const width = modules * moduleWidth;
-    return { type: ean ? 'ean13' : 'code128', moduleWidth, width, x: Math.max(0, Math.round((areaWidth - width) / 2)) };
+    return { moduleWidth, width, x: Math.max(0, Math.round((areaWidth - width) / 2)) };
 };
 
 const isUndefinedSize = (size) => {
@@ -91,7 +84,7 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) 
 
     const pointWidth = 110;
     const nameWidth = AREA_WIDTH - EDGE - pointWidth - 6;
-    const { type: barcodeType, moduleWidth, x: barcodeX } = barcodeGeometry(code);
+    const { moduleWidth, x: barcodeX } = barcodeGeometry(code);
     const digitsFont = code.length > 15 ? 18 : 22;
 
     const lines = [
@@ -112,12 +105,9 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) 
         lines.push(boldField(PRICE_X, 10, PRICE_FONT, `^FB${PRICE_LENGTH},1,0,C,0`, toZplUtf8Hex(priceText), 'R'));
     }
     lines.push(
-        // kod: wyśrodkowany w lewej części, bez napisu pod kreskami (cyfry osobno niżej).
-        // EAN-13: drukarka sama dolicza cyfrę kontrolną z 12 cyfr (jest poprawna - sprawdzone wyżej)
+        // kod: wyśrodkowany w lewej części, tryb automatyczny (A), bez napisu pod kreskami (cyfry osobno niżej)
         `^BY${moduleWidth},3,${BARCODE_HEIGHT}`,
-        barcodeType === 'ean13'
-            ? `^FO${barcodeX},${BARCODE_TOP}^BEN,${BARCODE_HEIGHT},N,N^FD${code.slice(0, 12)}^FS`
-            : `^FO${barcodeX},${BARCODE_TOP}^BCN,${BARCODE_HEIGHT},N,N,N,A^FD${code}^FS`,
+        `^FO${barcodeX},${BARCODE_TOP}^BCN,${BARCODE_HEIGHT},N,N,N,A^FD${code}^FS`,
         // cyfry kodu: pod kodem, wyśrodkowane w lewej części
         `^FO0,${BOTTOM_LINE + 14}^A0N,${digitsFont},${digitsFont}^FB${AREA_WIDTH},1,0,C,0^FD${code}^FS`,
     );
@@ -129,4 +119,4 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) 
     return lines.join('\n');
 };
 
-export { buildLabelZpl, barcodeGeometry, code128Modules, isValidEan13, toZplUtf8Hex };
+export { buildLabelZpl, barcodeGeometry, code128Modules, toZplUtf8Hex };
