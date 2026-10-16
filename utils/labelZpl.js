@@ -9,7 +9,7 @@
 //  │ 2XL         0100600300002     Punkt: 01   │  rozmiar - pogrubiony | cyfry kodu | punkt
 //  └──────────────────────────────────────────┘
 //
-// Fizyczna metka ma ok. 290 punktów wysokości (ok. 36 mm) - cała treść musi się skończyć przed ok. 265.
+// Fizyczna metka ma ok. 310 punktów wysokości (ok. 38 mm, zmierzone na wydruku) - treść kończy się na ok. 292.
 //
 // Kod: Code 128 w trybie automatycznym (cyfry parami - kod krótszy), grubość kreski 3 punkty, gdy się mieści
 // z pełnymi marginesami (min. 10 szerokości kreski z każdej strony), inaczej 2, w ostateczności 1.
@@ -18,7 +18,7 @@ const LABEL_WIDTH = 450;
 const LABEL_HEIGHT = 400;
 const EDGE = 12;
 const BARCODE_TOP = 92;
-const BARCODE_HEIGHT = 120; // wcześniej 85 - wyższy kod łatwiej złapać aparatem
+const BARCODE_HEIGHT = 145; // wcześniej 85 - wyższy kod łatwiej złapać aparatem
 const BOTTOM_LINE = BARCODE_TOP + BARCODE_HEIGHT + 8; // linia rozmiar | cyfry | punkt
 
 const toZplUtf8Hex = (text) => {
@@ -60,10 +60,10 @@ const isUndefinedSize = (size) => {
     return !value || ['!NIEOKREŚLONY', 'NIEOKREŚLONY', 'NO SIZE', 'N/A', '-'].includes(value);
 };
 
-// Tekst pogrubiony: ten sam napis drukowany drugi raz przesunięty o 2 punkty
+// Tekst pogrubiony: ten sam napis drukowany drugi raz przesunięty o 1 punkt (2 dawało podwójny obrys)
 const boldField = (x, y, font, block, hex) => [
     `^FO${x},${y}^A0N,${font},${font}${block}^FH_^FD${hex}^FS`,
-    `^FO${x + 2},${y}^A0N,${font},${font}${block}^FH_^FD${hex}^FS`,
+    `^FO${x + 1},${y}^A0N,${font},${font}${block}^FH_^FD${hex}^FS`,
 ].join('\n');
 
 const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) => {
