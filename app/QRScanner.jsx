@@ -485,7 +485,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
         setSelectedOption(""); // Brak dostępnych opcji
       }
       
-      // Otwórz modal z formularzem
+      // Otwórz formularz na cały ekran: kamera się chowa (poniżej), klawiatura zamknięta -
+      // wcześniej kamera i klawiatura zajmowały po pół ekranu i formularza nie było widać (iPhone)
+      Keyboard.dismiss();
       setModalVisible(true);
     }
   };
@@ -788,6 +790,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
 
   return (
     <View style={styles.container}>
+      {/* Kamera tylko gdy formularz sprzedaży jest zamknięty - po zamknięciu formularza wraca do skanowania */}
+      {!modalVisible && (
       <View style={{ flex: 1 }}>
         <CameraView
           style={styles.camera}
@@ -827,6 +831,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           </View>
         )}
       </View>
+      )}
 
       {modalVisible && (
         <KeyboardSafeScreen
@@ -862,7 +867,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   onChangeText={handleBarcodeChange}
                   editable={true}
                   placeholder="Wpisz lub zeskanuj kod kreskowy"
-                  autoFocus={true}
                 />
                 <Text style={look.formLabel}>Sprzedano produkt</Text>
                 <TextInput
