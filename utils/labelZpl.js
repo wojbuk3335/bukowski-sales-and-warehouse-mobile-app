@@ -1,4 +1,4 @@
-// Układ metki (ZPL, drukarka Zebra, metka 450 punktów szerokości) - JEDNO źródło wyglądu metki.
+// Układ metki (ZPL, drukarka Zebra 300 dpi, metka 50 mm = 590 punktów szerokości) - JEDNO źródło wyglądu metki.
 // KOPIA 1:1 z serwera (backend/api/app/utils/labelZpl.js) - wydruk zapasowy, gdy serwer nie odpowie.
 // Ta sama funkcja jest w panelu (frontend/src/utils/labelZpl.js) i aplikacji mobilnej
 // (utils/labelZpl.js) dla wydruku zapasowego - zmieniając układ, zmień wszystkie trzy kopie.
@@ -10,14 +10,15 @@
 //  │ 8XL        0040408300005           │ zł  │  rozmiar | cyfry kodu       | duża, pogrubiona
 //  └──────────────────────────────────────────┘
 //
-// Fizyczna metka ma ok. 310 punktów wysokości (ok. 38 mm, zmierzone na wydruku) - treść kończy się na ok. 295.
+// Drukarka ma 300 dpi (wcześniejsze ^PW450 drukowało tylko 38 z 50 mm szerokości - prawy pas metki zostawał pusty,
+// a kreska 2 pkt = 0,17 mm była za cienka dla aparatu). Treść w pionie kończy się na ok. 292 punktach.
 // Kod: Code 128 w trybie automatycznym (cyfry parami - kod krótszy). NIE EAN-13: kod EAN-13 zaczynający się od zera
 // jest jednocześnie UPC-A i skanery w telefonach obcinają pierwsze zero (0040408300005 -> 040408300005), a prawie
 // wszystkie nasze kody zaczynają się od zera. Code 128 czyta się dokładnie tak, jak jest wydrukowany.
 // Grubość kreski: największa, przy której kod mieści się w lewej części metki z białym marginesem, jakiego wymaga
 // skaner (10 szerokości kreski z każdej strony).
 
-const LABEL_WIDTH = 450;
+const LABEL_WIDTH = 590; // 50 mm przy 300 dpi
 const LABEL_HEIGHT = 400;
 const EDGE = 12;
 const PRICE_FONT = 72; // wysokość liter ceny = szerokość kolumny ceny
