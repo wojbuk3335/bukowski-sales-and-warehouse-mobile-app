@@ -1290,6 +1290,7 @@ const Cudzych = () => {
               <TextInput
                 style={styles.input}
                 placeholder="Wpisz rozmiar..."
+                autoCapitalize="characters" // rozmiar wielkimi literami
                 placeholderTextColor={tc('muted', "#ccc")}
                 value={size}
                 onChangeText={(text) => {

@@ -384,6 +384,7 @@ const CudzichList = () => {
                     value={selectedSize}
                     onChangeText={setSelectedSize}
                     placeholder="Wpisz rozmiar..."
+                    autoCapitalize="characters" // rozmiar wielkimi literami
                     placeholderTextColor={tc('muted', "#64748B")}
                   />
                 </View>

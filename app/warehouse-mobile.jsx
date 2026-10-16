@@ -1236,6 +1236,7 @@ const WarehouseMobile = () => {
               ref={sizeInputRef}
               style={styles.input}
               placeholder="Wpisz rozmiar"
+              autoCapitalize="characters" // rozmiar wielkimi literami
               placeholderTextColor={tc('muted', "#666")}
               value={selectedSize}
               onChangeText={handleSizeChange}
@@ -1355,6 +1356,7 @@ const WarehouseMobile = () => {
               <TextInput
                 style={styles.input}
                 placeholder="Rozmiar"
+                autoCapitalize="characters" // rozmiar wielkimi literami
                 placeholderTextColor={tc('muted', "#666")}
                 value={editSize}
                 onChangeText={setEditSize}

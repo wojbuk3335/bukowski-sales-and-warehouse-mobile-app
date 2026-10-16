@@ -1213,7 +1213,10 @@ const Profile = () => {
                     ]}
                     placeholder="Wyszukaj rozmiar..."
                     value={sizeSearchText}
-                    onChangeText={(text) => {
+                    autoCapitalize="characters" // rozmiary zawsze wielkimi literami (2XL, nie 2xl)
+                    autoCorrect={false}
+                    onChangeText={(rawText) => {
+                      const text = rawText.toUpperCase();
                       setSizeSearchText(text);
                       setSizeDropdownVisible(text.length > 0);
                       

@@ -710,6 +710,7 @@ const CorrectionsList = () => {
                   value={filters.size}
                   onChangeText={(text) => setFilters({ ...filters, size: text })}
                   placeholder="Wpisz rozmiar..."
+                  autoCapitalize="characters" // rozmiar wielkimi literami
                   placeholderTextColor={tc('muted', "#64748B")}
                 />
               </View>

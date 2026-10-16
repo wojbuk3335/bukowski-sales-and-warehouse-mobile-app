@@ -3200,6 +3200,7 @@ const Home = () => {
                     value={editData?.size || ""}
                     editable={false}
                     placeholder="Rozmiar"
+                    autoCapitalize="characters" // rozmiar wielkimi literami
                     placeholderTextColor="gray"
                   />
                   
@@ -4188,6 +4189,7 @@ const Home = () => {
                           <TextInput
                             style={[styles.formInput, { marginBottom: 10, borderColor: '#0d6efd', borderWidth: 2 }]}
                             placeholder="Wpisz rozmiar..."
+                            autoCapitalize="characters" // rozmiar wielkimi literami
                             placeholderTextColor={tc('muted', "#ccc")}
                             value={sizeSearchQuery}
                             onChangeText={(text) => {
