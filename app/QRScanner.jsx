@@ -1196,6 +1196,39 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     <Ionicons name="add" size={20} color="#0D6EFD" />
                     <Text style={styles.addPairButtonText}>Dodaj walutę</Text>
                   </Pressable>
+                  {!isPickup && Number(salePrice) > 0 && (
+                    <View style={styles.remainingSection} testID="remaining-card">
+                      <View style={styles.remainingHeader}>
+                        <Ionicons name={isOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={isOverpaid ? "#F59E0B" : "#EF4444"} />
+                        <Text style={styles.remainingTitle}>{isOverpaid ? "Reszta do wydania" : "Do dopłaty"}</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={[look.formInput, styles.remainingValue]}>
+                          <Text testID="remaining-amount" style={[styles.remainingValueText, { color: isOverpaid ? '#F59E0B' : remainingInCurrency !== null && remainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}>
+                            {remainingInCurrency === null ? "brak kursu" : formatMoney(remainingInCurrency)}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          testID="remaining-currency"
+                          style={[look.selectField, { flex: 1 }]}
+                          onPress={() => openCurrencyModal(0, "remaining")}
+                        >
+                          <Text style={look.selectFieldText}>{remainingCurrency}</Text>
+                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.remainingHint}>
+                        {`Zapłacono: ${formatMoney(paymentBalance.paidPln)} zł z ${formatMoney(Number(salePrice) || 0)} zł`}
+                        {paymentBalance.missingRates.length > 0 ? ` (brak kursu: ${paymentBalance.missingRates.join(", ")})` : ""}
+                      </Text>
+                      {!isOverpaid && remainingInCurrency !== null && remainingInCurrency > 0.005 && (
+                        <Pressable testID="remaining-add-payment" style={styles.addPairButton} onPress={addRemainingAsPayment}>
+                          <Ionicons name="add" size={20} color="#0D6EFD" />
+                          <Text style={styles.addPairButtonText}>Dodaj jako wpłatę gotówką</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
                 </View>
                 {currencyModalVisible && (
                   <Modal
@@ -1267,41 +1300,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                   ))}
                 </View>
-                {!isPickup && Number(salePrice) > 0 && (
-                  <View style={styles.paymentCard} testID="remaining-card">
-                    <View style={styles.paymentHeader}>
-                      <View style={[look.optionCardIcon, { backgroundColor: isOverpaid ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
-                        <Ionicons name={isOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={20} color={isOverpaid ? "#F59E0B" : "#EF4444"} />
-                      </View>
-                      <Text style={styles.paymentTitle}>{isOverpaid ? "Reszta do wydania" : "Do dopłaty"}</Text>
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <View style={[look.formInput, styles.remainingValue]}>
-                        <Text testID="remaining-amount" style={[styles.remainingValueText, { color: isOverpaid ? '#F59E0B' : remainingInCurrency !== null && remainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}>
-                          {remainingInCurrency === null ? "brak kursu" : formatMoney(remainingInCurrency)}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        testID="remaining-currency"
-                        style={[look.selectField, { flex: 1 }]}
-                        onPress={() => openCurrencyModal(0, "remaining")}
-                      >
-                        <Text style={look.selectFieldText}>{remainingCurrency}</Text>
-                        <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.remainingHint}>
-                      {`Zapłacono: ${formatMoney(paymentBalance.paidPln)} zł z ${formatMoney(Number(salePrice) || 0)} zł`}
-                      {paymentBalance.missingRates.length > 0 ? ` (brak kursu: ${paymentBalance.missingRates.join(", ")})` : ""}
-                    </Text>
-                    {!isOverpaid && remainingInCurrency !== null && remainingInCurrency > 0.005 && (
-                      <Pressable testID="remaining-add-payment" style={styles.addPairButton} onPress={addRemainingAsPayment}>
-                        <Ionicons name="add" size={20} color="#0D6EFD" />
-                        <Text style={styles.addPairButtonText}>Dodaj jako wpłatę gotówką</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                )}
                 <View style={styles.modalButtons}>
                   <Pressable
                     style={[styles.button, styles.cancelButton]}
@@ -1554,6 +1552,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#94A3B8'),
     fontSize: 14,
     fontWeight: "600",
+  },
+  remainingSection: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: tc('border', '#334155'),
+  },
+  remainingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  remainingTitle: {
+    color: tc('text', '#fff'),
+    fontSize: 15,
+    fontWeight: "700",
   },
   remainingValue: {
     flex: 1.4,
