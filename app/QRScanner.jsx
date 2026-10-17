@@ -456,6 +456,21 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     setCameraActive(false); // Dezaktywuj kamerę
   };
 
+  // Cena kurtki z cennika punktu „Sprzedano od” (promocyjna, jeśli jest) - podpowiedź, sprzedawca może ją poprawić.
+  // Hook musi być PRZED wczesnymi return poniżej (kolejność hooków)
+  useEffect(() => {
+    if (!barcode) {
+      setSalePrice("");
+      return;
+    }
+    const matches = (stateData || []).filter((item) => item.barcode === barcode);
+    const item = matches.find((entry) => entry.symbol === selectedOption) || matches[0];
+    const promo = Number(item?.discount_price);
+    const regular = Number(item?.price);
+    const value = promo > 0 ? promo : regular > 0 ? regular : null;
+    setSalePrice(value !== null ? String(value) : "");
+  }, [barcode, selectedOption, stateData]);
+
   if (!permission) return <View />;
 
   if (!permission.granted) {
@@ -584,20 +599,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     updatedPairs[index][field] = value;
     setCashPriceCurrencyPairs(updatedPairs);
   };
-
-  // Cena kurtki z cennika punktu „Sprzedano od” (promocyjna, jeśli jest) - podpowiedź, sprzedawca może ją poprawić
-  useEffect(() => {
-    if (!barcode) {
-      setSalePrice("");
-      return;
-    }
-    const matches = (stateData || []).filter((item) => item.barcode === barcode);
-    const item = matches.find((entry) => entry.symbol === selectedOption) || matches[0];
-    const promo = Number(item?.discount_price);
-    const regular = Number(item?.price);
-    const value = promo > 0 ? promo : regular > 0 ? regular : null;
-    setSalePrice(value !== null ? String(value) : "");
-  }, [barcode, selectedOption, stateData]);
 
   // Ile klient zapłacił (gotówka + karta, po kursie do przeliczeń) i ile jeszcze ma dopłacić w wybranej walucie
   const paymentBalance = computePaymentBalance({
