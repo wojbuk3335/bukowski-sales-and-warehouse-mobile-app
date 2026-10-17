@@ -1,5 +1,5 @@
 // Sprzedaż w kilku walutach: zapłacono w PLN, do dopłaty w wybranej walucie (kursy „za 100” np. HUF)
-import { computePaymentBalance, plnPerUnit, plnToCurrency, formatMoney } from '../../utils/paymentBalance';
+import { applyChangeToCash, computePaymentBalance, plnPerUnit, plnToCurrency, formatMoney } from '../../utils/paymentBalance';
 
 const RATES = [
   { currency: { code: 'EUR', name: 'Euro' }, buyRate: 4.25 },
@@ -35,5 +35,15 @@ describe('paymentBalance', () => {
     });
     expect(balance.remainingPln).toBeCloseTo(-5);
     expect(balance.missingRates).toEqual(['GBP']);
+  });
+
+  test('wydana reszta: najpierw z wpłaty w tej samej walucie', () => {
+    const pairs = applyChangeToCash([{ price: '100', currency: 'EUR' }, { price: '450', currency: 'PLN' }], 25, 'PLN', RATES);
+    expect(pairs).toEqual([{ price: '100', currency: 'EUR' }, { price: '425.00', currency: 'PLN' }]);
+  });
+
+  test('wydana reszta w zł, a klient płacił tylko w EUR: zmniejsza EUR (bez ujemnych kwot)', () => {
+    const pairs = applyChangeToCash([{ price: '200', currency: 'EUR' }], 42.5, 'PLN', RATES);
+    expect(pairs).toEqual([{ price: '190.00', currency: 'EUR' }]);
   });
 });

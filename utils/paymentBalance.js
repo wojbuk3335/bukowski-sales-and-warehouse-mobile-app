@@ -43,3 +43,28 @@ export const plnToCurrency = (pln, code, currencyRates) => {
 };
 
 export const formatMoney = (value) => (Math.round(value * 100) / 100).toFixed(2);
+
+/**
+ * Wydana reszta odejmowana od wpłat gotówką (bez ujemnych kwot - prowizje pomijają ujemne wpłaty).
+ * Najpierw z wpłat w walucie reszty, potem z pozostałych (przeliczając przez PLN). Zwraca nowe wpłaty.
+ */
+export const applyChangeToCash = (cashPairs, changeAmount, changeCurrency, currencyRates) => {
+  const changeUnit = plnPerUnit(changeCurrency, currencyRates);
+  let leftPln = changeUnit === null ? 0 : toNumber(changeAmount) * changeUnit;
+  const pairs = (cashPairs || []).map((pair) => ({ ...pair }));
+  const order = pairs
+    .map((pair, index) => ({ index, same: pair.currency === changeCurrency }))
+    .sort((a, b) => Number(b.same) - Number(a.same));
+  for (const { index } of order) {
+    if (leftPln <= 0.000001) break;
+    const pair = pairs[index];
+    const unit = plnPerUnit(pair.currency || "PLN", currencyRates);
+    const amount = toNumber(pair.price);
+    if (unit === null || amount <= 0) continue;
+    const takePln = Math.min(leftPln, amount * unit);
+    const rest = amount - takePln / unit;
+    pair.price = rest > 0.004 ? formatMoney(rest) : "";
+    leftPln -= takePln;
+  }
+  return pairs.filter((pair) => pair.price && String(pair.price).trim() !== "");
+};
