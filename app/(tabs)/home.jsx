@@ -2619,41 +2619,6 @@ const Home = () => {
                   </TouchableOpacity>
                 </View>
                 
-                {/* Available funds display */}
-                {(() => {
-                  const userSymbol = user?.symbol || 'PLN';
-                  const mainCurrency = userSymbol === 'P' ? 'PLN' : userSymbol;
-                  const mainAmount = availableFunds[mainCurrency] || 0;
-                  
-                  return (
-                    <View style={styles.fundsCard}>
-                      <View style={[styles.iconTileLarge, { backgroundColor: '#10B98126' }]}>
-                        <Ionicons name="wallet" size={24} color="#10B981" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                      <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13 }}>Dostępne środki</Text>
-                      <Text style={{
-                        color: '#10b981',
-                        fontSize: 20,
-                        fontWeight: 'bold'
-                      }}>
-                        {`${mainAmount.toFixed(2)} ${mainCurrency}`}
-                      </Text>
-                      {/* Show other currencies if available */}
-                      {Object.entries(availableFunds).filter(([currency]) => currency !== mainCurrency).map(([currency, amount]) => (
-                        <Text key={currency} style={{
-                          color: tc('muted', '#9ca3af'),
-                          fontSize: 12,
-                          marginTop: 2
-                        }}>
-                          {currency}: {amount.toFixed(2)}
-                        </Text>
-                      ))}
-                      </View>
-                    </View>
-                  );
-                })()}
-                
                 <Text style={styles.sectionLabel}>Sprzedaż dzisiaj</Text>
               </View>
             );
@@ -3096,13 +3061,8 @@ const Home = () => {
                         </View>
                       </View>
 
-                      <DaySummaryRow icon="cash-outline" color="#10B981" label="Sprzedaż gotówką" totals={cashTotals} emptyText="Brak płatności gotówką" />
-                      <DaySummaryRow icon="card-outline" color="#3B82F6" label="Sprzedaż kartą" totals={cardTotals} emptyText="Brak płatności kartą" />
                       {Object.keys(advancesTotals).length > 0 && (
                         <DaySummaryRow icon="pricetag-outline" color="#0EA5E9" label="Zaliczki od klientów" totals={advancesTotals} />
-                      )}
-                      {Object.keys(operationsTotals).length > 0 && (
-                        <DaySummaryRow icon="swap-vertical" color="#F59E0B" label="Operacje finansowe (bilans)" totals={operationsTotals} signed />
                       )}
 
                       <DayTotalTile
