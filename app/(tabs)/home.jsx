@@ -4816,19 +4816,10 @@ const Home = () => {
                 const endMinutes = parseInt(end[0]) * 60 + parseInt(end[1]);
                 const totalMinutes = endMinutes > startMinutes ? endMinutes - startMinutes : 0;
                 const totalHours = totalMinutes / 60;
-                const hourlyRate = selectedEmployeeForHours?.hourlyRate || 0;
-                const dailyPay = totalHours * hourlyRate;
 
                 return (
                   <View style={styles.workHoursPreview}>
-                    <DaySummaryRow icon="hourglass-outline" color="#0EA5E9" label="Łączny czas pracy" totals={{ 'godz.': totalHours }} />
-                    <View style={styles.daySummaryRowLast}>
-                      <View style={[styles.daySummaryIcon, { backgroundColor: '#10B98126' }]}>
-                        <Ionicons name="cash-outline" size={18} color="#10B981" />
-                      </View>
-                      <Text style={styles.daySummaryLabel}>Dzienna wypłata</Text>
-                      <Text style={[styles.daySummaryValue, { color: '#10B981', fontSize: 17 }]}>{dailyPay.toFixed(2)} PLN</Text>
-                    </View>
+                    <DaySummaryRow icon="hourglass-outline" color="#0EA5E9" label="Łączny czas pracy" totals={{ 'godz.': totalHours }} last />
                   </View>
                 );
               })()}
@@ -5434,8 +5425,8 @@ const Home = () => {
                     marginBottom: 5,
                   }}>
                     <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1 }}>Waluta</Text>
-                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Kupno</Text>
-                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Sprzedaż</Text>
+                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Kantor</Text>
+                    <Text style={{ color: tc('text', 'white'), fontWeight: 'bold', flex: 1, textAlign: 'right' }}>Własny</Text>
                   </View>
                   {currencyRates.map((rate, index) => (
                     <View
@@ -5456,10 +5447,11 @@ const Home = () => {
                         </Text>
                       </View>
                       <Text style={{ color: tc('text', 'white'), flex: 1, textAlign: 'right' }}>
-                        {rate.buyRate.toFixed(4)} PLN
+                        {(rate.kantorBuyRate ?? rate.buyRate).toFixed(4)} PLN
                       </Text>
                       <Text style={{ color: tc('text', 'white'), flex: 1, textAlign: 'right' }}>
-                        {rate.sellRate.toFixed(4)} PLN
+                        {/* buyRate z API = kurs do przeliczeń: własny z panelu admina (Tabela walut), brak = kurs kantoru */}
+                        {rate.buyRate.toFixed(4)} PLN
                       </Text>
                     </View>
                   ))}
@@ -5694,10 +5686,10 @@ const Home = () => {
 
 // Zamknięcie dnia: wiersz z sumami w walutach
 const formatTotal = (total, signed) => `${signed && total > 0 ? '+' : ''}${Number(total || 0).toFixed(2)}`;
-const DaySummaryRow = ({ icon, color, label, totals, signed = false, emptyText = '-' }) => {
+const DaySummaryRow = ({ icon, color, label, totals, signed = false, emptyText = '-', last = false }) => {
   const entries = Object.entries(totals || {});
   return (
-    <View style={styles.daySummaryRow}>
+    <View style={last ? styles.daySummaryRowLast : styles.daySummaryRow}>
       <View style={[styles.daySummaryIcon, { backgroundColor: `${color}26` }]}>
         <Ionicons name={icon} size={18} color={color} />
       </View>
