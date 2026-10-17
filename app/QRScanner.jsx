@@ -10,6 +10,7 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
+import { computePaymentBalance, formatMoney, plnToCurrency } from "../utils/paymentBalance"; // sprzedaż w kilku walutach: ile do dopłaty
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, look } from '../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -25,6 +26,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [barcode, setBarcode] = useState(""); // State for barcode input
   const [cashPriceCurrencyPairs, setCashPriceCurrencyPairs] = useState([{ price: "", currency: "PLN" }]); // State for cash payment
   const [cardPriceCurrencyPairs, setCardPriceCurrencyPairs] = useState([{ price: "", currency: "PLN" }]); // State for carrd payment
+  // Sprzedaż w kilku walutach: cena w PLN (z cennika punktu, do poprawienia) i waluta, w której pokazujemy „Do dopłaty”
+  const [salePrice, setSalePrice] = useState("");
+  const [remainingCurrency, setRemainingCurrency] = useState("PLN");
   const [currencyMenuVisible, setCurrencyMenuVisible] = useState(false);
   const [currentCurrencyIndex, setCurrentCurrencyIndex] = useState(null);
   const [currentCurrencyType, setCurrentCurrencyType] = useState(""); // "cash" or "card"
@@ -427,7 +431,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   };
 
   const selectCurrencyFromModal = (currency) => {
-    if (currentCurrencyType === "cash") {
+    if (currentCurrencyType === "remaining") {
+      setRemainingCurrency(currency);
+    } else if (currentCurrencyType === "cash") {
       handleCashPairChange(currentCurrencyIndex, "currency", currency);
     } else if (currentCurrencyType === "card") {
       handleCardPairChange(currentCurrencyIndex, "currency", currency);
@@ -577,6 +583,43 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     const updatedPairs = [...cashPriceCurrencyPairs];
     updatedPairs[index][field] = value;
     setCashPriceCurrencyPairs(updatedPairs);
+  };
+
+  // Cena kurtki z cennika punktu „Sprzedano od” (promocyjna, jeśli jest) - podpowiedź, sprzedawca może ją poprawić
+  useEffect(() => {
+    if (!barcode) {
+      setSalePrice("");
+      return;
+    }
+    const matches = (stateData || []).filter((item) => item.barcode === barcode);
+    const item = matches.find((entry) => entry.symbol === selectedOption) || matches[0];
+    const promo = Number(item?.discount_price);
+    const regular = Number(item?.price);
+    const value = promo > 0 ? promo : regular > 0 ? regular : null;
+    setSalePrice(value !== null ? String(value) : "");
+  }, [barcode, selectedOption, stateData]);
+
+  // Ile klient zapłacił (gotówka + karta, po kursie do przeliczeń) i ile jeszcze ma dopłacić w wybranej walucie
+  const paymentBalance = computePaymentBalance({
+    price: salePrice,
+    payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs],
+    currencyRates,
+  });
+  const remainingInCurrency = plnToCurrency(Math.abs(paymentBalance.remainingPln), remainingCurrency, currencyRates);
+  const isOverpaid = paymentBalance.remainingPln < -0.005;
+
+  // „Dodaj jako wpłatę”: kwota do dopłaty trafia do płatności gotówką (w puste pole albo jako nowa waluta)
+  const addRemainingAsPayment = () => {
+    if (isOverpaid || remainingInCurrency === null || remainingInCurrency <= 0.005) return;
+    const amount = formatMoney(remainingInCurrency);
+    const pairs = [...cashPriceCurrencyPairs];
+    const emptyIndex = pairs.findIndex((pair) => !pair.price || pair.price.trim() === "");
+    if (emptyIndex >= 0) {
+      pairs[emptyIndex] = { price: amount, currency: remainingCurrency };
+    } else {
+      pairs.push({ price: amount, currency: remainingCurrency });
+    }
+    setCashPriceCurrencyPairs(pairs);
   };
 
   const handleAddCardPair = () => {
@@ -1099,6 +1142,21 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                     <Text style={styles.paymentTitle}>{isPickup ? 'Dopłata' : 'Płatność gotówką'}</Text>
                   </View>
+                  {!isPickup && (
+                    <View style={styles.salePriceRow}>
+                      <Text style={styles.salePriceLabel}>Cena</Text>
+                      <TextInput
+                        testID="sale-price-input"
+                        style={[look.formInput, { flex: 1 }]}
+                        placeholderTextColor={tc('muted', '#888')}
+                        value={salePrice}
+                        onChangeText={(value) => setSalePrice(value.replace(/[^0-9.]/g, ""))}
+                        placeholder="Cena w zł"
+                        keyboardType="numeric"
+                      />
+                      <Text style={styles.salePriceCurrency}>PLN</Text>
+                    </View>
+                  )}
                   {cashPriceCurrencyPairs.map((pair, index) => (
                     <View
                       key={`cash-${index}`}
@@ -1135,7 +1193,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   ))}
                   <Pressable style={styles.addPairButton} onPress={handleAddCashPair}>
                     <Ionicons name="add" size={20} color="#0D6EFD" />
-                    <Text style={styles.addPairButtonText}>Dodaj parę</Text>
+                    <Text style={styles.addPairButtonText}>Dodaj walutę</Text>
                   </Pressable>
                 </View>
                 {currencyModalVisible && (
@@ -1208,6 +1266,41 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                   ))}
                 </View>
+                {!isPickup && Number(salePrice) > 0 && (
+                  <View style={styles.paymentCard} testID="remaining-card">
+                    <View style={styles.paymentHeader}>
+                      <View style={[look.optionCardIcon, { backgroundColor: isOverpaid ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
+                        <Ionicons name={isOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={20} color={isOverpaid ? "#F59E0B" : "#EF4444"} />
+                      </View>
+                      <Text style={styles.paymentTitle}>{isOverpaid ? "Reszta do wydania" : "Do dopłaty"}</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={[look.formInput, styles.remainingValue]}>
+                        <Text testID="remaining-amount" style={[styles.remainingValueText, { color: isOverpaid ? '#F59E0B' : remainingInCurrency !== null && remainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}>
+                          {remainingInCurrency === null ? "brak kursu" : formatMoney(remainingInCurrency)}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        testID="remaining-currency"
+                        style={[look.selectField, { flex: 1 }]}
+                        onPress={() => openCurrencyModal(0, "remaining")}
+                      >
+                        <Text style={look.selectFieldText}>{remainingCurrency}</Text>
+                        <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.remainingHint}>
+                      {`Zapłacono: ${formatMoney(paymentBalance.paidPln)} zł z ${formatMoney(Number(salePrice) || 0)} zł`}
+                      {paymentBalance.missingRates.length > 0 ? ` (brak kursu: ${paymentBalance.missingRates.join(", ")})` : ""}
+                    </Text>
+                    {!isOverpaid && remainingInCurrency !== null && remainingInCurrency > 0.005 && (
+                      <Pressable testID="remaining-add-payment" style={styles.addPairButton} onPress={addRemainingAsPayment}>
+                        <Ionicons name="add" size={20} color="#0D6EFD" />
+                        <Text style={styles.addPairButtonText}>Dodaj jako wpłatę gotówką</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
                 <View style={styles.modalButtons}>
                   <Pressable
                     style={[styles.button, styles.cancelButton]}
@@ -1443,6 +1536,37 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 6,
     alignItems: "center",
     justifyContent: "center",
+  },
+  salePriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  salePriceLabel: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 14,
+    fontWeight: "600",
+    width: 44,
+  },
+  salePriceCurrency: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  remainingValue: {
+    flex: 1.4,
+    justifyContent: "center",
+    opacity: 0.85,
+  },
+  remainingValueText: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  remainingHint: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 8,
   },
   addPairButtonText: {
     color: "#0D6EFD",
