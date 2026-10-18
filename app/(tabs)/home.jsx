@@ -12,7 +12,7 @@ import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
-import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
+import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
@@ -33,6 +33,7 @@ const Home = () => {
   const [refreshing, setRefreshing] = useState(false); // State for refresh control
   const [editModalVisible, setEditModalVisible] = useState(false); // State for edit modal visibility
   const [editData, setEditData] = useState(null); // State to store data for editing
+  const [editPaymentMode, setEditPaymentMode] = useState('cash');
   // Edycja sprzedaży jak „Nowa sprzedaż”: cena (na start = suma wpłat w PLN), waluta i ręczna kwota „Do dopłaty”
   const [editSalePrice, setEditSalePrice] = useState("");
   const [editRemainingCurrency, setEditRemainingCurrency] = useState("PLN");
@@ -448,6 +449,8 @@ const Home = () => {
       }
       const data = await response.json();
       setEditData(data); // Set the fetched data for editing
+      const paymentMode = inferPaymentMode(data);
+      setEditPaymentMode(paymentMode);
 
       // Wpłaty do edycji; brak wpłat (np. sprzedaż tylko gotówką: card = []) = jedno puste pole, żeby dało się dopisać kwotę
       const toEditPairs = (payments) => (Array.isArray(payments) && payments.length > 0
@@ -465,7 +468,11 @@ const Home = () => {
       // Blokada rabatu jak przy sprzedaży: minimum z cennika punktu (bez cennika - z karty produktu)
       const priceList = await loadMyPriceList();
       setEditMinPrice(salePriceRule({ barcode: data.barcode, goods, sizes, priceList })?.minPrice ?? null);
-      setEditListPrice(salePriceListForBarcode({ barcode: data.barcode, goods, sizes, priceList }));
+      const listPrice = salePriceListForBarcode({ barcode: data.barcode, goods, sizes, priceList });
+      setEditListPrice(listPrice);
+      if (paymentMode === 'card' && listPrice !== null && listPrice !== undefined) {
+        setCardPriceCurrencyPairs([{ price: String(listPrice), currency: 'PLN' }]);
+      }
 
       setEditModalVisible(true); // Show the edit modal
     } catch (error) {
@@ -474,13 +481,19 @@ const Home = () => {
   };
 
   // „Do dopłaty” / „Reszta do wydania” w edycji - te same wyliczenia co w „Nowa sprzedaż” (QRScanner)
+  const editPriceRuleSale = !editData?.isPickup && editListPrice !== null && editListPrice !== undefined;
+  const editCardNoDiscount = editPriceRuleSale && editPaymentMode !== 'cash';
+  const effectiveEditSalePrice = editCardNoDiscount ? String(editListPrice) : editSalePrice;
+  const showEditCashPayment = !editPriceRuleSale || editPaymentMode !== 'card';
+  const showEditCardPayment = !editPriceRuleSale || editPaymentMode !== 'cash';
   const editPaymentBalance = computePaymentBalance({
-    price: editSalePrice,
+    price: effectiveEditSalePrice,
     payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs],
     currencyRates,
   });
   const editRemainingInCurrency = plnToCurrency(Math.abs(editPaymentBalance.remainingPln), editRemainingCurrency, currencyRates);
   const editIsOverpaid = editPaymentBalance.remainingPln < -0.005;
+  const editRemainingVisible = !editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid);
   const editRemainingSuggested = editRemainingInCurrency === null ? "" : formatMoney(editRemainingInCurrency);
   const editRemainingKey = `${editRemainingSuggested}|${editRemainingCurrency}|${editIsOverpaid}`;
   // W edycji „Do dopłaty” / reszta liczy się tylko wpisana ręcznie (podpowiedź w polu jako placeholder) -
@@ -493,9 +506,21 @@ const Home = () => {
   const editRemainingInputPln = editRemainingUnit !== null && editRemainingInputNumber > 0 ? editRemainingInputNumber * editRemainingUnit : 0;
   const editClientTotalPln = editIsOverpaid ? editPaymentBalance.paidPln - editRemainingInputPln : editPaymentBalance.paidPln + editRemainingInputPln;
 
-  // Płatność kartą: bez rabatu, minimum to pełna cena z cennika
-  const hasEditCardPayment = cardPriceCurrencyPairs.some((pair) => parseFloat(pair.price) > 0);
-  const effectiveEditMinPrice = hasEditCardPayment ? editListPrice : editMinPrice;
+  const effectiveEditMinPrice = editCardNoDiscount ? editListPrice : editMinPrice;
+  const editMinimumTopUpPln = effectiveEditMinPrice == null ? 0 : Math.max(0, Number(effectiveEditMinPrice) - editPaymentBalance.paidPln);
+
+  const selectEditPaymentMode = (mode) => {
+    if (mode === editPaymentMode) return;
+    setEditPaymentMode(mode);
+    setEditRemainingOverride(null);
+    if (mode === 'card') {
+      setCashPriceCurrencyPairs([{ price: '0', currency: 'PLN' }]);
+      setCardPriceCurrencyPairs([{ price: String(editListPrice), currency: 'PLN' }]);
+      return;
+    }
+    setCashPriceCurrencyPairs([{ price: '', currency: 'PLN' }]);
+    setCardPriceCurrencyPairs([{ price: '', currency: 'PLN' }]);
+  };
 
   const updateItem = async () => {
     try {
@@ -504,14 +529,14 @@ const Home = () => {
         let validCashPrices = cashPriceCurrencyPairs
           .filter((pair) => pair.price && String(pair.price).trim() !== "")
           .map((pair) => ({ price: pair.price, currency: pair.currency }));
-        if (!editData.isPickup && Number(editSalePrice) > 0 && editRemainingInputNumber > 0) {
+        if (!editData.isPickup && Number(effectiveEditSalePrice) > 0 && editRemainingInputNumber > 0 && (!editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid))) {
           validCashPrices = editIsOverpaid
             ? applyChangeToCash(validCashPrices, editRemainingInputNumber, editRemainingCurrency, currencyRates)
             : [...validCashPrices, { price: formatMoney(editRemainingInputNumber), currency: editRemainingCurrency }];
         }
         const validCardPrices = cardPriceCurrencyPairs
           .filter((pair) => pair.price && String(pair.price).trim() !== "")
-          .map((pair) => ({ price: pair.price, currency: pair.currency }));
+          .map((pair) => ({ price: pair.price, currency: editPriceRuleSale ? 'PLN' : pair.currency }));
 
         // Validate that at least one price (cash or card) is provided
         const hasPrice = [...validCashPrices, ...validCardPrices].some(({ price }) => {
@@ -3325,7 +3350,33 @@ const Home = () => {
                     <Ionicons name={editData?.isPickup ? 'checkbox' : 'square-outline'} size={24} color={editData?.isPickup ? '#0D6EFD' : tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
 
-                  <View style={sf.paymentCard}>
+                  {editPriceRuleSale && (
+                    <View testID="edit-payment-mode" style={{ gap: 8, marginBottom: 12 }}>
+                      {[
+                        { key: 'cash', label: 'Płatność gotówką', color: '#10B981' },
+                        { key: 'card', label: 'Płatność kartą', color: '#3B82F6' },
+                        { key: 'mixed', label: 'Gotówka i karta', color: '#8B5CF6' },
+                      ].map((option) => {
+                        const checked = editPaymentMode === option.key;
+                        return (
+                          <Pressable
+                            key={option.key}
+                            testID={`edit-payment-mode-${option.key}`}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked }}
+                            style={[look.optionCard, checked && { borderColor: option.color, backgroundColor: `${option.color}1F` }]}
+                            onPress={() => selectEditPaymentMode(option.key)}
+                          >
+                            <Ionicons name={checked ? 'radio-button-on' : 'radio-button-off'} size={20} color={option.color} />
+                            <Text style={look.optionCardLabel}>{option.label}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {showEditCashPayment && (
+                  <View testID="edit-cash-payment-section" style={sf.paymentCard}>
                     <View style={sf.paymentHeader}>
                       <View style={[look.optionCardIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
                         <Ionicons name="cash-outline" size={20} color="#10B981" />
@@ -3339,7 +3390,8 @@ const Home = () => {
                           testID="edit-sale-price-input"
                           style={[look.formInput, { flex: 1 }]}
                           placeholderTextColor={tc('muted', '#888')}
-                          value={editSalePrice}
+                          value={effectiveEditSalePrice}
+                          editable={!editCardNoDiscount}
                           onChangeText={(value) => setEditSalePrice(value.replace(/[^0-9.]/g, ""))}
                           placeholder="Cena w zł"
                           keyboardType="numeric"
@@ -3348,10 +3400,15 @@ const Home = () => {
                       </View>
                     )}
                     {!editData?.isPickup && effectiveEditMinPrice ? (
-                      <Text style={[sf.remainingHint, Number(editSalePrice) > 0 && Number(editSalePrice) < effectiveEditMinPrice - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
-                        {Number(editSalePrice) > 0 && Number(editSalePrice) < effectiveEditMinPrice - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${effectiveEditMinPrice} zł` : `Najniższa cena: ${effectiveEditMinPrice} zł`}
+                      <Text style={[sf.remainingHint, Number(effectiveEditSalePrice) > 0 && Number(effectiveEditSalePrice) < effectiveEditMinPrice - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
+                        {Number(effectiveEditSalePrice) > 0 && Number(effectiveEditSalePrice) < effectiveEditMinPrice - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${effectiveEditMinPrice} zł` : `Najniższa cena: ${effectiveEditMinPrice} zł`}
                       </Text>
                     ) : null}
+                    {editPriceRuleSale && editPaymentMode === 'mixed' && (
+                      <Text testID="edit-minimum-top-up" style={{ color: '#10B981', fontWeight: '700', marginBottom: 10 }}>
+                        {editMinimumTopUpPln > 0.005 ? `Dopłać jeszcze ${formatMoney(editMinimumTopUpPln)} zł, aby osiągnąć minimum.` : 'Minimalna cena osiągnięta.'}
+                      </Text>
+                    )}
                     {cashPriceCurrencyPairs.map((pair, index) => (
                       <View
                         key={`cash-${index}`}
@@ -3390,7 +3447,7 @@ const Home = () => {
                       <Ionicons name="add" size={20} color="#0D6EFD" />
                       <Text style={sf.addPairButtonText}>Dodaj walutę</Text>
                     </Pressable>
-                    {!editData?.isPickup && Number(editSalePrice) > 0 && (
+                    {!editData?.isPickup && editRemainingVisible && Number(effectiveEditSalePrice) > 0 && (
                       <View style={sf.remainingSection} testID="edit-remaining-card">
                         <View style={sf.remainingHeader}>
                           <Ionicons name={editIsOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={editIsOverpaid ? "#F59E0B" : "#EF4444"} />
@@ -3400,6 +3457,7 @@ const Home = () => {
                           <TextInput
                             testID="edit-remaining-amount"
                             style={[look.formInput, sf.remainingValue, sf.remainingValueText, { color: editIsOverpaid ? '#F59E0B' : editRemainingInCurrency !== null && editRemainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
+                            editable={!editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid)}
                             value={editRemainingInput}
                             onChangeText={(value) => setEditRemainingOverride({ key: editRemainingKey, value: value.replace(/[^0-9.,]/g, "") })}
                             placeholder={editRemainingInCurrency === null ? "brak kursu" : (editRemainingSuggested || "0.00")}
@@ -3421,7 +3479,7 @@ const Home = () => {
                         </Text>
                         <Text style={sf.clientTotal}>
                           {`Klient zapłaci: ${formatMoney(editClientTotalPln)} zł`}
-                          <Text style={sf.clientTotalPrice}>{`  (cena ${formatMoney(Number(editSalePrice) || 0)} zł)`}</Text>
+                          <Text style={sf.clientTotalPrice}>{`  (cena ${formatMoney(Number(effectiveEditSalePrice) || 0)} zł)`}</Text>
                         </Text>
                         {editPaymentBalance.missingRates.length > 0 && (
                           <Text style={sf.remainingHint}>{`Brak kursu: ${editPaymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
@@ -3429,7 +3487,9 @@ const Home = () => {
                       </View>
                     )}
                   </View>
-                  <View style={sf.paymentCard}>
+                  )}
+                  {showEditCardPayment && (
+                  <View testID="edit-card-payment-section" style={sf.paymentCard}>
                     <View style={sf.paymentHeader}>
                       <View style={[look.optionCardIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
                         <Ionicons name="card-outline" size={20} color="#3B82F6" />
@@ -3442,9 +3502,11 @@ const Home = () => {
                         style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
                       >
                         <TextInput
-                          style={[look.formInput, { flex: 1.4 }]}
+                          testID={`edit-card-payment-amount-${index}`}
+                          style={[look.formInput, { flex: 1.4 }, editPaymentMode === 'card' && editPriceRuleSale && { opacity: 0.45 }]}
                           placeholderTextColor={tc('muted', '#888')}
                           value={pair.price}
+                          editable={!editCardNoDiscount || editPaymentMode !== 'card'}
                           onChangeText={(value) => {
                             const numericValue = value.replace(/[^0-9.]/g, "");
                             handleCardPairChange(index, "price", numericValue);
@@ -3452,16 +3514,29 @@ const Home = () => {
                           placeholder="Wpisz kwotę"
                           keyboardType="numeric"
                         />
-                        <TouchableOpacity
-                          style={[look.selectField, { flex: 1 }]}
-                          onPress={() => openCurrencyModal(index, "card")}
-                        >
-                          <Text style={look.selectFieldText}>{pair.currency}</Text>
-                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
-                        </TouchableOpacity>
+                        {editPriceRuleSale ? (
+                          <TouchableOpacity
+                            testID={`edit-card-payment-currency-${index}`}
+                            style={[look.selectField, { flex: 1 }]}
+                            disabled
+                            accessibilityState={{ disabled: true }}
+                          >
+                            <Text style={look.selectFieldText}>PLN</Text>
+                            <Ionicons name="lock-closed-outline" size={16} color={tc('muted', '#94A3B8')} />
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[look.selectField, { flex: 1 }]}
+                            onPress={() => openCurrencyModal(index, "card")}
+                          >
+                            <Text style={look.selectFieldText}>{pair.currency}</Text>
+                            <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     ))}
                   </View>
+                  )}
                   <View style={sf.modalButtons}>
                     <Pressable
                       style={[sf.button, sf.cancelButton]}

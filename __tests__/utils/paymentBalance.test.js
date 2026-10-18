@@ -1,5 +1,5 @@
 // Sprzedaż w kilku walutach: zapłacono w PLN, do dopłaty w wybranej walucie (kursy „za 100” np. HUF)
-import { applyChangeToCash, computePaymentBalance, plnPerUnit, plnToCurrency, formatMoney } from '../../utils/paymentBalance';
+import { applyChangeToCash, computePaymentBalance, inferPaymentMode, plnPerUnit, plnToCurrency, formatMoney } from '../../utils/paymentBalance';
 
 const RATES = [
   { currency: { code: 'EUR', name: 'Euro' }, buyRate: 4.25 },
@@ -8,6 +8,14 @@ const RATES = [
 ];
 
 describe('paymentBalance', () => {
+  test('odtwarza tryb płatności istniejącej sprzedaży z zapisanych wpłat', () => {
+    expect(inferPaymentMode({ cash: [{ price: 20 }], card: [] })).toBe('cash');
+    expect(inferPaymentMode({ cash: [{ price: 0 }], card: [{ price: 100 }] })).toBe('card');
+    expect(inferPaymentMode({ cash: [{ price: 20 }], card: [{ price: 100 }] })).toBe('mixed');
+    expect(inferPaymentMode({ cash: null, card: null })).toBe('cash');
+    expect(inferPaymentMode({ paymentMode: 'mixed', cash: [], card: [] })).toBe('mixed');
+  });
+
   test('kurs za 1 jednostkę; HUF za 100; PLN = 1; brak kursu = null', () => {
     expect(plnPerUnit('PLN', RATES)).toBe(1);
     expect(plnPerUnit('EUR', RATES)).toBe(4.25);

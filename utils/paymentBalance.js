@@ -7,6 +7,14 @@ const toNumber = (value) => {
   return Number.isFinite(number) ? number : 0;
 };
 
+export const inferPaymentMode = ({ paymentMode, cash = [], card = [] } = {}) => {
+  if (["cash", "card", "mixed"].includes(paymentMode)) return paymentMode;
+  const hasCash = (cash || []).some((payment) => toNumber(payment?.price) > 0);
+  const hasCard = (card || []).some((payment) => toNumber(payment?.price) > 0);
+  if (hasCash && hasCard) return "mixed";
+  return hasCard ? "card" : "cash";
+};
+
 // Kurs 1 jednostki waluty w PLN; null = brak kursu
 export const plnPerUnit = (code, currencyRates) => {
   if (!code || code === "PLN") return 1;
