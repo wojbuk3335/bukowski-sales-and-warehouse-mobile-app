@@ -21,7 +21,7 @@ import useLiveRefresh from "../services/useLiveRefresh"; // zmiany produktów na
 import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 import { getApiUrl, API_CONFIG } from "../config/api";
 import { appAlert } from '../services/appAlert';
-import { regularOrPromoRule } from '../utils/defaultSalePrice'; // te same zasady co backend (cena minimalna)
+import { defaultDiscountMinimum, defaultRegularMinimum } from '../utils/defaultSalePrice'; // podpowiedz minimum przy zapisie karty (sprzedaz czyta zapisane wartosci)
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
@@ -611,13 +611,13 @@ const ProductsList = () => {
   // Cena minimalna wyliczona z ceny regularnej (jak backend/panel); '' = brak
   const autoMinimumPrice = (categoryName, priceValue, isRB = false) => {
     if (isRB) return Number(priceValue) > 0 ? String(Number(priceValue)) : "";
-    const auto = regularOrPromoRule(priceValue, 0, ruleCategoryName(categoryName)).minPrice;
+    const auto = defaultRegularMinimum(ruleCategoryName(categoryName), priceValue);
     return auto === null || auto === undefined ? "" : String(auto);
   };
   // Minimum promocji wyliczone z ceny promocyjnej; '' = brak (R&B bez zniżki, brak promocji)
   const autoDiscountMinimumPrice = (categoryName, promoValue, isRB = false) => {
     if (isRB || !(Number(promoValue) > 0)) return "";
-    const auto = regularOrPromoRule(null, promoValue, ruleCategoryName(categoryName)).minPrice;
+    const auto = defaultDiscountMinimum(ruleCategoryName(categoryName), promoValue);
     return auto === null || auto === undefined ? "" : String(auto);
   };
   const getEffectiveMinimumPrice = () => (
@@ -686,7 +686,7 @@ const ProductsList = () => {
         </View>
 
         <View style={[styles.formGroup, styles.formGroupHalf]}>
-          <Text style={styles.formLabel}>Promocja: cena minimalna (PLN)</Text>
+          <Text style={styles.formLabel}>Cena minimalna (PLN)</Text>
           <TextInput
             style={styles.formInput}
             placeholder="Brak"
@@ -1094,15 +1094,19 @@ const ProductsList = () => {
               <Text style={styles.productCategory}>{item.category.toUpperCase()}</Text>
             )}
             <Text style={styles.pricePill}>{item.price || 0} zł</Text>
+            <Text style={styles.minimumPill}>Min: {item.minimumPrice ?? (item.price || 0)} zł</Text>
             {item.discount_price > 0 && (
               <Text style={styles.discountPill}>Promocja: {item.discount_price} zł</Text>
+            )}
+            {item.discount_price > 0 && (
+              <Text style={styles.minimumPill}>Min. promo: {item.discountMinimumPrice ?? item.discount_price} zł</Text>
             )}
           </View>
           {item.priceExceptions && item.priceExceptions.length > 0 && (
             <View style={styles.pillRow}>
               {item.priceExceptions.map((exception, idx) => (
                 <Text key={idx} style={styles.exceptionPill}>
-                  {exception.size?.Roz_Opis || 'Rozmiar'}: {exception.value} zł
+                  {exception.size?.Roz_Opis || 'Rozmiar'}: {exception.value} zł (min {exception.minimumPrice ?? exception.value} zł)
                 </Text>
               ))}
             </View>
@@ -2859,6 +2863,16 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontWeight: "700",
     color: "#10B981",
     backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  minimumPill: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#34D399",
+    backgroundColor: "rgba(52, 211, 153, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,

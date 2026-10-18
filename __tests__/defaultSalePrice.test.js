@@ -1,4 +1,4 @@
-import { defaultSalePrice, discountedRegularPrice, minimumPriceError, minimumRegularPrice, regularOrPromoRule, salePriceRule, salePriceRuleForGood } from '../utils/defaultSalePrice';
+import { defaultDiscountMinimum, defaultRegularMinimum, defaultSalePrice, discountedRegularPrice, minimumPriceError, minimumRegularPrice, regularOrPromoRule, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../utils/defaultSalePrice';
 
 describe('discountedRegularPrice - domyślna cena', () => {
   it('końcówkę 90 opuszcza o 40 zł', () => {
@@ -62,12 +62,12 @@ describe('salePriceRule - cennik punktu, bez cennika karta produktu', () => {
   const sizeL = { _id: 's-l', Roz_Kod: '003', Roz_Opis: 'L' };
   const sizes = [sizeL, { _id: 's-m', Roz_Kod: '002', Roz_Opis: 'M' }];
   const jacket = { _id: 'g1', code: '0040600000004', category: 'Kurtki kożuchy futra', fullName: 'Agnieszka CZARNY', price: 1890, discount_price: 0, priceExceptions: [] };
-  const bag = { _id: 'g2', code: '0000500100123', category: 'Torebki', fullName: 'Torebka', price: 450, discount_price: 0, priceExceptions: [] };
+  const bag = { _id: 'g2', code: '0000500100123', category: 'Torebki', fullName: 'Torebka', price: 450, discount_price: 0, minimumPrice: 360, priceExceptions: [] };
   const goods = [jacket, bag];
   const jacketL = '0040600300009'; // model+kolor 00406, rozmiar 003 (L)
 
   it('cena z cennika punktu: domyślna i minimum', () => {
-    const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 0, priceExceptions: [] }];
+    const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 0, minimumPrice: 2100, priceExceptions: [] }];
     expect(salePriceRule({ barcode: jacketL, goods, sizes, priceList })).toEqual({ defaultPrice: 2150, minPrice: 2100 });
   });
 
@@ -90,12 +90,12 @@ describe('salePriceRule - cennik punktu, bez cennika karta produktu', () => {
     expect(defaultSalePrice({ barcode: jacketL, goods, sizes, priceList: [{ originalGoodId: 'g1', price: 0 }] })).toBe(1850);
   });
 
-  it('torebka po pełnym kodzie z karty produktu (450 → 360, cena -20% jest też minimum)', () => {
+  it('torebka po pełnym kodzie z karty produktu (minimum zapisane w karcie: 450 → 360)', () => {
     expect(salePriceRule({ barcode: '0000500100123', goods, sizes, priceList: null })).toEqual({ defaultPrice: 360, minPrice: 360 });
   });
 
   it('portfel: cena z cennika -20% jest domyślna i minimum', () => {
-    const wallet = { _id: 'g3', code: '0000001000123', category: 'Portfele', fullName: 'Portfel', price: 300, discount_price: 0, priceExceptions: [] };
+    const wallet = { _id: 'g3', code: '0000001000123', category: 'Portfele', fullName: 'Portfel', price: 300, discount_price: 0, minimumPrice: 240, priceExceptions: [] };
     expect(salePriceRuleForGood({ good: wallet, size: null, priceList: null })).toEqual({ defaultPrice: 240, minPrice: 240 });
   });
 
@@ -152,10 +152,10 @@ describe('salePriceRuleForGood - minima z bazy', () => {
 
 describe('salePriceRuleForGood - produkt wybrany z listy (zaliczka)', () => {
   const sizeL = { _id: 's-l', Roz_Kod: '003', Roz_Opis: 'L' };
-  const good = { _id: 'g1', code: '0040600000004', category: 'Kurtki kożuchy futra', fullName: 'Agnieszka CZARNY', price: 1890, discount_price: 0, priceExceptions: [] };
+  const good = { _id: 'g1', code: '0040600000004', category: 'Kurtki kożuchy futra', fullName: 'Agnieszka CZARNY', price: 1890, discount_price: 0, minimumPrice: 1850, priceExceptions: [] };
 
   it('cennik punktu z wyjątkiem rozmiaru', () => {
-    const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 0, priceExceptions: [{ size: { _id: 's-l', Roz_Opis: 'L' }, value: 2290 }] }];
+    const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 0, minimumPrice: 2100, priceExceptions: [{ size: { _id: 's-l', Roz_Opis: 'L' }, value: 2290 }] }];
     expect(salePriceRuleForGood({ good, size: sizeL, priceList })).toEqual({ defaultPrice: 2290, minPrice: 2290 });
     expect(salePriceRuleForGood({ good, size: null, priceList })).toEqual({ defaultPrice: 2150, minPrice: 2100 });
   });
@@ -163,5 +163,30 @@ describe('salePriceRuleForGood - produkt wybrany z listy (zaliczka)', () => {
   it('bez cennika - karta produktu; bez produktu - null', () => {
     expect(salePriceRuleForGood({ good, size: sizeL, priceList: null })).toEqual({ defaultPrice: 1850, minPrice: 1850 });
     expect(salePriceRuleForGood({ good: null, size: sizeL, priceList: null })).toBeNull();
+  });
+});
+
+describe('sprzedaż - minimum tylko z zapisu (karta / cennik), bez zasad', () => {
+  it('karta bez zapisanego minimum - brak blokady, zasady nie są liczone', () => {
+    expect(regularOrPromoRule(1990, 0, 'Kurtki kożuchy futra')).toEqual({ defaultPrice: 1950, minPrice: null });
+    expect(regularOrPromoRule(450, 0, 'Torebki')).toEqual({ defaultPrice: 450, minPrice: null });
+  });
+
+  it('promocja bez zapisanego minimum - cena promocyjna, bez zniżki', () => {
+    expect(regularOrPromoRule(null, 450, 'Torebki')).toEqual({ defaultPrice: 450, minPrice: 450 });
+  });
+
+  it('pozycja stanu spoza kart: minimum z karty o tej samej nazwie', () => {
+    const goods = [{ fullName: 'Torebka', category: 'Torebki', minimumPrice: 360, discountMinimumPrice: null }];
+    expect(stateItemStoredMinimum({ fullName: 'Torebka' }, goods)).toEqual({ minimumPrice: 360, discountMinimumPrice: null });
+    expect(stateItemStoredMinimum({ fullName: { fullName: 'Torebka' } }, goods)).toEqual({ minimumPrice: 360, discountMinimumPrice: null });
+    expect(stateItemStoredMinimum({ fullName: 'Nieznana' }, goods)).toBeNull();
+  });
+
+  it('podpowiedź minimum dla formularza karty z zasad kategorii', () => {
+    expect(defaultRegularMinimum('Kurtki kożuchy futra', 1990)).toBe(1950);
+    expect(defaultRegularMinimum('Torebki', 450)).toBe(360);
+    expect(defaultDiscountMinimum('Torebki', 450)).toBe(360);
+    expect(defaultDiscountMinimum('Kurtki kożuchy futra', 750)).toBe(750);
   });
 });

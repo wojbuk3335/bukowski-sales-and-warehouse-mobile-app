@@ -11,7 +11,7 @@ import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
 import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from "../utils/paymentBalance"; // sprzedaż w kilku walutach: ile do dopłaty
 import { formatOrderDeposit, orderMatchScore, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
-import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
+import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, look } from '../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -426,7 +426,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       // Kod spoza kart produktów - cena zapisana na stanie punktu „Sprzedano od”
       const matches = (stateData || []).filter((item) => item.barcode === barcode);
       const item = matches.find((entry) => entry.symbol === selectedOption) || matches[0];
-      rule = regularOrPromoRule(item?.price, item?.discount_price, item?.category);
+      rule = regularOrPromoRule(item?.price, item?.discount_price, item?.category, stateItemStoredMinimum(item, goods));
       listPrice = listPriceOf(item?.price, item?.discount_price);
     }
     setSalePrice(rule.defaultPrice !== null ? String(rule.defaultPrice) : "");

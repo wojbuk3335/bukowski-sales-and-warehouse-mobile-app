@@ -529,12 +529,26 @@ const Cenniki = () => {
 
   const renderPriceItem = ({ item, index }) => {
     const imageUrl = getImageUrl(item.picture);
-    const exceptionsText = (item.priceExceptions || [])
-      .map((exception) => {
-        const sizeName = exception.size?.Roz_Opis || "BR";
-        return `${sizeName}=${formatPrice(exception.value)}`;
-      })
-      .join(", ");
+    const exceptions = item.priceExceptions || [];
+    const promoPrice = formatDiscountPrice(item.discountPrice);
+    const priceLines = [
+      { key: "price", text: formatPrice(item.price), style: styles.priceLine },
+      ...(promoPrice ? [{ key: "promo", text: promoPrice, style: styles.discountText }] : []),
+      ...exceptions.map((exception, i) => ({
+        key: `ex-${i}`,
+        text: `${exception.size?.Roz_Opis || "BR"}=${formatPrice(exception.value)}`,
+        style: styles.exceptionLine,
+      })),
+    ];
+    const minimumLines = [
+      { key: "min", text: formatPrice(item.minimumPrice ?? item.price), style: styles.minimumLine },
+      ...(promoPrice ? [{ key: "promo-min", text: formatPrice(item.discountMinimumPrice ?? item.discountPrice), style: styles.minimumLine }] : []),
+      ...exceptions.map((exception, i) => ({
+        key: `exmin-${i}`,
+        text: `${exception.size?.Roz_Opis || "BR"}=${formatPrice(exception.minimumPrice ?? exception.value)}`,
+        style: styles.minimumLine,
+      })),
+    ];
 
     return (
       <View style={styles.card}>
@@ -565,11 +579,20 @@ const Cenniki = () => {
               <Text style={styles.cardLabel}>Grupa: <Text style={styles.cardValue}>{item.manufacturer?.Prod_Opis || "-"}</Text></Text>
             </View>
           </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceText}>Cena: {formatPrice(item.price)}</Text>
-            <Text style={styles.discountText}>Promocja: {formatDiscountPrice(item.discountPrice)}</Text>
+          <View style={styles.pricesGrid}>
+            <View style={styles.pricesColumn}>
+              <Text style={styles.pricesHeader}>Cena</Text>
+              {priceLines.map((line) => (
+                <Text key={line.key} style={line.style}>{line.text || "-"}</Text>
+              ))}
+            </View>
+            <View style={styles.pricesColumn}>
+              <Text style={styles.pricesHeader}>Ceny minimalne</Text>
+              {minimumLines.map((line) => (
+                <Text key={line.key} style={line.style}>{line.text || "-"}</Text>
+              ))}
+            </View>
           </View>
-          <Text style={styles.exceptionsText}>Wyjątki: {exceptionsText || "-"}</Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(item)}>
           <Ionicons name="pencil" size={18} color="#fff" style={styles.buttonIcon} />
@@ -1298,25 +1321,39 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', "#FFFFFF"),
     fontSize: 12,
   },
-  priceRow: {
+  pricesGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
     marginBottom: 6,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: tc('border', "#1E293B"),
   },
-  priceText: {
+  pricesColumn: {
+    flex: 1,
+  },
+  pricesHeader: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  priceLine: {
     color: tc('text', "#FFFFFF"),
     fontWeight: "700",
+    lineHeight: 18,
   },
   discountText: {
     color: "#F59E0B",
     fontWeight: "700",
+    lineHeight: 18,
   },
-  exceptionsText: {
+  exceptionLine: {
     color: tc('muted', "#94A3B8"),
-    fontSize: 12,
+    lineHeight: 18,
+  },
+  minimumLine: {
+    color: "#34D399",
+    fontWeight: "700",
+    lineHeight: 18,
   },
   editButton: {
     marginTop: 12,

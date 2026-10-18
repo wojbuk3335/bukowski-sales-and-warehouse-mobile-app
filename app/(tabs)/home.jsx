@@ -13,7 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
 import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
-import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
+import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
@@ -1716,7 +1716,7 @@ const Home = () => {
     const stateItem = stateData?.find((item) => (item.id || item._id) === selectedProduct);
     if (stateItem?.barcode) {
       return salePriceRule({ barcode: stateItem.barcode, goods, sizes, priceList: myPriceList })
-        || regularOrPromoRule(stateItem.price, stateItem.discount_price, stateItem.category);
+        || regularOrPromoRule(stateItem.price, stateItem.discount_price, stateItem.category, stateItemStoredMinimum(stateItem, goods));
     }
     const good = (goods || []).find((item) => (item._id || item.id) === selectedProduct);
     const sizeList = Array.isArray(sizes) ? sizes : [];
