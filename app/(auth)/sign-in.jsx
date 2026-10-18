@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useNavigation, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useContext, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -34,7 +34,10 @@ const SignIn = () => {
 
   useEffect(() => {
     let active = true;
-    checkAndApplyUpdate({ onDownloading: () => active && setUpdateStage("downloading") })
+    checkAndApplyUpdate({
+      onDownloading: () => active && setUpdateStage("downloading"),
+      onApplying: () => active && setUpdateStage("reloading"),
+    })
       .then((result) => {
         Logger.debug("OTA update check:", result?.status);
         if (active && result?.status !== "reloading") setUpdateStage(null);
@@ -253,12 +256,10 @@ const SignIn = () => {
             isLoading={isLoading || Boolean(updateStage)} // Logowanie czeka na sprawdzenie aktualizacji
           />
 
-          {updateStage ? (
+          {updateStage === "checking" ? (
             <View style={styles.updateContainer}>
               <ActivityIndicator color={tc('text', "#fff")} />
-              <Text style={styles.updateText}>
-                {updateStage === "downloading" ? "Pobieranie aktualizacji…" : "Sprawdzanie aktualizacji…"}
-              </Text>
+              <Text style={styles.updateText}>Sprawdzanie aktualizacji…</Text>
             </View>
           ) : null}
 
@@ -283,6 +284,21 @@ const SignIn = () => {
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
+      <Modal
+        visible={updateStage === "downloading" || updateStage === "reloading"}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {}}
+      >
+        <View testID="update-blocking-overlay" style={styles.updateOverlay} accessibilityViewIsModal>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.updateOverlayTitle}>
+            {updateStage === "reloading" ? "Uruchamianie aktualizacji…" : "Pobieranie aktualizacji…"}
+          </Text>
+          <Text style={styles.updateOverlayText}>To może potrwać chwilę.</Text>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -412,6 +428,25 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 14,
   },
   versionText: {
+  updateOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    padding: 24,
+    backgroundColor: "rgba(0, 0, 0, 0.82)",
+  },
+  updateOverlayTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  updateOverlayText: {
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 14,
+    textAlign: "center",
+  },
     color: tc('muted', "#6b7280"),
     fontSize: 11,
     textAlign: "center",

@@ -9,6 +9,7 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import SignIn from '../app/(auth)/sign-in';
+import { checkAndApplyUpdate } from '../services/appUpdates';
 import { GlobalStateContext } from '../context/GlobalState';
 import {
   buildSessionActiveMessage,
@@ -77,6 +78,20 @@ describe('SignIn - blokada „jedna osoba na punkcie”', () => {
   beforeEach(() => {
     mockReplace.mockClear();
     mockUseParams.mockReturnValue({});
+    checkAndApplyUpdate.mockReset();
+    checkAndApplyUpdate.mockResolvedValue({ status: 'skipped' });
+  });
+
+  test('blokuje ekran podczas pobierania aktualizacji OTA', async () => {
+    checkAndApplyUpdate.mockImplementation(({ onDownloading }) => {
+      onDownloading();
+      return new Promise(() => {});
+    });
+
+    const screen = renderSignIn(jest.fn());
+
+    await waitFor(() => expect(screen.getByTestId('update-blocking-overlay')).toBeTruthy());
+    expect(screen.getByText('Pobieranie aktualizacji…')).toBeTruthy();
   });
 
   test('SESSION_ACTIVE pokazuje, kto i od kiedy zajmuje punkt (godzina lokalna, „X min temu”)', async () => {

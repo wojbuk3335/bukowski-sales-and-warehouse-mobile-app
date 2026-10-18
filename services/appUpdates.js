@@ -16,34 +16,31 @@ try {
 const DEFAULT_TIMEOUT_MS = 10000;
 
 // Sprawdza i instaluje aktualizację; przeładowuje aplikację, gdy jest nowa wersja.
-// Przy braku sieci, błędzie albo po przekroczeniu czasu logowanie idzie dalej na obecnej wersji.
-export const checkAndApplyUpdate = async ({ timeoutMs = DEFAULT_TIMEOUT_MS, onDownloading } = {}) => {
+// Limit dotyczy sprawdzenia dostępności; pobieranie trwa do sukcesu albo błędu.
+export const checkAndApplyUpdate = async ({ timeoutMs = DEFAULT_TIMEOUT_MS, onDownloading, onApplying } = {}) => {
   if (__DEV__ || !Updates?.isEnabled) return { status: "skipped" };
 
-  let timedOut = false;
-  const timeout = new Promise((resolve) => {
-    setTimeout(() => {
-      timedOut = true;
-      resolve({ status: "timeout" });
-    }, timeoutMs);
-  });
+  let timeoutId;
+  try {
+    const check = await Promise.race([
+      Updates.checkForUpdateAsync(),
+      new Promise((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+    clearTimeout(timeoutId);
+    if (!check) return { status: "timeout" };
+    if (!check.isAvailable) return { status: "up-to-date" };
 
-  const work = (async () => {
-    try {
-      const check = await Updates.checkForUpdateAsync();
-      if (!check.isAvailable || timedOut) return { status: "up-to-date" };
-      onDownloading?.();
-      await Updates.fetchUpdateAsync();
-      // Po przekroczeniu czasu nie przerywamy logowania: pobrana wersja uruchomi się następnym razem
-      if (timedOut) return { status: "downloaded-late" };
-      await Updates.reloadAsync();
-      return { status: "reloading" };
-    } catch (error) {
-      return { status: "error", error };
-    }
-  })();
-
-  return Promise.race([work, timeout]);
+    onDownloading?.();
+    await Updates.fetchUpdateAsync();
+    onApplying?.();
+    await Updates.reloadAsync();
+    return { status: "reloading" };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    return { status: "error", error };
+  }
 };
 
 const formatDateTime = (date) => {
