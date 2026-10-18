@@ -55,15 +55,15 @@ describe('QRScanner - płatność mieszana', () => {
         code: '1234567890',
         fullName: 'Kurtka',
         category: 'Kurtki kożuchy futra',
-        price: 1000,
-        minimumPrice: 900,
+        price: 850,
+        minimumPrice: 850,
         discount_price: 0,
       }],
       stocks: [],
       users: [{ _id: 'u1', symbol: 'PUNKT1', sellingPoint: 'PUNKT1', location: 'Z' }],
       bags: [],
       wallets: [],
-      currencyRates: [{ currency: { code: 'EUR', name: 'Euro' }, buyRate: 4.25 }],
+      currencyRates: [{ currency: { code: 'EUR', name: 'Euro' }, buyRate: 4.26 }],
       getFilteredSellingPoints: () => [],
       isActive: true,
     };
@@ -75,15 +75,19 @@ describe('QRScanner - płatność mieszana', () => {
     await waitFor(() => expect(utils.getByTestId('payment-mode')).toBeTruthy());
 
     fireEvent.press(utils.getByText('Gotówka i karta'));
-    fireEvent.changeText(utils.getByTestId('cash-payment-amount-0'), '50');
+    fireEvent.changeText(utils.getByTestId('cash-payment-amount-0'), '100');
     fireEvent.press(utils.getByTestId('cash-payment-currency-0'));
     fireEvent.press(await waitFor(() => utils.getByText('EUR')));
 
-    await waitFor(() => expect(utils.getByTestId('card-payment-amount-0').props.value).toBe('787.50'));
-    expect(utils.getByTestId('card-payment-amount-0').props.editable).toBe(false);
+    expect(utils.getByTestId('card-payment-amount-0').props.editable).toBe(true);
     expect(utils.getByTestId('card-payment-currency-0').props.accessibilityState.disabled).toBe(true);
     expect(utils.getByTestId('card-payment-currency-0')).toHaveTextContent('PLN');
     expect(utils.getByTestId('sale-price-input').props.editable).toBe(false);
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '100');
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '100');
+    await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 526.00 zł · Do dopłaty kartą: 324.00 zł'));
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424');
+    await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 850.00 zł · Do dopłaty kartą: 0.00 zł'));
 
     fireEvent.press(utils.getByText('Dodaj'));
 
@@ -91,8 +95,8 @@ describe('QRScanner - płatność mieszana', () => {
       const saveCall = tokenService.authenticatedFetch.mock.calls.find(([url]) => url.endsWith('/sales/save-sales'));
       expect(saveCall).toBeTruthy();
       const body = JSON.parse(saveCall[1].body);
-      expect(body.cash).toEqual([{ price: '50', currency: 'EUR' }]);
-      expect(body.card).toEqual([{ price: '787.50', currency: 'PLN' }]);
+      expect(body.cash).toEqual([{ price: '100', currency: 'EUR' }]);
+      expect(body.card).toEqual([{ price: '424', currency: 'PLN' }]);
     });
   });
 });

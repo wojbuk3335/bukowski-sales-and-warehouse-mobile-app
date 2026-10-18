@@ -443,17 +443,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const cardNoDiscount = priceRuleSale && paymentMode !== "cash";
   const effectiveSalePrice = cardNoDiscount ? String(salePriceList) : salePrice;
   const effectiveSaleMin = cardNoDiscount ? salePriceList : salePriceMin;
-  const effectiveCardPriceCurrencyPairs = paymentMode === "mixed"
-    ? [{
-        price: formatMoney(Math.max(0, computePaymentBalance({
-          price: salePriceList,
-          payments: cashPriceCurrencyPairs,
-          currencyRates,
-        }).remainingPln)),
-        currency: "PLN",
-        paymentMode: "mixed",
-      }]
-    : cardPriceCurrencyPairs.map((pair) => ({ ...pair, currency: "PLN" }));
+  const effectiveCardPriceCurrencyPairs = cardPriceCurrencyPairs.map((pair) => ({ ...pair, currency: "PLN" }));
   const selectPaymentMode = (mode) => {
     if (mode === paymentMode) return;
     if (mode === "card") {
@@ -1424,7 +1414,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         testID={`card-payment-amount-${index}`}
                         style={[look.formInput, { flex: 1.4 }]}
                         placeholderTextColor={tc('muted', '#888')}
-                        editable={!cardLocked && paymentMode !== "mixed"}
+                        editable={!cardLocked}
                         value={pair.price}
                         onChangeText={(value) => {
                           const numericValue = value.replace(/[^0-9.]/g, "");
@@ -1445,6 +1435,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       </TouchableOpacity>
                     </View>
                   ))}
+                  {paymentMode === "mixed" && (
+                    <Text testID="mixed-payment-summary" style={styles.remainingHint}>
+                      {`Zapłacono: ${formatMoney(paymentBalance.paidPln)} zł · Do dopłaty kartą: ${formatMoney(Math.max(0, paymentBalance.remainingPln))} zł`}
+                    </Text>
+                  )}
                   {paymentMode === "card" && remainingBlock}
                   {paymentMode !== "cash" && minimumNotice}
                 </View>
