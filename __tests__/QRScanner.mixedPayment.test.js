@@ -89,9 +89,27 @@ describe('QRScanner - płatność mieszana', () => {
     expect(utils.getByTestId('minimum-top-up')).toHaveTextContent('Dopłać jeszcze 324.00 zł, aby osiągnąć minimum.');
     fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424');
     await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 850.00 zł · Do dopłaty kartą: 0.00 zł'));
+    expect(utils.getByTestId('cash-payment-section')).toBeTruthy();
+    expect(utils.getByTestId('card-payment-section')).toBeTruthy();
+
+    fireEvent.press(utils.getByTestId('payment-mode-cash'));
+    expect(utils.getByTestId('cash-payment-section')).toBeTruthy();
+    expect(utils.queryByTestId('card-payment-section')).toBeNull();
+
+    fireEvent.press(utils.getByTestId('payment-mode-card'));
+    await waitFor(() => expect(utils.queryByTestId('cash-payment-section')).toBeNull());
+    expect(utils.getByTestId('card-payment-section')).toBeTruthy();
+    const cardAmount = utils.getByTestId('card-payment-amount-0');
+    expect(cardAmount.props.editable).toBe(false);
+    expect(cardAmount.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ opacity: 0.45 })]));
+
+    fireEvent.press(utils.getByTestId('payment-mode-mixed'));
+    fireEvent.changeText(utils.getByTestId('cash-payment-amount-0'), '100');
+    fireEvent.press(utils.getByTestId('cash-payment-currency-0'));
+    fireEvent.press(await waitFor(() => utils.getByText('EUR')));
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424');
 
     fireEvent.press(utils.getByText('Dodaj'));
-
     await waitFor(() => {
       const saveCall = tokenService.authenticatedFetch.mock.calls.find(([url]) => url.endsWith('/sales/save-sales'));
       expect(saveCall).toBeTruthy();

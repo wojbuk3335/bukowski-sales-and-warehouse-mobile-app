@@ -439,6 +439,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const paymentMode = priceRuleSale ? (cardPriceCurrencyPairs.find((pair) => pair.paymentMode)?.paymentMode ?? "cash") : "cash";
   const cardLocked = priceRuleSale && paymentMode === "cash";
   const cashLocked = priceRuleSale && paymentMode === "card";
+  const showCashPayment = !priceRuleSale || paymentMode !== "card";
+  const showCardPayment = !priceRuleSale || paymentMode !== "cash";
   // Każda płatność kartą (sama lub z gotówką): bez rabatu, cena i minimum to cena z cennika
   const cardNoDiscount = priceRuleSale && paymentMode !== "cash";
   const effectiveSalePrice = cardNoDiscount ? String(salePriceList) : salePrice;
@@ -1276,6 +1278,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       return (
                         <Pressable
                           key={option.key}
+                          testID={`payment-mode-${option.key}`}
                           accessibilityRole="radio"
                           accessibilityState={{ checked }}
                           style={[look.optionCard, checked && { borderColor: option.color, backgroundColor: `${option.color}1F` }]}
@@ -1288,7 +1291,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     })}
                   </View>
                 )}
-                <View style={[styles.paymentCard, cashLocked && { opacity: 0.45 }]}>
+                {showCashPayment && (
+                <View testID="cash-payment-section" style={[styles.paymentCard, cashLocked && { opacity: 0.45 }]}>
                   <View style={styles.paymentHeader}>
                     <View style={[look.optionCardIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
                       <Ionicons name="cash-outline" size={20} color="#10B981" />
@@ -1365,6 +1369,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   {paymentMode !== "card" && remainingBlock}
                   {paymentMode === "cash" && minimumNotice}
                 </View>
+                )}
                 {currencyModalVisible && (
                   <Modal
                     transparent={true}
@@ -1402,7 +1407,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                   </Modal>
                 )}
-                <View style={[styles.paymentCard, cardLocked && { opacity: 0.45 }]}>
+                {showCardPayment && (
+                <View testID="card-payment-section" style={[styles.paymentCard, cardLocked && { opacity: 0.45 }]}>
                   <View style={styles.paymentHeader}>
                     <View style={[look.optionCardIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
                       <Ionicons name="card-outline" size={20} color="#3B82F6" />
@@ -1416,9 +1422,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     >
                       <TextInput
                         testID={`card-payment-amount-${index}`}
-                        style={[look.formInput, { flex: 1.4 }]}
+                        style={[look.formInput, { flex: 1.4 }, paymentMode === "card" && { opacity: 0.45 }]}
                         placeholderTextColor={tc('muted', '#888')}
-                        editable={!cardLocked}
+                        editable={!cardLocked && paymentMode !== "card"}
                         value={pair.price}
                         onChangeText={(value) => {
                           const numericValue = value.replace(/[^0-9.]/g, "");
@@ -1447,6 +1453,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   {paymentMode === "card" && remainingBlock}
                   {paymentMode !== "cash" && minimumNotice}
                 </View>
+                )}
                 <View style={styles.modalButtons}>
                   <Pressable
                     style={[styles.button, styles.cancelButton]}
