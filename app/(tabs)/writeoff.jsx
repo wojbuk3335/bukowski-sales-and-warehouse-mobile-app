@@ -275,6 +275,36 @@ const fetchSales = async () => {
     }
 };
 
+    // Dzisiejsze przepisanie/wymiana tej sztuki z tego punktu (sprzedaż liczy się po kodzie kreskowym)
+    const todayTransferOf = (item) => transfers.find(
+        (transfer) => transfer.transfer_from === user?.symbol
+            && (transfer.productId === item.id || (transfer.transfer_to === 'SOLD' && item.barcode && transfer.barcode === item.barcode))
+    ) || null;
+
+    const transferLabel = (transfer) => {
+        if (!transfer) return '';
+        if (transfer.transfer_to === 'SOLD') return 'Sprzedano';
+        if (transfer.transfer_to === 'Wymiana') return `Wymiana${transfer.reason?.startsWith('Wymiana - ') ? ` - ${transfer.reason.replace('Wymiana - ', '')}` : ''}`;
+        return `Przepisano do: ${transfer.transfer_to}`;
+    };
+
+    const cancelTransfer = async (transfer) => {
+        try {
+            const response = await tokenService.authenticatedFetch(getApiUrl(`/transfer/${transfer._id}/cancel`), { method: 'PATCH' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                appAlert('Błąd', data.message || 'Nie udało się anulować przepisania.');
+                return;
+            }
+            closeModal();
+            setSuccessMessage(transfer.transfer_to === 'Wymiana' ? 'Wymiana została anulowana.' : 'Przepisanie zostało anulowane.');
+            setSuccessModalVisible(true);
+            fetchAllRequiredData(false);
+        } catch (error) {
+            appAlert('Błąd', 'Nie udało się anulować przepisania.');
+        }
+    };
+
     const openModal = (item) => {
         setSelectedItem(item);
         setModalVisible(true);
@@ -798,25 +828,32 @@ const fetchSales = async () => {
                         keyExtractor={(item) => item.id}
                         onRefresh={() => fetchAllRequiredData(true)} // true = to jest refresh action
                         refreshing={isRefreshing} // Używamy isRefreshing zamiast isLoading
-                        renderItem={({ item, index }) => (
-                            <View
-                                style={look.itemCard}
-                            >
-                                <Text 
-                                    style={look.itemCardText} 
-                                    numberOfLines={1}
+                        renderItem={({ item, index }) => {
+                            const transfer = todayTransferOf(item);
+                            return (
+                                <View
+                                    testID={`writeoff-item-${item.id}`}
+                                    style={[look.itemCard, transfer && { opacity: 0.45 }]}
                                 >
-                                    {index + 1}. {item.fullName}  {item.size}
-                                </Text>
-                                <TouchableOpacity
-                                    onPress={() => openModal(item)}
-                                    style={look.dotsButton}
-                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                >
-                                    <Text style={look.dotsText}>⋮</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={look.itemCardText} numberOfLines={1}>
+                                            {index + 1}. {item.fullName}  {item.size}
+                                        </Text>
+                                        {transfer && (
+                                            <Text style={styles.transferStatusText} numberOfLines={1}>{transferLabel(transfer)}</Text>
+                                        )}
+                                    </View>
+                                    <TouchableOpacity
+                                        testID={`writeoff-dots-${item.id}`}
+                                        onPress={() => openModal(item)}
+                                        style={look.dotsButton}
+                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    >
+                                        <Text style={look.dotsText}>⋮</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        }}
                     />
                 </View>
             )}
@@ -829,7 +866,22 @@ const fetchSales = async () => {
                 <View style={look.modalOverlay}>
                     <View style={look.modalContent}>
                         <ModalHeader icon="ellipsis-horizontal-circle" color="#0D6EFD" title="Opcje" />
-                        {selectedItem ? (
+                        {selectedItem && todayTransferOf(selectedItem) ? (
+                            todayTransferOf(selectedItem).transfer_to === 'SOLD' ? (
+                                <Text style={look.modalMessage}>Ten produkt został dziś sprzedany. Anulowanie sprzedaży odbywa się w zakładce Sprzedaż.</Text>
+                            ) : (
+                                <>
+                                    <Text style={look.modalMessage}>{transferLabel(todayTransferOf(selectedItem))}</Text>
+                                    <ActionItem
+                                        testID="cancel-transfer"
+                                        icon="arrow-undo"
+                                        color="#EF4444"
+                                        label={todayTransferOf(selectedItem).transfer_to === 'Wymiana' ? 'Anuluj wymianę' : 'Anuluj przepisanie'}
+                                        onPress={() => cancelTransfer(todayTransferOf(selectedItem))}
+                                    />
+                                </>
+                            )
+                        ) : selectedItem ? (
                             <>
                                 <ActionItem
                                     icon="swap-horizontal"
@@ -1393,6 +1445,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
         color: '#ffffff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    transferStatusText: {
+        color: '#F59E0B',
+        fontSize: 12,
+        fontWeight: '600',
+        marginTop: 2,
     },
     deleteButton: {
         backgroundColor: '#007bff', // Blue color to distinguish from close button

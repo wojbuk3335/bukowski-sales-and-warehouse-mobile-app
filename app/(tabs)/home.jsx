@@ -1303,38 +1303,6 @@ const Home = () => {
     }
   };
 
-  const handleCancelTransferredItem = async () => {
-    if (!selectedTransferredItem?._id) {
-      setErrorMessage('Nie znaleziono transferu do anulowania.');
-      setErrorModalVisible(true);
-      setTransferOptionsVisible(false);
-      return;
-    }
-
-    try {
-      const response = await tokenService.authenticatedFetch(
-        getApiUrl(`/transfer/by-id/${selectedTransferredItem._id}`),
-        { method: 'DELETE' }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to delete transfer');
-      }
-
-      setTransferOptionsVisible(false);
-      setSelectedTransferredItem(null);
-      await fetchTransferredItems();
-      await fetchReceivedItems();
-
-      setSuccessMessage('Transfer został anulowany.');
-      setSuccessModalVisible(true);
-    } catch (error) {
-      setTransferOptionsVisible(false);
-      setErrorMessage('Nie udało się anulować transferu. Spróbuj ponownie.');
-      setErrorModalVisible(true);
-    }
-  };
-
   // Handle Pan Kazek transfer
   const handlePanKazekTransfer = () => {
     setPanKazekModalVisible(true);
@@ -3741,12 +3709,11 @@ const Home = () => {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Opcje transferu</Text>
-              <TouchableOpacity
-                onPress={handleCancelTransferredItem}
-                style={[styles.optionButton, styles.deleteButton]}
-              >
-                <Text style={styles.optionText}>Anuluj odpisanie</Text>
-              </TouchableOpacity>
+              <Text testID="transfer-cancel-hint" style={[styles.modalText, { textAlign: 'center', marginBottom: 12 }]}>
+                {selectedTransferredItem?.transfer_to === 'Wymiana'
+                  ? 'Anulowanie wymiany odbywa się w zakładce Stan.'
+                  : 'Anulowanie przepisania odbywa się w zakładce Stan.'}
+              </Text>
               <TouchableOpacity
                 onPress={() => setTransferOptionsVisible(false)}
                 style={[styles.optionButton, styles.closeButton]}
