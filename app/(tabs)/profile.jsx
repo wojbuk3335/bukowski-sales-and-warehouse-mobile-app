@@ -10,6 +10,8 @@ import { getApiUrl } from '../../config/api';
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
+import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // rozliczenie jak płatność przy sprzedaży
+import { formatMoney, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // zaliczka w kilku walutach
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext';
@@ -111,8 +113,9 @@ const Profile = () => {
 
   // Payment states
   const [totalPrice, setTotalPrice] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [depositCurrency, setDepositCurrency] = useState('PLN'); // Waluta zaliczki
+  // Zaliczka jak płatność przy sprzedaży: wiersze kwota | waluta („Dodaj walutę”), każda waluta = osobna wpłata
+  const [depositPairs, setDepositPairs] = useState([{ price: '', currency: 'PLN' }]);
+  const [depositPairIndex, setDepositPairIndex] = useState(0); // wiersz, dla którego wybieramy walutę
   const [totalPriceFocused, setTotalPriceFocused] = useState(false);
   const [depositFocused, setDepositFocused] = useState(false);
   const [depositCurrencyModalVisible, setDepositCurrencyModalVisible] = useState(false);
@@ -488,7 +491,7 @@ const Profile = () => {
       <TouchableOpacity
         style={styles.currencyOptionItem}
         onPress={() => {
-          setDepositCurrency(item.code);
+          setDepositPairs((prev) => prev.map((pair, index) => (index === depositPairIndex ? { ...pair, currency: item.code } : pair)));
           setDepositCurrencyModalVisible(false);
         }}
       >
@@ -573,12 +576,25 @@ const Profile = () => {
     return amount.toFixed(2);
   };
 
+  // Wpłaty zaliczki: kwoty odczytane z pól (1 200,50 itd.) i suma w PLN po kursie z panelu; null = brak kursu którejś waluty
+  const depositRows = depositPairs.map((pair) => ({ ...pair, amount: parseAmount(pair.price).value || 0 }));
+  const paidDepositRows = depositRows.filter((row) => row.amount > 0);
+  const depositInPln = paidDepositRows.reduce((sum, row) => {
+    if (sum === null) return null;
+    const unit = plnPerUnit(row.currency, currencyRates);
+    return unit === null ? null : sum + row.amount * unit;
+  }, 0);
+
+  const handleDepositPairChange = (index, text) => {
+    const filteredText = text.replace(/[^0-9.,zł\s]/g, '');
+    setDepositPairs((prev) => prev.map((pair, i) => (i === index ? { ...pair, price: filteredText } : pair)));
+  };
+  const handleAddDepositPair = () => setDepositPairs((prev) => [...prev, { price: '', currency: 'PLN' }]);
+  const handleRemoveDepositPair = (index) => setDepositPairs((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+
   const calculateCashOnDelivery = () => {
     const total = parsePrice(totalPrice);
-    const depositAmount = parsePrice(deposit);
-    const { rate, multiplier } = getDepositRateInfo(depositCurrency);
-    const depositInPln = depositCurrency === 'PLN' ? depositAmount : (rate ? (depositAmount / multiplier) * rate : 0);
-    const remaining = Math.round((total - depositInPln) * 100) / 100;
+    const remaining = Math.round((total - (depositInPln || 0)) * 100) / 100;
     
     if (remaining <= 0) return 0;
     
@@ -587,19 +603,12 @@ const Profile = () => {
     return remaining + shippingCost;
   };
 
-  const depositInPlnOrNull = () => {
-    const amount = parsePrice(deposit);
-    if (depositCurrency === 'PLN') return amount;
-    const { rate, multiplier } = getDepositRateInfo(depositCurrency);
-    return rate ? (amount / multiplier) * rate : null;
-  };
 
-  // Podgląd odczytanej kwoty pod polem (sprzedawca widzi, co zostanie zapisane) albo błąd zapisu
-  const renderAmountPreview = (text, label, currency = 'zł') => {
+  // Pod polem kwoty tylko błąd zapisu (np. niejednoznaczne „1,200”) - bez podglądu „= …”
+  const renderAmountPreview = (text, label) => {
     if (!String(text || '').trim()) return null;
     const error = amountError(text, label);
-    if (error) return <Text style={postalHintStyles.warn}>⚠️ {error}</Text>;
-    return <Text style={postalHintStyles.muted}>= {formatAmount(parseAmount(text).value, currency)}</Text>;
+    return error ? <Text style={postalHintStyles.warn}>⚠️ {error}</Text> : null;
   };
 
   const handleTotalPriceChange = (text) => {
@@ -608,11 +617,6 @@ const Profile = () => {
     setTotalPrice(filteredText);
   };
 
-  const handleDepositChange = (text) => {
-    // Allow only numbers, dots, commas, and "zł" symbol
-    const filteredText = text.replace(/[^0-9.,zł\s]/g, '');
-    setDeposit(filteredText);
-  };
 
   // NIP validation
   const validateNIP = (nip) => {
@@ -738,11 +742,12 @@ const Profile = () => {
       }
     }
     // Kwoty: poprawny zapis, cena > 0 i w limicie, zaliczka nie większa niż cena, kurs waluty zaliczki (backend sprawdza to samo)
-    const amountsError = validateOrderAmounts({ totalPrice, deposit, depositCurrency, depositInPln: depositInPlnOrNull() });
+    const amountsError = validateOrderAmounts({ totalPrice, deposits: depositPairs, depositInPln });
     if (amountsError) {
       appAlert('Błąd', amountsError);
       return false;
     }
+
     if (documentType === 'invoice' && !nip.trim()) {
       appAlert('Błąd', 'Dla faktury wymagany jest numer NIP');
       return false;
@@ -792,8 +797,10 @@ const Profile = () => {
         },
         payment: {
           totalPrice: parsePrice(totalPrice),
-          deposit: parsePrice(deposit),
-          depositCurrency: depositCurrency, // Waluta zaliczki (PLN, EUR, USD, etc.)
+          // Zaliczka w kilku walutach; deposit/depositCurrency dla zgodności (jedna waluta - jak dawniej, kilka - suma w PLN)
+          deposits: paidDepositRows.map((row) => ({ amount: row.amount, currency: row.currency })),
+          deposit: paidDepositRows.length > 1 ? Math.round((depositInPln || 0) * 100) / 100 : (paidDepositRows[0]?.amount || 0),
+          depositCurrency: paidDepositRows.length > 1 ? 'PLN' : (paidDepositRows[0]?.currency || 'PLN'),
           cashOnDelivery: calculateCashOnDelivery(),
           documentType,
           nip: documentType === 'invoice' ? nip : null
@@ -880,8 +887,8 @@ const Profile = () => {
     setStreetSearchText('');
     setHouseNumber('');
     setTotalPrice('');
-    setDeposit('');
-    setDepositCurrency('PLN'); // Reset waluty zaliczki do PLN
+    setDepositPairs([{ price: '', currency: 'PLN' }]); // zaliczka: jeden pusty wiersz PLN
+    setDepositPairIndex(0);
     setRemainingCurrency('PLN'); // Reset waluty dopłaty do PLN
     setDocumentType('receipt');
     setNip('');
@@ -933,6 +940,7 @@ const Profile = () => {
   useEffect(() => {
     fetchCurrencyRates();
   }, []);
+
 
   useEffect(() => {
     if (depositCurrencyModalVisible) {
@@ -1557,109 +1565,109 @@ const Profile = () => {
                     <Text style={styles.sectionTitle}>Rozliczenie</Text>
                   </View>
                   
-                  {/* Total Price Field */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.fieldLabel}>Cena całkowita (PLN):</Text>
-                    <TextInput
-                      style={[styles.input, totalPriceFocused && styles.inputFocused]}
-                      placeholder="np. 800 zł"
-                      value={totalPrice}
-                      onChangeText={handleTotalPriceChange}
-                      onFocus={() => setTotalPriceFocused(true)}
-                      onBlur={() => setTotalPriceFocused(false)}
-                      placeholderTextColor={tc('muted', "#666")}
-                      keyboardType="numeric"
-                    />
+                  {/* Cena i zaliczka - pola sekcji „Rozliczenie” (dodawanie walut jak płatność przy sprzedaży, każda waluta = osobna wpłata) */}
+                  <>
+                    <View style={sf.salePriceRow}>
+                      <Text style={sf.salePriceLabel}>Cena</Text>
+                      <TextInput
+                        testID="order-total-price-input"
+                        style={[look.formInput, { flex: 1 }, totalPriceFocused && styles.inputFocused]}
+                        placeholder="np. 800 zł"
+                        value={totalPrice}
+                        onChangeText={handleTotalPriceChange}
+                        onFocus={() => setTotalPriceFocused(true)}
+                        onBlur={() => setTotalPriceFocused(false)}
+                        placeholderTextColor={tc('muted', "#666")}
+                        keyboardType="numeric"
+                      />
+                      <Text style={sf.salePriceCurrency}>PLN</Text>
+                    </View>
                     {renderAmountPreview(totalPrice, 'Cena')}
-                  </View>
-
-                  {/* Deposit Field */}
-                  <View style={styles.fieldContainer}>
                     <Text style={styles.fieldLabel}>Zaliczka:</Text>
-                    <TextInput
-                      style={[styles.input, depositFocused && styles.inputFocused]}
-                      placeholder="Wprowadź kwotę"
-                      value={deposit}
-                      onChangeText={handleDepositChange}
-                      onFocus={() => setDepositFocused(true)}
-                      onBlur={() => setDepositFocused(false)}
-                      placeholderTextColor={tc('muted', "#666")}
-                      keyboardType="numeric"
-                    />
-                    {renderAmountPreview(deposit, 'Zaliczka', depositCurrency === 'PLN' ? 'zł' : depositCurrency)}
-                  </View>
-
-                  {/* Deposit Currency Selection */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.fieldLabel}>Waluta zaliczki:</Text>
-                    <TouchableOpacity
-                      style={styles.currencySelect}
-                      onPress={() => setDepositCurrencyModalVisible(true)}
-                    >
-                      <Text style={styles.currencySelectText}>
-                        {depositCurrency}
-                      </Text>
+                    {depositPairs.map((pair, index) => (
+                      <View key={`deposit-${index}`} style={{ marginBottom: 10 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          <TextInput
+                            testID={`order-deposit-amount-${index}`}
+                            style={[look.formInput, { flex: 1.4 }]}
+                            placeholder="Kwota zaliczki"
+                            value={pair.price}
+                            onChangeText={(text) => handleDepositPairChange(index, text)}
+                            placeholderTextColor={tc('muted', "#666")}
+                            keyboardType="numeric"
+                          />
+                          <TouchableOpacity
+                            testID={`order-deposit-currency-${index}`}
+                            style={[look.selectField, { flex: 1 }]}
+                            onPress={() => {
+                              setDepositPairIndex(index);
+                              setDepositCurrencyModalVisible(true);
+                            }}
+                          >
+                            <Text style={look.selectFieldText}>{pair.currency || 'PLN'}</Text>
+                            <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                          </TouchableOpacity>
+                          {index > 0 && (
+                            <TouchableOpacity
+                              accessibilityLabel="Usuń"
+                              style={sf.removeTile}
+                              onPress={() => handleRemoveDepositPair(index)}
+                            >
+                              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {renderAmountPreview(pair.price, 'Zaliczka')}
+                        {pair.currency !== 'PLN' && getDepositRateLabel(pair.currency) ? (
+                          <Text style={sf.remainingHint}>{getDepositRateLabel(pair.currency)}</Text>
+                        ) : null}
+                      </View>
+                    ))}
+                    <TouchableOpacity style={sf.addPairButton} onPress={handleAddDepositPair} testID="order-add-currency">
+                      <Ionicons name="add" size={20} color="#0D6EFD" />
+                      <Text style={sf.addPairButtonText}>Dodaj walutę</Text>
                     </TouchableOpacity>
-                    {getDepositRateLabel(depositCurrency) && (
-                      <Text style={styles.currencyRateText}>
-                        {getDepositRateLabel(depositCurrency)}
-                      </Text>
-                    )}
-                  </View>
 
-                  {/* Cash on Delivery / Remaining Payment (Calculated) */}
-                  {deliveryOption === 'shipping' ? (
-                    /* For shipping - always PLN */
-                    <View style={styles.fieldContainer}>
-                      <Text style={styles.fieldLabel}>
-                        Kwota pobrania (PLN) (z przesyłką +20 zł):
-                      </Text>
-                      <View style={[styles.input, styles.calculatedField]}>
-                        <Text style={styles.calculatedFieldText}>
-                          {calculateCashOnDelivery() > 0 ? formatPrice(calculateCashOnDelivery()) : '0.00 zł'}
+                    {/* Pozostało do zapłaty: przy wysyłce kwota pobrania w PLN (+20 zł), przy dostawie i odbiorze - w wybranej walucie */}
+                    <View style={sf.remainingSection} testID="order-remaining-card">
+                      <View style={sf.remainingHeader}>
+                        <Ionicons name="hourglass-outline" size={18} color="#EF4444" />
+                        <Text style={sf.remainingTitle}>
+                          {deliveryOption === 'shipping' ? 'Kwota pobrania (z przesyłką +20 zł)' : `Do dopłaty${deliveryOption === 'pickup' ? ' przy odbiorze' : ' przy dostawie'}`}
                         </Text>
                       </View>
-                      <Text style={styles.helperText}>
-                        Obliczane automatycznie: (Cena - Zaliczka) + 20 zł za przesyłkę
-                      </Text>
-                    </View>
-                  ) : (
-                    /* For delivery and pickup - allow currency selection */
-                    <>
-                      <View style={styles.fieldContainer}>
-                        <Text style={styles.fieldLabel}>
-                          Kwota dopłaty:
-                        </Text>
-                        <View style={[styles.input, styles.calculatedField]}>
-                          <Text style={styles.calculatedFieldText}>
-                            {formatRemainingAmount()} {remainingCurrency}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={[look.formInput, sf.remainingValue, { justifyContent: 'center' }]}>
+                          <Text testID="order-remaining-amount" style={[sf.remainingValueText, { color: tc('text', '#fff') }]}>
+                            {deliveryOption === 'shipping'
+                              ? formatMoney(calculateCashOnDelivery())
+                              : formatRemainingAmount()}
                           </Text>
                         </View>
-                        <Text style={styles.helperText}>
-                          Obliczane automatycznie: (Cena - Zaliczka)
-                          {deliveryOption === 'pickup' ? ' (odbiór osobisty)' : ' (dostawa)'}
-                        </Text>
-                      </View>
-
-                      {/* Remaining Currency Selection */}
-                      <View style={styles.fieldContainer}>
-                        <Text style={styles.fieldLabel}>Waluta dopłaty:</Text>
-                        <TouchableOpacity
-                          style={styles.currencySelect}
-                          onPress={() => setRemainingCurrencyModalVisible(true)}
-                        >
-                          <Text style={styles.currencySelectText}>
-                            {remainingCurrency}
-                          </Text>
-                        </TouchableOpacity>
-                        {getRemainingRateLabel(remainingCurrency) && (
-                          <Text style={styles.currencyRateText}>
-                            {getRemainingRateLabel(remainingCurrency)}
-                          </Text>
+                        {deliveryOption === 'shipping' ? (
+                          <View style={[look.selectField, { flex: 1, justifyContent: 'center' }]}>
+                            <Text style={look.selectFieldText}>PLN</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            testID="order-remaining-currency"
+                            style={[look.selectField, { flex: 1 }]}
+                            onPress={() => setRemainingCurrencyModalVisible(true)}
+                          >
+                            <Text style={look.selectFieldText}>{remainingCurrency}</Text>
+                            <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                          </TouchableOpacity>
                         )}
                       </View>
-                    </>
-                  )}
+                      {deliveryOption !== 'shipping' && remainingCurrency !== 'PLN' && getRemainingRateLabel(remainingCurrency) ? (
+                        <Text style={sf.remainingHint}>{getRemainingRateLabel(remainingCurrency)}</Text>
+                      ) : null}
+                      <Text style={sf.clientTotal}>
+                        {depositInPln === null ? 'Zaliczka: brak kursu waluty' : `Zaliczka: ${formatMoney(depositInPln)} zł`}
+                        <Text style={sf.clientTotalPrice}>{`  (cena ${formatMoney(parsePrice(totalPrice))} zł)`}</Text>
+                      </Text>
+                    </View>
+                  </>
 
                   {/* Document Type Selection */}
                   <View style={styles.fieldContainer}>

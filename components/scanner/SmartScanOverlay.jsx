@@ -27,7 +27,8 @@ const FRAME_W = 280;
 const FRAME_H = 200;
 const IDLE_RESET_MS = 450; // po tym czasie bez kodu ramka wraca na środek
 
-export const useSmartBarcodeScan = ({ onConfirmed, enabled = true, requiredHits = 3, windowMs = 600 } = {}) => {
+// rearmKey: zmiana wartości = nowa sesja skanowania bez wyłączania (tryb ciągły - kolejne sztuki)
+export const useSmartBarcodeScan = ({ onConfirmed, enabled = true, requiredHits = 3, windowMs = 600, rearmKey = 0 } = {}) => {
   const counter = useRef(createConfirmCounter({ requiredHits, windowMs })).current;
   const frameRef = useRef(null); // ramka w układzie kamery {x, y, width, height}
   const idleTimer = useRef(null);
@@ -68,7 +69,7 @@ export const useSmartBarcodeScan = ({ onConfirmed, enabled = true, requiredHits 
       backToFrame();
     }
     return () => clearTimeout(idleTimer.current);
-  }, [enabled, backToFrame]);
+  }, [enabled, rearmKey, backToFrame]);
 
   const onFrameLayout = useCallback((event) => {
     const { x, y, width, height } = event.nativeEvent.layout;
@@ -216,10 +217,12 @@ const styles = StyleSheet.create({
   bl: { left: 0, bottom: 0, borderLeftWidth: 4, borderBottomWidth: 4, borderBottomLeftRadius: 14 },
   br: { right: 0, bottom: 0, borderRightWidth: 4, borderBottomWidth: 4, borderBottomRightRadius: 14 },
   hintWrap: {
+    // zawsze tuż pod ramką (pełny ekran sprzedaży i niższa kamera w Remanencie)
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 170,
+    top: "50%",
+    marginTop: FRAME_H / 2 + 16,
     alignItems: "center",
   },
   hint: {
@@ -238,8 +241,11 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap", // trzy przyciski i więcej - w dwóch rzędach na wąskim ekranie
+    justifyContent: "center",
     gap: 10,
     marginTop: 10,
+    paddingHorizontal: 12,
   },
   actionButton: {
     flexDirection: "row",

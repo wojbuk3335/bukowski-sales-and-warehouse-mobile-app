@@ -10,9 +10,13 @@ import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CurrencyPickerModal, MessageModal, ScreenHeader, look } from '../../components/AdminLook';
+import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
+import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
+import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
+import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
-import { CameraView, useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
+import { useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
+import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { appAlert } from '../../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -29,6 +33,12 @@ const Home = () => {
   const [refreshing, setRefreshing] = useState(false); // State for refresh control
   const [editModalVisible, setEditModalVisible] = useState(false); // State for edit modal visibility
   const [editData, setEditData] = useState(null); // State to store data for editing
+  // Edycja sprzedaży jak „Nowa sprzedaż”: cena (na start = suma wpłat w PLN), waluta i ręczna kwota „Do dopłaty”
+  const [editSalePrice, setEditSalePrice] = useState("");
+  const [editRemainingCurrency, setEditRemainingCurrency] = useState("PLN");
+  const [editRemainingOverride, setEditRemainingOverride] = useState(null);
+  const [editMinPrice, setEditMinPrice] = useState(null); // blokada rabatu (cennik punktu / karta produktu), null = bez blokady
+  const [editListPrice, setEditListPrice] = useState(null); // pełna cena z cennika - minimum przy płatności kartą
   const [otherAccountsData, setOtherAccountsData] = useState([]); // State for sales on other accounts
   const [transferredItems, setTransferredItems] = useState([]); // State for transferred items
   const [receivedItems, setReceivedItems] = useState([]); // State for items transferred to this account
@@ -80,6 +90,7 @@ const Home = () => {
   const [addAmountCurrency, setAddAmountCurrency] = useState("PLN"); // State for add amount currency
   const [addAmountCurrencyModalVisible, setAddAmountCurrencyModalVisible] = useState(false); // State for add amount currency selection modal
   const [addAmountReason, setAddAmountReason] = useState(""); // State for add amount reason
+  const [addAmountIncludeCommission, setAddAmountIncludeCommission] = useState(false);
   const [isEditingAddAmount, setIsEditingAddAmount] = useState(false); // Edit mode for add amount
   const [editingOperationId, setEditingOperationId] = useState(null); // Operation id being edited
   const [editingOperationDate, setEditingOperationDate] = useState(null); // Preserve original date for edits
@@ -120,6 +131,14 @@ const Home = () => {
   const addAmountSizeInputRef = useRef(null);
   const [productScanned, setProductScanned] = useState(false); // Track if product was scanned (with size already included)
   const [productFinalPrice, setProductFinalPrice] = useState(""); // Final agreed price for product
+  // „Dopisz kwotę” jak płatność przy sprzedaży: wiersze kwota | waluta („Dodaj walutę”), każda waluta = osobna operacja
+  const [addAmountPairs, setAddAmountPairs] = useState([{ price: "", currency: "PLN" }]);
+  const [addAmountChangeOverride, setAddAmountChangeOverride] = useState(null);
+  const [addAmountPairIndex, setAddAmountPairIndex] = useState(0); // wiersz, dla którego wybieramy walutę
+  const [editingGroupOps, setEditingGroupOps] = useState([]); // edycja: operacje zaliczki (wszystkie waluty)
+  const [myPriceList, setMyPriceList] = useState(null); // cennik punktu (null = brak, karta produktu)
+  const [addAmountMinPrice, setAddAmountMinPrice] = useState(null); // blokada rabatu ceny finalnej zaliczki
+  const lastAutoPriceKeyRef = useRef(""); // produkt+rozmiar, dla którego cena finalna już się podpowiedziała
   const [availableFunds, setAvailableFunds] = useState({}); // State for available funds to ensure re-rendering
   
   // QR Scanner states for product selection
@@ -407,6 +426,20 @@ const Home = () => {
     setCalculatorResult(null);
   };
 
+  // Cennik punktu zalogowanego sprzedawcy (null = punkt bez cennika - ceny z kart produktów)
+  const loadMyPriceList = async () => {
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/pricelists/my"));
+      const data = response.ok ? await response.json() : null;
+      const priceList = Array.isArray(data?.priceList) ? data.priceList : null;
+      setMyPriceList(priceList);
+      return priceList;
+    } catch (error) {
+      Logger.error("Error fetching own price list:", error);
+      return null;
+    }
+  };
+
   const fetchItemData = async (id) => {
     try {
       const response = await tokenService.authenticatedFetch(getApiUrl(`/sales/${id}`));
@@ -416,13 +449,23 @@ const Home = () => {
       const data = await response.json();
       setEditData(data); // Set the fetched data for editing
 
-      // Map cash and card fields to ensure proper structure and handle null/undefined prices
-      setCashPriceCurrencyPairs(
-        data.cash?.map(({ price, currency }) => ({ price: price ? price.toString() : "", currency })) || [{ price: "", currency: "PLN" }]
-      );
-      setCardPriceCurrencyPairs(
-        data.card?.map(({ price, currency }) => ({ price: price ? price.toString() : "", currency })) || [{ price: "", currency: "PLN" }]
-      );
+      // Wpłaty do edycji; brak wpłat (np. sprzedaż tylko gotówką: card = []) = jedno puste pole, żeby dało się dopisać kwotę
+      const toEditPairs = (payments) => (Array.isArray(payments) && payments.length > 0
+        ? payments.map(({ price, currency }) => ({ price: price ? price.toString() : "", currency: currency || "PLN" }))
+        : [{ price: "", currency: "PLN" }]);
+      setCashPriceCurrencyPairs(toEditPairs(data.cash));
+      setCardPriceCurrencyPairs(toEditPairs(data.card));
+
+      // Cena nie jest zapisana przy sprzedaży - na start suma wpłat w PLN, więc „Do dopłaty” = 0
+      const { paidPln } = computePaymentBalance({ price: 0, payments: [...(data.cash || []), ...(data.card || [])], currencyRates });
+      setEditSalePrice(paidPln > 0 ? String(Math.round(paidPln * 100) / 100) : "");
+      setEditRemainingCurrency("PLN");
+      setEditRemainingOverride(null);
+
+      // Blokada rabatu jak przy sprzedaży: minimum z cennika punktu (bez cennika - z karty produktu)
+      const priceList = await loadMyPriceList();
+      setEditMinPrice(salePriceRule({ barcode: data.barcode, goods, sizes, priceList })?.minPrice ?? null);
+      setEditListPrice(salePriceListForBarcode({ barcode: data.barcode, goods, sizes, priceList }));
 
       setEditModalVisible(true); // Show the edit modal
     } catch (error) {
@@ -430,30 +473,73 @@ const Home = () => {
     }
   };
 
+  // „Do dopłaty” / „Reszta do wydania” w edycji - te same wyliczenia co w „Nowa sprzedaż” (QRScanner)
+  const editPaymentBalance = computePaymentBalance({
+    price: editSalePrice,
+    payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs],
+    currencyRates,
+  });
+  const editRemainingInCurrency = plnToCurrency(Math.abs(editPaymentBalance.remainingPln), editRemainingCurrency, currencyRates);
+  const editIsOverpaid = editPaymentBalance.remainingPln < -0.005;
+  const editRemainingSuggested = editRemainingInCurrency === null ? "" : formatMoney(editRemainingInCurrency);
+  const editRemainingKey = `${editRemainingSuggested}|${editRemainingCurrency}|${editIsOverpaid}`;
+  // W edycji „Do dopłaty” / reszta liczy się tylko wpisana ręcznie (podpowiedź w polu jako placeholder) -
+  // inaczej obniżenie wpłaty (np. 1000 → 900) dopisywałoby różnicę z powrotem do gotówki
+  const editRemainingInput = editRemainingOverride && editRemainingOverride.key === editRemainingKey
+    ? editRemainingOverride.value
+    : "";
+  const editRemainingInputNumber = parseFloat(String(editRemainingInput).replace(",", "."));
+  const editRemainingUnit = plnPerUnit(editRemainingCurrency, currencyRates);
+  const editRemainingInputPln = editRemainingUnit !== null && editRemainingInputNumber > 0 ? editRemainingInputNumber * editRemainingUnit : 0;
+  const editClientTotalPln = editIsOverpaid ? editPaymentBalance.paidPln - editRemainingInputPln : editPaymentBalance.paidPln + editRemainingInputPln;
+
+  // Płatność kartą: bez rabatu, minimum to pełna cena z cennika
+  const hasEditCardPayment = cardPriceCurrencyPairs.some((pair) => parseFloat(pair.price) > 0);
+  const effectiveEditMinPrice = hasEditCardPayment ? editListPrice : editMinPrice;
+
   const updateItem = async () => {
     try {
       if (editData?._id) {
+        // Wpłaty jak przy sprzedaży: puste pomijamy, „Do dopłaty” dopisuje się do gotówki, wydana reszta się od niej odejmuje
+        let validCashPrices = cashPriceCurrencyPairs
+          .filter((pair) => pair.price && String(pair.price).trim() !== "")
+          .map((pair) => ({ price: pair.price, currency: pair.currency }));
+        if (!editData.isPickup && Number(editSalePrice) > 0 && editRemainingInputNumber > 0) {
+          validCashPrices = editIsOverpaid
+            ? applyChangeToCash(validCashPrices, editRemainingInputNumber, editRemainingCurrency, currencyRates)
+            : [...validCashPrices, { price: formatMoney(editRemainingInputNumber), currency: editRemainingCurrency }];
+        }
+        const validCardPrices = cardPriceCurrencyPairs
+          .filter((pair) => pair.price && String(pair.price).trim() !== "")
+          .map((pair) => ({ price: pair.price, currency: pair.currency }));
+
         // Validate that at least one price (cash or card) is provided
-        const hasCashPrice = cashPriceCurrencyPairs.some(({ price }) => {
+        const hasPrice = [...validCashPrices, ...validCardPrices].some(({ price }) => {
           const numPrice = parseFloat(price);
           return !isNaN(numPrice) && numPrice > 0;
         });
         
-        const hasCardPrice = cardPriceCurrencyPairs.some(({ price }) => {
-          const numPrice = parseFloat(price);
-          return !isNaN(numPrice) && numPrice > 0;
-        });
-        
-        if (!hasCashPrice && !hasCardPrice) {
+        if (!hasPrice) {
           setErrorMessage("Musisz podać przynajmniej jedną cenę (gotówka lub karta). Nie można zapisać produktu bez ceny.");
           setErrorModalVisible(true);
           return;
         }
 
+        // Blokada rabatu: „Klient zapłaci” nie niżej niż minimum z cennika; odbiór bez blokady
+        if (!editData.isPickup) {
+          const { paidPln } = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates });
+          const minimumError = minimumPriceError(paidPln, effectiveEditMinPrice);
+          if (minimumError) {
+            setErrorMessage(minimumError);
+            setErrorModalVisible(true);
+            return;
+          }
+        }
+
         const updatedData = {
           ...editData,
-          cash: cashPriceCurrencyPairs.map(({ price, currency }) => ({ price: parseFloat(price) || 0, currency })),
-          card: cardPriceCurrencyPairs.map(({ price, currency }) => ({ price: parseFloat(price) || 0, currency })),
+          cash: validCashPrices.map(({ price, currency }) => ({ price: parseFloat(price) || 0, currency })),
+          card: validCardPrices.map(({ price, currency }) => ({ price: parseFloat(price) || 0, currency })),
           isPickup: editData.isPickup || false, // Dodaj pole isPickup
         };
 
@@ -469,7 +555,12 @@ const Home = () => {
         );
 
         if (!response.ok) {
-          throw new Error("Failed to update the item.");
+          // Komunikat z backendu (np. walidacja) zamiast cichego błędu - okno edycji zostaje otwarte
+          const errorBody = await response.json().catch(() => ({}));
+          const details = Array.isArray(errorBody?.errors)
+            ? errorBody.errors.map((item) => item.msg || item.message).filter(Boolean).join("\n")
+            : (errorBody?.message || errorBody?.error || "");
+          throw new Error(`Nie udało się zapisać zmian (HTTP ${response.status}).${details ? `\n${details}` : ""}`);
         }
 
         const updatedItem = await response.json(); // Fetch the updated item from the server
@@ -483,6 +574,8 @@ const Home = () => {
       }
     } catch (error) {
       Logger.error("Error updating item:", error.message);
+      setErrorMessage(error.message?.startsWith("Nie udało się") ? error.message : "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.");
+      setErrorModalVisible(true);
     }
   };
 
@@ -737,7 +830,7 @@ const Home = () => {
     // Calculate total sales by currency
     const salesTotals = {};
     filteredData.forEach(item => {
-      [...(item.cash || []), ...(item.card || [])]
+      (item.cash || [])
         .filter(({ price }) => price !== undefined && price !== null && price !== "" && price !== 0)
         .forEach(({ price, currency }) => {
           salesTotals[currency] = (salesTotals[currency] || 0) + parseFloat(price);
@@ -1610,11 +1703,70 @@ const Home = () => {
     }
   };
 
+  // ---- „Dopisz kwotę” → „Zaliczka na produkt”: cena finalna i wpłaty jak przy sprzedaży ----
+  // Cennik punktu przy każdym otwarciu formularza (zmiany cen z panelu od razu widoczne)
+  useEffect(() => {
+    if (addAmountModalVisible) loadMyPriceList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addAmountModalVisible]);
+
+  // Reguła ceny dla wybranego produktu: zeskanowana sztuka (kod z metki) albo karta produktu z listy + rozmiar
+  const addAmountRule = (() => {
+    if (reasonType !== 'product' || !selectedProduct) return null;
+    const stateItem = stateData?.find((item) => (item.id || item._id) === selectedProduct);
+    if (stateItem?.barcode) {
+      return salePriceRule({ barcode: stateItem.barcode, goods, sizes, priceList: myPriceList })
+        || regularOrPromoRule(stateItem.price, stateItem.discount_price, stateItem.category);
+    }
+    const good = (goods || []).find((item) => (item._id || item.id) === selectedProduct);
+    const sizeList = Array.isArray(sizes) ? sizes : [];
+    const size = sizeList.find((item) => (item._id || item.id) === selectedSize)
+      || sizeList.find((item) => item.Roz_Opis && item.Roz_Opis === String(sizeSearchQuery || '').trim())
+      || null;
+    return salePriceRuleForGood({ good, size, priceList: myPriceList });
+  })();
+
+  // Domyślna cena finalna (zasady jak przy sprzedaży) - raz na produkt/rozmiar, potem można ją poprawić; w edycji bez zmian
+  useEffect(() => {
+    setAddAmountMinPrice(addAmountRule?.minPrice ?? null);
+    if (isEditingAddAmount || !addAmountRule || addAmountRule.defaultPrice === null) return;
+    const key = `${selectedProduct}|${sizeSearchQuery}|${myPriceList ? myPriceList.length : 'brak'}`;
+    if (lastAutoPriceKeyRef.current === key) return;
+    lastAutoPriceKeyRef.current = key;
+    setProductFinalPrice(String(addAmountRule.defaultPrice));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addAmountRule?.defaultPrice, addAmountRule?.minPrice, selectedProduct, sizeSearchQuery, myPriceList, isEditingAddAmount]);
+
+  // Wpłaty zaliczki w PLN i „Do dopłaty” w walucie, w której klient dopłaci (te same wyliczenia co przy sprzedaży)
+  const addAmountBalance = computePaymentBalance({ price: productFinalPrice, payments: addAmountPairs, currencyRates });
+  const addAmountRemainingInCurrency = plnToCurrency(Math.max(0, addAmountBalance.remainingPln), productSaleCurrency, currencyRates);
+  // Klient wpłacił więcej niż cena: reszta (w walucie „Do dopłaty”) odejmowana od wpłat przy zapisie
+  const addAmountIsOverpaid = addAmountBalance.remainingPln < -0.005;
+  const addAmountOverpaidInCurrency = plnToCurrency(Math.abs(addAmountBalance.remainingPln), productSaleCurrency, currencyRates);
+  const addAmountChangeSuggested = addAmountOverpaidInCurrency === null ? "" : formatMoney(addAmountOverpaidInCurrency);
+  const addAmountChangeKey = `${addAmountChangeSuggested}|${productSaleCurrency}`;
+  const addAmountChangeInput = addAmountChangeOverride && addAmountChangeOverride.key === addAmountChangeKey
+    ? addAmountChangeOverride.value
+    : addAmountChangeSuggested;
+
+  const handleAddAmountPairChange = (index, value) => {
+    setAddAmountPairs((prev) => prev.map((pair, i) => (i === index ? { ...pair, price: value } : pair)));
+  };
+  const handleAddAmountAddPair = () => setAddAmountPairs((prev) => [...prev, { price: "", currency: "PLN" }]);
+  const handleAddAmountRemovePair = (index) => setAddAmountPairs((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+
   const resetAddAmountForm = () => {
     setAddAmountModalVisible(false);
+    setAddAmountPairs([{ price: "", currency: "PLN" }]);
+    setAddAmountChangeOverride(null);
+    setAddAmountPairIndex(0);
+    setEditingGroupOps([]);
+    setAddAmountMinPrice(null);
+    lastAutoPriceKeyRef.current = "";
     setAddAmountAmount("");
     setAddAmountCurrency("PLN");
     setAddAmountReason("");
+    setAddAmountIncludeCommission(false);
     setReasonType("");
     setProductType("standard");
     setCustomProductName("");
@@ -1657,10 +1809,20 @@ const Home = () => {
 
   const openEditAddAmountModal = async (item) => {
     try {
-      const operation = item?._id ? await fetchFinancialOperationById(item._id) : item;
-      if (!operation) {
+      const fetched = item?._id ? await fetchFinancialOperationById(item._id) : item;
+      if (!fetched) {
         throw new Error("No operation data");
       }
+
+      // Zaliczka w kilku walutach: edytujemy wszystkie jej waluty naraz; dane produktu i cena z pierwszej operacji
+      const groupOps = fetched.advanceGroupId
+        ? [fetched, ...deductionsData.filter((op) => op.advanceGroupId === fetched.advanceGroupId && op._id !== fetched._id)]
+        : [fetched];
+      const operation = groupOps.find((op) => Number(op.finalPrice) > 0) || fetched;
+      const orderedOps = [operation, ...groupOps.filter((op) => op._id !== operation._id)];
+      setEditingGroupOps(orderedOps);
+      setAddAmountPairs(orderedOps.map((op) => ({ price: String(Math.abs(op.amount || 0)), currency: op.currency || "PLN", _id: op._id })));
+      setAddAmountPairIndex(0);
 
       setIsEditingAddAmount(true);
       setEditingOperationId(operation._id || null);
@@ -1693,6 +1855,7 @@ const Home = () => {
 
       setReasonType(hasProduct ? "product" : "other");
       setAddAmountReason(hasProduct ? "" : (operation.reason || ""));
+      setAddAmountIncludeCommission(!hasProduct && Boolean(operation.includeInCommission));
       setProductType("standard");
 
       if (hasProduct) {
@@ -1752,7 +1915,12 @@ const Home = () => {
   };
 
   const submitAddAmount = async () => {
-    if (!addAmountAmount || parseFloat(addAmountAmount) <= 0) {
+    // Wpłaty jak przy sprzedaży: puste wiersze pomijamy; każda waluta = osobna operacja
+    let rows = addAmountPairs
+      .map((pair) => ({ ...pair, amount: parseFloat(String(pair.price).replace(",", ".")) }))
+      .filter((pair) => Number.isFinite(pair.amount) && pair.amount > 0);
+
+    if (rows.length === 0) {
       setErrorMessage("Proszę wprowadzić prawidłową kwotę.");
       setErrorModalVisible(true);
       return;
@@ -1764,6 +1932,40 @@ const Home = () => {
       setErrorModalVisible(true);
       return;
     }
+
+    // Wpłata większa niż cena: wydana reszta odejmowana od wpłat (jak przy sprzedaży), zaliczka nie może przekroczyć ceny
+    const priceNumber = parseFloat(productFinalPrice);
+    let changeGiven = "";
+    if (reasonType === 'product' && priceNumber > 0 && computePaymentBalance({ price: priceNumber, payments: rows, currencyRates }).remainingPln < -0.005) {
+      const changeNumber = parseFloat(String(addAmountChangeInput).replace(",", "."));
+      if (!(changeNumber > 0)) {
+        setErrorMessage("Klient wpłacił więcej niż cena. Wpisz wydaną resztę.");
+        setErrorModalVisible(true);
+        return;
+      }
+      rows = applyChangeToCash(rows, changeNumber, productSaleCurrency, currencyRates)
+        .map((row) => ({ ...row, amount: parseFloat(String(row.price).replace(",", ".")) }));
+      if (rows.length === 0) {
+        setErrorMessage("Reszta nie może być równa całej wpłacie.");
+        setErrorModalVisible(true);
+        return;
+      }
+      if (computePaymentBalance({ price: priceNumber, payments: rows, currencyRates }).remainingPln < -0.005) {
+        setErrorMessage("Reszta jest za mała - po jej odjęciu zaliczka nadal przekracza cenę finalną.");
+        setErrorModalVisible(true);
+        return;
+      }
+      changeGiven = `${formatMoney(changeNumber)} ${productSaleCurrency}`;
+    }
+
+    const missingRates = [...new Set(rows.filter((row) => plnPerUnit(row.currency, currencyRates) === null).map((row) => row.currency))];
+    if (missingRates.length > 0) {
+      setErrorMessage(`Brak kursu dla: ${missingRates.join(", ")}. Uzupełnij kurs w tabeli walut.`);
+      setErrorModalVisible(true);
+      return;
+    }
+    const paidPln = rows.reduce((sum, row) => sum + row.amount * plnPerUnit(row.currency, currencyRates), 0);
+    const finalPricePLN = parseFloat(productFinalPrice);
     
     if (reasonType === 'product') {
       // Validate standard product selection
@@ -1773,13 +1975,20 @@ const Home = () => {
         return;
       }
       
-      if (!productFinalPrice || parseFloat(productFinalPrice) <= 0) {
+      if (!finalPricePLN || finalPricePLN <= 0) {
         setErrorMessage("Proszę podać cenę finalną produktu (zaliczka + dopłata).");
         setErrorModalVisible(true);
         return;
       }
+
+      // Blokada rabatu jak przy sprzedaży (promocja bez blokady)
+      if (addAmountMinPrice && finalPricePLN < addAmountMinPrice - 0.005) {
+        setErrorMessage(`Minimalna cena tego produktu to ${addAmountMinPrice} zł. Zwiększ cenę finalną.`);
+        setErrorModalVisible(true);
+        return;
+      }
       
-      if (parseFloat(productFinalPrice) < parseFloat(addAmountAmount)) {
+      if (finalPricePLN < paidPln - 0.005) {
         setErrorMessage("Cena finalna nie może być mniejsza niż zaliczka.");
         setErrorModalVisible(true);
         return;
@@ -1792,174 +2001,108 @@ const Home = () => {
       return;
     }
     
-    // Validate currency rate for non-PLN currencies
-    if (addAmountCurrency !== 'PLN' && showAddAmountRateInput) {
-      if (!addAmountCurrencyRate || parseFloat(addAmountCurrencyRate) <= 0) {
-        setErrorMessage(`Proszę wprowadzić prawidłowy kurs dla ${addAmountCurrency} (większy od 0).`);
-        setErrorModalVisible(true);
-        return;
-      }
-    }
-    
     try {
-      // Prepare reason based on selection with currency conversion
-      let finalReason = '';
-      let conversionInfo = null;
-      let productName = ''; // Define productName at function scope
-      
+      // Produkt: nazwa z rozmiarem (stateData używa 'id', karty produktów '_id')
+      let productName = '';
       if (reasonType === 'product') {
-        // Standard product name (search by 'id' field; stateData uses 'id', not '_id')
         const selectedProductObj = products.find(p => (p.id || p._id) === selectedProduct) ||
                                     stateData?.find(p => (p.id || p._id) === selectedProduct);
-        productName = selectedProductObj?.fullName || selectedProductObj?.Tow_Opis || selectedProductObj?.code || selectedProductObj?.Tow_Kod || 'Nieznany produkt';
-        
-        // Add size to product name if selected
-        if (sizeSearchQuery) {
+        productName = selectedProductObj?.fullName || selectedProductObj?.Tow_Opis || selectedProductObj?.code || selectedProductObj?.Tow_Kod || productSearchQuery || 'Nieznany produkt';
+        if (sizeSearchQuery && !productName.endsWith(` ${sizeSearchQuery}`)) {
           productName += ` ${sizeSearchQuery}`;
         }
-        
-        if (productFinalPrice) {
-          const finalPricePLN = parseFloat(productFinalPrice); // Always store original PLN price
-          const advanceAmount = parseFloat(addAmountAmount);
-          
-          // If advance is in different currency, calculate conversion info
-          if (addAmountCurrency !== 'PLN') {
-            try {
-              // Use manual rate if provided, otherwise use stored rate
-              let rateToUse = null;
-              if (addAmountCurrencyRate && parseFloat(addAmountCurrencyRate) > 0) {
-                rateToUse = parseFloat(addAmountCurrencyRate);
-                // Also update stored rate for future use
-                await CurrencyService.updateCurrencyRate(addAmountCurrency, rateToUse);
-              }
-              
-              conversionInfo = await calculateAdvanceWithConversion(
-                advanceAmount, 
-                addAmountCurrency, 
-                finalPricePLN,
-                rateToUse // Pass custom rate
-              );
-              
-              if (conversionInfo) {
-                const remainingPLN = finalPricePLN - conversionInfo.advanceInPLN;
-                const remainingInCurrency = productSaleCurrency === 'PLN' 
-                  ? remainingPLN 
-                  : await CurrencyService.convertCurrency(remainingPLN, 'PLN', productSaleCurrency);
-                
-                finalReason = `Zaliczka na produkt: ${productName}. ` +
-                  `Cena: ${finalPricePLN.toFixed(2)} PLN` + 
-                  (productSaleCurrency !== 'PLN' ? ` (${productPriceInCurrency} ${productSaleCurrency})` : '') +
-                  `. Zaliczka: ${advanceAmount} ${addAmountCurrency} = ${conversionInfo.advanceInPLN.toFixed(2)} PLN` +
-                  `. Pozostało: ${remainingInCurrency.toFixed(2)} ${productSaleCurrency}`;
-              }
-            } catch (error) {
-              Logger.error('Currency conversion error:', error);
-              // Fallback to simple calculation
-              const remaining = finalPricePLN - advanceAmount;
-              finalReason = `Zaliczka na produkt: ${productName}. Cena finalna: ${finalPricePLN.toFixed(2)} PLN, Dopłata: ${remaining.toFixed(2)} PLN`;
+      }
+
+      const remainingPLN = reasonType === 'product' ? finalPricePLN - paidPln : 0;
+      const remainingInCurrency = plnToCurrency(remainingPLN, productSaleCurrency, currencyRates);
+      const paidText = rows
+        .map((row) => (row.currency === 'PLN'
+          ? `${formatMoney(row.amount)} PLN`
+          : `${formatMoney(row.amount)} ${row.currency} (≈ ${formatMoney(row.amount * plnPerUnit(row.currency, currencyRates))} PLN)`))
+        .join(' + ');
+      const productReason = reasonType === 'product'
+        ? `Zaliczka na produkt: ${productName}. Cena: ${formatMoney(finalPricePLN)} PLN. Zaliczka: ${paidText}. ` +
+          (changeGiven ? `Reszta wydana: ${changeGiven}. ` : "") +
+          `Pozostało: ${formatMoney(remainingInCurrency ?? remainingPLN)} ${remainingInCurrency === null ? 'PLN' : productSaleCurrency}`
+        : addAmountReason.trim();
+
+      // Kilka walut = grupa operacji (wspólny identyfikator); jedna waluta jak dotąd - bez grupy
+      const existingGroupId = editingGroupOps.find((op) => op.advanceGroupId)?.advanceGroupId;
+      const advanceGroupId = existingGroupId || (rows.length > 1 ? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}` : undefined);
+      const operationDate = isEditingAddAmount && editingOperationDate ? editingOperationDate : new Date().toISOString();
+      const sellingPointValue = user.sellingPoint || user.symbol;
+
+      const buildOperation = (row, isPrimary) => {
+        const unit = plnPerUnit(row.currency, currencyRates);
+        const operationData = {
+          userSymbol: user.symbol,
+          amount: row.amount, // Positive amount for addition
+          currency: row.currency,
+          type: "addition",
+          reason: isPrimary || reasonType !== 'product'
+            ? productReason
+            : `Zaliczka na produkt: ${productName} (część zaliczki w ${row.currency})`,
+          date: operationDate,
+          sellingPoint: sellingPointValue, // 🔧 Dodane dla prowizji wszystkich pracowników
+          ...(reasonType === 'other' && { includeInCommission: addAmountIncludeCommission }),
+          ...(advanceGroupId && { advanceGroupId }),
+          ...(row.currency !== 'PLN' && {
+            currencyConversion: {
+              originalAmount: row.amount,
+              originalCurrency: row.currency,
+              convertedAmount: row.amount * unit,
+              exchangeRate: unit,
+              conversionDate: new Date().toISOString()
+            }
+          })
+        };
+
+        if (reasonType === 'product') {
+          operationData.productId = selectedProduct;
+          operationData.productName = productName;
+          operationData.productSize = sizeSearchQuery || null; // Store size separately
+          if (isPrimary) {
+            // Cena finalna (obrót i prowizja, zawsze PLN) tylko w pierwszej operacji - inaczej liczyłaby się kilka razy
+            operationData.finalPrice = finalPricePLN;
+            operationData.finalPricePLN = finalPricePLN;
+            operationData.remainingAmount = remainingPLN;
+            operationData.productDisplayCurrency = productSaleCurrency;
+            if (productSaleCurrency !== 'PLN' && remainingInCurrency !== null) {
+              operationData.finalPriceInDisplayCurrency = plnToCurrency(finalPricePLN, productSaleCurrency, currencyRates);
             }
           } else {
-            // Both in PLN - simple calculation
-            const remaining = finalPricePLN - advanceAmount;
-            const remainingInDisplayCurrency = productSaleCurrency === 'PLN' 
-              ? remaining 
-              : parseFloat(productPriceInCurrency) - advanceAmount;
-              
-            finalReason = `Zaliczka na produkt: ${productName}. ` +
-              `Cena: ${finalPricePLN.toFixed(2)} PLN` + 
-              (productSaleCurrency !== 'PLN' ? ` (${productPriceInCurrency} ${productSaleCurrency})` : '') +
-              `. Pozostało: ${remainingInDisplayCurrency.toFixed(2)} ${productSaleCurrency}`;
+            operationData.finalPrice = 0;
+            operationData.remainingAmount = null;
           }
-        } else {
-          finalReason = `Zaliczka na produkt: ${productName}`;
         }
-      } else {
-        finalReason = addAmountReason.trim();
-      }
-      
-      const sellingPointValue = user.sellingPoint || user.symbol;
-      
-      const operationData = {
-        userSymbol: user.symbol,
-        amount: parseFloat(addAmountAmount), // Positive amount for addition
-        currency: addAmountCurrency,
-        type: "addition",
-        reason: finalReason,
-        date: new Date().toISOString(),
-        sellingPoint: sellingPointValue, // 🔧 Dodane dla prowizji wszystkich pracowników
-        // Add currency conversion info
-        ...(conversionInfo && {
-          currencyConversion: {
-            originalAmount: conversionInfo.advanceAmount,
-            originalCurrency: conversionInfo.advanceCurrency,
-            convertedAmount: conversionInfo.advanceInPLN,
-            exchangeRate: conversionInfo.exchangeRate,
-            conversionDate: conversionInfo.conversionDate
-          }
-        })
+        return operationData;
       };
 
-      // Add product-related data if it's a product transaction
-      if (reasonType === 'product') {
-        if (selectedProduct) {
-          let productFullName;
-          
-          // Find the selected product object
-          const selectedProductObj = products.find(p => (p.id || p._id) === selectedProduct) || 
-                                      stateData?.find(p => (p.id || p._id) === selectedProduct);
-          
-          if (selectedProductObj) {
-            productFullName = selectedProductObj.fullName || selectedProductObj.Tow_Opis || selectedProductObj.code || selectedProductObj.Tow_Kod || 'Nieznany produkt';
-            
-            // Add size to product name if selected
-            if (sizeSearchQuery) {
-              productFullName += ` ${sizeSearchQuery}`;
-            }
-            
-          } else {
-            productFullName = 'Nieznany produkt';
-          }
-          
-          operationData.productId = selectedProduct;
-          operationData.productName = productFullName;
-          operationData.productSize = sizeSearchQuery || null; // Store size separately
+      const send = async (url, method, body) => {
+        const response = await tokenService.authenticatedFetch(url, { method, ...(body && { body: JSON.stringify(body) }) });
+        if (!response.ok) {
+          throw new Error(`Failed to ${method} financial operation`);
+        }
+        return response;
+      };
+
+      // Edycja: istniejące waluty aktualizujemy, nowe dopisujemy, usunięte wiersze kasujemy
+      const createdOperations = [];
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        const operationData = buildOperation(row, index === 0);
+        if (isEditingAddAmount && row._id) {
+          await send(getApiUrl(`/financial-operations/${row._id}`), "PUT", operationData);
         } else {
-          operationData.productName = 'Produkt do wyboru';
-        }
-        
-        // Always include final price for product advances - ALWAYS IN PLN for turnover calculation
-        if (productFinalPrice) {
-          const finalPricePLN = parseFloat(productFinalPrice); // Input is always in PLN
-          
-          operationData.finalPrice = finalPricePLN; // Always PLN for turnover and web display
-          operationData.finalPricePLN = finalPricePLN; // Explicit PLN price
-          operationData.remainingAmount = finalPricePLN - (conversionInfo?.advanceInPLN || parseFloat(addAmountAmount));
-          
-          // Add display currency info for mobile app only
-          operationData.productDisplayCurrency = productSaleCurrency;
-          if (productSaleCurrency !== 'PLN' && productPriceInCurrency) {
-            operationData.finalPriceInDisplayCurrency = parseFloat(productPriceInCurrency);
-          }
+          await send(getApiUrl("/financial-operations"), "POST", operationData);
+          createdOperations.push(operationData);
         }
       }
-      
-      if (isEditingAddAmount && editingOperationDate) {
-        operationData.date = editingOperationDate;
-      }
-
-      const requestUrl = isEditingAddAmount && editingOperationId
-        ? getApiUrl(`/financial-operations/${editingOperationId}`)
-        : getApiUrl("/financial-operations");
-
-      const requestMethod = isEditingAddAmount && editingOperationId ? "PUT" : "POST";
-
-      const response = await tokenService.authenticatedFetch(requestUrl, {
-        method: requestMethod,
-        body: JSON.stringify(operationData),
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to submit addition");
+      if (isEditingAddAmount) {
+        const keptIds = rows.map((row) => row._id).filter(Boolean);
+        for (const op of editingGroupOps.filter((item) => item._id && !keptIds.includes(item._id))) {
+          await send(getApiUrl(`/financial-operations/${op._id}`), "DELETE");
+        }
       }
       
       // Reset form and refresh data
@@ -1968,16 +2111,15 @@ const Home = () => {
       
       // In test environment, add operation directly to state
       if (process.env.NODE_ENV === 'test') {
-        const newOperation = {
-          _id: Date.now().toString(),
+        setDeductionsData(prev => [...prev, ...createdOperations.map((operationData, index) => ({
+          _id: `${Date.now()}-${index}`,
           userSymbol: operationData.userSymbol,
           amount: operationData.amount,
           currency: operationData.currency,
           type: operationData.type,
           reason: operationData.reason,
           date: new Date().toISOString().split('T')[0] // Just date part for filtering
-        };
-        setDeductionsData(prev => [...prev, newOperation]);
+        }))]);
       } else {
         await fetchFinancialOperations();
       }
@@ -2001,7 +2143,9 @@ const Home = () => {
     }
     
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl(`/financial-operations/${selectedDeductionItem._id}`), {
+      // Zaliczka w kilku walutach: anulowanie usuwa wszystkie jej waluty
+      const groupQuery = selectedDeductionItem.advanceGroupId ? '?group=1' : '';
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/financial-operations/${selectedDeductionItem._id}${groupQuery}`), {
         method: "DELETE"
       });
       
@@ -2199,7 +2343,9 @@ const Home = () => {
   };
 
   const selectCurrencyFromModal = (currency) => {
-    if (currentCurrencyType === "cash") {
+    if (currentCurrencyType === "remaining") {
+      setEditRemainingCurrency(currency);
+    } else if (currentCurrencyType === "cash") {
       handleCashPairChange(currentCurrencyPairIndex, "currency", currency);
     } else if (currentCurrencyType === "card") {
       handleCardPairChange(currentCurrencyPairIndex, "currency", currency);
@@ -2209,6 +2355,7 @@ const Home = () => {
 
   // Function to handle currency selection for "Dopisz kwotę" (Add Amount)
   const selectCurrencyForAddAmount = async (currency) => {
+    setAddAmountPairs((prev) => prev.map((pair, index) => (index === addAmountPairIndex ? { ...pair, currency } : pair)));
     setAddAmountCurrency(currency);
     setAddAmountCurrencyModalVisible(false);
     
@@ -2906,7 +3053,10 @@ const Home = () => {
                   <TouchableOpacity
                     testID="add-amount-button"
                     style={styles.menuCard}
-                    onPress={() => setAddAmountModalVisible(true)}
+                    onPress={() => {
+                      resetAddAmountForm();
+                      setAddAmountModalVisible(true);
+                    }}
                   >
                     <View style={[styles.menuCardIcon, { backgroundColor: '#10B98126' }]}>
                       <Ionicons name="add-circle" size={26} color="#10B981" />
@@ -3095,310 +3245,242 @@ const Home = () => {
           }}
           contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
         />
-        {/* Edit Modal - Identyczny z QRScanner */}
+        {/* Edit Modal - ten sam wygląd i wyliczenia co „Nowa sprzedaż” (QRScanner) */}
         <Modal
           transparent={false}
           visible={editModalVisible}
           animationType="slide"
           onRequestClose={() => setEditModalVisible(false)}
         >
-          <KeyboardSafeScreen>
-          <View style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }}>
+          {/* Tło okna w kolorze motywu - bez niego pod zawartością zmniejszoną przez klawiaturę prześwituje białe tło Modala */}
+          <View style={{ flex: 1, backgroundColor: tc('bg', "black") }}>
+          <KeyboardSafeScreen
+            style={{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "stretch", zIndex: 5 }}
+          >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: Math.max(120, insets.bottom + 120) }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-                <View style={[{ flex: 1, backgroundColor: tc('bg', "black"), width: "100%", height: "100%", justifyContent: "flex-start", alignItems: "center", zIndex: 5 }]}>
-                  <Pressable
-                    style={{
-                      position: "absolute",
-                      top: 40,
-                      right: 20,
-                      width: 40,
-                      height: 40,
-                      backgroundColor: "red",
-                      borderRadius: 20,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      zIndex: 10
-                    }}
-                    onPress={() => setEditModalVisible(false)}
-                  >
-                    <Text style={{ color: tc('text', "white"), fontSize: 18, fontWeight: "bold" }}>X</Text>
+              <ScrollView style={{ width: '100%' }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ flexGrow: 1, paddingTop: Math.max(12, insets.top), paddingBottom: Math.max(120, insets.bottom + 120) }}>
+                <View style={{ flex: 1, backgroundColor: tc('bg', "black"), alignSelf: 'stretch', paddingHorizontal: 20, paddingBottom: 24, justifyContent: "flex-start", alignItems: "stretch" }}>
+                  <Pressable style={sf.closeButton} onPress={() => setEditModalVisible(false)}>
+                    <Ionicons name="close" size={24} color={tc('text', '#fff')} />
                   </Pressable>
-                  
-                  <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8, marginTop: 80 }}>Edytuj Produkt:</Text>
+                  <SaleModalHeader icon="create" color="#10B981" title="Edycja sprzedaży" />
+                  <Text style={look.formLabel}>Kod kreskowy</Text>
                   <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: tc('border', '#475569'),
-                      borderRadius: 10,
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
-                      color: tc('text', "white"),
-                      backgroundColor: tc('surface', "black"),
-                      marginBottom: 20,
-                      width: "100%"
-                    }}
-                    value={editData?.fullName || ""}
+                    style={sf.inputField}
+                    value={editData?.barcode || ""}
                     editable={false}
-                    placeholder="Nazwa produktu"
-                    placeholderTextColor="gray"
+                    placeholder="Kod kreskowy"
+                    placeholderTextColor={tc('muted', '#888')}
                   />
-                  
-                  <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Rozmiar</Text>
+                  <Text style={look.formLabel}>Sprzedano produkt</Text>
                   <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: tc('border', '#475569'),
-                      borderRadius: 10,
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
-                      color: tc('text', "white"),
-                      backgroundColor: tc('surface', "black"),
-                      marginBottom: 20,
-                      width: "100%"
-                    }}
-                    value={editData?.size || ""}
+                    style={sf.inputField}
+                    value={[editData?.fullName, editData?.size && editData.size !== '-' ? editData.size : null].filter(Boolean).join(' ')}
                     editable={false}
-                    placeholder="Rozmiar"
-                    autoCapitalize="characters" // rozmiar wielkimi literami
-                    placeholderTextColor="gray"
                   />
-                  
-                  <Text style={{ fontSize: 16, color: tc('text', "white"), marginBottom: 8 }}>Sprzedano od:</Text>
-                  <View
-                    style={{
-                      borderWidth: 1,
-                      borderColor: tc('border', '#475569'),
-                      borderRadius: 10,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      marginBottom: 20,
-                      width: "100%",
+                  <Text style={look.formLabel}>Gdzie</Text>
+                  <TextInput
+                    style={sf.inputField}
+                    value={editData?.sellingPoint || user?.sellingPoint || "Unknown"}
+                    editable={false}
+                    placeholder="Selling Point"
+                  />
+                  <Text style={look.formLabel}>Sprzedano od</Text>
+                  <View style={sf.warningCard}>
+                    <Ionicons name="warning" size={22} color="#F59E0B" />
+                    <Text style={sf.warningText}>
+                      To jest bardzo ważne pole. Proszę o przemyślany wybór!
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[look.selectField, sf.importantSelect, { marginBottom: 16 }]}
+                    onPress={() => {
+                      if (getMatchingSymbols().length > 0) {
+                        setSymbolSelectionVisible(true);
+                      } else {
+                        setErrorMessage("Nie znaleziono punktów sprzedaży w Twojej lokalizacji.");
+                        setErrorModalVisible(true);
+                      }
                     }}
                   >
-                    <TouchableOpacity
-                      style={{
-                        height: 40,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        backgroundColor: tc('surface', "black"),
-                        borderRadius: 10,
-                      }}
-                      onPress={() => {
-                        const matchingSymbols = getMatchingSymbols();
-                        
-                        if (matchingSymbols.length > 0) {
-                          setSymbolSelectionVisible(true);
-                        } else {
-                          setErrorMessage("Nie znaleziono punktów sprzedaży w Twojej lokalizacji.");
-                          setErrorModalVisible(true);
-                        }
-                      }}
-                    >
-                      <Text style={{ color: tc('text', "white") }}>
-                        {editData?.from || "Wybierz punkt sprzedaży"}
+                    <Text style={[look.selectFieldText, !editData?.from && { color: tc('muted', '#94A3B8') }]}>
+                      {editData?.from || "Wybierz punkt sprzedaży"}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#F59E0B" />
+                  </TouchableOpacity>
+
+                  {/* Checkbox Odbiór */}
+                  <TouchableOpacity
+                    style={[look.optionCard, { marginBottom: 16 }, editData?.isPickup && { borderColor: '#0D6EFD', backgroundColor: 'rgba(13, 110, 253, 0.12)' }]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: !!editData?.isPickup }}
+                    onPress={() => setEditData((prev) => ({ ...prev, isPickup: !prev?.isPickup }))}
+                  >
+                    <View style={[look.optionCardIcon, { backgroundColor: 'rgba(13, 110, 253, 0.15)' }]}>
+                      <Ionicons name="bag-check-outline" size={20} color="#0D6EFD" />
+                    </View>
+                    <Text style={look.optionCardLabel}>
+                      Odbiór (dopłata do zaliczki)
+                    </Text>
+                    <Ionicons name={editData?.isPickup ? 'checkbox' : 'square-outline'} size={24} color={editData?.isPickup ? '#0D6EFD' : tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+
+                  <View style={sf.paymentCard}>
+                    <View style={sf.paymentHeader}>
+                      <View style={[look.optionCardIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                        <Ionicons name="cash-outline" size={20} color="#10B981" />
+                      </View>
+                      <Text style={sf.paymentTitle}>{editData?.isPickup ? 'Dopłata' : 'Płatność gotówką'}</Text>
+                    </View>
+                    {!editData?.isPickup && (
+                      <View style={sf.salePriceRow}>
+                        <Text style={sf.salePriceLabel}>Cena</Text>
+                        <TextInput
+                          testID="edit-sale-price-input"
+                          style={[look.formInput, { flex: 1 }]}
+                          placeholderTextColor={tc('muted', '#888')}
+                          value={editSalePrice}
+                          onChangeText={(value) => setEditSalePrice(value.replace(/[^0-9.]/g, ""))}
+                          placeholder="Cena w zł"
+                          keyboardType="numeric"
+                        />
+                        <Text style={sf.salePriceCurrency}>PLN</Text>
+                      </View>
+                    )}
+                    {!editData?.isPickup && effectiveEditMinPrice ? (
+                      <Text style={[sf.remainingHint, Number(editSalePrice) > 0 && Number(editSalePrice) < effectiveEditMinPrice - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
+                        {Number(editSalePrice) > 0 && Number(editSalePrice) < effectiveEditMinPrice - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${effectiveEditMinPrice} zł` : `Najniższa cena: ${effectiveEditMinPrice} zł`}
                       </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                {/* Cash Payment Section */}
-                <Text style={{ fontSize: 16, marginBottom: 10, textAlign: "center", color: tc('text', "white") }}>Płatność gotówką</Text>
-                <View style={{ width: "100%", borderWidth: 1, borderColor: tc('border', '#475569'), padding: 20 }}>
-                  {cashPriceCurrencyPairs.map((pair, index) => (
-                    <View key={`cash-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                      <TextInput
-                        style={{
-                          flex: 1,
-                          height: 40,
-                          borderColor: tc('border', '#475569'),
-                          borderWidth: 1,
-                          borderRadius: 10,
-                          paddingHorizontal: 10,
-                          color: tc('text', "white"),
-                          backgroundColor: tc('surface', "black"),
-                          marginRight: 10,
-                        }}
-                        value={pair.price}
-                        onChangeText={(value) => {
-                          const numericValue = value.replace(/[^0-9.]/g, "");
-                          handleCashPairChange(index, "price", numericValue);
-                        }}
-                        placeholder="Wpisz kwotę"
-                        keyboardType="numeric"
-                      />
-                      <TouchableOpacity
-                        style={{
-                          flex: 1,
-                          height: 40,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          backgroundColor: tc('surface', "black"),
-                          borderColor: tc('border', '#475569'),
-                          borderWidth: 1,
-                          borderRadius: 10,
-                        }}
-                        onPress={() => openCurrencyModal(index, "cash")}
+                    ) : null}
+                    {cashPriceCurrencyPairs.map((pair, index) => (
+                      <View
+                        key={`cash-${index}`}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
                       >
-                        <Text style={{ color: tc('text', "white") }}>{pair.currency}</Text>
-                      </TouchableOpacity>
-                      {index > 0 && (
-                        <TouchableOpacity
-                          style={{
-                            marginLeft: 10,
-                            paddingVertical: 5,
-                            paddingHorizontal: 10,
-                            backgroundColor: "red",
-                            borderRadius: 10,
-                            justifyContent: "center",
-                            alignItems: "center",
+                        <TextInput
+                          style={[look.formInput, { flex: 1.4 }]}
+                          placeholderTextColor={tc('muted', '#888')}
+                          value={pair.price}
+                          onChangeText={(value) => {
+                            const numericValue = value.replace(/[^0-9.]/g, "");
+                            handleCashPairChange(index, "price", numericValue);
                           }}
-                          onPress={() => handleRemoveCashPair(index)}
-                        >
-                          <Text style={{ color: tc('text', "white") }}>Usuń</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                  <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 10, alignItems: "center" }} onPress={handleAddCashPair}>
-                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Dodaj parę</Text>
-                  </Pressable>
-                </View>
-
-                {/* Card Payment Section */}
-                <Text style={{ fontSize: 16, marginBottom: 10, marginTop: 20, textAlign: "center", color: tc('text', "white") }}>Płatność kartą</Text>
-                <View style={{ width: "100%", borderWidth: 1, borderColor: tc('border', '#475569'), padding: 20 }}>
-                  {cardPriceCurrencyPairs.map((pair, index) => (
-                    <View key={`card-${index}`} style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                      <TextInput
-                        style={{
-                          flex: 1,
-                          height: 40,
-                          borderColor: tc('border', '#475569'),
-                          borderWidth: 1,
-                          borderRadius: 10,
-                          paddingHorizontal: 10,
-                          color: tc('text', "white"),
-                          backgroundColor: tc('surface', "black"),
-                          marginRight: 10,
-                        }}
-                        value={pair.price}
-                        onChangeText={(value) => {
-                          const numericValue = value.replace(/[^0-9.]/g, "");
-                          handleCardPairChange(index, "price", numericValue);
-                        }}
-                        placeholder="Wpisz kwotę"
-                        keyboardType="numeric"
-                      />
-                      <TouchableOpacity
-                        style={{
-                          flex: 1,
-                          height: 40,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          backgroundColor: tc('surface', "black"),
-                          borderColor: tc('border', '#475569'),
-                          borderWidth: 1,
-                          borderRadius: 10,
-                        }}
-                        onPress={() => openCurrencyModal(index, "card")}
-                      >
-                        <Text style={{ color: tc('text', "white") }}>{pair.currency}</Text>
-                      </TouchableOpacity>
-                      {index > 0 && (
+                          placeholder="Wpisz kwotę"
+                          keyboardType="numeric"
+                        />
                         <TouchableOpacity
-                          style={{
-                            marginLeft: 10,
-                            paddingVertical: 5,
-                            paddingHorizontal: 10,
-                            backgroundColor: "red",
-                            borderRadius: 10,
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                          onPress={() => handleRemoveCardPair(index)}
+                          style={[look.selectField, { flex: 1 }]}
+                          onPress={() => openCurrencyModal(index, "cash")}
                         >
-                          <Text style={{ color: tc('text', "white") }}>Usuń</Text>
+                          <Text style={look.selectFieldText}>{pair.currency || "PLN"}</Text>
+                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
                         </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                  <Pressable style={{ marginTop: 10, padding: 10, backgroundColor: "rgb(13, 110, 253)", borderRadius: 10, alignItems: "center" }} onPress={handleAddCardPair}>
-                    <Text style={{ color: tc('text', "white"), fontSize: 16 }}>Dodaj parę</Text>
-                  </Pressable>
-                </View>
-
-                {/* Checkbox Odbiór */}
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    marginTop: 20,
-                    marginBottom: 10,
-                    padding: 10,
-                    borderWidth: 1,
-                    borderColor: 'transparent',
-                    borderRadius: 10,
-                    backgroundColor: editData?.isPickup ? 'rgb(13, 110, 253)' : 'transparent',
-                  }}
-                  onPress={() => {
-                    setEditData((prev) => ({ ...prev, isPickup: !prev?.isPickup }));
-                  }}
-                >
-                  <View style={{
-                    width: 24,
-                    height: 24,
-                    borderWidth: 2,
-                    borderColor: tc('border', '#475569'),
-                    borderRadius: 6,
-                    marginRight: 10,
-                    backgroundColor: editData?.isPickup ? 'rgb(13, 110, 253)' : 'transparent',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    {editData?.isPickup && <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>✓</Text>}
+                        {index > 0 && (
+                          <TouchableOpacity
+                            accessibilityLabel="Usuń"
+                            style={sf.removeTile}
+                            onPress={() => handleRemoveCashPair(index)}
+                          >
+                            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                    <Pressable style={sf.addPairButton} onPress={handleAddCashPair}>
+                      <Ionicons name="add" size={20} color="#0D6EFD" />
+                      <Text style={sf.addPairButtonText}>Dodaj walutę</Text>
+                    </Pressable>
+                    {!editData?.isPickup && Number(editSalePrice) > 0 && (
+                      <View style={sf.remainingSection} testID="edit-remaining-card">
+                        <View style={sf.remainingHeader}>
+                          <Ionicons name={editIsOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={editIsOverpaid ? "#F59E0B" : "#EF4444"} />
+                          <Text style={sf.remainingTitle}>{editIsOverpaid ? `Reszta do wydania: ${editRemainingSuggested || "?"} ${editRemainingCurrency}` : "Do dopłaty"}</Text>
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          <TextInput
+                            testID="edit-remaining-amount"
+                            style={[look.formInput, sf.remainingValue, sf.remainingValueText, { color: editIsOverpaid ? '#F59E0B' : editRemainingInCurrency !== null && editRemainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
+                            value={editRemainingInput}
+                            onChangeText={(value) => setEditRemainingOverride({ key: editRemainingKey, value: value.replace(/[^0-9.,]/g, "") })}
+                            placeholder={editRemainingInCurrency === null ? "brak kursu" : (editRemainingSuggested || "0.00")}
+                            placeholderTextColor={tc('muted', '#888')}
+                            keyboardType="numeric"
+                          />
+                          <TouchableOpacity
+                            style={[look.selectField, { flex: 1 }]}
+                            onPress={() => openCurrencyModal(0, "remaining")}
+                          >
+                            <Text style={look.selectFieldText}>{editRemainingCurrency}</Text>
+                            <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={sf.remainingHint}>
+                          {editIsOverpaid
+                            ? "Wpisz wydaną resztę. Puste pole = reszty nie wydano."
+                            : "Wpisz kwotę, jeśli klient dopłaca. Puste pole = zapisują się tylko wpłaty powyżej."}
+                        </Text>
+                        <Text style={sf.clientTotal}>
+                          {`Klient zapłaci: ${formatMoney(editClientTotalPln)} zł`}
+                          <Text style={sf.clientTotalPrice}>{`  (cena ${formatMoney(Number(editSalePrice) || 0)} zł)`}</Text>
+                        </Text>
+                        {editPaymentBalance.missingRates.length > 0 && (
+                          <Text style={sf.remainingHint}>{`Brak kursu: ${editPaymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
+                        )}
+                      </View>
+                    )}
                   </View>
-                  <Text style={{ color: tc('text', 'white'), fontSize: 16 }}>Odbiór (dopłata do zaliczki)</Text>
-                </TouchableOpacity>
-
-                {/* Przyciski identyczne z QRScanner */}
-                <View style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  marginTop: 20,
-                  width: "100%",
-                }}>
-                  <Pressable
-                    style={{
-                      flex: 1,
-                      marginHorizontal: 10,
-                      paddingVertical: 14,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      backgroundColor: "#6B7280",
-                    }}
-                    onPress={() => setEditModalVisible(false)}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>Anuluj</Text>
-                  </Pressable>
-                  <Pressable
-                    style={{
-                      flex: 1,
-                      marginHorizontal: 10,
-                      paddingVertical: 14,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      backgroundColor: "#10B981",
-                    }}
-                    onPress={updateItem}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>Zapisz</Text>
-                  </Pressable>
-                </View>
+                  <View style={sf.paymentCard}>
+                    <View style={sf.paymentHeader}>
+                      <View style={[look.optionCardIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                        <Ionicons name="card-outline" size={20} color="#3B82F6" />
+                      </View>
+                      <Text style={sf.paymentTitle}>{editData?.isPickup ? "Dopłata kartą" : "Płatność kartą"}</Text>
+                    </View>
+                    {cardPriceCurrencyPairs.map((pair, index) => (
+                      <View
+                        key={`card-${index}`}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
+                      >
+                        <TextInput
+                          style={[look.formInput, { flex: 1.4 }]}
+                          placeholderTextColor={tc('muted', '#888')}
+                          value={pair.price}
+                          onChangeText={(value) => {
+                            const numericValue = value.replace(/[^0-9.]/g, "");
+                            handleCardPairChange(index, "price", numericValue);
+                          }}
+                          placeholder="Wpisz kwotę"
+                          keyboardType="numeric"
+                        />
+                        <TouchableOpacity
+                          style={[look.selectField, { flex: 1 }]}
+                          onPress={() => openCurrencyModal(index, "card")}
+                        >
+                          <Text style={look.selectFieldText}>{pair.currency}</Text>
+                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={sf.modalButtons}>
+                    <Pressable
+                      style={[sf.button, sf.cancelButton]}
+                      onPress={() => setEditModalVisible(false)}
+                    >
+                      <Text style={look.neutralButtonText}>Anuluj</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[sf.button, sf.addButton]}
+                      onPress={updateItem}
+                    >
+                      <Text style={look.buttonText}>Zapisz</Text>
+                    </Pressable>
+                  </View>
                 </View>
               </ScrollView>
             </TouchableWithoutFeedback>
-          </View>
           </KeyboardSafeScreen>
+          </View>
         </Modal>
         {/* Edit From Modal */}
         <Modal
@@ -3475,13 +3557,12 @@ const Home = () => {
         >
           <View style={styles.currencyModalContainer}>
             <View style={styles.currencyModalContent}>
-              <Text style={styles.currencyModalTitle}>Wybierz punkt sprzedaży</Text>
-              {getMatchingSymbols().length > 0 ? (
-                <FlatList
-                  data={getMatchingSymbols()}
-                  keyExtractor={(item) => item._id || item.symbol}
-                  renderItem={({ item }) => (
+              <SaleModalHeader icon="storefront" color="#F59E0B" title="Wybierz punkt sprzedaży" subtitle="Skąd pochodzi sprzedany produkt" />
+              <ScrollView style={{ maxHeight: 400, width: '100%', marginBottom: 8 }}>
+                {getMatchingSymbols().length > 0 ? (
+                  getMatchingSymbols().map((item) => (
                     <TouchableOpacity
+                      key={item._id || item.symbol}
                       style={styles.currencyModalItem}
                       onPress={() => {
                         setEditData((prev) => ({ ...prev, from: item.symbol })); // Update 'from' field
@@ -3492,13 +3573,15 @@ const Home = () => {
                         {item.symbol}
                       </Text>
                     </TouchableOpacity>
-                  )}
-                />
-              ) : (
-                <Text style={styles.currencyModalItemText}>
-                  {`Brak punktów sprzedaży w lokalizacji "${user?.location || 'nieznana'}"`}
-                </Text>
-              )}
+                  ))
+                ) : (
+                  <View style={{ padding: 20 }}>
+                    <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontSize: 16 }}>
+                      {`Brak punktów sprzedaży w lokalizacji "${user?.location || 'nieznana'}"`}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
               <Pressable
                 style={styles.currencyModalCloseButton}
                 onPress={() => setSymbolSelectionVisible(false)}
@@ -3845,27 +3928,37 @@ const Home = () => {
             <View style={[styles.modalContent, { width: '80%' }]}>
               <Text style={styles.modalTitle}>Opcje operacji</Text>
 
-              {selectedOperationItem && (selectedOperationItem.type === 'addition' || selectedOperationItem.amount > 0) && (
-                <TouchableOpacity
-                  style={[styles.optionButton, { backgroundColor: '#0d6efd', marginBottom: 10 }]}
-                  onPress={() => openEditAddAmountModal(selectedOperationItem)}
-                >
-                  <Text style={styles.optionText}>Edytuj zaliczkę</Text>
-                </TouchableOpacity>
-              )}
+              {/* Zaliczka zamówienia: zmiany tylko przez zamówienie (anulowanie zamówienia w panelu zdejmuje zaliczkę) -
+                  edycja/anulowanie tutaj rozjechałyby zamówienie z rozliczeniami */}
+              {selectedOperationItem && (selectedOperationItem.orderId || selectedOperationItem.orderMongoId) ? (
+                <Text testID="order-deposit-locked" style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginBottom: 14, lineHeight: 20 }}>
+                  {`To zaliczka zamówienia ${selectedOperationItem.orderId || ''}. Zmieniaj ją przez zamówienie - anulowanie zamówienia w panelu zdejmuje zaliczkę z rozliczeń.`}
+                </Text>
+              ) : (
+                <>
+                  {selectedOperationItem && (selectedOperationItem.type === 'addition' || selectedOperationItem.amount > 0) && (
+                    <TouchableOpacity
+                      style={[styles.optionButton, { backgroundColor: '#0d6efd', marginBottom: 10 }]}
+                      onPress={() => openEditAddAmountModal(selectedOperationItem)}
+                    >
+                      <Text style={styles.optionText}>{(selectedOperationItem.productId || selectedOperationItem.productName) ? 'Edytuj zaliczkę' : 'Edytuj'}</Text>
+                    </TouchableOpacity>
+                  )}
 
-              <TouchableOpacity
-                style={[styles.optionButton, { backgroundColor: '#ef4444', marginBottom: 10 }]}
-                onPress={() => {
-                  if (selectedOperationItem) {
-                    setSelectedDeductionItem(selectedOperationItem);
-                    setOperationOptionsVisible(false);
-                    setCancelDeductionModalVisible(true);
-                  }
-                }}
-              >
-                <Text style={styles.optionText}>Anuluj operację</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.optionButton, { backgroundColor: '#ef4444', marginBottom: 10 }]}
+                    onPress={() => {
+                      if (selectedOperationItem) {
+                        setSelectedDeductionItem(selectedOperationItem);
+                        setOperationOptionsVisible(false);
+                        setCancelDeductionModalVisible(true);
+                      }
+                    }}
+                  >
+                    <Text style={styles.optionText}>Anuluj operację</Text>
+                  </TouchableOpacity>
+                </>
+              )}
 
               <TouchableOpacity
                 style={[styles.optionButton, styles.closeButton]}
@@ -3950,7 +4043,7 @@ const Home = () => {
           <KeyboardSafeOverlay>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { maxHeight: '90%', alignItems: 'stretch' }]}>
-              <ModalHeader icon="add-circle" color="#10B981" title={isEditingAddAmount ? 'Edytuj zaliczkę' : 'Dopisz kwotę'} />
+              <ModalHeader icon="add-circle" color="#10B981" title={isEditingAddAmount ? (reasonType === 'other' ? 'Edytuj' : 'Edytuj zaliczkę') : 'Dopisz kwotę'} />
               
               <ScrollView 
                 ref={addAmountReveal.scrollRef}
@@ -3959,47 +4052,6 @@ const Home = () => {
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
               >
-              
-              {/* Amount input */}
-              <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={styles.formLabel}>Kwota jaką klient wpłaca:</Text>
-                <TextInput
-                  style={[styles.formInput, { textAlign: 'center', borderColor: '#0d6efd', borderWidth: 2 }]}
-                  placeholder="0.00"
-                  placeholderTextColor={tc('muted', "#ccc")}
-                  value={addAmountAmount}
-                  onChangeText={setAddAmountAmount}
-                  keyboardType="numeric"
-                />
-              </View>
-              
-              {/* Currency selection */}
-              <View style={{ width: '100%', marginBottom: 15 }}>
-                <Text style={styles.formLabel}>Waluta zaliczki:</Text>
-                <TouchableOpacity
-                  style={styles.selectField}
-                  onPress={() => setAddAmountCurrencyModalVisible(true)}
-                >
-                  <Text style={styles.selectFieldText}>
-                    {addAmountCurrency}
-                  </Text>
-                    <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
-                  </TouchableOpacity>
-              </View>
-              
-              {/* Currency rate input - show only for non-PLN currencies */}
-              {showAddAmountRateInput && addAmountCurrency !== 'PLN' && (
-                <View style={{ width: '100%', marginBottom: 20 }}>
-                  <Text style={{
-                    color: '#4ecdc4',
-                    fontSize: 14,
-                    textAlign: 'center',
-                    fontWeight: 'bold'
-                  }}>
-                    1 {addAmountCurrency} = {addAmountCurrencyRate ? parseFloat(addAmountCurrencyRate).toFixed(2) : '?'} PLN
-                  </Text>
-                </View>
-              )}
               
               {/* Reason selection */}
               <View style={{ width: '100%', marginBottom: 20 }}>
@@ -4223,211 +4275,6 @@ const Home = () => {
                       )}
                     </View>
                     
-                    {/* Product final price input - when product advance is selected */}
-                    {reasonType === 'product' && (
-                      <View style={{ marginTop: 15 }}>
-                        <Text style={styles.formLabel}>
-                          Uzgodniona cena finalna produktu (w PLN - dla obrotu):
-                        </Text>
-                        <TextInput
-                          style={[styles.formInput, { textAlign: 'center', borderColor: '#0d6efd', borderWidth: 2 }]}
-                          placeholder="0.00 PLN"
-                          placeholderTextColor={tc('muted', "#ccc")}
-                          value={productFinalPrice}
-                          onChangeText={(value) => {
-                            setProductFinalPrice(value);
-                            // Convert price to selected currency when user types
-                            if (value && parseFloat(value) > 0) {
-                              convertProductPrice(parseFloat(value), productSaleCurrency);
-                            }
-                          }}
-                          keyboardType="numeric"
-                        />
-
-                        {/* Product Currency Selection */}
-                        <View style={{ marginTop: 15 }}>
-                          <Text style={styles.formLabel}>
-                            Waluta w której klient dopłaci:
-                          </Text>
-                          <TouchableOpacity
-                            testID="product-currency-select-button"
-                            style={styles.selectField}
-                            onPress={() => setProductCurrencyModalVisible(true)}
-                          >
-                            <Text style={styles.selectFieldText}>
-                              {productSaleCurrency}
-                            </Text>
-                            <Ionicons name="chevron-down" size={20} color={tc('muted', '#94A3B8')} />
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Currency rate for product - show only for non-PLN currencies */}
-                        {showProductRateInput && productSaleCurrency !== 'PLN' && (
-                          <View style={{ width: '100%', marginTop: 15 }}>
-                            <Text style={{
-                              color: '#4ecdc4',
-                              fontSize: 14,
-                              textAlign: 'center',
-                              fontWeight: 'bold'
-                            }}>
-                              1 {productSaleCurrency} = {productSaleCurrencyRate ? parseFloat(productSaleCurrencyRate).toFixed(2) : '?'} PLN
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* Show converted price if product is selected and has price */}
-                        {productFinalPrice && (
-                          <View style={{
-                            marginTop: 10,
-                            padding: 10,
-                            backgroundColor: tc('surface', '#1a1a2e'),
-                            borderRadius: 8,
-                            borderWidth: 1,
-                            borderColor: '#4ecdc4',
-                          }}>
-                            <Text style={{ color: '#4ecdc4', fontSize: 12, textAlign: 'center', fontWeight: 'bold', marginBottom: 8 }}>
-                              Cena dla klienta:
-                            </Text>
-                            
-                            {/* Price in PLN (always) */}
-                            <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginBottom: 3 }}>
-                              PLN: {parseFloat(productFinalPrice).toFixed(2)}
-                            </Text>
-                            
-                            {/* Price in deposit currency if different from PLN */}
-                            {addAmountCurrency && addAmountCurrency !== 'PLN' && (
-                              <Text style={{ color: '#0d6efd', fontSize: 14, textAlign: 'center', marginBottom: 3 }}>
-                                {addAmountCurrency}: {(() => {
-                                  const rate = addAmountCurrencyRate && parseFloat(addAmountCurrencyRate) > 0 
-                                    ? parseFloat(addAmountCurrencyRate) 
-                                    : exchangeRates[addAmountCurrency] || 1;
-                                  const multiplier = getMultiplier(addAmountCurrency);
-                                  return ((parseFloat(productFinalPrice) / rate) * multiplier).toFixed(2);
-                                })()}
-                              </Text>
-                            )}
-                            
-                            {/* Price in payment currency if different from PLN and deposit currency */}
-                            {productSaleCurrency && productSaleCurrency !== 'PLN' && productSaleCurrency !== addAmountCurrency && (
-                              <Text style={{ color: '#f39c12', fontSize: 14, textAlign: 'center', marginBottom: 3 }}>
-                                {productSaleCurrency}: {(() => {
-                                  const rate = productSaleCurrencyRate && parseFloat(productSaleCurrencyRate) > 0 
-                                    ? parseFloat(productSaleCurrencyRate) 
-                                    : exchangeRates[productSaleCurrency] || 1;
-                                  const multiplier = getMultiplier(productSaleCurrency);
-                                  return ((parseFloat(productFinalPrice) / rate) * multiplier).toFixed(2);
-                                })()}
-                              </Text>
-                            )}
-                          </View>
-                        )}
-                        
-                        {/* Show calculation when both amounts are filled */}
-                        {productFinalPrice && addAmountAmount && (
-                          <View style={{
-                            marginTop: 10,
-                            padding: 10,
-                            backgroundColor: tc('surface2', '#333'),
-                            borderRadius: 8,
-                            borderWidth: 1,
-                            borderColor: '#0d6efd',
-                          }}>
-                            {/* Advance Amount */}
-                            <Text style={{ color: tc('text', '#fff'), fontSize: 13, textAlign: 'center' }}>
-                              <Text style={{ fontWeight: 'bold' }}>Zaliczka:</Text> {parseFloat(addAmountAmount || 0).toFixed(2)} {addAmountCurrency}
-                              {addAmountCurrency !== 'PLN' && (
-                                <Text style={{ color: tc('muted', '#ccc'), fontSize: 11 }}>
-                                  {' '}(≈ {(() => {
-                                      // Use rate from table (cached in state)
-                                      const rate = addAmountCurrencyRate && parseFloat(addAmountCurrencyRate) > 0
-                                        ? parseFloat(addAmountCurrencyRate)
-                                        : exchangeRates[addAmountCurrency] || 1;
-                                    return (parseFloat(addAmountAmount || 0) * rate).toFixed(2);
-                                  })()} PLN)
-                                </Text>
-                              )}
-                            </Text>
-                            
-                            {/* Product Price */}
-                            <Text style={{ color: tc('text', '#fff'), fontSize: 13, textAlign: 'center', marginTop: 3 }}>
-                              <Text style={{ fontWeight: 'bold' }}>Cena dla obrotu:</Text> {parseFloat(productFinalPrice || 0).toFixed(2)} PLN
-                            </Text>
-                            
-                            {/* Remaining Amount Calculation */}
-                            <View style={{
-                              marginTop: 8,
-                              padding: 8,
-                              backgroundColor: tc('surface', '#1a1a2e'),
-                              borderRadius: 10,
-                              borderWidth: 1,
-                              borderColor: '#4ecdc4',
-                            }}>
-                              <Text style={{ 
-                                color: '#4ecdc4', 
-                                fontSize: 12, 
-                                textAlign: 'center',
-                                fontWeight: 'bold'
-                              }}>
-                                POZOSTAŁO DO DOPŁATY:
-                              </Text>
-                              
-                              {(() => {
-                                const pricePLN = parseFloat(productFinalPrice || 0);
-                                const advanceAmountNum = parseFloat(addAmountAmount || 0);
-                                
-                                // Convert advance to PLN if needed - use manual rate if provided
-                                const advanceRate = addAmountCurrency === 'PLN' 
-                                  ? 1 
-                                  : (addAmountCurrencyRate && parseFloat(addAmountCurrencyRate) > 0 
-                                    ? parseFloat(addAmountCurrencyRate) 
-                                    : exchangeRates[addAmountCurrency] || 1);
-                                
-                                const advanceMultiplier = getMultiplier(addAmountCurrency);
-                                const advanceInPLN = (advanceAmountNum / advanceMultiplier) * advanceRate;
-                                const remainingPLN = pricePLN - advanceInPLN;
-                                
-                                // Convert remaining to display currency
-                                const displayRate = productSaleCurrency === 'PLN'
-                                  ? 1
-                                  : (productSaleCurrencyRate && parseFloat(productSaleCurrencyRate) > 0
-                                    ? parseFloat(productSaleCurrencyRate)
-                                    : exchangeRates[productSaleCurrency] || 1);
-                                const displayMultiplier = getMultiplier(productSaleCurrency);
-                                const remainingInDisplayCurrency = productSaleCurrency === 'PLN'
-                                  ? remainingPLN
-                                  : (remainingPLN / displayRate) * displayMultiplier;
-                                
-                                return (
-                                  <>
-                                    <Text style={{ 
-                                      color: remainingInDisplayCurrency > 0 ? '#ff6b6b' : '#0d6efd', 
-                                      fontSize: 16, 
-                                      textAlign: 'center', 
-                                      marginTop: 5,
-                                      fontWeight: 'bold'
-                                    }}>
-                                      {remainingInDisplayCurrency.toFixed(2)} {productSaleCurrency}
-                                    </Text>
-                                    
-                                    {/* Show PLN equivalent if display currency is different */}
-                                    {productSaleCurrency !== 'PLN' && (
-                                      <Text style={{ 
-                                        color: tc('muted', '#ccc'), 
-                                        fontSize: 11, 
-                                        textAlign: 'center', 
-                                        marginTop: 2
-                                      }}>
-                                        (≈ {remainingPLN.toFixed(2)} PLN)
-                                      </Text>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    )}
                   </View>
                 )}
 
@@ -4444,7 +4291,168 @@ const Home = () => {
                     numberOfLines={3}
                   />
                 )}
+
+                {reasonType === 'other' && (
+                  <View style={{ marginTop: 15 }}>
+                    <Text style={styles.formLabel}>Prowizja:</Text>
+                    <OptionCard
+                      selected={!addAmountIncludeCommission}
+                      icon="close-circle-outline"
+                      label="Nie wliczaj do prowizji"
+                      color="#10B981"
+                      onPress={() => setAddAmountIncludeCommission(false)}
+                    />
+                    <OptionCard
+                      selected={addAmountIncludeCommission}
+                      icon="trending-up-outline"
+                      label="Wliczaj do prowizji"
+                      color="#10B981"
+                      onPress={() => setAddAmountIncludeCommission(true)}
+                    />
+                  </View>
+                )}
               </View>
+              {/* Wpłata klienta - układ i dodawanie walut jak przy sprzedaży (bez „Odbioru”); każda waluta = osobna operacja */}
+              {!!reasonType && (
+                <View style={sf.paymentCard}>
+                  {reasonType === 'product' && (
+                    <View style={sf.paymentHeader}>
+                      <View style={[look.optionCardIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                        <Ionicons name="pricetag-outline" size={20} color="#3B82F6" />
+                      </View>
+                      <Text style={sf.paymentTitle}>Cena z cennika</Text>
+                    </View>
+                  )}
+                  {reasonType === 'product' && (
+                    <View style={sf.salePriceRow}>
+                      <Text style={sf.salePriceLabel}>Cena</Text>
+                      <TextInput
+                        testID="advance-final-price-input"
+                        style={[look.formInput, { flex: 1 }]}
+                        placeholderTextColor={tc('muted', '#888')}
+                        value={productFinalPrice}
+                        onChangeText={(value) => setProductFinalPrice(value.replace(/[^0-9.]/g, ""))}
+                        placeholder="Cena finalna w zł"
+                        keyboardType="numeric"
+                      />
+                      <Text style={sf.salePriceCurrency}>PLN</Text>
+                    </View>
+                  )}
+                  {reasonType === 'product' && addAmountMinPrice ? (
+                    <Text style={[sf.remainingHint, Number(productFinalPrice) > 0 && Number(productFinalPrice) < addAmountMinPrice - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
+                      {Number(productFinalPrice) > 0 && Number(productFinalPrice) < addAmountMinPrice - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${addAmountMinPrice} zł` : `Najniższa cena: ${addAmountMinPrice} zł`}
+                    </Text>
+                  ) : null}
+                  <View style={sf.paymentHeader}>
+                    <View style={[look.optionCardIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                      <Ionicons name="cash-outline" size={20} color="#10B981" />
+                    </View>
+                    <Text style={sf.paymentTitle}>{reasonType === 'other' ? "Kwota" : "Kwota jaką klient wpłaca"}</Text>
+                  </View>
+                  {addAmountPairs.map((pair, index) => (
+                    <View
+                      key={`advance-${index}`}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
+                    >
+                      <TextInput
+                        testID={`advance-amount-${index}`}
+                        style={[look.formInput, { flex: 1.4 }]}
+                        placeholderTextColor={tc('muted', '#888')}
+                        value={pair.price}
+                        onChangeText={(value) => handleAddAmountPairChange(index, value.replace(/[^0-9.]/g, ""))}
+                        placeholder="Wpisz kwotę"
+                        keyboardType="numeric"
+                      />
+                      <TouchableOpacity
+                        testID={`advance-currency-${index}`}
+                        style={[look.selectField, { flex: 1 }]}
+                        onPress={() => {
+                          setAddAmountPairIndex(index);
+                          setAddAmountCurrencyModalVisible(true);
+                        }}
+                      >
+                        <Text style={look.selectFieldText}>{pair.currency || "PLN"}</Text>
+                        <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                      </TouchableOpacity>
+                      {index > 0 && (
+                        <TouchableOpacity
+                          accessibilityLabel="Usuń"
+                          style={sf.removeTile}
+                          onPress={() => handleAddAmountRemovePair(index)}
+                        >
+                          <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  <Pressable style={sf.addPairButton} onPress={handleAddAmountAddPair} testID="advance-add-currency">
+                    <Ionicons name="add" size={20} color="#0D6EFD" />
+                    <Text style={sf.addPairButtonText}>Dodaj walutę</Text>
+                  </Pressable>
+                  {reasonType === 'product' && Number(productFinalPrice) > 0 && (
+                    <Text style={sf.clientTotal}>
+                      {`Kwota jaką klient wpłaca łącznie: ${formatMoney(addAmountBalance.paidPln)} zł`}
+                    </Text>
+                  )}
+                  {reasonType === 'product' && Number(productFinalPrice) > 0 && addAmountIsOverpaid && (
+                    <View style={sf.remainingSection} testID="advance-change-card">
+                      <View style={sf.remainingHeader}>
+                        <Ionicons name="return-down-back-outline" size={18} color="#F59E0B" />
+                        <Text style={sf.remainingTitle}>{`Reszta do wydania: ${addAmountChangeSuggested || "?"} ${productSaleCurrency}`}</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <TextInput
+                          testID="advance-change-amount"
+                          style={[look.formInput, sf.remainingValue, sf.remainingValueText, { color: '#F59E0B' }]}
+                          value={addAmountChangeInput}
+                          onChangeText={(value) => setAddAmountChangeOverride({ key: addAmountChangeKey, value: value.replace(/[^0-9.,]/g, "") })}
+                          placeholder={addAmountChangeSuggested || "0.00"}
+                          placeholderTextColor={tc('muted', '#888')}
+                          keyboardType="numeric"
+                        />
+                        <TouchableOpacity
+                          testID="product-currency-select-button"
+                          style={[look.selectField, { flex: 1 }]}
+                          onPress={() => setProductCurrencyModalVisible(true)}
+                        >
+                          <Text style={look.selectFieldText}>{productSaleCurrency}</Text>
+                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={sf.remainingHint}>Klient wpłacił więcej niż cena. Wpisz wydaną resztę - zostanie odjęta od wpłat.</Text>
+                    </View>
+                  )}
+                  {reasonType === 'product' && Number(productFinalPrice) > 0 && !addAmountIsOverpaid && (
+                    <View style={sf.remainingSection} testID="advance-remaining-card">
+                      <View style={sf.remainingHeader}>
+                        <Ionicons name="hourglass-outline" size={18} color="#EF4444" />
+                        <Text style={sf.remainingTitle}>Do dopłaty przy odbiorze</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={[look.formInput, sf.remainingValue, { justifyContent: 'center' }]}>
+                          <Text
+                            testID="advance-remaining-amount"
+                            style={[sf.remainingValueText, { color: addAmountRemainingInCurrency !== null && addAmountRemainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
+                          >
+                            {addAmountRemainingInCurrency === null ? "brak kursu" : formatMoney(addAmountRemainingInCurrency)}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          testID="product-currency-select-button"
+                          style={[look.selectField, { flex: 1 }]}
+                          onPress={() => setProductCurrencyModalVisible(true)}
+                        >
+                          <Text style={look.selectFieldText}>{productSaleCurrency}</Text>
+                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                        </TouchableOpacity>
+                      </View>
+                      {addAmountBalance.missingRates.length > 0 && (
+                        <Text style={sf.remainingHint}>{`Brak kursu: ${addAmountBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
               
               {/* Action buttons */}
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 8 }}>
@@ -4462,7 +4470,7 @@ const Home = () => {
                   testID="submit-addition-button"
                 >
                   <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                    {isEditingAddAmount ? 'Aktualizuj kwotę' : 'Dopisz kwotę'}
+                    {isEditingAddAmount ? (reasonType === 'other' ? 'Aktualizuj' : 'Aktualizuj kwotę') : 'Dopisz kwotę'}
                   </Text>
                 </TouchableOpacity>
                 
@@ -4479,20 +4487,7 @@ const Home = () => {
                     borderRadius: 12,
                   }}
                   onPress={() => {
-                    setAddAmountModalVisible(false);
-                    setAddAmountAmount("");
-                    setAddAmountCurrency("PLN");
-                    setAddAmountReason("");
-                    setReasonType("");
-                    setProductType("custom");
-                    setCustomProductName("");
-                    setSelectedStock("");
-                    setSelectedColor("");
-                    setSelectedSize("");
-                    setSelectedProduct("");
-                    setProductSearchQuery("");
-                    setShowProductDropdown(false);
-                    setProductFinalPrice("");
+                    resetAddAmountForm();
                   }}
                 >
                   <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
@@ -5306,80 +5301,31 @@ const Home = () => {
           }}
         >
           <View style={{ flex: 1, backgroundColor: tc('bg', 'black') }}>
-            {permission?.granted ? (
-              <>
-                <CameraView
-                  style={{ flex: 1 }}
-                  facing="back"
-                  onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-                  barcodeScannerSettings={{
-                    barcodeTypes: ["code128", "ean13", "qr"] /* tylko formaty, które drukujemy - inne dawały błędne odczyty (np. UPC-A obcina zero) */,
-                  }}
-                />
-                <View style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: 20,
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                }}>
-                  <Text style={{ color: tc('text', 'white'), fontSize: 16, textAlign: 'center', marginBottom: 15 }}>
-                    Zeskanuj kod kreskowy produktu
-                  </Text>
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: '#dc3545',
-                      padding: 15,
-                      borderRadius: 8,
-                      alignItems: 'center',
-                    }}
-                    onPress={() => {
-                      setQrScannerVisible(false);
-                      setScanned(false);
-                      setProductScanned(false); // Reset when user cancels scanning
-                      // Ensure goods are loaded for product selection after canceling scanner
-                      if (!goods || goods.length === 0) {
-                        fetchGoods();
-                      }
-                    }}
-                  >
-                    <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <Text style={{ color: tc('text', 'white'), fontSize: 18, textAlign: 'center', marginBottom: 20 }}>
-                  Brak uprawnień do kamery
-                </Text>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: '#0d6efd',
-                    padding: 15,
-                    borderRadius: 8,
-                    marginBottom: 10,
-                  }}
-                  onPress={requestPermission}
-                >
-                  <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>Udziel uprawnień</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: '#dc3545',
-                    padding: 15,
-                    borderRadius: 8,
-                  }}
-                  onPress={() => {
-                    setQrScannerVisible(false);
-                    setScanned(false);
-                    setProductScanned(false); // Reset when user closes scanner
-                  }}
-                >
-                  <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: 'bold' }}>Zamknij</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
+            <ScanCamera
+              enabled={qrScannerVisible && !scanned}
+              onScanned={handleBarcodeScanned}
+              resolveName={(code) => {
+                const product = stateData?.find((item) => item.barcode === code);
+                return product ? `${product.fullName} ${product.size}` : null;
+              }}
+            >
+              <TouchableOpacity
+                style={[look.neutralButton, { position: 'absolute', top: Math.max(16, insets.top + 8), right: 16, flex: 0, width: 44, height: 44, paddingVertical: 0, paddingHorizontal: 0, borderRadius: 12 }]}
+                accessibilityLabel="Zamknij skaner"
+                onPress={() => {
+                  setQrScannerVisible(false);
+                  setScanned(false);
+                  setProductScanned(false); // Reset when user cancels scanning
+                  // Ensure goods are loaded for product selection after canceling scanner
+                  if (!goods || goods.length === 0) {
+                    fetchGoods();
+                  }
+                }}
+              >
+                <Ionicons name="close" size={24} color={tc('text', '#fff')} />
+              </TouchableOpacity>
+            </ScanCamera>
           </View>
         </Modal>
 

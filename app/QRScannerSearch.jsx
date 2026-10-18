@@ -1,4 +1,5 @@
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCameraPermissions } from "expo-camera";
+import ScanCamera from "../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { useContext, useState } from "react";
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -89,22 +90,25 @@ const QRScannerSearch = () => {
   };
 
   // Kolor plakietki dla każdego punktu (różne kolory, magazyn pomarańczowy)
+  // Nazwa dla „Wpisz kod”: sztuka na stanie z tym kodem albo ten sam model (5 pierwszych cyfr); null = brak w stanach
+  const resolveScannedName = (code) => {
+    const exact = (stateData || []).find((item) => (item.barcode || "") === code);
+    if (exact) return `${exact.fullName} ${exact.size}`;
+    const sameModel = (stateData || []).find((item) => (item.barcode || "").slice(0, 5) === code.slice(0, 5));
+    return sameModel ? sameModel.fullName : null;
+  };
+
   const colorOf = pointColorMap((stateData || []).map((entry) => entry.symbol));
 
   return (
     <View style={styles.container}>
-      <CameraView
-        style={styles.camera}
+      {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
+      <ScanCamera
+        enabled={!modalVisible}
+        onScanned={handleScan}
+        resolveName={resolveScannedName}
         facing={facing}
-        barcodeScannerSettings={{
-          barcodeTypes: ["code128", "ean13", "qr"] /* tylko formaty, które drukujemy - inne dawały błędne odczyty (np. UPC-A obcina zero) */,
-        }}
-        onBarcodeScanned={handleScan}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.scanArea} />
-        </View>
-      </CameraView>
+      />
       <Modal
         visible={modalVisible}
         transparent={true} // Changed to transparent

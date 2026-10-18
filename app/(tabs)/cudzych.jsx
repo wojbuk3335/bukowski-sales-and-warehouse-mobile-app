@@ -12,7 +12,8 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCameraPermissions } from "expo-camera";
+import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useFocusEffect } from "@react-navigation/native";
@@ -931,6 +932,18 @@ const Cudzych = () => {
     }
   };
 
+  // Nazwa produktu dla „Wpisz kod” w skanerze - te same źródła co handleScan; null = kod spoza bazy
+  const resolveScannedName = async (code) => {
+    const remaining = await buildRemainingProductNameFromBarcode(code);
+    if (remaining) return remaining;
+    const bagOrWallet = buildBagNameFromBarcode(code) || buildWalletNameFromBarcode(code);
+    if (bagOrWallet) return bagOrWallet;
+    const jacket = buildJacketNameFromBarcode(code);
+    if (jacket) return [jacket.fullName, jacket.sizeName].filter(Boolean).join(' ');
+    const matchedItem = stateData?.find((item) => item.barcode === code);
+    return matchedItem ? `${matchedItem.fullName} ${matchedItem.size}` : null;
+  };
+
   // Toggle camera facing
   const toggleCameraFacing = () => {
     setFacing((prev) => (prev === "back" ? "front" : "back"));
@@ -1640,19 +1653,27 @@ const Cudzych = () => {
       {/* QR Scanner Modal - identical to QRScanner component */}
       {scannerVisible && (
         <View style={qrStyles.container}>
-          <View style={{ flex: 1 }}>
-            <CameraView
-              style={qrStyles.camera}
-              facing={facing}
-              barcodeScannerSettings={{
-                barcodeTypes: ["code128", "ean13", "qr"] /* tylko formaty, które drukujemy - inne dawały błędne odczyty (np. UPC-A obcina zero) */,
-              }}
-              onBarcodeScanned={handleScan}
-            />
-            {/* Overlay using absolute positioning */}
-            <View style={[qrStyles.overlay, { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }]}>
-              <View style={qrStyles.scanArea} />
-            </View>
+          {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
+          <ScanCamera
+            enabled={!scanned}
+            onScanned={handleScan}
+            resolveName={resolveScannedName}
+            facing={facing}
+            extraActions={[{
+              label: "Wpisz ręcznie",
+              icon: "create-outline",
+              testID: "enter-manually",
+              onPress: () => {
+                setScannerVisible(false);
+                setScanned(false);
+                if (scannerType === 'odbior') {
+                  setOdbiorModalVisible(true);
+                } else {
+                  setZwrotModalVisible(true);
+                }
+              },
+            }]}
+          >
             
             {/* Close button in top right corner */}
             <TouchableOpacity
@@ -1679,26 +1700,7 @@ const Cudzych = () => {
                 </TouchableOpacity>
               </View>
             )}
-            
-            {/* Przycisk do ręcznego wprowadzenia */}
-            <View style={{ position: "absolute", bottom: 30, left: 0, right: 0, alignItems: "center" }}>
-              <TouchableOpacity
-                style={[look.neutralButton, { flex: 0, flexDirection: 'row', gap: 8, paddingHorizontal: 24 }]}
-                onPress={() => {
-                  setScannerVisible(false);
-                  setScanned(false);
-                  if (scannerType === 'odbior') {
-                    setOdbiorModalVisible(true);
-                  } else {
-                    setZwrotModalVisible(true);
-                  }
-                }}
-              >
-                <Ionicons name="create-outline" size={20} color={tc('text', '#fff')} />
-                <Text style={look.neutralButtonText}>Wpisz ręcznie</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScanCamera>
         </View>
       )}
 

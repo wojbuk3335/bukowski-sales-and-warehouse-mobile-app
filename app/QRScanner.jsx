@@ -1,16 +1,17 @@
 import axios from "axios"; // Import axios for HTTP requests
-import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
-import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
+import { useCameraPermissions } from "expo-camera";
 import { useEffect, useRef, useState } from "react";
 import { FlatList, Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zaslania pola tekstowego
-import { SmartScanOverlay, useSmartBarcodeScan } from "../components/scanner/SmartScanOverlay"; // kod tylko z ramki, potwierdzony kilkoma odczytami
+import ScanCamera from "../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
 import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from "../utils/paymentBalance"; // sprzedaż w kilku walutach: ile do dopłaty
+import { formatOrderDeposit, orderMatchScore, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
+import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, look } from '../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -28,6 +29,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [cardPriceCurrencyPairs, setCardPriceCurrencyPairs] = useState([{ price: "", currency: "PLN" }]); // State for carrd payment
   // Sprzedaż w kilku walutach: cena w PLN (z cennika punktu, do poprawienia) i waluta, w której pokazujemy „Do dopłaty”
   const [salePrice, setSalePrice] = useState("");
+  const [salePriceMin, setSalePriceMin] = useState(null); // blokada rabatu: najniższa kwota „Klient zapłaci” (null = bez blokady)
+  const [salePriceList, setSalePriceList] = useState(null); // pełna cena z cennika - minimum przy płatności kartą
+  const [myPriceList, setMyPriceList] = useState(null); // cennik punktu zalogowanego sprzedawcy (null = brak, karta produktu)
   const [remainingCurrency, setRemainingCurrency] = useState("PLN");
   // Ręcznie poprawiona kwota „Do dopłaty” (np. wyliczone 50 EUR, mówimy klientowi 60 EUR).
   // Ważna tylko dla wyliczenia, przy którym ją wpisano (key) - po zmianie wpłat/waluty wraca podpowiedź.
@@ -41,6 +45,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [advanceAmount, setAdvanceAmount] = useState(""); // Kwota zaliczki
   const [selectedAdvance, setSelectedAdvance] = useState(null); // Wybrana zaliczka
   const [availableAdvances, setAvailableAdvances] = useState([]); // Lista dostępnych zaliczek
+  // Wydanie zamówienia z tego punktu (odbiór/dostawa): lista po zeskanowaniu, wybrane zamówienie = dopłata do zaliczki
+  const [pickupOrders, setPickupOrders] = useState([]);
+  const [pickupOrdersVisible, setPickupOrdersVisible] = useState(false);
+  const [pickupOrdersLoading, setPickupOrdersLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [currentProductName, setCurrentProductName] = useState(""); // Nazwa aktualnego produktu
   const [currentProductSize, setCurrentProductSize] = useState(""); // Rozmiar aktualnego produktu
   
@@ -67,89 +76,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false); // State for currency modal
   const [currentCurrencyPairIndex, setCurrentCurrencyPairIndex] = useState(null); // Track the index of the pair being edited
   const [cameraActive, setCameraActive] = useState(true); // Zarządzanie aktywnością kamery - rozpoczynamy z aktywną kamerą
-  // Skaner: przyjmuje tylko kod w ramce, po kilku zgodnych odczytach pod rząd (bez błędnych pojedynczych klatek);
-  // ramka „leci” do znalezionego kodu. handleScan jest zdefiniowany niżej - wołamy go przez ref.
-  const handleScanRef = useRef(null);
-  const smartScan = useSmartBarcodeScan({
-    enabled: !scanned && !modalVisible,
-    onConfirmed: (result) => handleScanRef.current?.(result),
-  });
-  // „Odczytaj ze zdjęcia”: zdjęcie z galerii pokazywane zamiast kamery, kod odczytany z pliku
-  const [photoUri, setPhotoUri] = useState(null);
-  const [photoScanning, setPhotoScanning] = useState(false);
-  // „Wpisz kod”: ręczne wpisanie kodu kreskowego - dalej dokładnie jak po zeskanowaniu
-  const [manualCodeVisible, setManualCodeVisible] = useState(false);
-  const [manualCode, setManualCode] = useState("");
-  // Walidacja na bieżąco: ok (kod w bazie, nazwa produktu) / invalid (nie pasuje) / checking / idle
-  const [manualCodeCheck, setManualCodeCheck] = useState({ state: "idle", name: "" });
-  useEffect(() => {
-    const code = manualCode.trim();
-    if (!code) {
-      setManualCodeCheck({ state: "idle", name: "" });
-      return undefined;
-    }
-    let active = true;
-    setManualCodeCheck((prev) => ({ ...prev, state: "checking" }));
-    const timer = setTimeout(async () => {
-      const name = await resolveProductNameFromBarcode(code);
-      if (active) setManualCodeCheck(name ? { state: "ok", name } : { state: "invalid", name: "" });
-    }, 200);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manualCode, stateData, goods]);
-
-  // Po zamknięciu formularza sprzedaży wracamy do kamery (zdjęcie znika)
-  useEffect(() => {
-    if (!modalVisible) setPhotoUri(null);
-  }, [modalVisible]);
-
-  const pickPhotoAndScan = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        appAlert("Brak dostępu", "Zezwól aplikacji na dostęp do zdjęć, aby odczytać kod ze zdjęcia.");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
-      if (result.canceled || !result.assets?.length) return;
-      const uri = result.assets[0].uri;
-      setPhotoUri(uri);
-      setPhotoScanning(true);
-      // 1. nasze formaty; 2. gdy nic - wszystkie formaty (zdjęcie bywa odczytane jako inny typ niż na żywo)
-      let found = await scanFromURLAsync(uri, ["code128", "ean13", "qr"]);
-      if (!(found || []).some((item) => item?.data)) {
-        found = await scanFromURLAsync(uri, ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"]);
-      }
-      setPhotoScanning(false);
-      const first = (found || []).find((item) => item?.data);
-      if (!first) {
-        setPhotoUri(null);
-        const size = await new Promise((resolve) => Image.getSize(uri, (w, h) => resolve(`${w}×${h}`), () => resolve("?")));
-        appAlert("Nie znaleziono kodu", `Na tym zdjęciu nie udało się odczytać kodu kreskowego. Spróbuj zdjęcia z bliska, ostrego, z kodem poziomo.
-
-(zdjęcie ${size}, wykryto: 0 kodów)`);
-        return;
-      }
-      Logger.debug("Scan from photo:", first.type, first.data);
-      handleScanRef.current?.({ data: String(first.data), type: first.type });
-    } catch (error) {
-      setPhotoScanning(false);
-      setPhotoUri(null);
-      Logger.error("Scan from photo failed:", error);
-      appAlert("Błąd", "Nie udało się odczytać kodu ze zdjęcia.");
-    }
-  };
-
-  const submitManualCode = () => {
-    const code = manualCode.trim();
-    if (!code || manualCodeCheck.state !== "ok") return; // tylko kod z bazy kodów
-    setManualCodeVisible(false);
-    setManualCode("");
-    handleScanRef.current?.({ data: code, type: "manual" });
-  };
   const [cameraVisible, setCameraVisible] = useState(true); // Widoczność kamery
   const [successModalVisible, setSuccessModalVisible] = useState(false); // State for success modal
   const [successMessage, setSuccessMessage] = useState(""); // Message for success modal
@@ -459,20 +385,82 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     setCameraActive(false); // Dezaktywuj kamerę
   };
 
-  // Cena kurtki z cennika punktu „Sprzedano od” (promocyjna, jeśli jest) - podpowiedź, sprzedawca może ją poprawić.
+  // Cennik punktu zalogowanego sprzedawcy (null = punkt nie ma cennika, cena z karty produktu).
+  // Odświeżany przy każdym wejściu na zakładkę, żeby zmiany cen z panelu były od razu widoczne.
+  useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await tokenService.authenticatedFetch(getApiUrl("/pricelists/my"));
+        const data = response.ok ? await response.json() : null;
+        if (!cancelled) setMyPriceList(Array.isArray(data?.priceList) ? data.priceList : null);
+      } catch (error) {
+        Logger.error("Error fetching own price list:", error);
+        if (!cancelled) setMyPriceList(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isActive]);
+
+  // Domyślna cena (podpowiedź, sprzedawca może ją poprawić): cennik zalogowanego punktu, bez cennika karta produktu.
+  // Regularna jest od razu opuszczona o końcówkę (utils/defaultSalePrice), promocyjna wpisuje się bez zmian.
   // Hook musi być PRZED wczesnymi return poniżej (kolejność hooków)
   useEffect(() => {
-    if (!barcode) {
-      setSalePrice("");
+    if (selectedOrder) {
+      // Wydanie zamówienia: cena = dopłata do zaliczki, bez blokady rabatu (prowizja była od zaliczki)
+      setSalePrice(String(Math.max(0, Number(selectedOrder.remainingPln) || 0)));
+      setSalePriceMin(null);
+      setSalePriceList(null);
       return;
     }
-    const matches = (stateData || []).filter((item) => item.barcode === barcode);
-    const item = matches.find((entry) => entry.symbol === selectedOption) || matches[0];
-    const promo = Number(item?.discount_price);
-    const regular = Number(item?.price);
-    const value = promo > 0 ? promo : regular > 0 ? regular : null;
-    setSalePrice(value !== null ? String(value) : "");
-  }, [barcode, selectedOption, stateData]);
+    if (!barcode) {
+      setSalePrice("");
+      setSalePriceMin(null);
+      setSalePriceList(null);
+      return;
+    }
+    let rule = salePriceRule({ barcode, goods, sizes, priceList: myPriceList });
+    let listPrice = salePriceListForBarcode({ barcode, goods, sizes, priceList: myPriceList });
+    if (!rule) {
+      // Kod spoza kart produktów - cena zapisana na stanie punktu „Sprzedano od”
+      const matches = (stateData || []).filter((item) => item.barcode === barcode);
+      const item = matches.find((entry) => entry.symbol === selectedOption) || matches[0];
+      rule = regularOrPromoRule(item?.price, item?.discount_price, item?.category);
+      listPrice = listPriceOf(item?.price, item?.discount_price);
+    }
+    setSalePrice(rule.defaultPrice !== null ? String(rule.defaultPrice) : "");
+    setSalePriceMin(rule.minPrice);
+    setSalePriceList(listPrice);
+  }, [barcode, selectedOption, stateData, goods, sizes, myPriceList, selectedOrder]);
+
+  // Tryb płatności zapisany w pozycji karty (paymentMode); brak = gotówka
+  const priceRuleSale = !isPickup && salePriceList !== null;
+  const paymentMode = priceRuleSale ? (cardPriceCurrencyPairs.find((pair) => pair.paymentMode)?.paymentMode ?? "cash") : "cash";
+  const cardLocked = priceRuleSale && paymentMode === "cash";
+  const cashLocked = priceRuleSale && paymentMode === "card";
+  // Każda płatność kartą (sama lub z gotówką): bez rabatu, cena i minimum to cena z cennika
+  const cardNoDiscount = priceRuleSale && paymentMode !== "cash";
+  const effectiveSalePrice = cardNoDiscount ? String(salePriceList) : salePrice;
+  const effectiveSaleMin = cardNoDiscount ? salePriceList : salePriceMin;
+  const selectPaymentMode = (mode) => {
+    if (mode === paymentMode) return;
+    if (mode === "card") {
+      setCashPriceCurrencyPairs([{ price: "0", currency: "PLN" }]);
+      setCardPriceCurrencyPairs([{ price: String(salePriceList), currency: "PLN", paymentMode: "card" }]);
+      return;
+    }
+    setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
+    setCardPriceCurrencyPairs([{ price: "", currency: "PLN", ...(mode === "mixed" && { paymentMode: "mixed" }) }]);
+  };
+
+  // Płatność kartą: kwota zawsze równa cenie z cennika (bez edycji)
+  useEffect(() => {
+    if (paymentMode === "card") {
+      setCashPriceCurrencyPairs([{ price: "0", currency: "PLN" }]);
+      setCardPriceCurrencyPairs([{ price: String(salePriceList), currency: "PLN", paymentMode: "card" }]);
+    }
+  }, [paymentMode, salePriceList]);
 
   if (!permission) return <View />;
 
@@ -580,7 +568,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       setModalVisible(true);
     }
   };
-  handleScanRef.current = handleScan;
 
   const toggleCameraFacing = () => {
     setFacing((prev) => (prev === "back" ? "front" : "back"));
@@ -597,6 +584,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     }
   };
 
+  // Reszta ceny z cennika po wpłatach (w walucie pozycji), null = brak kursu
+  const remainderPrice = (payments, currency) => {
+    const { remainingPln, missingRates } = computePaymentBalance({ price: salePriceList, payments, currencyRates });
+    const amount = plnToCurrency(Math.max(0, remainingPln), currency || "PLN", currencyRates);
+    return missingRates.length > 0 || amount === null ? null : formatMoney(amount);
+  };
+
   const handleCashPairChange = (index, field, value) => {
     const updatedPairs = [...cashPriceCurrencyPairs];
     updatedPairs[index][field] = value;
@@ -605,7 +599,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
 
   // Ile klient zapłacił (gotówka + karta, po kursie do przeliczeń) i ile jeszcze ma dopłacić w wybranej walucie
   const paymentBalance = computePaymentBalance({
-    price: salePrice,
+    price: effectiveSalePrice,
     payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs],
     currencyRates,
   });
@@ -622,6 +616,65 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const remainingUnit = plnPerUnit(remainingCurrency, currencyRates);
   const remainingInputPln = remainingUnit !== null && remainingInputNumber > 0 ? remainingInputNumber * remainingUnit : 0;
   const clientTotalPln = isOverpaid ? paymentBalance.paidPln - remainingInputPln : paymentBalance.paidPln + remainingInputPln;
+  // Kwota, którą sprawdza blokada przy zapisie (gotówka i nadpłata liczą dopłatę, płatność kartą/mieszana nie)
+  const amountCheckedPln = paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid) ? clientTotalPln : paymentBalance.paidPln;
+  const belowMinimum = !isPickup && Boolean(effectiveSaleMin) && amountCheckedPln > 0.005 && amountCheckedPln < effectiveSaleMin - 0.005;
+  // Minimum w walucie płatności: karta - waluta pozycji karty, gotówka/mieszana - waluta dopłaty (cena minus wpłacone)
+  const minimumTargetCurrency = paymentMode === "card" ? (cardPriceCurrencyPairs[0]?.currency || "PLN") : remainingCurrency;
+  const minimumTargetPln = paymentMode === "card" ? Number(effectiveSaleMin) || 0 : Math.max(0, Number(effectiveSaleMin) - paymentBalance.paidPln);
+  const minimumApplies = !isPickup && minimumTargetCurrency !== "PLN" && minimumTargetPln > 0.005 && (paymentMode === "card" || !isOverpaid);
+  const minimumInTarget = minimumApplies ? plnToCurrency(minimumTargetPln, minimumTargetCurrency, currencyRates) : null;
+  const minimumLabel = paymentMode === "card" ? "Minimalna kwota" : "Minimalna dopłata";
+  const minimumTargetText = minimumInTarget === null ? "" : `${minimumLabel}: ${formatMoney(minimumInTarget)} ${minimumTargetCurrency}`;
+  const minimumNotice = belowMinimum ? (
+    <Text testID="minimum-warning" style={{ color: '#EF4444', fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
+      {`Minimalna cena: ${effectiveSaleMin} zł (klient zapłaci ${formatMoney(amountCheckedPln)} zł).${minimumTargetText ? ` ${minimumTargetText}.` : ""}`}
+    </Text>
+  ) : minimumInTarget !== null ? (
+    <Text testID="minimum-converted" style={{ color: tc('muted', '#94A3B8'), fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
+      {`${minimumTargetText} (${formatMoney(minimumTargetPln)} zł)`}
+    </Text>
+  ) : null;
+  // Płatność kartą: bez bloku dopłaty i reszty, zostaje tylko ostrzeżenie o minimum
+  const remainingVisible = paymentMode !== "card" && Number(effectiveSalePrice) > 0;
+  const remainingBlock = (!isPickup || selectedOrder) && remainingVisible ? (
+    <View style={styles.remainingSection} testID="remaining-card">
+      <View style={styles.remainingHeader}>
+        <Ionicons name={isOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={isOverpaid ? "#F59E0B" : "#EF4444"} />
+        <Text style={styles.remainingTitle}>{isOverpaid ? `Reszta do wydania: ${remainingSuggested || "?"} ${remainingCurrency}` : "Dopłata"}</Text>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <TextInput
+          testID="remaining-amount"
+          style={[look.formInput, styles.remainingValue, styles.remainingValueText, { color: isOverpaid ? '#F59E0B' : remainingInCurrency !== null && remainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
+          editable={paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid)}
+          value={remainingInput}
+          onChangeText={(value) => setRemainingOverride({ key: remainingKey, value: value.replace(/[^0-9.,]/g, "") })}
+          placeholder={remainingInCurrency === null ? "brak kursu" : "0.00"}
+          placeholderTextColor={tc('muted', '#888')}
+          keyboardType="numeric"
+        />
+        <TouchableOpacity
+          testID="remaining-currency"
+          style={[look.selectField, { flex: 1 }]}
+          onPress={() => openCurrencyModal(0, "remaining")}
+        >
+          <Text style={look.selectFieldText}>{remainingCurrency}</Text>
+          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+        </TouchableOpacity>
+      </View>
+      {isOverpaid && (
+        <Text style={styles.remainingHint}>Wpisz wydaną resztę. Puste pole = reszty nie wydano.</Text>
+      )}
+      <Text testID="client-total" style={styles.clientTotal}>
+        {`Klient zapłaci: ${formatMoney(clientTotalPln)} zł`}
+        <Text style={styles.clientTotalPrice}>{`  (cena ${formatMoney(Number(effectiveSalePrice) || 0)} zł)`}</Text>
+      </Text>
+      {paymentBalance.missingRates.length > 0 && (
+        <Text style={styles.remainingHint}>{`Brak kursu: ${paymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
+      )}
+    </View>
+  ) : null;
 
   const handleAddCardPair = () => {
     setCardPriceCurrencyPairs([...cardPriceCurrencyPairs, { price: "", currency: "PLN" }]);
@@ -637,6 +690,10 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const handleCardPairChange = (index, field, value) => {
     const updatedPairs = [...cardPriceCurrencyPairs];
     updatedPairs[index][field] = value;
+    if (field === "currency" && paymentMode === "card") {
+      // Kwota z cennika w wybranej walucie; terminal i tak wymaga wpisania kwoty z terminala
+      updatedPairs[index].price = remainderPrice([], value) ?? "";
+    }
     setCardPriceCurrencyPairs(updatedPairs);
   };
 
@@ -688,13 +745,45 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   };
 
   // Obsługa zmiany checkbox odbioru
+  // Zamówienia do wydania w punkcie zalogowanego sprzedawcy (odbiór osobisty i dostawa)
+  const loadPickupOrders = async () => {
+    setPickupOrdersLoading(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/orders/for-pickup"));
+      const data = response.ok ? await response.json() : null;
+      const list = Array.isArray(data?.data) ? data.data : [];
+      setPickupOrders(list);
+      return list;
+    } catch (error) {
+      Logger.error("Error fetching pickup orders:", error);
+      setPickupOrders([]);
+      return [];
+    } finally {
+      setPickupOrdersLoading(false);
+    }
+  };
+
+  // Zamknięcie listy (✕ / wstecz) bez wybranego zamówienia - odbiór odznaczony (sprzedaż zwykła)
+  const closePickupOrders = () => {
+    setPickupOrdersVisible(false);
+    if (!selectedOrder) setIsPickup(false);
+  };
+
+  const selectPickupOrder = (order) => {
+    setSelectedOrder(order);
+    setIsPickup(true);
+    setPickupOrdersVisible(false);
+  };
+
   const handlePickupChange = async (newPickupValue, currentFullName, currentSize) => {
     setIsPickup(newPickupValue);
     
-    if (newPickupValue && currentFullName && currentSize) {
-      // Jeśli zaznaczono odbiór, wyszukaj dostępne zaliczki
-      await searchAdvances(currentFullName, currentSize);
+    if (newPickupValue) {
+      // Zaznaczony odbiór: lista zamówień punktu do wybrania (zaliczka i dopłata)
+      setPickupOrdersVisible(true);
+      await loadPickupOrders();
     } else {
+      setSelectedOrder(null);
       // Jeśli odznaczono odbiór, wyczyść dane zaliczek
       setAvailableAdvances([]);
       setSelectedAdvance(null);
@@ -797,7 +886,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       .map(pair => ({ price: pair.price, currency: pair.currency }));
 
     // Sprzedaż w kilku walutach: do obrotu idzie końcowa kwota („Klient zapłaci”)
-    if (!isPickup && Number(salePrice) > 0 && remainingInputNumber > 0) {
+    // Płatność mieszana: brakującej kwoty nie dopisujemy po cichu - blokada minimum pokaże, czego brakuje
+    if ((!isPickup || selectedOrder) && Number(effectiveSalePrice) > 0 && remainingInputNumber > 0 && (paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid))) {
       if (isOverpaid) {
         // wydana reszta zmniejsza wpłaty gotówką
         validCashPrices = applyChangeToCash(validCashPrices, remainingInputNumber, remainingCurrency, currencyRates);
@@ -816,10 +906,24 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     const totalCard = validCardPrices.reduce((sum, pair) => sum + parseFloat(pair.price || 0), 0);
     const totalPayment = totalCash + totalCard;
 
-    if (totalPayment <= 0) {
+    // Zamówienie w całości opłacone zaliczką - wydanie bez dopłaty
+    const fullyPaidOrder = selectedOrder && !(Number(selectedOrder.remainingPln) > 0);
+    if (totalPayment <= 0 && !fullyPaidOrder) {
       setErrorMessage("Proszę wprowadzić kwotę płatności (gotówka lub karta).");
       setErrorModalVisible(true);
       return;
+    }
+
+    // Blokada rabatu: „Klient zapłaci” (wszystkie wpłaty w PLN) nie niżej niż minimum z cennika; odbiór bez blokady
+    if (!isPickup) {
+      const { paidPln } = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates });
+      const minimumError = minimumPriceError(paidPln, effectiveSaleMin);
+      if (minimumError) {
+        // płatność kartą: bez rabatu, więc kwota musi być pełną ceną z cennika
+        setErrorMessage(cardNoDiscount ? `Przy płatności kartą nie ma rabatu. ${minimumError}` : minimumError);
+        setErrorModalVisible(true);
+        return;
+      }
     }
 
     const payload = {
@@ -832,7 +936,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       cash: validCashPrices,
       card: validCardPrices,
       symbol, // Add symbol field
-      isPickup: isPickup, // Add pickup information
+      isPickup: isPickup || Boolean(selectedOrder), // Add pickup information
+      ...(selectedOrder && { orderMongoId: selectedOrder._id }), // wydanie zamówienia - backend oznaczy je jako zrealizowane
       advanceAmount: isPickup ? parseFloat(advanceAmount) || 0 : 0, // Add advance amount for pickups
       advanceOperationId: isPickup && selectedAdvance?._id ? selectedAdvance._id : null, // Add related advance ID (matches backend field name)
       employeeId: user?.employeeId || null, // Use Employee ObjectId for WorkHours matching
@@ -899,6 +1004,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
     setCardPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
     setIsPickup(false);
+    setSelectedOrder(null);
     setAdvanceAmount("");
     setSelectedAdvance(null);
     setAvailableAdvances([]);
@@ -914,81 +1020,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       {/* Kamera tylko gdy formularz sprzedaży jest zamknięty - po zamknięciu formularza wraca do skanowania */}
       {!modalVisible && (
       <View style={{ flex: 1 }}>
-        {photoUri ? (
-          // zdjęcie z galerii zamiast podglądu kamery
-          <Image source={{ uri: photoUri }} style={styles.camera} resizeMode="contain" testID="scan-photo" />
-        ) : (
-        <CameraView
-          style={styles.camera}
+        {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
+        <ScanCamera
+          enabled={!scanned}
+          onScanned={handleScan}
+          resolveName={resolveProductNameFromBarcode}
           facing={facing}
-          barcodeScannerSettings={{
-            barcodeTypes: ["code128", "ean13", "qr"] /* tylko formaty, które drukujemy - inne dawały błędne odczyty (np. UPC-A obcina zero) */,
-          }}
-          onBarcodeScanned={scanned ? undefined : smartScan.onBarcodeScanned}
         />
-        )}
-        {/* Ramka: kod przyjmowany tylko z jej wnętrza; obrys „leci” do znalezionego kodu.
-            Pod napisem: odczyt kodu ze zdjęcia z galerii i ręczne wpisanie kodu */}
-        <SmartScanOverlay
-          {...smartScan.overlayProps}
-          hint={photoScanning ? "Odczytuję kod ze zdjęcia…" : null}
-          actions={scanned ? [] : [
-            { label: "Odczytaj ze zdjęcia", icon: "images-outline", onPress: pickPhotoAndScan, disabled: photoScanning, testID: "scan-from-photo" },
-            { label: "Wpisz kod", icon: "keypad-outline", onPress: () => setManualCodeVisible(true), testID: "enter-code" },
-          ]}
-        />
-
-        {/* Ręczne wpisanie kodu kreskowego */}
-        <Modal visible={manualCodeVisible} transparent animationType="fade" onRequestClose={() => setManualCodeVisible(false)}>
-          <KeyboardSafeScreen>
-            <View style={look.modalOverlay}>
-              <View style={look.modalContent}>
-                <ModalHeader icon="keypad" color="#0D6EFD" title="Wpisz kod kreskowy" subtitle="Kod z metki, np. 0040408300005" />
-                <TextInput
-                  testID="manual-code-input"
-                  style={look.formInput}
-                  value={manualCode}
-                  onChangeText={(text) => setManualCode(text.replace(/\s+/g, ""))}
-                  placeholder="Kod kreskowy"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  keyboardType="number-pad"
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={submitManualCode}
-                />
-                {manualCodeCheck.state !== "idle" && (
-                  <View testID="manual-code-status" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
-                    <Ionicons
-                      name={manualCodeCheck.state === "ok" ? "checkmark-circle" : manualCodeCheck.state === "invalid" ? "close-circle" : "time-outline"}
-                      size={18}
-                      color={manualCodeCheck.state === "ok" ? "#10B981" : manualCodeCheck.state === "invalid" ? "#EF4444" : tc('muted', "#94A3B8")}
-                    />
-                    <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: manualCodeCheck.state === "ok" ? "#10B981" : manualCodeCheck.state === "invalid" ? "#EF4444" : tc('muted', "#94A3B8") }}>
-                      {manualCodeCheck.state === "ok"
-                        ? manualCodeCheck.name
-                        : manualCodeCheck.state === "invalid"
-                          ? "Kod niepoprawny - nie pasuje do bazy kodów"
-                          : "Sprawdzam kod…"}
-                    </Text>
-                  </View>
-                )}
-                <View style={look.buttonRow}>
-                  <TouchableOpacity style={look.neutralButton} onPress={() => { setManualCodeVisible(false); setManualCode(""); }}>
-                    <Text style={look.neutralButtonText}>Anuluj</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    testID="manual-code-submit"
-                    style={[look.primaryButton, manualCodeCheck.state !== "ok" && { opacity: 0.5 }]}
-                    onPress={submitManualCode}
-                    disabled={manualCodeCheck.state !== "ok"}
-                  >
-                    <Text style={look.buttonText}>Dalej</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </KeyboardSafeScreen>
-        </Modal>
         
         {/* Przycisk do resetowania skanowania - pokazuje się tylko gdy scanned=true */}
         {scanned && (
@@ -1003,6 +1041,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                 setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
                 setCardPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
                 setIsPickup(false);
+                setSelectedOrder(null);
                 setAdvanceAmount("");
                 setSelectedAdvance(null);
                 setCurrentProductName("");
@@ -1035,6 +1074,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
                     setCardPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
                     setIsPickup(false);
+                    setSelectedOrder(null);
                     setAdvanceAmount("");
                     setSelectedAdvance(null);
                     setCurrentProductName("");
@@ -1128,6 +1168,61 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   </Modal>
                 )}
 
+                {/* Zamówienia do wydania w tym punkcie (odbiór / dostawa) - pasujące do zeskanowanej kurtki na górze */}
+                <Modal
+                  transparent={true}
+                  animationType="slide"
+                  visible={pickupOrdersVisible}
+                  onRequestClose={closePickupOrders}
+                >
+                  <View style={styles.currencyModalContainer}>
+                    <View style={styles.currencyModalContent}>
+                      <Pressable
+                        testID="pickup-orders-close"
+                        accessibilityLabel="Zamknij"
+                        style={[styles.closeButton, { position: 'absolute', top: 12, right: 12, zIndex: 2 }]}
+                        onPress={closePickupOrders}
+                      >
+                        <Ionicons name="close" size={24} color={tc('text', '#fff')} />
+                      </Pressable>
+                      <ModalHeader icon="bag-check" color="#0D6EFD" title="Zamówienia do odbioru" subtitle="Złożone w tym punkcie - wybierz, jeśli klient odbiera zamówienie" />
+                      <ScrollView style={{ maxHeight: 420, width: '100%', marginBottom: 8 }}>
+                        {pickupOrdersLoading && pickupOrders.length === 0 ? (
+                          <Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 20 }}>Wczytuję zamówienia…</Text>
+                        ) : pickupOrders.length === 0 ? (
+                          <Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 20 }}>Brak oczekujących zamówień w tym punkcie.</Text>
+                        ) : (
+                          sortPickupOrders(pickupOrders, modalMessage).map((order) => {
+                            const matches = orderMatchScore(order, modalMessage) >= 3;
+                            return (
+                              <TouchableOpacity
+                                key={order._id}
+                                testID={`pickup-order-${order.orderId}`}
+                                style={[styles.currencyModalItem, matches && { borderColor: '#10B981', borderWidth: 1 }]}
+                                onPress={() => selectPickupOrder(order)}
+                              >
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Text style={[styles.currencyModalItemText, { flex: 1 }]} numberOfLines={1}>{orderProductName(order)}</Text>
+                                  {matches && <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>pasuje</Text>}
+                                </View>
+                                <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>
+                                  {`${order.customer?.name || 'Klient'} · ${order.customer?.deliveryOption === 'delivery' ? 'dostawa' : 'odbiór'} · ${order.realizationDate ? new Date(order.realizationDate).toLocaleDateString('pl-PL') : ''}`}
+                                </Text>
+                                <Text style={{ color: tc('text', '#fff'), fontSize: 13, marginTop: 4 }}>
+                                  {`Zaliczka: ${formatOrderDeposit(order.payment)}`}
+                                </Text>
+                                <Text style={{ color: Number(order.remainingPln) > 0 ? '#EF4444' : '#10B981', fontSize: 14, fontWeight: '700', marginTop: 2 }}>
+                                  {`Do dopłaty: ${formatMoney(Number(order.remainingPln) || 0)} zł`}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })
+                        )}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </Modal>
+
                 {/* Checkbox Odbiór */}
                 <TouchableOpacity
                   style={[look.optionCard, { marginBottom: 16 }, isPickup && { borderColor: '#0D6EFD', backgroundColor: 'rgba(13, 110, 253, 0.12)' }]}
@@ -1147,21 +1242,63 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   <Ionicons name={isPickup ? 'checkbox' : 'square-outline'} size={24} color={isPickup ? '#0D6EFD' : tc('muted', '#94A3B8')} />
                 </TouchableOpacity>
 
-                <View style={styles.paymentCard}>
+                {/* Wybrane zamówienie: zaliczka i dopłata (Cena poniżej = dopłata) */}
+                {selectedOrder && (
+                  <View testID="selected-pickup-order" style={[styles.paymentCard, { borderColor: '#0D6EFD' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={styles.paymentTitle}>{`Zamówienie ${selectedOrder.orderId}`}</Text>
+                      <TouchableOpacity accessibilityLabel="Zmień zamówienie" onPress={() => setPickupOrdersVisible(true)}>
+                        <Ionicons name="swap-horizontal" size={22} color="#0D6EFD" />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginTop: 6 }}>{orderProductName(selectedOrder)}</Text>
+                    <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>{selectedOrder.customer?.name || ''}</Text>
+                    <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginTop: 6 }}>{`Zaliczka: ${formatOrderDeposit(selectedOrder.payment)}`}</Text>
+                    <Text style={{ color: Number(selectedOrder.remainingPln) > 0 ? '#EF4444' : '#10B981', fontSize: 15, fontWeight: '700', marginTop: 2 }}>
+                      {`Do dopłaty: ${formatMoney(Number(selectedOrder.remainingPln) || 0)} zł`}
+                    </Text>
+                  </View>
+                )}
+
+                {priceRuleSale && (
+                  <View testID="payment-mode" style={{ gap: 8, marginBottom: 12 }}>
+                    {[
+                      { key: "cash", label: "Płatność gotówką", color: "#10B981" },
+                      { key: "card", label: "Płatność kartą", color: "#3B82F6" },
+                      { key: "mixed", label: "Gotówka i karta", color: "#8B5CF6" },
+                    ].map((option) => {
+                      const checked = paymentMode === option.key;
+                      return (
+                        <Pressable
+                          key={option.key}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked }}
+                          style={[look.optionCard, checked && { borderColor: option.color, backgroundColor: `${option.color}1F` }]}
+                          onPress={() => selectPaymentMode(option.key)}
+                        >
+                          <Ionicons name={checked ? "radio-button-on" : "radio-button-off"} size={20} color={option.color} />
+                          <Text style={look.optionCardLabel}>{option.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+                <View style={[styles.paymentCard, cashLocked && { opacity: 0.45 }]}>
                   <View style={styles.paymentHeader}>
                     <View style={[look.optionCardIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
                       <Ionicons name="cash-outline" size={20} color="#10B981" />
                     </View>
                     <Text style={styles.paymentTitle}>{isPickup ? 'Dopłata' : 'Płatność gotówką'}</Text>
                   </View>
-                  {!isPickup && (
-                    <View style={styles.salePriceRow}>
+                  {(!isPickup || selectedOrder) && (
+                    <View style={[styles.salePriceRow, cardNoDiscount && { opacity: 0.45 }]}>
                       <Text style={styles.salePriceLabel}>Cena</Text>
                       <TextInput
                         testID="sale-price-input"
                         style={[look.formInput, { flex: 1 }]}
                         placeholderTextColor={tc('muted', '#888')}
-                        value={salePrice}
+                        editable={!cardNoDiscount}
+                        value={effectiveSalePrice}
                         onChangeText={(value) => setSalePrice(value.replace(/[^0-9.]/g, ""))}
                         placeholder="Cena w zł"
                         keyboardType="numeric"
@@ -1169,6 +1306,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       <Text style={styles.salePriceCurrency}>PLN</Text>
                     </View>
                   )}
+                  {!isPickup && effectiveSaleMin ? (
+                    <Text style={[styles.remainingHint, Number(effectiveSalePrice) > 0 && Number(effectiveSalePrice) < effectiveSaleMin - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
+                      {cardNoDiscount
+                        ? `Płatność kartą: bez rabatu. Cena z cennika: ${effectiveSaleMin} zł`
+                        : Number(effectiveSalePrice) > 0 && Number(effectiveSalePrice) < effectiveSaleMin - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${effectiveSaleMin} zł` : `Najniższa cena: ${effectiveSaleMin} zł`}
+                    </Text>
+                  ) : null}
                   {cashPriceCurrencyPairs.map((pair, index) => (
                     <View
                       key={`cash-${index}`}
@@ -1177,6 +1321,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       <TextInput
                         style={[look.formInput, { flex: 1.4 }]}
                         placeholderTextColor={tc('muted', '#888')}
+                        editable={!cashLocked}
                         value={pair.price}
                         onChangeText={(value) => {
                           const numericValue = value.replace(/[^0-9.]/g, "");
@@ -1187,6 +1332,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       />
                       <TouchableOpacity
                         style={[look.selectField, { flex: 1 }]}
+                        disabled={cashLocked}
                         onPress={() => openCurrencyModal(index, "cash")}
                       >
                         <Text style={look.selectFieldText}>{pair.currency || "PLN"}</Text>
@@ -1203,47 +1349,14 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       )}
                     </View>
                   ))}
-                  <Pressable style={styles.addPairButton} onPress={handleAddCashPair}>
-                    <Ionicons name="add" size={20} color="#0D6EFD" />
-                    <Text style={styles.addPairButtonText}>Dodaj walutę</Text>
-                  </Pressable>
-                  {!isPickup && Number(salePrice) > 0 && (
-                    <View style={styles.remainingSection} testID="remaining-card">
-                      <View style={styles.remainingHeader}>
-                        <Ionicons name={isOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={isOverpaid ? "#F59E0B" : "#EF4444"} />
-                        <Text style={styles.remainingTitle}>{isOverpaid ? `Reszta do wydania: ${remainingSuggested || "?"} ${remainingCurrency}` : "Do dopłaty"}</Text>
-                      </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <TextInput
-                          testID="remaining-amount"
-                          style={[look.formInput, styles.remainingValue, styles.remainingValueText, { color: isOverpaid ? '#F59E0B' : remainingInCurrency !== null && remainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
-                          value={remainingInput}
-                          onChangeText={(value) => setRemainingOverride({ key: remainingKey, value: value.replace(/[^0-9.,]/g, "") })}
-                          placeholder={remainingInCurrency === null ? "brak kursu" : "0.00"}
-                          placeholderTextColor={tc('muted', '#888')}
-                          keyboardType="numeric"
-                        />
-                        <TouchableOpacity
-                          testID="remaining-currency"
-                          style={[look.selectField, { flex: 1 }]}
-                          onPress={() => openCurrencyModal(0, "remaining")}
-                        >
-                          <Text style={look.selectFieldText}>{remainingCurrency}</Text>
-                          <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
-                        </TouchableOpacity>
-                      </View>
-                      {isOverpaid && (
-                        <Text style={styles.remainingHint}>Wpisz wydaną resztę. Puste pole = reszty nie wydano.</Text>
-                      )}
-                      <Text testID="client-total" style={styles.clientTotal}>
-                        {`Klient zapłaci: ${formatMoney(clientTotalPln)} zł`}
-                        <Text style={styles.clientTotalPrice}>{`  (cena ${formatMoney(Number(salePrice) || 0)} zł)`}</Text>
-                      </Text>
-                      {paymentBalance.missingRates.length > 0 && (
-                        <Text style={styles.remainingHint}>{`Brak kursu: ${paymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
-                      )}
-                    </View>
+                  {!cashLocked && (
+                    <Pressable style={styles.addPairButton} onPress={handleAddCashPair}>
+                      <Ionicons name="add" size={20} color="#0D6EFD" />
+                      <Text style={styles.addPairButtonText}>Dodaj walutę</Text>
+                    </Pressable>
                   )}
+                  {paymentMode !== "card" && remainingBlock}
+                  {paymentMode === "cash" && minimumNotice}
                 </View>
                 {currencyModalVisible && (
                   <Modal
@@ -1282,7 +1395,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                   </Modal>
                 )}
-                <View style={styles.paymentCard}>
+                <View style={[styles.paymentCard, cardLocked && { opacity: 0.45 }]}>
                   <View style={styles.paymentHeader}>
                     <View style={[look.optionCardIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
                       <Ionicons name="card-outline" size={20} color="#3B82F6" />
@@ -1297,6 +1410,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       <TextInput
                         style={[look.formInput, { flex: 1.4 }]}
                         placeholderTextColor={tc('muted', '#888')}
+                        editable={!cardLocked}
                         value={pair.price}
                         onChangeText={(value) => {
                           const numericValue = value.replace(/[^0-9.]/g, "");
@@ -1307,6 +1421,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       />
                       <TouchableOpacity
                         style={[look.selectField, { flex: 1 }]}
+                        disabled={cardLocked}
                         onPress={() => openCurrencyModal(index, "card")}
                       >
                         <Text style={look.selectFieldText}>{pair.currency}</Text>
@@ -1314,6 +1429,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       </TouchableOpacity>
                     </View>
                   ))}
+                  {paymentMode === "card" && remainingBlock}
+                  {paymentMode !== "cash" && minimumNotice}
                 </View>
                 <View style={styles.modalButtons}>
                   <Pressable
@@ -1327,6 +1444,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
                       setCardPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
                       setIsPickup(false);
+                      setSelectedOrder(null);
                       setAdvanceAmount("");
                       setSelectedAdvance(null);
                       setCurrentProductName("");

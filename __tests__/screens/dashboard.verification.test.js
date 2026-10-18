@@ -85,9 +85,12 @@ const startVerification = async (screen) => {
 // Skan kamerą: skaner przyjmuje kolejny kod dopiero po wznowieniu (kamera ma wtedy znów onBarcodeScanned)
 const scanCode = async (screen, data) => {
   await waitFor(() => expect(screen.getByTestId('camera-view').props.onBarcodeScanned).toBeDefined(), { timeout: 3000 });
-  await act(async () => {
-    await screen.getByTestId('camera-view').props.onBarcodeScanned({ data });
-  });
+  // Inteligentna ramka (ScanCamera) przyjmuje kod po kilku zgodnych odczytach - kamera podaje kilka klatek
+  for (let frame = 0; frame < 3; frame += 1) {
+    await act(async () => {
+      await screen.getByTestId('camera-view').props.onBarcodeScanned?.({ data });
+    });
+  }
 };
 
 describe('Sprawdź - weryfikacja kurtek dobranych w systemie', () => {

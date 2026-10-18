@@ -11,14 +11,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView } from 'expo-camera';
+import ScanCamera from './ScanCamera'; // kamera jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext';
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłania pola w nakładce
 
 // Skaner kodów kreskowych w trybie ciągłym - ten sam w Remanencie (panel użytkownika) i w zakładce „Sprawdź” (panel admina).
 // Kamera, potwierdzenie skanu nad kamerą (toast) z wibracją, okienko „ta sama metka / kolejna sztuka”,
-// lista pogrupowana po kodzie (−1 / ×N / +1, wpisanie ilości), „Wpisz kod”, „Z bazy” i „Zatwierdź (N)”.
+// lista pogrupowana po kodzie (−1 / ×N / +1, wpisanie ilości), „Wpisz kod”, „Odczytaj ze zdjęcia”, „Z bazy” i „Zatwierdź (N)”.
 // O tym, czy kod przyjąć i jaki pokazać komunikat, decyduje ekran (validateCode); co zrobić ze skanami - onConfirm.
 //
 // Props:
@@ -35,8 +35,6 @@ import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłan
 //   onConfirm(pieces, { groups, showToast }) - async; true = przyjęte (lista skanera się czyści), false = skany zostają
 //   goods, pickerSizes              - karty produktów i rozmiary dla „Z bazy”
 
-// Tylko formaty, które drukujemy (metki Code 128) - inne (UPC-A, Code 39, EAN-8) dawały błędne odczyty
-const SCANNER_BARCODE_TYPES = ['code128', 'ean13', 'qr'];
 // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
 // Identyczne sztuki mają ten sam kod, więc kolejne skany tego kodu po przerwie to kolejne sztuki.
 const SAME_LABEL_PAUSE_MS = 1500;
@@ -359,36 +357,15 @@ const BarcodeScannerModal = ({
         </View>
 
         <View style={styles.scannerContainer}>
-          {permission?.granted ? (
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              barcodeScannerSettings={{
-                barcodeTypes: SCANNER_BARCODE_TYPES,
-              }}
-              onBarcodeScanned={scanningEnabled ? handleScan : undefined}
-            />
-          ) : (
-            <View style={styles.permissionContainer}>
-              <Text style={styles.permissionText}>Brak uprawnień do kamery</Text>
-              <TouchableOpacity onPress={requestPermission} style={styles.permissionButton}>
-                <Text style={styles.permissionButtonText}>Udziel uprawnień</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Ramka skanowania */}
-          <View style={styles.overlay}>
-            <View style={[
-              styles.scanArea,
-              { borderColor: scanningEnabled ? '#0d6efd' : '#dc3545' },
-            ]} />
-            {!scanningEnabled && (
-              <View style={styles.scanningDisabled}>
-                <Text style={styles.scanningDisabledText}>Przetwarzanie...</Text>
-              </View>
-            )}
-          </View>
+          {/* Kamera jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod”.
+              Tryb ciągły - kolejne sztuki; co zrobić z kodem decyduje handleScan (bez zmian) */}
+          <ScanCamera
+            continuous
+            enabled={visible && scanningEnabled && !manualCodeOpen && !pickerOpen && !duplicatePrompt && !quantityEdit}
+            onScanned={handleScan}
+            onManualCode={() => { setManualCode(''); setManualCodeOpen(true); }}
+            hint={scanningEnabled ? null : 'Przetwarzanie...'}
+          >
           {scanToast && (
             <View
               style={[styles.scanToast, scanToast.kind === 'warn' && styles.scanToastWarn, scanToast.kind === 'error' && styles.scanToastError]}
@@ -399,6 +376,7 @@ const BarcodeScannerModal = ({
               <Text style={styles.scanToastText} numberOfLines={6}>{scanToast.text}</Text>
             </View>
           )}
+          </ScanCamera>
         </View>
 
         {/* Lista zeskanowanych (pogrupowana po kodzie) */}
@@ -602,10 +580,6 @@ const BarcodeScannerModal = ({
         {/* Przyciski */}
         <View style={styles.scannerFooter}>
           <View style={styles.manualRow}>
-            <TouchableOpacity style={styles.manualButton} onPress={() => { setManualCode(''); setManualCodeOpen(true); }}>
-              <Ionicons name="keypad-outline" size={18} color="white" />
-              <Text style={styles.manualButtonText}>Wpisz kod</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.manualButton} onPress={() => { setPickerSearch(''); setPickerGood(null); setPickerOpen(true); }}>
               <Ionicons name="list-outline" size={18} color="white" />
               <Text style={styles.manualButtonText}>Z bazy</Text>

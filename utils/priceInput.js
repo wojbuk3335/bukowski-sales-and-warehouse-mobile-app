@@ -74,22 +74,29 @@ export const amountError = (input, label) => {
 
 /**
  * Walidacja kwot przed wysłaniem zamówienia. depositInPln - zaliczka przeliczona na zł (null = brak kursu).
+ * deposits - zaliczka w kilku walutach: [{ price (tekst z pola), currency }]; bez listy - jedna zaliczka deposit/depositCurrency.
  * @returns {string|null} komunikat błędu
  */
-export const validateOrderAmounts = ({ totalPrice, deposit, depositCurrency = 'PLN', depositInPln }) => {
+export const validateOrderAmounts = ({ totalPrice, deposit, depositCurrency = 'PLN', depositInPln, deposits }) => {
   const priceErr = amountError(totalPrice, 'Cena');
   if (priceErr) return priceErr;
   const price = parseAmount(totalPrice).value;
   if (!price || price <= 0) return 'Podaj cenę całkowitą zamówienia (większą od 0)';
   if (price > MAX_ORDER_PRICE) return `Cena ${formatAmount(price)} przekracza limit ${formatAmount(MAX_ORDER_PRICE)} - sprawdź, czy nie ma literówki`;
 
-  const depositErr = amountError(deposit, 'Zaliczka');
-  if (depositErr) return depositErr;
-  const dep = parseAmount(deposit).value || 0;
-  if (dep > 0 && depositCurrency !== 'PLN' && !(depositInPln > 0)) {
-    return `Brak kursu ${depositCurrency} - spróbuj za chwilę albo wpisz zaliczkę w PLN`;
+  const list = Array.isArray(deposits) ? deposits : [{ price: deposit, currency: depositCurrency }];
+  for (const item of list) {
+    const depositErr = amountError(item.price, 'Zaliczka');
+    if (depositErr) return depositErr;
   }
-  const depPln = depositCurrency === 'PLN' ? dep : depositInPln || 0;
+  const paid = list.filter((item) => (parseAmount(item.price).value || 0) > 0);
+  const foreign = [...new Set(paid.filter((item) => (item.currency || 'PLN') !== 'PLN').map((item) => item.currency))];
+  if (foreign.length > 0 && !(depositInPln > 0)) {
+    return `Brak kursu ${foreign.join(', ')} - spróbuj za chwilę albo wpisz zaliczkę w PLN`;
+  }
+  const depPln = foreign.length > 0
+    ? depositInPln || 0
+    : paid.reduce((sum, item) => sum + (parseAmount(item.price).value || 0), 0);
   if (depPln - price > 0.01) return `Zaliczka (${formatAmount(depPln)}) nie może być większa niż cena (${formatAmount(price)})`;
   return null;
 };

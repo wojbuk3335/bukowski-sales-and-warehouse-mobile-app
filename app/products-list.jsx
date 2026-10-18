@@ -21,6 +21,7 @@ import useLiveRefresh from "../services/useLiveRefresh"; // zmiany produktów na
 import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
 import { getApiUrl, API_CONFIG } from "../config/api";
 import { appAlert } from '../services/appAlert';
+import { regularOrPromoRule } from '../utils/defaultSalePrice'; // te same zasady co backend (cena minimalna)
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
@@ -79,6 +80,8 @@ const ProductsList = () => {
   const [productCode, setProductCode] = useState("");
   const [price, setPrice] = useState("");
   const [discountPrice, setDiscountPrice] = useState("");
+  // Cena minimalna: null = wyliczona z ceny (jak w panelu), w przeciwnym razie ręcznie wpisana ('' = brak)
+  const [minimumPriceOverride, setMinimumPriceOverride] = useState(null);
   const [category, setCategory] = useState("Kurtki kożuchy futra");
   const [description, setDescription] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
@@ -572,6 +575,7 @@ const ProductsList = () => {
     setSelectedManufacturer("");
     setSelectedGender("");
     setPriceExceptions([]);
+    setMinimumPriceOverride(null);
     // Reset Portfele fields
     setSelectedWalletsCategoryId("");
     setSelectedWalletsCategoryCode("");
@@ -594,6 +598,27 @@ const ProductsList = () => {
     setSizeSearch("");
     setShowModal(true);
   };
+
+  // Cena minimalna wyliczona z ceny (jak backend/panel); '' = brak
+  const autoMinimumPrice = (categoryName, priceValue, promoValue) => {
+    const auto = regularOrPromoRule(priceValue, promoValue, categoryName === "Pozostałe" ? "Pozostały asortyment" : categoryName).minPrice;
+    return auto === null || auto === undefined ? "" : String(auto);
+  };
+  const getEffectiveMinimumPrice = () => (
+    minimumPriceOverride !== null ? minimumPriceOverride : autoMinimumPrice(category, price, discountPrice)
+  );
+  // Minimum wyjątku: ręcznie wpisane albo wyliczone z ceny wyjątku
+  const getExceptionMinimum = (exception) => (
+    exception.minimumPriceOverride !== undefined && exception.minimumPriceOverride !== null
+      ? exception.minimumPriceOverride
+      : autoMinimumPrice(category, exception.value, discountPrice)
+  );
+  // Wyjątki w formacie zgodnym z backendem (z minimalną ceną każdego rozmiaru)
+  const priceExceptionsPayload = () => (priceExceptions || []).map((e) => ({
+    size: e.size,
+    value: e.value,
+    minimumPrice: getExceptionMinimum(e),
+  }));
 
   const handleAddPriceException = () => {
     if (sizes.length === 0) {
@@ -632,11 +657,22 @@ const ProductsList = () => {
     setSelectedGender(product.Plec || product.Rodzaj || "");
     
     // Transform priceExceptions from backend format (populated size object) to mobile format (size ID)
-    const mappedExceptions = (product.priceExceptions || []).map(ex => ({
-      size: typeof ex.size === 'object' ? ex.size._id : ex.size,
-      value: ex.value
-    }));
+    const mappedExceptions = (product.priceExceptions || []).map(ex => {
+      const size = typeof ex.size === 'object' ? ex.size._id : ex.size;
+      // Minimum wyjątku: nadpisanie tylko gdy różni się od wyliczonego z ceny
+      const storedExceptionMinimum = ex.minimumPrice == null ? '' : String(ex.minimumPrice);
+      const autoExceptionMinimum = autoMinimumPrice(product.category, ex.value, product.discount_price);
+      return {
+        size,
+        value: ex.value,
+        minimumPriceOverride: storedExceptionMinimum === autoExceptionMinimum ? null : storedExceptionMinimum,
+      };
+    });
     setPriceExceptions(mappedExceptions);
+    // Cena minimalna karty: nadpisanie tylko gdy różni się od wyliczonej z ceny
+    const storedMinimum = product.minimumPrice == null ? '' : String(product.minimumPrice);
+    const autoMinimum = autoMinimumPrice(product.category, product.price, product.discount_price);
+    setMinimumPriceOverride(storedMinimum === autoMinimum ? null : storedMinimum);
     
     // Reset search terms
     setStockSearch("");
@@ -682,15 +718,19 @@ const ProductsList = () => {
     // Edycja ze zmianą ceny: zapytaj, czy nadpisać ceny w cennikach punktów. Bez zmiany ceny cenniki zostają.
     if (editingProduct && syncPricesToPriceLists === null) {
       const normalizeExceptions = (list) => JSON.stringify((list || [])
-        .map((e) => ({ size: String(e.size?._id || e.size || ""), value: Number(e.value) }))
+        .map((e) => ({ size: String(e.size?._id || e.size || ""), value: Number(e.value), minimumPrice: Number(e.minimumPrice || 0) }))
         .sort((a, b) => a.size.localeCompare(b.size)));
+      const minimumChanged = Number(getEffectiveMinimumPrice() || 0) !== Number(editingProduct.minimumPrice || 0);
+      const exceptionsChanged = normalizeExceptions(priceExceptionsPayload()) !== normalizeExceptions(editingProduct.priceExceptions);
       const priceChanged = Number(price) !== Number(editingProduct.price)
         || Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)
-        || normalizeExceptions(priceExceptions) !== normalizeExceptions(editingProduct.priceExceptions);
+        || minimumChanged
+        || exceptionsChanged;
       const changes = [];
       if (Number(price) !== Number(editingProduct.price)) changes.push(`cena ${editingProduct.price || 0} zł → ${parseFloat(price) || 0} zł`);
       if (Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)) changes.push(`promocja ${editingProduct.discount_price || 0} zł → ${parseFloat(discountPrice) || 0} zł`);
-      if (normalizeExceptions(priceExceptions) !== normalizeExceptions(editingProduct.priceExceptions)) changes.push("wyjątki cenowe dla rozmiarów");
+      if (minimumChanged) changes.push(`cena minimalna ${editingProduct.minimumPrice || 0} zł → ${getEffectiveMinimumPrice() || 0} zł`);
+      if (exceptionsChanged) changes.push("wyjątki cenowe dla rozmiarów");
       if (priceChanged) {
         setPriceSyncQuestion({ text: changes.join(", ") || "cena" });
         return;
@@ -705,6 +745,7 @@ const ProductsList = () => {
       formData.append("code", finalProductCode);
       formData.append("price", parseFloat(price) || 0);
       formData.append("discount_price", discountPrice ? parseFloat(discountPrice) : 0);
+      formData.append("minimumPrice", getEffectiveMinimumPrice());
       formData.append("category", category === "Pozostałe" ? "Pozostały asortyment" : category);
       formData.append("description", description || "");
       formData.append("color", selectedColor);
@@ -735,7 +776,7 @@ const ProductsList = () => {
       formData.append(category === "Pozostałe" ? "Rodzaj" : "Plec", plecValue);
       
       // Price exceptions - always send, even if empty
-      formData.append("priceExceptions", JSON.stringify(priceExceptions || []));
+      formData.append("priceExceptions", JSON.stringify(priceExceptionsPayload()));
       if (editingProduct) {
         formData.append("syncPricesToPriceLists", syncPricesToPriceLists === true ? "true" : "false");
       }
@@ -1932,6 +1973,41 @@ const ProductsList = () => {
                   </View>
 
                 </>
+              )}
+              {/* Ceny minimalne: karta produktu i każdy wyjątek rozmiaru (puste = brak minimum) */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Cena minimalna (PLN)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Brak"
+                  placeholderTextColor={tc('muted', "#64748B")}
+                  value={getEffectiveMinimumPrice()}
+                  onChangeText={setMinimumPriceOverride}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+
+              {priceExceptions.length > 0 && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Cena minimalna wyjątków (PLN)</Text>
+                  {priceExceptions.map((exception, index) => (
+                    <View key={index} style={styles.exceptionRow}>
+                      <View style={styles.exceptionField}>
+                        <Text style={styles.exceptionLabel}>
+                          {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Rozmiar"}
+                        </Text>
+                        <TextInput
+                          style={styles.exceptionInput}
+                          placeholder="Brak"
+                          placeholderTextColor={tc('muted', "#64748B")}
+                          value={getExceptionMinimum(exception)}
+                          onChangeText={(text) => handlePriceExceptionChange(index, 'minimumPriceOverride', text)}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
               )}
             </ScrollView>
 

@@ -28,6 +28,12 @@ jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
 }));
 
+// „Odczytaj ze zdjęcia” we wspólnym skanerze (components/scanner/ScanCamera) - galeria w testach bez natywnego modułu
+jest.mock('expo-image-picker', () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+  launchImageLibraryAsync: jest.fn(() => Promise.resolve({ canceled: true, assets: [] })),
+}));
+
 jest.mock('expo-secure-store', () => {
   const store = new Map();
   return {

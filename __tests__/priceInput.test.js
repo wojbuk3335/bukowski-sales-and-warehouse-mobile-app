@@ -47,3 +47,25 @@ test('walidacja kwot zamówienia', () => {
   expect(validateOrderAmounts({ totalPrice: '1000', deposit: '300', depositCurrency: 'EUR', depositInPln: 1290 })).toContain('nie może być większa');
   expect(validateOrderAmounts({ totalPrice: '1000', deposit: '100', depositCurrency: 'EUR', depositInPln: 430 })).toBeNull();
 });
+
+describe('validateOrderAmounts - zaliczka w kilku walutach', () => {
+  test('poprawna lista walut przechodzi', () => {
+    expect(validateOrderAmounts({ totalPrice: '1500', deposits: [{ price: '100', currency: 'EUR' }, { price: '200', currency: 'PLN' }], depositInPln: 630 })).toBeNull();
+    expect(validateOrderAmounts({ totalPrice: '1500', deposits: [{ price: '300', currency: 'PLN' }, { price: '', currency: 'PLN' }], depositInPln: 300 })).toBeNull();
+  });
+
+  test('suma zaliczek większa niż cena', () => {
+    expect(validateOrderAmounts({ totalPrice: '500', deposits: [{ price: '300', currency: 'PLN' }, { price: '300', currency: 'PLN' }], depositInPln: 600 }))
+      .toMatch('nie może być większa niż cena');
+  });
+
+  test('brak kursu którejś waluty', () => {
+    expect(validateOrderAmounts({ totalPrice: '1500', deposits: [{ price: '100', currency: 'EUR' }, { price: '50', currency: 'CHF' }], depositInPln: null }))
+      .toMatch('Brak kursu EUR, CHF');
+  });
+
+  test('błędny zapis kwoty w którymś wierszu', () => {
+    expect(validateOrderAmounts({ totalPrice: '1500', deposits: [{ price: '100', currency: 'PLN' }, { price: '1,200', currency: 'PLN' }], depositInPln: 1300 }))
+      .toBeTruthy();
+  });
+});
