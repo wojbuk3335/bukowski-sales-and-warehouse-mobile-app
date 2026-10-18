@@ -86,6 +86,7 @@ describe('QRScanner - płatność mieszana', () => {
     fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '100');
     fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '100');
     await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 526.00 zł · Do dopłaty kartą: 324.00 zł'));
+    expect(utils.getByTestId('minimum-top-up')).toHaveTextContent('Dopłać jeszcze 324.00 zł, aby osiągnąć minimum.');
     fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424');
     await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 850.00 zł · Do dopłaty kartą: 0.00 zł'));
 

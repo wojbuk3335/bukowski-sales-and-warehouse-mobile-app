@@ -620,6 +620,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // Kwota, którą sprawdza blokada przy zapisie (gotówka i nadpłata liczą dopłatę, płatność kartą/mieszana nie)
   const amountCheckedPln = paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid) ? clientTotalPln : paymentBalance.paidPln;
   const belowMinimum = !isPickup && Boolean(effectiveSaleMin) && amountCheckedPln > 0.005 && amountCheckedPln < effectiveSaleMin - 0.005;
+  const minimumTopUpPln = Math.max(0, Number(effectiveSaleMin) - amountCheckedPln);
   // Minimum w walucie płatności: karta - waluta pozycji karty, gotówka/mieszana - waluta dopłaty (cena minus wpłacone)
   const minimumTargetCurrency = paymentMode === "card" ? (cardPriceCurrencyPairs[0]?.currency || "PLN") : remainingCurrency;
   const minimumTargetPln = paymentMode === "card" ? Number(effectiveSaleMin) || 0 : Math.max(0, Number(effectiveSaleMin) - paymentBalance.paidPln);
@@ -630,6 +631,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const minimumNotice = belowMinimum ? (
     <Text testID="minimum-warning" style={{ color: '#EF4444', fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
       {`Minimalna cena: ${effectiveSaleMin} zł (klient zapłaci ${formatMoney(amountCheckedPln)} zł).${minimumTargetText ? ` ${minimumTargetText}.` : ""}`}
+      <Text testID="minimum-top-up" style={{ color: '#10B981', fontWeight: '700' }}>
+        {` Dopłać jeszcze ${formatMoney(minimumTopUpPln)} zł, aby osiągnąć minimum.`}
+      </Text>
     </Text>
   ) : minimumInTarget !== null ? (
     <Text testID="minimum-converted" style={{ color: tc('muted', '#94A3B8'), fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
