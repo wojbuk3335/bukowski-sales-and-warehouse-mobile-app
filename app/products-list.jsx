@@ -1101,14 +1101,14 @@ const ProductsList = () => {
               <Text style={styles.discountPill}>Promocja: {item.discount_price} zł</Text>
             )}
             {item.discount_price > 0 && (
-              <Text style={styles.discountPill}>Cena minimalna {item.discountMinimumPrice ?? item.discount_price} zł</Text>
+              <Text style={styles.minimumPill}>Cena minimalna {item.discountMinimumPrice ?? item.discount_price} zł</Text>
             )}
           </View>
           {item.priceExceptions && item.priceExceptions.length > 0 && (
             <View style={styles.pillRow}>
               {item.priceExceptions.map((exception, idx) => (
                 <Text key={idx} style={styles.exceptionPill}>
-                  {exception.size?.Roz_Opis || 'Rozmiar'}: {exception.value} zł (min {exception.minimumPrice ?? exception.value} zł)
+                  {exception.size?.Roz_Opis || 'Rozmiar'}: {exception.value} zł (<Text style={styles.minimumPriceInline}>min {exception.minimumPrice ?? exception.value} zł</Text>)
                 </Text>
               ))}
             </View>
@@ -2851,7 +2851,7 @@ const styles = createThemedStyles(() => StyleSheet.create({
   pricePill: {
     fontSize: 12,
     fontWeight: "700",
-    color: tc('text', "#fff"),
+    color: "#fff",
     backgroundColor: tc('surface2', "#1E1E2D"),
     borderWidth: 1,
     borderColor: tc('border', "#334155"),
@@ -2863,8 +2863,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
   discountPill: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#EF4444",
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    color: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
@@ -2873,8 +2873,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
   minimumPill: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#34D399",
-    backgroundColor: "rgba(52, 211, 153, 0.15)",
+    color: "#EF4444",
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
@@ -2890,6 +2890,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 999,
     overflow: "hidden",
+  },
+  minimumPriceInline: {
+    color: "#EF4444",
+    fontWeight: "700",
   },
   actionTile: {
     width: 40,
