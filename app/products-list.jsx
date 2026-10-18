@@ -1093,13 +1093,15 @@ const ProductsList = () => {
             {item.category && (
               <Text style={styles.productCategory}>{item.category.toUpperCase()}</Text>
             )}
-            <Text style={styles.pricePill}>{item.price || 0} zł</Text>
-            <Text style={styles.minimumPill}>Min: {item.minimumPrice ?? (item.price || 0)} zł</Text>
+            <Text style={styles.pricePill}>Cena {item.price || 0} zł</Text>
+            {!(item.discount_price > 0) && (
+              <Text style={styles.minimumPill}>Cena minimalna {item.minimumPrice ?? (item.price || 0)} zł</Text>
+            )}
             {item.discount_price > 0 && (
               <Text style={styles.discountPill}>Promocja: {item.discount_price} zł</Text>
             )}
             {item.discount_price > 0 && (
-              <Text style={styles.minimumPill}>Min. promo: {item.discountMinimumPrice ?? item.discount_price} zł</Text>
+              <Text style={styles.discountPill}>Cena minimalna {item.discountMinimumPrice ?? item.discount_price} zł</Text>
             )}
           </View>
           {item.priceExceptions && item.priceExceptions.length > 0 && (
@@ -2861,8 +2863,8 @@ const styles = createThemedStyles(() => StyleSheet.create({
   discountPill: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    color: "#EF4444",
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
