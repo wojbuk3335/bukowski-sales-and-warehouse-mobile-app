@@ -443,6 +443,17 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const cardNoDiscount = priceRuleSale && paymentMode !== "cash";
   const effectiveSalePrice = cardNoDiscount ? String(salePriceList) : salePrice;
   const effectiveSaleMin = cardNoDiscount ? salePriceList : salePriceMin;
+  const effectiveCardPriceCurrencyPairs = paymentMode === "mixed"
+    ? [{
+        price: formatMoney(Math.max(0, computePaymentBalance({
+          price: salePriceList,
+          payments: cashPriceCurrencyPairs,
+          currencyRates,
+        }).remainingPln)),
+        currency: "PLN",
+        paymentMode: "mixed",
+      }]
+    : cardPriceCurrencyPairs.map((pair) => ({ ...pair, currency: "PLN" }));
   const selectPaymentMode = (mode) => {
     if (mode === paymentMode) return;
     if (mode === "card") {
@@ -600,7 +611,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // Ile klient zapłacił (gotówka + karta, po kursie do przeliczeń) i ile jeszcze ma dopłacić w wybranej walucie
   const paymentBalance = computePaymentBalance({
     price: effectiveSalePrice,
-    payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs],
+    payments: [...cashPriceCurrencyPairs, ...effectiveCardPriceCurrencyPairs],
     currencyRates,
   });
   const remainingInCurrency = plnToCurrency(Math.abs(paymentBalance.remainingPln), remainingCurrency, currencyRates);
@@ -636,7 +647,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     </Text>
   ) : null;
   // Płatność kartą: bez bloku dopłaty i reszty, zostaje tylko ostrzeżenie o minimum
-  const remainingVisible = paymentMode !== "card" && Number(effectiveSalePrice) > 0;
+  const remainingVisible = (paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid)) && Number(effectiveSalePrice) > 0;
   const remainingBlock = (!isPickup || selectedOrder) && remainingVisible ? (
     <View style={styles.remainingSection} testID="remaining-card">
       <View style={styles.remainingHeader}>
@@ -897,8 +908,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       }
     }
     
-    const validCardPrices = cardPriceCurrencyPairs
-      .filter(pair => pair.price && pair.price.trim() !== "")
+    const validCardPrices = effectiveCardPriceCurrencyPairs
+      .filter(pair => pair.price && pair.price.trim() !== "" && Number(pair.price) > 0)
       .map(pair => ({ price: pair.price, currency: pair.currency }));
 
     // WALIDACJA: Sprawdź czy jest przynajmniej jedna płatność większa od zera
@@ -1319,6 +1330,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
                     >
                       <TextInput
+                        testID={`cash-payment-amount-${index}`}
                         style={[look.formInput, { flex: 1.4 }]}
                         placeholderTextColor={tc('muted', '#888')}
                         editable={!cashLocked}
@@ -1331,6 +1343,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         keyboardType="numeric"
                       />
                       <TouchableOpacity
+                        testID={`cash-payment-currency-${index}`}
                         style={[look.selectField, { flex: 1 }]}
                         disabled={cashLocked}
                         onPress={() => openCurrencyModal(index, "cash")}
@@ -1400,17 +1413,18 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     <View style={[look.optionCardIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
                       <Ionicons name="card-outline" size={20} color="#3B82F6" />
                     </View>
-                    <Text style={styles.paymentTitle}>{isPickup ? "Dopłata kartą" : "Płatność kartą"}</Text>
+                    <Text style={styles.paymentTitle}>{isPickup || paymentMode === "mixed" ? "Dopłata kartą" : "Płatność kartą"}</Text>
                   </View>
-                  {cardPriceCurrencyPairs.map((pair, index) => (
+                  {effectiveCardPriceCurrencyPairs.map((pair, index) => (
                     <View
                       key={`card-${index}`}
                       style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
                     >
                       <TextInput
+                        testID={`card-payment-amount-${index}`}
                         style={[look.formInput, { flex: 1.4 }]}
                         placeholderTextColor={tc('muted', '#888')}
-                        editable={!cardLocked}
+                        editable={!cardLocked && paymentMode !== "mixed"}
                         value={pair.price}
                         onChangeText={(value) => {
                           const numericValue = value.replace(/[^0-9.]/g, "");
@@ -1420,12 +1434,14 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         keyboardType="numeric"
                       />
                       <TouchableOpacity
-                        style={[look.selectField, { flex: 1 }]}
-                        disabled={cardLocked}
+                        testID={`card-payment-currency-${index}`}
+                        style={[look.selectField, { flex: 1, opacity: 0.45 }]}
+                        accessibilityState={{ disabled: true }}
+                        disabled
                         onPress={() => openCurrencyModal(index, "card")}
                       >
-                        <Text style={look.selectFieldText}>{pair.currency}</Text>
-                        <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+                        <Text style={look.selectFieldText}>PLN</Text>
+                        <Ionicons name="lock-closed-outline" size={18} color={tc('muted', '#94A3B8')} />
                       </TouchableOpacity>
                     </View>
                   ))}
