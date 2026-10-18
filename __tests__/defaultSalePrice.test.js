@@ -1,4 +1,4 @@
-import { defaultSalePrice, discountedRegularPrice, minimumPriceError, minimumRegularPrice, salePriceRule, salePriceRuleForGood } from '../utils/defaultSalePrice';
+import { defaultSalePrice, discountedRegularPrice, minimumPriceError, minimumRegularPrice, regularOrPromoRule, salePriceRule, salePriceRuleForGood } from '../utils/defaultSalePrice';
 
 describe('discountedRegularPrice - domyślna cena', () => {
   it('końcówkę 90 opuszcza o 40 zł', () => {
@@ -73,12 +73,12 @@ describe('salePriceRule - cennik punktu, bez cennika karta produktu', () => {
 
   it('wyjątek rozmiaru z cennika ma pierwszeństwo', () => {
     const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 0, priceExceptions: [{ size: { _id: 's-l', Roz_Opis: 'L' }, value: 1590 }] }];
-    expect(salePriceRule({ barcode: jacketL, goods, sizes, priceList })).toEqual({ defaultPrice: 1550, minPrice: 1550 });
+    expect(salePriceRule({ barcode: jacketL, goods, sizes, priceList })).toEqual({ defaultPrice: 1590, minPrice: 1590 });
   });
 
   it('promocja z cennika bez opuszczania i bez blokady', () => {
     const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 1990, priceExceptions: [] }];
-    expect(salePriceRule({ barcode: jacketL, goods, sizes, priceList })).toEqual({ defaultPrice: 1990, minPrice: null });
+    expect(salePriceRule({ barcode: jacketL, goods, sizes, priceList })).toEqual({ defaultPrice: 1990, minPrice: 1990 });
   });
 
   it('bez cennika punktu bierze kartę produktu', () => {
@@ -106,12 +106,47 @@ describe('salePriceRule - cennik punktu, bez cennika karta produktu', () => {
 
   it('pozostały asortyment z promocją: promocja jako domyślna, bez minimum', () => {
     const other = { _id: 'g4', code: '0000000100123', category: 'Pozostały asortyment', fullName: 'Pasek', price: 150, discount_price: 120, priceExceptions: [] };
-    expect(salePriceRuleForGood({ good: other, size: null, priceList: null })).toEqual({ defaultPrice: 120, minPrice: null });
+    expect(salePriceRuleForGood({ good: other, size: null, priceList: null })).toEqual({ defaultPrice: 120, minPrice: 120 });
   });
 
   it('nieznany kod - null', () => {
     expect(salePriceRule({ barcode: '9999999999999', goods, sizes, priceList: null })).toBeNull();
     expect(defaultSalePrice({ barcode: '9999999999999', goods, sizes, priceList: null })).toBeNull();
+  });
+});
+
+describe('regularOrPromoRule - minima zapisane w bazie (goods / cennik)', () => {
+  it('zapisane minimum ma pierwszeństwo przed zasadami', () => {
+    expect(regularOrPromoRule(1990, 0, 'Kurtki kożuchy futra', { minimumPrice: 1900 })).toEqual({ defaultPrice: 1950, minPrice: 1900 });
+  });
+
+  it('zapisane null = brak blokady', () => {
+    expect(regularOrPromoRule(1990, 0, 'Kurtki kożuchy futra', { minimumPrice: null })).toEqual({ defaultPrice: 1950, minPrice: null });
+  });
+
+  it('R&B: minimum = cena, sprzedaż bez zniżki', () => {
+    expect(regularOrPromoRule(990, 0, 'Kurtki kożuchy futra', { minimumPrice: 990 })).toEqual({ defaultPrice: 990, minPrice: 990 });
+  });
+
+  it('promocja: zapisane minimum promocji (Aneta 750 → 700)', () => {
+    expect(regularOrPromoRule(850, 750, 'Kurtki kożuchy futra', { minimumPrice: 800, discountMinimumPrice: 700 })).toEqual({ defaultPrice: 750, minPrice: 700 });
+  });
+
+  it('promocja bez zapisanego minimum - cena promocyjna', () => {
+    expect(regularOrPromoRule(850, 750, 'Kurtki kożuchy futra', { minimumPrice: 800, discountMinimumPrice: null })).toEqual({ defaultPrice: 750, minPrice: 750 });
+  });
+});
+
+describe('salePriceRuleForGood - minima z bazy', () => {
+  it('karta produktu z zapisanym minimum i minimum promocji', () => {
+    const good = { _id: 'g5', code: '0040700000005', category: 'Kurtki kożuchy futra', fullName: 'Aneta', price: 850, discount_price: 750, minimumPrice: 800, discountMinimumPrice: 700, priceExceptions: [] };
+    expect(salePriceRuleForGood({ good, size: null, priceList: null })).toEqual({ defaultPrice: 750, minPrice: 700 });
+  });
+
+  it('wyjątek rozmiaru z własnym minimum', () => {
+    const sizeL = { _id: 's-l', Roz_Kod: '003', Roz_Opis: 'L' };
+    const good = { _id: 'g6', code: '0040800000006', category: 'Kurtki kożuchy futra', fullName: 'Aneta', price: 850, discount_price: 0, minimumPrice: 800, priceExceptions: [{ size: { _id: 's-l', Roz_Opis: 'L' }, value: 850, minimumPrice: 800 }] };
+    expect(salePriceRuleForGood({ good, size: sizeL, priceList: null })).toEqual({ defaultPrice: 820, minPrice: 800 });
   });
 });
 
@@ -121,7 +156,7 @@ describe('salePriceRuleForGood - produkt wybrany z listy (zaliczka)', () => {
 
   it('cennik punktu z wyjątkiem rozmiaru', () => {
     const priceList = [{ originalGoodId: 'g1', price: 2190, discountPrice: 0, priceExceptions: [{ size: { _id: 's-l', Roz_Opis: 'L' }, value: 2290 }] }];
-    expect(salePriceRuleForGood({ good, size: sizeL, priceList })).toEqual({ defaultPrice: 2250, minPrice: 2200 });
+    expect(salePriceRuleForGood({ good, size: sizeL, priceList })).toEqual({ defaultPrice: 2290, minPrice: 2290 });
     expect(salePriceRuleForGood({ good, size: null, priceList })).toEqual({ defaultPrice: 2150, minPrice: 2100 });
   });
 

@@ -82,6 +82,8 @@ const ProductsList = () => {
   const [discountPrice, setDiscountPrice] = useState("");
   // Cena minimalna: null = wyliczona z ceny (jak w panelu), w przeciwnym razie ręcznie wpisana ('' = brak)
   const [minimumPriceOverride, setMinimumPriceOverride] = useState(null);
+  // Minimum promocji: null = wyliczone z ceny promocyjnej, w przeciwnym razie ręcznie wpisane ('' = brak)
+  const [discountMinimumPriceOverride, setDiscountMinimumPriceOverride] = useState(null);
   const [category, setCategory] = useState("Kurtki kożuchy futra");
   const [description, setDescription] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
@@ -576,6 +578,7 @@ const ProductsList = () => {
     setSelectedGender("");
     setPriceExceptions([]);
     setMinimumPriceOverride(null);
+    setDiscountMinimumPriceOverride(null);
     // Reset Portfele fields
     setSelectedWalletsCategoryId("");
     setSelectedWalletsCategoryCode("");
@@ -599,19 +602,39 @@ const ProductsList = () => {
     setShowModal(true);
   };
 
-  // Cena minimalna wyliczona z ceny (jak backend/panel); '' = brak
-  const autoMinimumPrice = (categoryName, priceValue, promoValue) => {
-    const auto = regularOrPromoRule(priceValue, promoValue, categoryName === "Pozostałe" ? "Pozostały asortyment" : categoryName).minPrice;
+  // Producent R&B (printGroup 'rb'): minimum karty = cena, bez zniżki na promocję (zasady jak w backendzie)
+  const isRBManufacturerId = (manufacturerId) => {
+    const manufacturer = manufacturers.find((m) => m._id === manufacturerId);
+    return manufacturer?.printGroup === 'rb';
+  };
+  const ruleCategoryName = (categoryName) => (categoryName === "Pozostałe" ? "Pozostały asortyment" : categoryName);
+  // Cena minimalna wyliczona z ceny regularnej (jak backend/panel); '' = brak
+  const autoMinimumPrice = (categoryName, priceValue, isRB = false) => {
+    if (isRB) return Number(priceValue) > 0 ? String(Number(priceValue)) : "";
+    const auto = regularOrPromoRule(priceValue, 0, ruleCategoryName(categoryName)).minPrice;
+    return auto === null || auto === undefined ? "" : String(auto);
+  };
+  // Minimum promocji wyliczone z ceny promocyjnej; '' = brak (R&B bez zniżki, brak promocji)
+  const autoDiscountMinimumPrice = (categoryName, promoValue, isRB = false) => {
+    if (isRB || !(Number(promoValue) > 0)) return "";
+    const auto = regularOrPromoRule(null, promoValue, ruleCategoryName(categoryName)).minPrice;
     return auto === null || auto === undefined ? "" : String(auto);
   };
   const getEffectiveMinimumPrice = () => (
-    minimumPriceOverride !== null ? minimumPriceOverride : autoMinimumPrice(category, price, discountPrice)
+    minimumPriceOverride !== null
+      ? minimumPriceOverride
+      : autoMinimumPrice(category, price, isRBManufacturerId(selectedManufacturer))
   );
-  // Minimum wyjątku: ręcznie wpisane albo wyliczone z ceny wyjątku
+  const getEffectiveDiscountMinimumPrice = () => (
+    discountMinimumPriceOverride !== null
+      ? discountMinimumPriceOverride
+      : autoDiscountMinimumPrice(category, discountPrice, isRBManufacturerId(selectedManufacturer))
+  );
+  // Minimum wyjątku: ręcznie wpisane albo wyliczone z ceny wyjątku (ceny wyjątków są regularne)
   const getExceptionMinimum = (exception) => (
     exception.minimumPriceOverride !== undefined && exception.minimumPriceOverride !== null
       ? exception.minimumPriceOverride
-      : autoMinimumPrice(category, exception.value, discountPrice)
+      : autoMinimumPrice(category, exception.value, isRBManufacturerId(selectedManufacturer))
   );
   // Wyjątki w formacie zgodnym z backendem (z minimalną ceną każdego rozmiaru)
   const priceExceptionsPayload = () => (priceExceptions || []).map((e) => ({
@@ -619,6 +642,136 @@ const ProductsList = () => {
     value: e.value,
     minimumPrice: getExceptionMinimum(e),
   }));
+
+  // Ceny, ceny minimalne i wyjątki: wspólne dla wszystkich kategorii formularza (minimum po prawej stronie każdej ceny)
+  const renderPriceFields = () => (
+    <>
+      <View style={styles.formRow}>
+        <View style={[styles.formGroup, styles.formGroupHalf]}>
+          <Text style={styles.formLabel}>Cena (PLN)</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="0.00"
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+          />
+        </View>
+
+        <View style={[styles.formGroup, styles.formGroupHalf]}>
+          <Text style={styles.formLabel}>Cena minimalna (PLN)</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="Brak"
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={getEffectiveMinimumPrice()}
+            onChangeText={setMinimumPriceOverride}
+            keyboardType="decimal-pad"
+          />
+        </View>
+      </View>
+
+      <View style={styles.formRow}>
+        <View style={[styles.formGroup, styles.formGroupHalf]}>
+          <Text style={styles.formLabel}>Promocyjna (PLN)</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="0.00"
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={discountPrice}
+            onChangeText={setDiscountPrice}
+            keyboardType="decimal-pad"
+          />
+        </View>
+
+        <View style={[styles.formGroup, styles.formGroupHalf]}>
+          <Text style={styles.formLabel}>Promocja: cena minimalna (PLN)</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="Brak"
+            placeholderTextColor={tc('muted', "#64748B")}
+            value={getEffectiveDiscountMinimumPrice()}
+            onChangeText={setDiscountMinimumPriceOverride}
+            keyboardType="decimal-pad"
+          />
+        </View>
+      </View>
+
+      {/* Wyjątki cenowe: rozmiar, cena i cena minimalna dla rozmiaru */}
+      <View style={styles.formGroup}>
+        <View style={styles.exceptionHeader}>
+          <Text style={styles.formLabel}>Wyjątki cenowe</Text>
+          <TouchableOpacity
+            style={styles.addExceptionButton}
+            onPress={handleAddPriceException}
+          >
+            <Ionicons name="add-circle" size={24} color="#0D6EFD" />
+            <Text style={styles.addExceptionText}>Dodaj wyjątek</Text>
+          </TouchableOpacity>
+        </View>
+
+        {priceExceptions.length === 0 ? (
+          <Text style={styles.noExceptionsText}>
+            Brak wyjątków cenowych. Dodaj wyjątek dla konkretnego rozmiaru.
+          </Text>
+        ) : (
+          priceExceptions.map((exception, index) => (
+            <View key={index} style={styles.exceptionItem}>
+              <View style={styles.exceptionRow}>
+                <View style={styles.exceptionField}>
+                  <Text style={styles.exceptionLabel}>Rozmiar</Text>
+                  <TouchableOpacity
+                    style={styles.exceptionSelect}
+                    onPress={() => {
+                      setActiveSizeExceptionIndex(index);
+                      setShowSizePicker(true);
+                    }}
+                  >
+                    <Text style={styles.exceptionSelectText}>
+                      {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
+                    </Text>
+                    <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.exceptionField}>
+                  <Text style={styles.exceptionLabel}>Cena (PLN)</Text>
+                  <TextInput
+                    style={styles.exceptionInput}
+                    placeholder="0.00"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={exception.value?.toString() || ""}
+                    onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+
+                <View style={styles.exceptionField}>
+                  <Text style={styles.exceptionLabel}>Cena min. (PLN)</Text>
+                  <TextInput
+                    style={styles.exceptionInput}
+                    placeholder="Brak"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                    value={getExceptionMinimum(exception)}
+                    onChangeText={(text) => handlePriceExceptionChange(index, 'minimumPriceOverride', text)}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.removeExceptionButton}
+                  onPress={() => handleRemovePriceException(index)}
+                >
+                  <Ionicons name="trash" size={20} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+    </>
+  );
 
   const handleAddPriceException = () => {
     if (sizes.length === 0) {
@@ -657,11 +810,12 @@ const ProductsList = () => {
     setSelectedGender(product.Plec || product.Rodzaj || "");
     
     // Transform priceExceptions from backend format (populated size object) to mobile format (size ID)
+    const productIsRB = isRBManufacturerId(product.manufacturer?._id || product.manufacturer);
     const mappedExceptions = (product.priceExceptions || []).map(ex => {
       const size = typeof ex.size === 'object' ? ex.size._id : ex.size;
       // Minimum wyjątku: nadpisanie tylko gdy różni się od wyliczonego z ceny
       const storedExceptionMinimum = ex.minimumPrice == null ? '' : String(ex.minimumPrice);
-      const autoExceptionMinimum = autoMinimumPrice(product.category, ex.value, product.discount_price);
+      const autoExceptionMinimum = autoMinimumPrice(product.category, ex.value, productIsRB);
       return {
         size,
         value: ex.value,
@@ -671,8 +825,12 @@ const ProductsList = () => {
     setPriceExceptions(mappedExceptions);
     // Cena minimalna karty: nadpisanie tylko gdy różni się od wyliczonej z ceny
     const storedMinimum = product.minimumPrice == null ? '' : String(product.minimumPrice);
-    const autoMinimum = autoMinimumPrice(product.category, product.price, product.discount_price);
+    const autoMinimum = autoMinimumPrice(product.category, product.price, productIsRB);
     setMinimumPriceOverride(storedMinimum === autoMinimum ? null : storedMinimum);
+    // Minimum promocji: nadpisanie tylko gdy różni się od wyliczonego z ceny promocyjnej
+    const storedDiscountMinimum = product.discountMinimumPrice == null ? '' : String(product.discountMinimumPrice);
+    const autoDiscountMinimum = autoDiscountMinimumPrice(product.category, product.discount_price, productIsRB);
+    setDiscountMinimumPriceOverride(storedDiscountMinimum === autoDiscountMinimum ? null : storedDiscountMinimum);
     
     // Reset search terms
     setStockSearch("");
@@ -721,15 +879,18 @@ const ProductsList = () => {
         .map((e) => ({ size: String(e.size?._id || e.size || ""), value: Number(e.value), minimumPrice: Number(e.minimumPrice || 0) }))
         .sort((a, b) => a.size.localeCompare(b.size)));
       const minimumChanged = Number(getEffectiveMinimumPrice() || 0) !== Number(editingProduct.minimumPrice || 0);
+      const discountMinimumChanged = Number(getEffectiveDiscountMinimumPrice() || 0) !== Number(editingProduct.discountMinimumPrice || 0);
       const exceptionsChanged = normalizeExceptions(priceExceptionsPayload()) !== normalizeExceptions(editingProduct.priceExceptions);
       const priceChanged = Number(price) !== Number(editingProduct.price)
         || Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)
         || minimumChanged
+        || discountMinimumChanged
         || exceptionsChanged;
       const changes = [];
       if (Number(price) !== Number(editingProduct.price)) changes.push(`cena ${editingProduct.price || 0} zł → ${parseFloat(price) || 0} zł`);
       if (Number(discountPrice || 0) !== Number(editingProduct.discount_price || 0)) changes.push(`promocja ${editingProduct.discount_price || 0} zł → ${parseFloat(discountPrice) || 0} zł`);
       if (minimumChanged) changes.push(`cena minimalna ${editingProduct.minimumPrice || 0} zł → ${getEffectiveMinimumPrice() || 0} zł`);
+      if (discountMinimumChanged) changes.push(`cena minimalna promocji ${editingProduct.discountMinimumPrice || 0} zł → ${getEffectiveDiscountMinimumPrice() || 0} zł`);
       if (exceptionsChanged) changes.push("wyjątki cenowe dla rozmiarów");
       if (priceChanged) {
         setPriceSyncQuestion({ text: changes.join(", ") || "cena" });
@@ -746,6 +907,7 @@ const ProductsList = () => {
       formData.append("price", parseFloat(price) || 0);
       formData.append("discount_price", discountPrice ? parseFloat(discountPrice) : 0);
       formData.append("minimumPrice", getEffectiveMinimumPrice());
+      formData.append("discountMinimumPrice", getEffectiveDiscountMinimumPrice());
       formData.append("category", category === "Pozostałe" ? "Pozostały asortyment" : category);
       formData.append("description", description || "");
       formData.append("color", selectedColor);
@@ -1204,93 +1366,7 @@ const ProductsList = () => {
                     )}
                   </View>
 
-                  {/* 10 & 11. Ceny */}
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Cena (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={price}
-                        onChangeText={setPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Promocyjna (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={discountPrice}
-                        onChangeText={setDiscountPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-
-                  {/* 12. Wyjątki cenowe */}
-                  <View style={styles.formGroup}>
-                    <View style={styles.exceptionHeader}>
-                      <Text style={styles.formLabel}>Wyjątki cenowe</Text>
-                      <TouchableOpacity
-                        style={styles.addExceptionButton}
-                        onPress={handleAddPriceException}
-                      >
-                        <Ionicons name="add-circle" size={24} color="#0D6EFD" />
-                        <Text style={styles.addExceptionText}>Dodaj wyjątek</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {priceExceptions.length === 0 ? (
-                      <Text style={styles.noExceptionsText}>
-                        Brak wyjątków cenowych. Dodaj wyjątek dla konkretnego rozmiaru.
-                      </Text>
-                    ) : (
-                      priceExceptions.map((exception, index) => (
-                        <View key={index} style={styles.exceptionItem}>
-                          <View style={styles.exceptionRow}>
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Rozmiar</Text>
-                              <TouchableOpacity
-                                style={styles.exceptionSelect}
-                                onPress={() => {
-                                  setActiveSizeExceptionIndex(index);
-                                  setShowSizePicker(true);
-                                }}
-                              >
-                                <Text style={styles.exceptionSelectText}>
-                                  {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
-                                </Text>
-                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
-                              </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Cena (PLN)</Text>
-                              <TextInput
-                                style={styles.exceptionInput}
-                                placeholder="0.00"
-                                placeholderTextColor={tc('muted', "#64748B")}
-                                value={exception.value?.toString() || ""}
-                                onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
-                                keyboardType="decimal-pad"
-                              />
-                            </View>
-
-                            <TouchableOpacity
-                              style={styles.removeExceptionButton}
-                              onPress={() => handleRemovePriceException(index)}
-                            >
-                              <Ionicons name="trash" size={20} color="#DC2626" />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))
-                    )}
-                  </View>
+                  {renderPriceFields()}
                 </>
               )}
 
@@ -1425,93 +1501,7 @@ const ProductsList = () => {
                     )}
                   </View>
 
-                  {/* 10 & 11. Ceny */}
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Cena (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={price}
-                        onChangeText={setPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Promocyjna (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={discountPrice}
-                        onChangeText={setDiscountPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-
-                  {/* 12. Wyjątki cenowe */}
-                  <View style={styles.formGroup}>
-                    <View style={styles.exceptionHeader}>
-                      <Text style={styles.formLabel}>Wyjątki cenowe</Text>
-                      <TouchableOpacity
-                        style={styles.addExceptionButton}
-                        onPress={handleAddPriceException}
-                      >
-                        <Ionicons name="add-circle" size={24} color="#0D6EFD" />
-                        <Text style={styles.addExceptionText}>Dodaj wyjątek</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {priceExceptions.length === 0 ? (
-                      <Text style={styles.noExceptionsText}>
-                        Brak wyjątków cenowych. Dodaj wyjątek dla konkretnego rozmiaru.
-                      </Text>
-                    ) : (
-                      priceExceptions.map((exception, index) => (
-                        <View key={index} style={styles.exceptionItem}>
-                          <View style={styles.exceptionRow}>
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Rozmiar</Text>
-                              <TouchableOpacity
-                                style={styles.exceptionSelect}
-                                onPress={() => {
-                                  setActiveSizeExceptionIndex(index);
-                                  setShowSizePicker(true);
-                                }}
-                              >
-                                <Text style={styles.exceptionSelectText}>
-                                  {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
-                                </Text>
-                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
-                              </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Cena (PLN)</Text>
-                              <TextInput
-                                style={styles.exceptionInput}
-                                placeholder="0.00"
-                                placeholderTextColor={tc('muted', "#64748B")}
-                                value={exception.value?.toString() || ""}
-                                onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
-                                keyboardType="decimal-pad"
-                              />
-                            </View>
-
-                            <TouchableOpacity
-                              style={styles.removeExceptionButton}
-                              onPress={() => handleRemovePriceException(index)}
-                            >
-                              <Ionicons name="trash" size={20} color="#DC2626" />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))
-                    )}
-                  </View>
+                  {renderPriceFields()}
                 </>
               )}
 
@@ -1646,93 +1636,7 @@ const ProductsList = () => {
                     )}
                   </View>
 
-                  {/* 10 & 11. Ceny */}
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Cena (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={price}
-                        onChangeText={setPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Promocyjna (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={discountPrice}
-                        onChangeText={setDiscountPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-
-                  {/* 12. Wyjątki cenowe */}
-                  <View style={styles.formGroup}>
-                    <View style={styles.exceptionHeader}>
-                      <Text style={styles.formLabel}>Wyjątki cenowe</Text>
-                      <TouchableOpacity
-                        style={styles.addExceptionButton}
-                        onPress={handleAddPriceException}
-                      >
-                        <Ionicons name="add-circle" size={24} color="#0D6EFD" />
-                        <Text style={styles.addExceptionText}>Dodaj wyjątek</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {priceExceptions.length === 0 ? (
-                      <Text style={styles.noExceptionsText}>
-                        Brak wyjątków cenowych. Dodaj wyjątek dla konkretnego rozmiaru.
-                      </Text>
-                    ) : (
-                      priceExceptions.map((exception, index) => (
-                        <View key={index} style={styles.exceptionItem}>
-                          <View style={styles.exceptionRow}>
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Rozmiar</Text>
-                              <TouchableOpacity
-                                style={styles.exceptionSelect}
-                                onPress={() => {
-                                  setActiveSizeExceptionIndex(index);
-                                  setShowSizePicker(true);
-                                }}
-                              >
-                                <Text style={styles.exceptionSelectText}>
-                                  {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
-                                </Text>
-                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
-                              </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Cena (PLN)</Text>
-                              <TextInput
-                                style={styles.exceptionInput}
-                                placeholder="0.00"
-                                placeholderTextColor={tc('muted', "#64748B")}
-                                value={exception.value?.toString() || ""}
-                                onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
-                                keyboardType="decimal-pad"
-                              />
-                            </View>
-
-                            <TouchableOpacity
-                              style={styles.removeExceptionButton}
-                              onPress={() => handleRemovePriceException(index)}
-                            >
-                              <Ionicons name="trash" size={20} color="#DC2626" />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))
-                    )}
-                  </View>
+                  {renderPriceFields()}
                 </>
               )}
 
@@ -1884,130 +1788,8 @@ const ProductsList = () => {
                     )}
                   </View>
 
-                  {/* 11 & 12. Ceny */}
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Cena (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={price}
-                        onChangeText={setPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Promocyjna (PLN)</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="0.00"
-                        placeholderTextColor={tc('muted', "#64748B")}
-                        value={discountPrice}
-                        onChangeText={setDiscountPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-
-                  {/* 13. Wyjątki cenowe */}
-                  <View style={styles.formGroup}>
-                    <View style={styles.exceptionHeader}>
-                      <Text style={styles.formLabel}>Wyjątki cenowe</Text>
-                      <TouchableOpacity
-                        style={styles.addExceptionButton}
-                        onPress={handleAddPriceException}
-                      >
-                        <Ionicons name="add-circle" size={24} color="#0D6EFD" />
-                        <Text style={styles.addExceptionText}>Dodaj wyjątek</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {priceExceptions.length === 0 ? (
-                      <Text style={styles.noExceptionsText}>
-                        Brak wyjątków cenowych. Dodaj wyjątek dla konkretnego rozmiaru.
-                      </Text>
-                    ) : (
-                      priceExceptions.map((exception, index) => (
-                        <View key={index} style={styles.exceptionItem}>
-                          <View style={styles.exceptionRow}>
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Rozmiar</Text>
-                              <TouchableOpacity
-                                style={styles.exceptionSelect}
-                                onPress={() => {
-                                  setActiveSizeExceptionIndex(index);
-                                  setShowSizePicker(true);
-                                }}
-                              >
-                                <Text style={styles.exceptionSelectText}>
-                                  {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Wybierz"}
-                                </Text>
-                                <Ionicons name="chevron-down" size={16} color={tc('muted', "#94A3B8")} />
-                              </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.exceptionField}>
-                              <Text style={styles.exceptionLabel}>Cena (PLN)</Text>
-                              <TextInput
-                                style={styles.exceptionInput}
-                                placeholder="0.00"
-                                placeholderTextColor={tc('muted', "#64748B")}
-                                value={exception.value?.toString() || ""}
-                                onChangeText={(text) => handlePriceExceptionChange(index, 'value', parseFloat(text) || 0)}
-                                keyboardType="decimal-pad"
-                              />
-                            </View>
-
-                            <TouchableOpacity
-                              style={styles.removeExceptionButton}
-                              onPress={() => handleRemovePriceException(index)}
-                            >
-                              <Ionicons name="trash" size={20} color="#DC2626" />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))
-                    )}
-                  </View>
-
+                  {renderPriceFields()}
                 </>
-              )}
-              {/* Ceny minimalne: karta produktu i każdy wyjątek rozmiaru (puste = brak minimum) */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Cena minimalna (PLN)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Brak"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                  value={getEffectiveMinimumPrice()}
-                  onChangeText={setMinimumPriceOverride}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              {priceExceptions.length > 0 && (
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Cena minimalna wyjątków (PLN)</Text>
-                  {priceExceptions.map((exception, index) => (
-                    <View key={index} style={styles.exceptionRow}>
-                      <View style={styles.exceptionField}>
-                        <Text style={styles.exceptionLabel}>
-                          {sizes.find(s => s._id === exception.size)?.Roz_Opis || "Rozmiar"}
-                        </Text>
-                        <TextInput
-                          style={styles.exceptionInput}
-                          placeholder="Brak"
-                          placeholderTextColor={tc('muted', "#64748B")}
-                          value={getExceptionMinimum(exception)}
-                          onChangeText={(text) => handlePriceExceptionChange(index, 'minimumPriceOverride', text)}
-                          keyboardType="decimal-pad"
-                        />
-                      </View>
-                    </View>
-                  ))}
-                </View>
               )}
             </ScrollView>
 

@@ -82,8 +82,7 @@ const sizeMatches = (exception, size) => {
 
 const findSizeException = (exceptions, size) => {
   if (!Array.isArray(exceptions) || !size) return null;
-  const found = exceptions.find((exception) => sizeMatches(exception, size) && toNumber(exception.value) > 0);
-  return found ? toNumber(found.value) : null;
+  return exceptions.find((exception) => sizeMatches(exception, size) && toNumber(exception.value) > 0) || null;
 };
 
 const findPriceListItem = (priceList, good) => {
@@ -97,17 +96,34 @@ const findPriceListItem = (priceList, good) => {
     || null;
 };
 
-// { price, discount_price, source } - source: 'priceList' | 'priceListSizeException' | 'goods' | 'goodsSizeException'
+// { price, discount_price, source, minimumPrice, discountMinimumPrice } - source: 'priceList' | 'priceListSizeException' | 'goods' | 'goodsSizeException'
+// Minimum zapisane w bazie (undefined = brak danych). Wyjątek: własne minimum wyjątku. Cennik: minimum pozycji, a gdy go nie ma - karty produktu (jak w backendzie).
 export const resolveSalePrice = ({ good, size, priceList }) => {
   const item = findPriceListItem(priceList, good);
   if (item && toNumber(item.price) > 0) {
     const exception = findSizeException(item.priceExceptions, size);
-    if (exception !== null) return { price: exception, discount_price: 0, source: 'priceListSizeException' };
-    return { price: toNumber(item.price), discount_price: toNumber(item.discountPrice), source: 'priceList' };
+    if (exception) {
+      return { price: toNumber(exception.value), discount_price: 0, source: 'priceListSizeException', minimumPrice: exception.minimumPrice, discountMinimumPrice: undefined };
+    }
+    return {
+      price: toNumber(item.price),
+      discount_price: toNumber(item.discountPrice),
+      source: 'priceList',
+      minimumPrice: item.minimumPrice ?? good?.minimumPrice,
+      discountMinimumPrice: item.discountMinimumPrice,
+    };
   }
   const goodsException = good ? findSizeException(good.priceExceptions, size) : null;
-  if (goodsException !== null) return { price: goodsException, discount_price: 0, source: 'goodsSizeException' };
-  return { price: toNumber(good?.price), discount_price: toNumber(good?.discount_price), source: 'goods' };
+  if (goodsException) {
+    return { price: toNumber(goodsException.value), discount_price: 0, source: 'goodsSizeException', minimumPrice: goodsException.minimumPrice, discountMinimumPrice: undefined };
+  }
+  return {
+    price: toNumber(good?.price),
+    discount_price: toNumber(good?.discount_price),
+    source: 'goods',
+    minimumPrice: good?.minimumPrice,
+    discountMinimumPrice: good?.discountMinimumPrice,
+  };
 };
 
 // Pole „Cena” i blokada: promocja wpisuje się bez zmian i bez blokady, regularna z opuszczoną końcówką i minimum.
@@ -121,24 +137,53 @@ export const salePriceRule = ({ barcode, goods, sizes, priceList }) => {
 // Ta sama reguła dla karty produktu wybranej z listy (zaliczka na produkt: produkt + rozmiar zamiast kodu)
 export const salePriceRuleForGood = ({ good, size, priceList }) => {
   if (!good) return null;
-  const { price, discount_price } = resolveSalePrice({ good, size, priceList });
-  return regularOrPromoRule(price, discount_price, good.category);
+  const resolved = resolveSalePrice({ good, size, priceList });
+  const stored = {
+    exception: resolved.source.endsWith('SizeException'),
+    minimumPrice: resolved.minimumPrice,
+    discountMinimumPrice: resolved.discountMinimumPrice,
+  };
+  return regularOrPromoRule(resolved.price, resolved.discount_price, good.category, stored);
 };
 
-// Ta sama reguła dla ceny zapisanej na stanie (kod spoza kart produktów).
-// Torebki i portfele: cena z cennika -20% jest też minimum; pozostały asortyment: cena z cennika bez minimum.
-export const regularOrPromoRule = (price, discountPrice, category) => {
-  if (category === OTHER_CATEGORY) return { defaultPrice: listPriceOf(price, discountPrice), minPrice: null };
-  if (BAG_WALLET_CATEGORIES.includes(category)) {
-    const list = listPriceOf(price, discountPrice);
-    const floor = list === null ? null : Math.round(list * BAG_WALLET_PRICE_FACTOR);
-    return { defaultPrice: floor, minPrice: floor };
-  }
-  const promo = Number(discountPrice);
-  if (promo > 0) return { defaultPrice: promo, minPrice: null };
+// Minimum ceny regularnej bez zapisanej wartości - te same zasady co backend (services/minimumPrice.js)
+const fallbackRegularMinimum = (category, regular) => {
+  if (BAG_WALLET_CATEGORIES.includes(category)) return Math.round(regular * BAG_WALLET_PRICE_FACTOR);
+  if (category === JACKETS_CATEGORY) return minimumRegularPrice(regular);
+  return null;
+};
+
+// Reguła ceny i minimum. stored (z bazy, opcjonalne): exception - wyjątek rozmiaru; minimumPrice / discountMinimumPrice - zapisane minima (undefined = brak danych, liczymy z zasad).
+// Zwraca { defaultPrice, minPrice }; minPrice null = bez blokady.
+export const regularOrPromoRule = (price, discountPrice, category, stored = null) => {
   const regular = Number(price);
+  const promo = Number(discountPrice);
+  const bag = BAG_WALLET_CATEGORIES.includes(category);
+
+  // Wyjątek rozmiaru: własne minimum; bez minimum = cena wyjątku bez rabatu (jak w backendzie)
+  if (stored?.exception) {
+    if (!(regular > 0)) return { defaultPrice: null, minPrice: null };
+    const minPrice = stored.minimumPrice ?? regular;
+    return { defaultPrice: Math.max(discountedRegularPrice(regular), minPrice), minPrice };
+  }
+
+  // Promocja: sprzedaje się za cenę promocyjną; minimum promocji zapisane, a bez zapisu - cena promocyjna (torebki i portfele: 80%)
+  if (promo > 0) {
+    const minPrice = stored?.discountMinimumPrice !== undefined
+      ? (stored.discountMinimumPrice ?? promo)
+      : (bag ? Math.round(promo * BAG_WALLET_PRICE_FACTOR) : promo);
+    return { defaultPrice: bag ? minPrice : promo, minPrice };
+  }
+
+  if (category === OTHER_CATEGORY) {
+    return { defaultPrice: listPriceOf(price, discountPrice), minPrice: stored?.minimumPrice ?? null };
+  }
+
   if (!(regular > 0)) return { defaultPrice: null, minPrice: null };
-  return { defaultPrice: discountedRegularPrice(regular), minPrice: minimumRegularPrice(regular) };
+  const minPrice = stored?.minimumPrice !== undefined ? stored.minimumPrice : fallbackRegularMinimum(category, regular);
+  if (bag) return { defaultPrice: minPrice ?? regular, minPrice };
+  // R&B (minimum = cena): sprzedawca nie opuszcza ceny poniżej minimum
+  return { defaultPrice: Math.max(discountedRegularPrice(regular), minPrice ?? 0), minPrice };
 };
 
 // Cena z cennika bez pomniejszeń (promocja, a gdy jej nie ma - regularna); null = brak ceny

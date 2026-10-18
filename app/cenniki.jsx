@@ -31,7 +31,15 @@ const toPriceNumber = (value) => {
     return text === '' ? NaN : Number(text);
 };
 
-const validatePriceListPrice = ({ price, discountPrice, priceExceptions }) => {
+// Minimum (PLN): puste = brak (null), błędna wartość = NaN (lustro backendu parseMinimumPrice)
+const parseOptionalMinimum = (value) => {
+    const text = value === null || value === undefined ? '' : String(value).trim();
+    if (text === '') return null;
+    const number = toPriceNumber(text);
+    return Number.isFinite(number) && number > 0 ? Math.round(number * 100) / 100 : NaN;
+};
+
+const validatePriceListPrice = ({ price, discountPrice, priceExceptions, minimumPrice, discountMinimumPrice }) => {
     const priceNumber = toPriceNumber(price);
     if (!Number.isFinite(priceNumber) || priceNumber <= 0) {
         return 'Cena musi być większa od 0 zł.';
@@ -44,12 +52,24 @@ const validatePriceListPrice = ({ price, discountPrice, priceExceptions }) => {
     if (discountNumber > 0 && discountNumber >= priceNumber) {
         return 'Cena promocyjna musi być niższa od ceny.';
     }
+    const minimumNumber = parseOptionalMinimum(minimumPrice);
+    if (Number.isNaN(minimumNumber)) return 'Cena minimalna musi być liczbą większą od 0 zł (puste = brak).';
+    if (minimumNumber !== null && minimumNumber > priceNumber) return 'Cena minimalna nie może być wyższa od ceny.';
+    // minimum promocji ma sens tylko przy aktywnej promocji (bez promocji zapisujemy null)
+    if (discountNumber > 0) {
+        const discountMinimumNumber = parseOptionalMinimum(discountMinimumPrice);
+        if (Number.isNaN(discountMinimumNumber)) return 'Minimalna cena promocyjna musi być liczbą większą od 0 zł (puste = brak).';
+        if (discountMinimumNumber !== null && discountMinimumNumber > discountNumber) return 'Minimalna cena promocyjna nie może być wyższa od ceny promocyjnej.';
+    }
     const seenSizes = new Set();
     for (const exception of priceExceptions || []) {
         const sizeKey = String((exception && exception.size && (exception.size._id || exception.size)) || '');
         if (!sizeKey) return 'Każdy wyjątek cenowy musi mieć wybrany rozmiar.';
         const valueNumber = toPriceNumber(exception.value);
         if (!Number.isFinite(valueNumber) || valueNumber <= 0) return 'Cena w wyjątku dla rozmiaru musi być większa od 0 zł.';
+        const exceptionMinimum = parseOptionalMinimum(exception.minimumPrice);
+        if (Number.isNaN(exceptionMinimum)) return 'Minimalna cena wyjątku musi być liczbą większą od 0 zł (puste = brak).';
+        if (exceptionMinimum !== null && exceptionMinimum > valueNumber) return 'Cena minimalna wyjątku nie może być wyższa od ceny wyjątku.';
         if (seenSizes.has(sizeKey)) return 'Ten sam rozmiar nie może mieć dwóch wyjątków cenowych.';
         seenSizes.add(sizeKey);
     }
@@ -76,6 +96,8 @@ const Cenniki = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [editPrice, setEditPrice] = useState("");
   const [editDiscountPrice, setEditDiscountPrice] = useState("");
+  const [editMinimumPrice, setEditMinimumPrice] = useState("");
+  const [editDiscountMinimumPrice, setEditDiscountMinimumPrice] = useState("");
   const [editPriceExceptions, setEditPriceExceptions] = useState([]);
   const [messageModal, setMessageModal] = useState(null); // { kind: 'success' | 'error', text } - zamiast systemowych okienek
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false); // potwierdzenie usunięcia cennika
@@ -375,7 +397,13 @@ const Cenniki = () => {
 
   const updatePrice = async () => {
     if (!editingItem || !selectedSellingPoint) return;
-    const validationError = validatePriceListPrice({ price: editPrice, discountPrice: editDiscountPrice, priceExceptions: editPriceExceptions });
+    const validationError = validatePriceListPrice({
+      price: editPrice,
+      discountPrice: editDiscountPrice,
+      priceExceptions: editPriceExceptions,
+      minimumPrice: editMinimumPrice,
+      discountMinimumPrice: editDiscountMinimumPrice,
+    });
     if (validationError) {
       setErrorText(validationError);
       return;
@@ -390,7 +418,13 @@ const Cenniki = () => {
           productId: editingItem._id,
           price: toPriceNumber(editPrice),
           discountPrice: String(editDiscountPrice ?? "").trim() === "" ? 0 : toPriceNumber(editDiscountPrice),
-          priceExceptions: editPriceExceptions.map((exception) => ({ size: exception.size, value: toPriceNumber(exception.value) })),
+          minimumPrice: parseOptionalMinimum(editMinimumPrice),
+          discountMinimumPrice: toPriceNumber(editDiscountPrice) > 0 ? parseOptionalMinimum(editDiscountMinimumPrice) : null,
+          priceExceptions: editPriceExceptions.map((exception) => ({
+            size: exception.size,
+            value: toPriceNumber(exception.value),
+            minimumPrice: parseOptionalMinimum(exception.minimumPrice),
+          })),
         }),
       });
 
@@ -400,6 +434,8 @@ const Cenniki = () => {
         setEditingItem(null);
         setEditPrice("");
         setEditDiscountPrice("");
+        setEditMinimumPrice("");
+        setEditDiscountMinimumPrice("");
         setEditPriceExceptions([]);
         showMessage("Cena została zaktualizowana");
       } else {
@@ -415,6 +451,8 @@ const Cenniki = () => {
     setEditingItem(item);
     setEditPrice(item.price?.toString() || "");
     setEditDiscountPrice(item.discountPrice > 0 ? String(item.discountPrice) : "");
+    setEditMinimumPrice(item.minimumPrice == null ? "" : String(item.minimumPrice));
+    setEditDiscountMinimumPrice(item.discountMinimumPrice == null ? "" : String(item.discountMinimumPrice));
     setErrorText("");
 
     // Wszystkie istniejące wyjątki trafiają do formularza (nie filtrujemy po liście rozmiarów -
@@ -423,6 +461,7 @@ const Cenniki = () => {
       size: String(exception.size?._id || exception.size || ""),
       sizeLabel: exception.size?.Roz_Opis || "",
       value: exception.value === null || exception.value === undefined ? "" : String(exception.value),
+      minimumPrice: exception.minimumPrice == null ? "" : String(exception.minimumPrice),
     })));
 
     setShowEditModal(true);
@@ -719,27 +758,53 @@ const Cenniki = () => {
           <View style={[look.modalContent, styles.modalContentLarge]}>
             <ModalHeader icon="pricetag-outline" title="Edytuj ceny" subtitle={editingItem?.fullName} />
             <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Cena</Text>
-                <TextInput
-                  style={look.formInput}
-                  keyboardType="decimal-pad"
-                  value={editPrice}
-                  onChangeText={setEditPrice}
-                  placeholder="Wprowadź cenę"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                />
+              <View style={[styles.formGroup, { flexDirection: "row", gap: 10 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={look.formLabel}>Cena</Text>
+                  <TextInput
+                    style={look.formInput}
+                    keyboardType="decimal-pad"
+                    value={editPrice}
+                    onChangeText={setEditPrice}
+                    placeholder="Wprowadź cenę"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={look.formLabel}>Cena minimalna</Text>
+                  <TextInput
+                    style={look.formInput}
+                    keyboardType="decimal-pad"
+                    value={editMinimumPrice}
+                    onChangeText={setEditMinimumPrice}
+                    placeholder="Brak"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                  />
+                </View>
               </View>
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Cena promocyjna</Text>
-                <TextInput
-                  style={look.formInput}
-                  keyboardType="decimal-pad"
-                  value={editDiscountPrice}
-                  onChangeText={setEditDiscountPrice}
-                  placeholder="Wprowadź cenę promocyjną"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                />
+              <View style={[styles.formGroup, { flexDirection: "row", gap: 10 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={look.formLabel}>Cena promocyjna</Text>
+                  <TextInput
+                    style={look.formInput}
+                    keyboardType="decimal-pad"
+                    value={editDiscountPrice}
+                    onChangeText={setEditDiscountPrice}
+                    placeholder="Wprowadź cenę promocyjną"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={look.formLabel}>Cena minimalna promocji</Text>
+                  <TextInput
+                    style={look.formInput}
+                    keyboardType="decimal-pad"
+                    value={editDiscountMinimumPrice}
+                    onChangeText={setEditDiscountMinimumPrice}
+                    placeholder="Brak"
+                    placeholderTextColor={tc('muted', "#64748B")}
+                  />
+                </View>
               </View>
 
               {(!["Torebki", "Portfele", "Pozostały asortyment"].includes(editingItem?.category) || editPriceExceptions.length > 0) && (
@@ -767,6 +832,14 @@ const Cenniki = () => {
                         value={String(exception.value ?? "")}
                         onChangeText={(value) => handlePriceExceptionChange(index, "value", value)}
                         placeholder="Cena"
+                        placeholderTextColor={tc('muted', "#64748B")}
+                      />
+                      <TextInput
+                        style={styles.exceptionInput}
+                        keyboardType="decimal-pad"
+                        value={String(exception.minimumPrice ?? "")}
+                        onChangeText={(value) => handlePriceExceptionChange(index, "minimumPrice", value)}
+                        placeholder="Cena min."
                         placeholderTextColor={tc('muted', "#64748B")}
                       />
                       <TouchableOpacity
