@@ -91,7 +91,7 @@ describe('SignIn - blokada „jedna osoba na punkcie”', () => {
     const screen = renderSignIn(jest.fn());
 
     await waitFor(() => expect(screen.getByTestId('update-blocking-overlay')).toBeTruthy());
-    expect(screen.getByText('Pobieranie aktualizacji…')).toBeTruthy();
+    expect(screen.getByText('Trwa aktualizacja... nie wyłączaj telefonu ani nie zamykaj aplikacji...')).toBeTruthy();
   });
 
   test('SESSION_ACTIVE pokazuje, kto i od kiedy zajmuje punkt (godzina lokalna, „X min temu”)', async () => {

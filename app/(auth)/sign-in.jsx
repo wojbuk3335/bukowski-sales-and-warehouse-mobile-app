@@ -291,12 +291,15 @@ const SignIn = () => {
         statusBarTranslucent
         onRequestClose={() => {}}
       >
-        <View testID="update-blocking-overlay" style={styles.updateOverlay} accessibilityViewIsModal>
-          <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.updateOverlayTitle}>
-            {updateStage === "reloading" ? "Uruchamianie aktualizacji…" : "Pobieranie aktualizacji…"}
+        <View
+          testID="update-blocking-overlay"
+          accessibilityViewIsModal
+          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0, 0, 0, 0.85)", justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}
+        >
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 20, lineHeight: 24 }}>
+            Trwa aktualizacja... nie wyłączaj telefonu ani nie zamykaj aplikacji...
           </Text>
-          <Text style={styles.updateOverlayText}>To może potrwać chwilę.</Text>
         </View>
       </Modal>
     </SafeAreaView>
@@ -428,25 +431,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 14,
   },
   versionText: {
-  updateOverlay: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 14,
-    padding: 24,
-    backgroundColor: "rgba(0, 0, 0, 0.82)",
-  },
-  updateOverlayTitle: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  updateOverlayText: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 14,
-    textAlign: "center",
-  },
     color: tc('muted', "#6b7280"),
     fontSize: 11,
     textAlign: "center",
