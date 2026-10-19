@@ -5,6 +5,7 @@ import { getApiUrl, API_CONFIG } from "../config/api"; // Import API config
 import tokenService from "../services/tokenService"; // Import token service
 import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfikator telefonu do blokady „jedna osoba na punkcie”
 import { flush as flushActivity, reset as resetActivity } from "../services/activityLog"; // dziennik aktywności
+import quickLogin from "../services/quickLogin"; // szybkie logowanie wzorem / PIN-em
 import AuthErrorHandler from "../utils/authErrorHandler"; // Import auth error handler
 import { AuthContext } from './AuthContext'; // Import auth context
 
@@ -246,6 +247,33 @@ export const GlobalStateProvider = ({ children }) => {
         }
     };
 
+    // Zapis sesji po udanym logowaniu (hasłem albo szybkim logowaniem): tokeny, użytkownik, AuthContext
+    const completeLogin = async (data) => {
+        if (data.token || data.accessToken) {
+            await tokenService.setTokens(data.accessToken || data.token, data.refreshToken);
+        }
+        // Wait a bit to ensure AsyncStorage write is completed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        setUser(data); // Update user state
+        setIsLoggedIn(true); // Set login status to true
+        await AsyncStorage.setItem("user", JSON.stringify(data)); // Save user data locally
+        if (authContext?.login) {
+            authContext.login(data);
+        }
+        return data;
+    };
+
+    // Szybkie logowanie na zaufanym telefonie (wzór / PIN / odcisk) - błędy z kodem jak w services/quickLogin
+    const quick_login = async () => {
+        setIsLoading(true);
+        try {
+            const data = await quickLogin.login();
+            return await completeLogin(data);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const bukowski_login = async (email, password, navigation, isAdminPanel = false) => {
         setIsLoading(true); // Set loading to true
         const loginAttemptId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -335,27 +363,8 @@ export const GlobalStateProvider = ({ children }) => {
                 return data;
             }
             
-            // Store tokens using tokenService
-            if (data.token || data.accessToken) {
-                const accessToken = data.accessToken || data.token;
-                const refreshToken = data.refreshToken;
-                
-                await tokenService.setTokens(accessToken, refreshToken);
-                console.log(`✅ [LOGIN][${loginAttemptId}] Tokens stored`);
-            }
-            
-            // Wait a bit to ensure AsyncStorage write is completed
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            setUser(data); // Update user state
-            setIsLoggedIn(true); // Set login status to true
-            await AsyncStorage.setItem("user", JSON.stringify(data)); // Save user data locally
-            
-            // Save user data to AuthContext
-            if (authContext?.login) {
-                authContext.login(data);
-            }
-
+            await completeLogin(data);
+            console.log(`✅ [LOGIN][${loginAttemptId}] Tokens stored`);
             return data; // Return user data
         } catch (error) {
             const expectedErrorCodes = ['INVALID_CREDENTIALS', 'FORBIDDEN', 'SESSION_ACTIVE'];
@@ -546,6 +555,8 @@ export const GlobalStateProvider = ({ children }) => {
             setUser: updateUser,
             bukowski_login,
             logout, // Ensure logout is included in the context value
+            quick_login, // szybkie logowanie na zaufanym telefonie
+            completeLogin, // zapis sesji po logowaniu (np. po 2FA)
             addMatchedItem, // Provide function to add matched items
             setTransferredJackets, // Provide function to update transferred jackets
             fetchState, // Provide function to fetch state data

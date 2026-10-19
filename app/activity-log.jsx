@@ -143,6 +143,25 @@ const ActivityLogScreen = () => {
       setBusy(false);
     }
   };
+  // Odcięcie szybkiego logowania telefonu (następne wejście wymaga hasła, u admina także 2FA)
+  const revokeTrusted = (device) => {
+    const who = (device.trusted || []).map((entry) => entry.symbol || entry.email).join(', ');
+    appAlert('Odciąć szybkie logowanie?', `${device.name || device.model || 'Urządzenie'}${who ? ` (${who})` : ''}\n\nNa tym telefonie trzeba będzie znowu zalogować się hasłem.`, [
+      { text: 'Anuluj', style: 'cancel' },
+      {
+        text: 'Odetnij', style: 'destructive', onPress: async () => {
+          try {
+            const response = await tokenService.authenticatedFetch(getApiUrl(`/activity/devices/${device.deviceId}/trusted`), { method: 'DELETE' });
+            if (!response.ok) throw new Error((await response.json().catch(() => ({})))?.message || 'Błąd serwera');
+            setFilters((current) => ({ ...current, devices: current.devices.map((entry) => (entry.deviceId === device.deviceId ? { ...entry, trusted: [] } : entry)) }));
+          } catch (error) {
+            appAlert('Błąd', `Nie odcięto: ${error.message}`);
+          }
+        },
+      },
+    ]);
+  };
+
   const saveName = async () => {
     if (!nameTarget) return;
     if (await updateDevice(nameTarget, { name: nameDraft.trim() })) setNameTarget(null);
@@ -395,6 +414,10 @@ const ActivityLogScreen = () => {
                 </View>
               </View>
               <View style={styles.detailsRow}><Text style={styles.detailsKey}>pracownik</Text><Text style={styles.detailsValue}>{device.employeeName || '— nie przypisano —'}</Text></View>
+              <View style={styles.detailsRow}>
+                <Text style={styles.detailsKey}>szybkie logowanie</Text>
+                <Text style={styles.detailsValue}>{(device.trusted || []).length > 0 ? `🔓 ${device.trusted.map((entry) => entry.symbol || entry.email).join(', ')}` : 'wyłączone'}</Text>
+              </View>
               <View style={styles.detailsRow}><Text style={styles.detailsKey}>ostatnio</Text><Text style={styles.detailsValue}>{[device.lastSymbol, device.sellingPoint].filter(Boolean).join(' · ') || '-'}{device.lastSeenAt ? ` · ${formatTime(device.lastSeenAt)}` : ''}</Text></View>
               <View style={styles.deviceActions}>
                 <TouchableOpacity style={styles.deviceAction} onPress={() => { setNameDraft(device.name || ''); setNameTarget(device); }} testID={`rename-${device.deviceId}`}>
@@ -403,6 +426,11 @@ const ActivityLogScreen = () => {
                 <TouchableOpacity style={styles.deviceAction} onPress={() => { setEmployeeTarget(device); setPickerOpen('employee'); }} testID={`assign-${device.deviceId}`}>
                   <Ionicons name="person-outline" size={16} color={PRIMARY} /><Text style={styles.deviceActionText}>Pracownik</Text>
                 </TouchableOpacity>
+                {(device.trusted || []).length > 0 ? (
+                  <TouchableOpacity style={[styles.deviceAction, { borderColor: 'rgba(220, 53, 69, 0.5)', backgroundColor: 'rgba(220, 53, 69, 0.12)' }]} onPress={() => revokeTrusted(device)} testID={`revoke-${device.deviceId}`}>
+                    <Ionicons name="lock-closed-outline" size={16} color={DANGER} /><Text style={styles.deviceActionText}>Odetnij</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity style={[styles.deviceAction, styles.deviceActionDanger]} onPress={() => removeDevice(device)} testID={`delete-${device.deviceId}`}>
                   <Ionicons name="trash-outline" size={15} color="#fff" />
                 </TouchableOpacity>

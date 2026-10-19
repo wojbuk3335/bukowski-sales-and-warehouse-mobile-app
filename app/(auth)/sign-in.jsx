@@ -15,6 +15,9 @@ import Logger from "../../services/logger"; // Import logger service
 import tokenService from "../../services/tokenService"; // Import token service
 import { buildSessionActiveMessage, SESSION_REVOKED_MESSAGE } from "../../utils/sessionLockMessages"; // blokada „jedna osoba na punkcie”
 import bukowskiLogo from "./bukowski.png"; // Import the image
+import quickLogin from "../../services/quickLogin"; // szybkie logowanie wzorem / PIN-em
+import { offerQuickLogin } from "../../utils/quickLoginOffer";
+import { appAlert } from "../../services/appAlert";
 
 const SignIn = () => {
   const { theme, colors } = useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -28,7 +31,11 @@ const SignIn = () => {
   const [notice, setNotice] = useState("");
   const [isAdminPanel, setIsAdminPanel] = useState(false);
   const navigation = useNavigation();
-  const { setUser, bukowski_login, isLoading, user } = useContext(GlobalStateContext);
+  const { setUser, bukowski_login, quick_login, isLoading, user } = useContext(GlobalStateContext);
+  // Szybkie logowanie: zapamiętane konto na tym telefonie (null = brak) i czy pokazać zwykły formularz
+  const [saved, setSaved] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [quickBusy, setQuickBusy] = useState(false);
   // Aktualizacja OTA sprawdzana przy wejściu na ekran logowania (null = sprawdzanie zakończone)
   const [updateStage, setUpdateStage] = useState("checking");
 
@@ -78,14 +85,14 @@ const SignIn = () => {
         if (newIsAdminPanel && parsedUser.role === 'admin') {
           setUser(parsedUser);
           router.replace("/(admin-tabs)/dashboard");
-          return;
+          return true;
         }
         
         // Jeśli przełącza na panel użytkownika i jest userem - automatycznie zaloguj
         if (!newIsAdminPanel && parsedUser.role !== 'admin') {
           setUser(parsedUser);
           router.replace("/home");
-          return;
+          return true;
         }
       }
     } catch (error) {
@@ -105,9 +112,53 @@ const SignIn = () => {
   useEffect(() => {
     if (updateStage !== null || autoLoginTriedRef.current || params?.reason === "SESSION_REVOKED") return;
     autoLoginTriedRef.current = true;
-    tryAutoLogin(isAdminPanel);
+    (async () => {
+      if (await tryAutoLogin(isAdminPanel)) return;
+      // Bez ważnej sesji: zapamiętane konto -> od razu okno odblokowania (wzór / PIN / odcisk)
+      const stored = await quickLogin.getSaved();
+      setSaved(stored);
+      if (stored && (await quickLogin.availability()) === 'ok') quickSubmit();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateStage]);
+
+  // Zapamiętane konto po wejściu na ekran (także po wylogowaniu przez serwer)
+  useEffect(() => {
+    quickLogin.getSaved().then(setSaved).catch(() => setSaved(null));
+  }, []);
+
+  // Szybkie logowanie: odblokowanie telefonu -> klucz -> sesja (jak po haśle)
+  const quickSubmit = async () => {
+    if (quickBusy) return;
+    setError("");
+    setNotice("");
+    setQuickBusy(true);
+    try {
+      const data = await quick_login();
+      setUser(data);
+      router.replace(data.role === 'admin' ? "/(admin-tabs)/dashboard" : "/home");
+    } catch (quickError) {
+      if (quickError.code === 'CANCELLED') return; // zamknięte okno odblokowania - zostaje przycisk „Odblokuj”
+      if (quickError.code === 'TRUSTED_DEVICE_REJECTED' || quickError.code === 'NOT_ENABLED') {
+        setSaved(null);
+        setShowForm(true);
+        setError(quickError.message);
+      } else if (quickError.code === 'SESSION_ACTIVE') {
+        setError(buildSessionActiveMessage(quickError.session));
+      } else {
+        setError(quickError.message || "Szybkie logowanie nie powiodło się. Spróbuj ponownie albo zaloguj się hasłem.");
+      }
+    } finally {
+      setQuickBusy(false);
+    }
+  };
+
+  const forgetPhone = () => {
+    appAlert("Zapomnieć ten telefon?", "Następne logowanie będzie wymagało hasła" + (saved?.role === 'admin' ? " i kodu 2FA" : "") + ".", [
+      { text: "Anuluj", style: "cancel" },
+      { text: "Zapomnij", style: "destructive", onPress: async () => { await quickLogin.forget(); setSaved(null); setShowForm(true); } },
+    ]);
+  };
 
   const submit = async () => {
     try {
@@ -152,6 +203,7 @@ const SignIn = () => {
       } else {
         router.replace("/home"); // User panel
       }
+      offerQuickLogin(response); // propozycja logowania wzorem / PIN-em na tym telefonie (okienko nad panelem)
     } catch (error) {
       // 🔒 SESSION BLOCKING: na tym punkcie jest już zalogowany inny telefon
       if (error.code === 'SESSION_ACTIVE' || error.message?.includes('Konto jest już zalogowane')) {
@@ -190,6 +242,38 @@ const SignIn = () => {
           />
 
           <View style={styles.card}>
+          {saved && !showForm ? (
+            <View testID="quick-login-card">
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="finger-print" size={28} color="#0D6EFD" />
+                </View>
+                <Text style={styles.cardTitle}>{saved.symbol || saved.email}</Text>
+                <Text style={styles.cardSubtitle}>{[saved.role === 'admin' ? 'Administrator' : saved.sellingPoint, saved.email].filter(Boolean).join(' · ')}</Text>
+              </View>
+              <CustomButton
+                title="Odblokuj"
+                handlePress={quickSubmit}
+                containerStyles={styles.button}
+                isLoading={quickBusy || isLoading || Boolean(updateStage)}
+              />
+              <Text style={styles.quickHint}>Wzór, PIN albo odcisk palca - jak przy odblokowaniu telefonu</Text>
+              <View style={styles.quickLinks}>
+                <TouchableOpacity onPress={() => { setShowForm(true); setError(""); }} testID="quick-other-account">
+                  <Text style={styles.quickLink}>Zaloguj innym kontem</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={forgetPhone} testID="quick-forget">
+                  <Text style={[styles.quickLink, { color: '#EF4444' }]}>Zapomnij ten telefon</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+          <>
+          {saved ? (
+            <TouchableOpacity onPress={() => { setShowForm(false); setError(""); }} style={{ marginBottom: 10 }} testID="quick-back">
+              <Text style={styles.quickLink}>← Szybkie logowanie ({saved.symbol || saved.email})</Text>
+            </TouchableOpacity>
+          ) : null}
           {/* Wybór panelu: użytkownik / administrator */}
           <View style={styles.segment}>
             {[
@@ -255,6 +339,8 @@ const SignIn = () => {
             containerStyles={styles.button}
             isLoading={isLoading || Boolean(updateStage)} // Logowanie czeka na sprawdzenie aktualizacji
           />
+          </>
+          )}
 
           {updateStage === "checking" ? (
             <View style={styles.updateContainer}>
@@ -319,6 +405,22 @@ const styles = createThemedStyles(() => StyleSheet.create({
     height: 50,
     alignSelf: "center",
     marginBottom: 16,
+  },
+  quickHint: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 10,
+  },
+  quickLinks: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 18,
+  },
+  quickLink: {
+    color: "#0D6EFD",
+    fontSize: 14,
+    fontWeight: "600",
   },
   card: {
     backgroundColor: tc('surface', "#161622"),

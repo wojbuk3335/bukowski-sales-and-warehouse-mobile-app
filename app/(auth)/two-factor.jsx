@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { offerQuickLogin } from "../../utils/quickLoginOffer"; // szybkie logowanie po 2FA
 import { router, useLocalSearchParams } from "expo-router";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -137,6 +138,7 @@ const TwoFactorScreen = () => {
       }
 
       router.replace("/(admin-tabs)/dashboard");
+      offerQuickLogin(data); // propozycja logowania wzorem / PIN-em zamiast hasła i 2FA
     } catch {
       setError("Wystąpił błąd podczas weryfikacji. Spróbuj ponownie.");
     } finally {
