@@ -4,6 +4,7 @@ import React, { createContext, useState, useContext } from "react";
 import { getApiUrl, API_CONFIG } from "../config/api"; // Import API config
 import tokenService from "../services/tokenService"; // Import token service
 import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfikator telefonu do blokady „jedna osoba na punkcie”
+import { flush as flushActivity, reset as resetActivity } from "../services/activityLog"; // dziennik aktywności
 import AuthErrorHandler from "../utils/authErrorHandler"; // Import auth error handler
 import { AuthContext } from './AuthContext'; // Import auth context
 
@@ -397,6 +398,8 @@ export const GlobalStateProvider = ({ children }) => {
     };
 
     const logout = async () => {
+        try { await flushActivity(); } catch (_error) { /* dziennik nie blokuje wylogowania */ }
+        resetActivity();
         try {
             tokenService.isLoggingOut = true;
             // Stop auto-logout monitoring first

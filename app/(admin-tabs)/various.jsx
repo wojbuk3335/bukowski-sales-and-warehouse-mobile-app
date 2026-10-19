@@ -27,6 +27,14 @@ const Various = () => {
 
   const menuItems = [
     {
+      id: "activity",
+      title: "Dziennik aktywności",
+      subtitle: "Kto, na którym telefonie, co i kiedy zrobił",
+      icon: "pulse",
+      route: "/activity-log",
+      color: "#F97316",
+    },
+    {
       id: "states",
       title: "Stany",
       subtitle: "Wybierz punkt sprzedaży i zarządzaj stanami",

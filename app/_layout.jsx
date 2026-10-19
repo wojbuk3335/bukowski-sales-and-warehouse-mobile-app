@@ -12,6 +12,7 @@ import { AuthProvider } from '../context/AuthContext'; // Import auth provider
 import { DEFAULT_THEME, PALETTES, ThemeProvider } from '../context/ThemeContext';
 import { enableScreenCaptureProtection } from '../services/screenCapture'; // motyw: biały / szary / czarny
 import AppDialogHost from '../components/AppDialogHost'; // wspólne okienka zamiast Alert.alert
+import ActivityTracker from '../components/ActivityTracker'; // dziennik aktywności: ekrany, zrzuty, tło
 
 // Configure axios baseURL globally
 axios.defaults.baseURL = API_CONFIG.BASE_URL;
@@ -131,6 +132,7 @@ const RootLayout = () => {
             <Stack.Screen name="print-labels" options={{ headerShown: false }} />
           </Stack>
           <AppDialogHost />
+          <ActivityTracker />
         </GlobalStateProvider>
       </AuthProvider>
       </ThemeProvider>

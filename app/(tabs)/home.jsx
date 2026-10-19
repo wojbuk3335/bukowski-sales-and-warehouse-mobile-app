@@ -12,7 +12,7 @@ import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
-import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
+import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, syncCashWithPrice } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
@@ -3564,7 +3564,17 @@ const Home = () => {
                           placeholderTextColor={tc('muted', '#888')}
                           value={effectiveEditSalePrice}
                           editable={!editCardNoDiscount}
-                          onChangeText={(value) => setEditSalePrice(sanitizeAmountInput(value))}
+                          onChangeText={(value) => {
+                            const price = sanitizeAmountInput(value);
+                            setEditSalePrice(price);
+                            // Zmiana ceny = zmiana wpłaty gotówką (jedna wpłata w zł, bez karty); dawniej trzeba było
+                            // osobno wpisać „resztę”, inaczej zapisywała się stara kwota
+                            const synced = syncCashWithPrice({ price, cashPairs: cashPriceCurrencyPairs, cardPairs: cardPriceCurrencyPairs });
+                            if (synced) {
+                              setCashPriceCurrencyPairs(synced);
+                              setEditRemainingOverride(null);
+                            }
+                          }}
                           placeholder="Cena w zł"
                           keyboardType="numeric"
                         />

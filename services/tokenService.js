@@ -4,6 +4,21 @@ import { getApiUrl, API_CONFIG } from '../config/api';
 import AuthErrorHandler from '../utils/authErrorHandler';
 import { SESSION_REVOKED_MESSAGE } from '../utils/sessionLockMessages';
 import Logger from './logger';
+import { Platform } from 'react-native';
+import { getDeviceId, getDeviceName } from './deviceId';
+
+// Wersja aplikacji do dziennika aktywności (expo-constants; w testach / bez modułu - pusta)
+const readAppVersion = () => {
+    try {
+        // eslint-disable-next-line global-require
+        const expoConstants = require('expo-constants');
+        const Constants = expoConstants?.default || expoConstants;
+        return String(Constants?.expoConfig?.version || Constants?.manifest?.version || '');
+    } catch (_error) {
+        return '';
+    }
+};
+const APP_VERSION = readAppVersion();
 
 class TokenService {
     constructor() {
@@ -287,13 +302,30 @@ class TokenService {
         return accessToken;
     }
 
+    // Który telefon pyta: dziennik aktywności w panelu rozpoznaje po tym telefon (i jego nazwę z rejestru)
+    async getDeviceHeaders() {
+        try {
+            const deviceId = await getDeviceId();
+            return {
+                'X-Device-Id': deviceId,
+                'X-Device-Name': getDeviceName(),
+                'X-Platform': Platform.OS,
+                ...(APP_VERSION ? { 'X-App-Version': APP_VERSION } : {})
+            };
+        } catch (_error) {
+            return {};
+        }
+    }
+
     // Create authenticated headers for API requests
     async getAuthHeaders() {
+        const deviceHeaders = await this.getDeviceHeaders();
         try {
             const token = await this.getValidAccessToken();
             return {
                 'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...deviceHeaders
             };
         } catch (error) {
             // Only log errors if:
@@ -309,7 +341,8 @@ class TokenService {
             
             // Return headers without authorization if token is not available
             return {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...deviceHeaders
             };
         }
     }

@@ -76,3 +76,17 @@ export const applyChangeToCash = (cashPairs, changeAmount, changeCurrency, curre
   }
   return pairs.filter((pair) => pair.price && String(pair.price).trim() !== "");
 };
+
+// Edycja sprzedaży: zmiana pola „Cena” ma zmienić wpłatę, a nie tylko podpowiedź „Reszta do wydania”.
+// Sprzedaż nie przechowuje ceny - zapisują się wpłaty; dawniej po zmianie ceny 820 → 621 bez wpisania reszty
+// telefon wysyłał dalej 820 zł. Synchronizujemy tylko prosty przypadek: jedna wpłata gotówką w PLN (albo brak)
+// i brak wpłat kartą. Przy kilku walutach / karcie zwraca null - wpłaty zostają do ręcznej poprawki.
+export const syncCashWithPrice = ({ price, cashPairs, cardPairs }) => {
+  const hasAmount = (pair) => pair && pair.price !== undefined && pair.price !== null && String(pair.price).trim() !== "" && toNumber(pair.price) > 0;
+  if ((cardPairs || []).some(hasAmount)) return null;
+  const cashWithAmount = (cashPairs || []).filter(hasAmount);
+  if (cashWithAmount.length > 1) return null;
+  if (cashWithAmount.length === 1 && (cashWithAmount[0].currency || "PLN") !== "PLN") return null;
+  return [{ price: String(price ?? ""), currency: "PLN" }];
+};
+
