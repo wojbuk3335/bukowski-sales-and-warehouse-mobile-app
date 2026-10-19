@@ -1,4 +1,4 @@
-import { formatOrderDeposit, orderMatchScore, orderProductName, sortPickupOrders } from '../utils/pickupOrders';
+import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../utils/pickupOrders';
 
 describe('zamówienia do wydania przy sprzedaży', () => {
   const adelaXL = { orderId: 'ORD-1', product: { name: 'ADELA', color: 'CZARNY', size: 'XL' }, realizationDate: '2026-10-20' };
@@ -27,5 +27,33 @@ describe('zamówienia do wydania przy sprzedaży', () => {
   test('kolejność: pasujące najpierw, potem najbliższy termin', () => {
     expect(sortPickupOrders([amanda, adelaM, adelaXL], 'ADELA CZARNY XL').map((order) => order.orderId)).toEqual(['ORD-1', 'ORD-2', 'ORD-3']);
     expect(sortPickupOrders([adelaXL, amanda, adelaM], '').map((order) => order.orderId)).toEqual(['ORD-3', 'ORD-2', 'ORD-1']);
+  });
+});
+
+describe('isOrderProductMismatch - ostrzeżenie przy innym modelu', () => {
+  const order = { orderId: 'ORD-1', product: { name: 'Jadwiga', color: 'CZERWONY', size: 'XL' } };
+  test('inny model → ostrzeżenie; ten sam model (inny kolor/rozmiar) → bez', () => {
+    expect(isOrderProductMismatch(order, 'Marcin CZARNY 62')).toBe(true);
+    expect(isOrderProductMismatch(order, 'Jadwiga CZERWONY XL')).toBe(false);
+    expect(isOrderProductMismatch(order, 'JADWIGA czarny L')).toBe(false);
+  });
+  test('brak nazwy kurtki albo modelu w zamówieniu → bez ostrzeżenia', () => {
+    expect(isOrderProductMismatch(order, '')).toBe(false);
+    expect(isOrderProductMismatch({ product: {} }, 'Marcin CZARNY 62')).toBe(false);
+  });
+  test('komunikat mówi, co zamówiono i co jest sprzedawane', () => {
+    const text = orderMismatchMessage(order, 'Marcin CZARNY 62');
+    expect(text).toContain('ORD-1');
+    expect(text).toContain('Jadwiga CZERWONY XL');
+    expect(text).toContain('Marcin CZARNY 62');
+  });
+});
+
+describe('orderDepositPln - zaliczka zamówienia w zł (jak na serwerze)', () => {
+  test('cena zamówienia - kwota do pobrania; brak danych = 0', () => {
+    expect(orderDepositPln({ payment: { totalPrice: 1000, cashOnDelivery: 800 } })).toBe(200);
+    expect(orderDepositPln({ payment: { totalPrice: 1000 }, remainingPln: 650 })).toBe(350);
+    expect(orderDepositPln({ payment: { totalPrice: 500, cashOnDelivery: 0 } })).toBe(500);
+    expect(orderDepositPln({})).toBe(0);
   });
 });

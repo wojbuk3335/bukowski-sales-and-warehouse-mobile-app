@@ -9,8 +9,9 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
-import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from "../utils/paymentBalance"; // sprzedaż w kilku walutach: ile do dopłaty
-import { formatOrderDeposit, orderMatchScore, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
+import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from "../utils/paymentBalance";
+import { sanitizeAmountInput } from "../utils/amountInput"; // przecinek = kropka w polach kwot // sprzedaż w kilku walutach: ile do dopłaty
+import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
 import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, look } from '../components/AdminLook';
@@ -31,6 +32,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [salePrice, setSalePrice] = useState("");
   const [salePriceMin, setSalePriceMin] = useState(null); // blokada rabatu: najniższa kwota „Klient zapłaci” (null = bez blokady)
   const [salePriceList, setSalePriceList] = useState(null); // pełna cena z cennika - minimum przy płatności kartą
+  // Odbiór z wymianą na inny model: { minPrice (wydawanej kurtki), deposit (zaliczka zamówienia w zł) } albo null
+  const [pickupExchange, setPickupExchange] = useState(null);
   const [myPriceList, setMyPriceList] = useState(null); // cennik punktu zalogowanego sprzedawcy (null = brak, karta produktu)
   const [remainingCurrency, setRemainingCurrency] = useState("PLN");
   // Ręcznie poprawiona kwota „Do dopłaty” (np. wyliczone 50 EUR, mówimy klientowi 60 EUR).
@@ -407,13 +410,16 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // Regularna jest od razu opuszczona o końcówkę (utils/defaultSalePrice), promocyjna wpisuje się bez zmian.
   // Hook musi być PRZED wczesnymi return poniżej (kolejność hooków)
   useEffect(() => {
-    if (selectedOrder) {
+    const exchangeOrder = selectedOrder && isOrderProductMismatch(selectedOrder, modalMessage) ? selectedOrder : null;
+    if (selectedOrder && !exchangeOrder) {
       // Wydanie zamówienia: cena = dopłata do zaliczki, bez blokady rabatu (prowizja była od zaliczki)
+      setPickupExchange(null);
       setSalePrice(String(Math.max(0, Number(selectedOrder.remainingPln) || 0)));
       setSalePriceMin(null);
       setSalePriceList(null);
       return;
     }
+    if (!exchangeOrder) setPickupExchange(null);
     if (!barcode) {
       setSalePrice("");
       setSalePriceMin(null);
@@ -429,10 +435,19 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       rule = regularOrPromoRule(item?.price, item?.discount_price, item?.category, stateItemStoredMinimum(item, goods));
       listPrice = listPriceOf(item?.price, item?.discount_price);
     }
+    if (exchangeOrder) {
+      // Wymiana na inny model: cena i minimum wydawanej kurtki pomniejszone o zaliczkę z zamówienia (= dopłata)
+      const deposit = orderDepositPln(exchangeOrder);
+      setPickupExchange({ minPrice: rule.minPrice, deposit });
+      setSalePrice(rule.defaultPrice !== null ? String(Math.max(0, rule.defaultPrice - deposit)) : "");
+      setSalePriceMin(rule.minPrice !== null && rule.minPrice !== undefined ? Math.max(0, rule.minPrice - deposit) : null);
+      setSalePriceList(null);
+      return;
+    }
     setSalePrice(rule.defaultPrice !== null ? String(rule.defaultPrice) : "");
     setSalePriceMin(rule.minPrice);
     setSalePriceList(listPrice);
-  }, [barcode, selectedOption, stateData, goods, sizes, myPriceList, selectedOrder]);
+  }, [barcode, selectedOption, stateData, goods, sizes, myPriceList, selectedOrder, modalMessage]);
 
   // Tryb płatności zapisany w pozycji karty (paymentMode); brak = gotówka
   const priceRuleSale = !isPickup && salePriceList !== null;
@@ -621,7 +636,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const clientTotalPln = isOverpaid ? paymentBalance.paidPln - remainingInputPln : paymentBalance.paidPln + remainingInputPln;
   // Kwota, którą sprawdza blokada przy zapisie (gotówka i nadpłata liczą dopłatę, płatność kartą/mieszana nie)
   const amountCheckedPln = paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid) ? clientTotalPln : paymentBalance.paidPln;
-  const belowMinimum = !isPickup && Boolean(effectiveSaleMin) && amountCheckedPln > 0.005 && amountCheckedPln < effectiveSaleMin - 0.005;
+  const minimumChecked = !isPickup || Boolean(pickupExchange); // zwykła sprzedaż albo wymiana przy odbiorze
+  const belowMinimum = minimumChecked && Boolean(effectiveSaleMin) && amountCheckedPln > 0.005 && amountCheckedPln < effectiveSaleMin - 0.005;
   const minimumTopUpPln = Math.max(0, Number(effectiveSaleMin) - amountCheckedPln);
   // Minimum w walucie płatności: karta - waluta pozycji karty, gotówka/mieszana - waluta dopłaty (cena minus wpłacone)
   const minimumTargetCurrency = paymentMode === "card" ? (cardPriceCurrencyPairs[0]?.currency || "PLN") : remainingCurrency;
@@ -632,7 +648,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const minimumTargetText = minimumInTarget === null ? "" : `${minimumLabel}: ${formatMoney(minimumInTarget)} ${minimumTargetCurrency}`;
   const minimumNotice = belowMinimum ? (
     <Text testID="minimum-warning" style={{ color: '#EF4444', fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
-      {`Minimalna cena: ${effectiveSaleMin} zł (klient zapłaci ${formatMoney(amountCheckedPln)} zł).${minimumTargetText ? ` ${minimumTargetText}.` : ""}`}
+      {pickupExchange
+        ? `Wymiana: minimalna dopłata ${formatMoney(effectiveSaleMin)} zł (minimum kurtki ${pickupExchange.minPrice} zł − zaliczka ${formatMoney(pickupExchange.deposit)} zł), klient dopłaca ${formatMoney(amountCheckedPln)} zł.`
+        : `Minimalna cena: ${effectiveSaleMin} zł (klient zapłaci ${formatMoney(amountCheckedPln)} zł).${minimumTargetText ? ` ${minimumTargetText}.` : ""}`}
       <Text testID="minimum-top-up" style={{ color: '#10B981', fontWeight: '700' }}>
         {` Dopłać jeszcze ${formatMoney(minimumTopUpPln)} zł, aby osiągnąć minimum.`}
       </Text>
@@ -656,7 +674,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           style={[look.formInput, styles.remainingValue, styles.remainingValueText, { color: isOverpaid ? '#F59E0B' : remainingInCurrency !== null && remainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
           editable={paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid)}
           value={remainingInput}
-          onChangeText={(value) => setRemainingOverride({ key: remainingKey, value: value.replace(/[^0-9.,]/g, "") })}
+          onChangeText={(value) => setRemainingOverride({ key: remainingKey, value: sanitizeAmountInput(value) })}
           placeholder={remainingInCurrency === null ? "brak kursu" : "0.00"}
           placeholderTextColor={tc('muted', '#888')}
           keyboardType="numeric"
@@ -776,7 +794,16 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     if (!selectedOrder) setIsPickup(false);
   };
 
-  const selectPickupOrder = (order) => {
+  const selectPickupOrder = (order, confirmed = false) => {
+    // Inny model niż sprzedawana kurtka: pytamy (wymiana jest możliwa, pomyłka nie przejdzie niezauważona)
+    if (!confirmed && isOrderProductMismatch(order, modalMessage)) {
+      setPickupOrdersVisible(false);
+      appAlert("Inna kurtka niż w zamówieniu", orderMismatchMessage(order, modalMessage), [
+        { text: "Wróć do listy", style: "cancel", onPress: () => setPickupOrdersVisible(true) },
+        { text: "Tak, wymiana", onPress: () => selectPickupOrder(order, true) },
+      ]);
+      return;
+    }
     setSelectedOrder(order);
     setIsPickup(true);
     setPickupOrdersVisible(false);
@@ -921,8 +948,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       return;
     }
 
-    // Blokada rabatu: „Klient zapłaci” (wszystkie wpłaty w PLN) nie niżej niż minimum z cennika; odbiór bez blokady
-    if (!isPickup) {
+    // Blokada rabatu: „Klient zapłaci” (wszystkie wpłaty w PLN) nie niżej niż minimum z cennika; odbiór bez blokady,
+    // chyba że to wymiana na inny model (wtedy minimum dopłaty = minimum kurtki - zaliczka)
+    if (!isPickup || pickupExchange) {
       const { paidPln } = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates });
       const minimumError = minimumPriceError(paidPln, effectiveSaleMin);
       if (minimumError) {
@@ -1193,6 +1221,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         <Ionicons name="close" size={24} color={tc('text', '#fff')} />
                       </Pressable>
                       <ModalHeader icon="bag-check" color="#0D6EFD" title="Zamówienia do odbioru" subtitle="Złożone w tym punkcie - wybierz, jeśli klient odbiera zamówienie" />
+                      <Text testID="pickup-orders-sold-item" style={{ color: tc('text', '#fff'), fontWeight: '700', marginBottom: 8, width: '100%' }}>
+                        {`Wydajesz: ${String(modalMessage || '').trim()}`}
+                      </Text>
                       <ScrollView style={{ maxHeight: 420, width: '100%', marginBottom: 8 }}>
                         {pickupOrdersLoading && pickupOrders.length === 0 ? (
                           <Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 20 }}>Wczytuję zamówienia…</Text>
@@ -1211,10 +1242,16 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <Text style={[styles.currencyModalItemText, { flex: 1 }]} numberOfLines={1}>{orderProductName(order)}</Text>
                                   {matches && <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>pasuje</Text>}
+                                  {!matches && isOrderProductMismatch(order, modalMessage) && <Text style={{ color: '#F59E0B', fontSize: 12, fontWeight: '700' }}>inny model</Text>}
                                 </View>
                                 <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>
                                   {`${order.customer?.name || 'Klient'} · ${order.customer?.deliveryOption === 'delivery' ? 'dostawa' : 'odbiór'} · ${order.realizationDate ? new Date(order.realizationDate).toLocaleDateString('pl-PL') : ''}`}
                                 </Text>
+                                {!matches && isOrderProductMismatch(order, modalMessage) && (
+                                  <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '600', marginTop: 2 }}>
+                                    {`Wymiana na inny model: ${String(modalMessage || '').trim()}`}
+                                  </Text>
+                                )}
                                 <Text style={{ color: tc('text', '#fff'), fontSize: 13, marginTop: 4 }}>
                                   {`Zaliczka: ${formatOrderDeposit(order.payment)}`}
                                 </Text>
@@ -1260,10 +1297,26 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                     <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginTop: 6 }}>{orderProductName(selectedOrder)}</Text>
                     <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>{selectedOrder.customer?.name || ''}</Text>
+                    {isOrderProductMismatch(selectedOrder, modalMessage) && (
+                      <View testID="pickup-exchange-info" style={{ marginTop: 8, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.12)' }}>
+                        <Text style={{ color: '#F59E0B', fontWeight: '700' }}>Wymiana na inny model</Text>
+                        <Text style={{ color: tc('text', '#fff'), fontSize: 13, marginTop: 2 }}>{`Zamówiono: ${orderProductName(selectedOrder)}`}</Text>
+                        <Text style={{ color: tc('text', '#fff'), fontSize: 13 }}>{`Wydajesz: ${String(modalMessage || '').trim()}`}</Text>
+                        {pickupExchange && pickupExchange.minPrice ? (
+                          <Text testID="pickup-exchange-minimum" style={{ color: '#10B981', fontSize: 13, fontWeight: '700', marginTop: 4 }}>
+                            {`Minimalna cena wydawanej kurtki: ${pickupExchange.minPrice} zł − zaliczka ${formatMoney(pickupExchange.deposit)} zł = minimalna dopłata ${formatMoney(Math.max(0, pickupExchange.minPrice - pickupExchange.deposit))} zł`}
+                          </Text>
+                        ) : (
+                          <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 12, marginTop: 2 }}>Zaliczka + dopłata muszą dać co najmniej cenę minimalną wydawanej kurtki.</Text>
+                        )}
+                      </View>
+                    )}
                     <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginTop: 6 }}>{`Zaliczka: ${formatOrderDeposit(selectedOrder.payment)}`}</Text>
-                    <Text style={{ color: Number(selectedOrder.remainingPln) > 0 ? '#EF4444' : '#10B981', fontSize: 15, fontWeight: '700', marginTop: 2 }}>
-                      {`Do dopłaty: ${formatMoney(Number(selectedOrder.remainingPln) || 0)} zł`}
-                    </Text>
+                    {!pickupExchange && (
+                      <Text style={{ color: Number(selectedOrder.remainingPln) > 0 ? '#EF4444' : '#10B981', fontSize: 15, fontWeight: '700', marginTop: 2 }}>
+                        {`Do dopłaty: ${formatMoney(Number(selectedOrder.remainingPln) || 0)} zł`}
+                      </Text>
+                    )}
                   </View>
                 )}
 
@@ -1308,7 +1361,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         placeholderTextColor={tc('muted', '#888')}
                         editable={!cardNoDiscount}
                         value={effectiveSalePrice}
-                        onChangeText={(value) => setSalePrice(value.replace(/[^0-9.]/g, ""))}
+                        onChangeText={(value) => setSalePrice(sanitizeAmountInput(value))}
                         placeholder="Cena w zł"
                         keyboardType="numeric"
                       />
@@ -1334,7 +1387,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         editable={!cashLocked}
                         value={pair.price}
                         onChangeText={(value) => {
-                          const numericValue = value.replace(/[^0-9.]/g, "");
+                          const numericValue = sanitizeAmountInput(value);
                           handleCashPairChange(index, "price", numericValue);
                         }}
                         placeholder="Wpisz kwotę"
@@ -1427,7 +1480,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         editable={!cardLocked && paymentMode !== "card"}
                         value={pair.price}
                         onChangeText={(value) => {
-                          const numericValue = value.replace(/[^0-9.]/g, "");
+                          const numericValue = sanitizeAmountInput(value);
                           handleCardPairChange(index, "price", numericValue);
                         }}
                         placeholder="Wpisz kwotę"

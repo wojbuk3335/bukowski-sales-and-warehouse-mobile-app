@@ -30,6 +30,23 @@ export const orderMatchScore = (order, scannedName) => {
   return score;
 };
 
+// Zamówienie na inny model niż sprzedawana kurtka (model nie występuje w nazwie) - przed wyborem ostrzegamy.
+// Bez nazwy kurtki albo bez modelu w zamówieniu nie ma czego porównać - bez ostrzeżenia.
+export const isOrderProductMismatch = (order, saleName) => {
+  if (!normalize(saleName) || !order?.product?.name) return false;
+  return !normalize(saleName).includes(normalize(order.product.name));
+};
+
+// Zaliczka zamówienia w zł (po kursie z dnia wpłaty): cena zamówienia - kwota do pobrania przy wydaniu.
+// Tak samo liczy serwer przy wymianie na inny model.
+export const orderDepositPln = (order) => Math.max(
+  0,
+  (Number(order?.payment?.totalPrice) || 0) - (Number(order?.payment?.cashOnDelivery ?? order?.remainingPln) || 0),
+);
+
+export const orderMismatchMessage = (order, saleName) =>
+  `Zamówienie ${order?.orderId || ''} dotyczy: ${orderProductName(order)}, a sprzedajesz: ${String(saleName || '').trim()}.\n\nTo wymiana na inny model? Zaliczka z zamówienia zostanie zaliczona do ceny wydawanej kurtki.`;
+
 // Najpierw zamówienia pasujące do zeskanowanej kurtki, potem po terminie realizacji
 export const sortPickupOrders = (orders, scannedName) => [...(orders || [])].sort((a, b) => {
   const byMatch = orderMatchScore(b, scannedName) - orderMatchScore(a, scannedName);

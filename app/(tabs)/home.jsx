@@ -13,6 +13,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
+import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polach kwot
+import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
 import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
@@ -33,6 +35,10 @@ const Home = () => {
   const [refreshing, setRefreshing] = useState(false); // State for refresh control
   const [editModalVisible, setEditModalVisible] = useState(false); // State for edit modal visibility
   const [editData, setEditData] = useState(null); // State to store data for editing
+  // „Odbiór” w edycji: lista zamówień oczekujących w punkcie (zwykła sprzedaż staje się odbiorem tylko z zamówieniem)
+  const [editPickupOrders, setEditPickupOrders] = useState([]);
+  const [editPickupOrdersVisible, setEditPickupOrdersVisible] = useState(false);
+  const [editPickupOrdersLoading, setEditPickupOrdersLoading] = useState(false);
   const [editPaymentMode, setEditPaymentMode] = useState('cash');
   // Edycja sprzedaży jak „Nowa sprzedaż”: cena (na start = suma wpłat w PLN), waluta i ręczna kwota „Do dopłaty”
   const [editSalePrice, setEditSalePrice] = useState("");
@@ -441,6 +447,46 @@ const Home = () => {
     }
   };
 
+  // „Odbiór” w edycji: zaznaczenie otwiera listę zamówień; bez wybranego zamówienia odbiór się nie zaznacza
+  const loadEditPickupOrders = async () => {
+    setEditPickupOrdersLoading(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/orders/for-pickup"));
+      const data = response.ok ? await response.json() : null;
+      setEditPickupOrders(Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      Logger.error("Error fetching pickup orders (edit):", error);
+      setEditPickupOrders([]);
+    } finally {
+      setEditPickupOrdersLoading(false);
+    }
+  };
+
+  const toggleEditPickup = async () => {
+    if (editData?.isPickup) {
+      // Odznaczenie: zwykła sprzedaż (zamówienie powiązane wcześniej wróci do oczekujących po zapisie)
+      setEditData((prev) => ({ ...prev, isPickup: false, pickupOrder: null }));
+      return;
+    }
+    setEditPickupOrdersVisible(true);
+    await loadEditPickupOrders();
+  };
+
+  const selectEditPickupOrder = (order, confirmed = false) => {
+    const saleName = `${editData?.fullName || ''} ${editData?.size || ''}`;
+    // Inny model niż sprzedawana kurtka: pytamy (wymiana jest możliwa, pomyłka nie przejdzie niezauważona)
+    if (!confirmed && isOrderProductMismatch(order, saleName)) {
+      setEditPickupOrdersVisible(false);
+      appAlert("Inna kurtka niż w zamówieniu", orderMismatchMessage(order, saleName), [
+        { text: "Wróć do listy", style: "cancel", onPress: () => setEditPickupOrdersVisible(true) },
+        { text: "Tak, wymiana", onPress: () => selectEditPickupOrder(order, true) },
+      ]);
+      return;
+    }
+    setEditData((prev) => ({ ...prev, isPickup: true, pickupOrder: order }));
+    setEditPickupOrdersVisible(false);
+  };
+
   const fetchItemData = async (id) => {
     try {
       const response = await tokenService.authenticatedFetch(getApiUrl(`/sales/${id}`));
@@ -507,6 +553,13 @@ const Home = () => {
   const editClientTotalPln = editIsOverpaid ? editPaymentBalance.paidPln - editRemainingInputPln : editPaymentBalance.paidPln + editRemainingInputPln;
 
   const effectiveEditMinPrice = editCardNoDiscount ? editListPrice : editMinPrice;
+  // Odbiór z wymianą na inny model (zamówienie wybrane w edycji): minimum dopłaty = minimum kurtki - zaliczka zamówienia
+  const editExchangeOrder = editData?.isPickup && editData?.pickupOrder && isOrderProductMismatch(editData.pickupOrder, `${editData?.fullName || ''} ${editData?.size || ''}`)
+    ? editData.pickupOrder
+    : null;
+  const editExchangeDeposit = editExchangeOrder ? orderDepositPln(editExchangeOrder) : 0;
+  const editExchangeMinTopUp = editExchangeOrder && editMinPrice ? Math.max(0, Number(editMinPrice) - editExchangeDeposit) : null;
+  const editExchangeMissing = editExchangeMinTopUp === null ? 0 : Math.max(0, editExchangeMinTopUp - editPaymentBalance.paidPln);
   const editMinimumTopUpPln = effectiveEditMinPrice == null ? 0 : Math.max(0, Number(effectiveEditMinPrice) - editPaymentBalance.paidPln);
 
   const selectEditPaymentMode = (mode) => {
@@ -550,6 +603,13 @@ const Home = () => {
           return;
         }
 
+        // Wymiana na inny model przy odbiorze: dopłata nie niżej niż minimum kurtki minus zaliczka
+        if (editExchangeMinTopUp !== null && editExchangeMissing > 0.005) {
+          setErrorMessage(`Wymiana na inną kurtkę: minimalna dopłata to ${formatMoney(editExchangeMinTopUp)} zł (minimum kurtki ${editMinPrice} zł − zaliczka ${formatMoney(editExchangeDeposit)} zł). Brakuje ${formatMoney(editExchangeMissing)} zł.`);
+          setErrorModalVisible(true);
+          return;
+        }
+
         // Blokada rabatu: „Klient zapłaci” nie niżej niż minimum z cennika; odbiór bez blokady
         if (!editData.isPickup) {
           const { paidPln } = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates });
@@ -566,7 +626,10 @@ const Home = () => {
           cash: validCashPrices.map(({ price, currency }) => ({ price: parseFloat(price) || 0, currency })),
           card: validCardPrices.map(({ price, currency }) => ({ price: parseFloat(price) || 0, currency })),
           isPickup: editData.isPickup || false, // Dodaj pole isPickup
+          // „Odbiór” zaznaczony w edycji: zamówienie, które klient odbiera (backend oznaczy je jako wydane)
+          ...(editData.pickupOrder?._id && { orderMongoId: editData.pickupOrder._id }),
         };
+        delete updatedData.pickupOrder;
 
         const response = await tokenService.authenticatedFetch(
           getApiUrl(`/sales/update-sales/${editData._id}`),
@@ -2067,6 +2130,14 @@ const Home = () => {
             operationData.finalPrice = 0;
             operationData.remainingAmount = null;
           }
+        } else if (isEditingAddAmount) {
+          // Zmiana „Zaliczka na produkt” → „Inny powód”: wyczyść pola produktu, inaczej w bazie zostaje cena finalna
+          // i dalej liczy się do obrotu dnia i prowizji
+          operationData.productId = null;
+          operationData.productName = null;
+          operationData.productSize = null;
+          operationData.finalPrice = 0;
+          operationData.remainingAmount = null;
         }
         return operationData;
       };
@@ -3141,11 +3212,17 @@ const Home = () => {
                     .filter(item => item.date && item.date.startsWith(today) && item.type === 'addition')
                     .forEach(item => {
                       const agreedPln = item.finalPricePLN || item.finalPrice;
-                      if (!agreedPln || Number.isNaN(parseFloat(agreedPln))) {
+                      if (agreedPln && !Number.isNaN(parseFloat(agreedPln))) {
+                        // Zaliczka na produkt: do obrotu cała uzgodniona cena (PLN)
+                        additionsTotals.PLN = (additionsTotals.PLN || 0) + parseFloat(agreedPln);
                         return;
                       }
-                      const amountPln = parseFloat(agreedPln);
-                      additionsTotals.PLN = (additionsTotals.PLN || 0) + amountPln;
+                      if (item.includeInCommission) {
+                        // „Inny powód” wliczany do prowizji = też do obrotu (kwota wpłaty w jej walucie)
+                        const amount = Math.abs(parseFloat(item.amount) || 0);
+                        const currency = item.currency || 'PLN';
+                        if (amount > 0) additionsTotals[currency] = (additionsTotals[currency] || 0) + amount;
+                      }
                     });
                   
                   // Calculate final totals by currency (CASH + advances + operations)
@@ -3183,7 +3260,19 @@ const Home = () => {
                     return sum + total * unit;
                   }, 0);
 
-                  const totalTurnoverPln = sumInPln(cashTotals) + sumInPln(cardTotals) + sumInPln(additionsTotals);
+                  // Odbiór zamówienia (dopłata) nie wchodzi do obrotu - obrót za tę kurtkę jest w zaliczce zamówienia
+                  // (przy wymianie serwer ustawia tam cenę wydanej kurtki). Dopłata zostaje w „Gotówce w kasie”.
+                  const turnoverPaymentTotals = (kind) => {
+                    const totals = {};
+                    filteredData.filter((item) => !item.isPickup).forEach((item) => {
+                      (item[kind] || []).forEach(({ price, currency }) => {
+                        const amount = parseFloat(price);
+                        if (amount > 0) totals[currency] = (totals[currency] || 0) + amount;
+                      });
+                    });
+                    return totals;
+                  };
+                  const totalTurnoverPln = sumInPln(turnoverPaymentTotals('cash')) + sumInPln(turnoverPaymentTotals('card')) + sumInPln(additionsTotals);
                   
                   return allCurrencies.size > 0 && (
                     <View style={styles.dayCloseCard} testID="day-close-summary">
@@ -3304,7 +3393,8 @@ const Home = () => {
                     style={[look.optionCard, { marginBottom: 16 }, editData?.isPickup && { borderColor: '#0D6EFD', backgroundColor: 'rgba(13, 110, 253, 0.12)' }]}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: !!editData?.isPickup }}
-                    onPress={() => setEditData((prev) => ({ ...prev, isPickup: !prev?.isPickup }))}
+                    testID="edit-pickup-checkbox"
+                    onPress={toggleEditPickup}
                   >
                     <View style={[look.optionCardIcon, { backgroundColor: 'rgba(13, 110, 253, 0.15)' }]}>
                       <Ionicons name="bag-check-outline" size={20} color="#0D6EFD" />
@@ -3314,6 +3404,93 @@ const Home = () => {
                     </Text>
                     <Ionicons name={editData?.isPickup ? 'checkbox' : 'square-outline'} size={24} color={editData?.isPickup ? '#0D6EFD' : tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
+
+                  {/* Zamówienie odbierane tą sprzedażą (wybrane teraz albo zapisane wcześniej) */}
+                  {editData?.isPickup && (editData?.pickupOrder || editData?.orderId) && (
+                    <View testID="edit-selected-pickup-order" style={[sf.paymentCard || {}, { borderWidth: 1, borderColor: '#0D6EFD', borderRadius: 12, padding: 12, marginBottom: 12 }]}>
+                      <Text style={{ color: tc('text', '#fff'), fontWeight: '700' }}>{`Zamówienie ${editData.pickupOrder?.orderId || editData.orderId}`}</Text>
+                      {editData.pickupOrder && (
+                        <>
+                          <Text style={{ color: tc('text', '#fff'), fontSize: 14, marginTop: 4 }}>{orderProductName(editData.pickupOrder)}</Text>
+                          <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>{`${editData.pickupOrder.customer?.name || ''} · zaliczka: ${formatOrderDeposit(editData.pickupOrder.payment)}`}</Text>
+                          {isOrderProductMismatch(editData.pickupOrder, `${editData?.fullName || ''} ${editData?.size || ''}`) && (
+                      <View testID="edit-pickup-exchange-info" style={{ marginTop: 8, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.12)' }}>
+                        <Text style={{ color: '#F59E0B', fontWeight: '700' }}>Wymiana na inny model</Text>
+                        <Text style={{ color: tc('text', '#fff'), fontSize: 13, marginTop: 2 }}>{`Zamówiono: ${orderProductName(editData.pickupOrder)}`}</Text>
+                        <Text style={{ color: tc('text', '#fff'), fontSize: 13 }}>{`Wydajesz: ${String(`${editData?.fullName || ''} ${editData?.size || ''}` || '').trim()}`}</Text>
+                        {editExchangeMinTopUp !== null ? (
+                          <>
+                            <Text style={{ color: tc('text', '#fff'), fontSize: 13, marginTop: 4 }}>
+                              {`Minimalna cena wydawanej kurtki: ${editMinPrice} zł − zaliczka ${formatMoney(editExchangeDeposit)} zł = minimalna dopłata ${formatMoney(editExchangeMinTopUp)} zł`}
+                            </Text>
+                            <Text testID="edit-exchange-minimum" style={{ color: '#10B981', fontSize: 13, fontWeight: '700', marginTop: 2 }}>
+                              {editExchangeMissing > 0.005 ? `Dopłać jeszcze ${formatMoney(editExchangeMissing)} zł, aby osiągnąć minimum.` : 'Minimalna cena osiągnięta.'}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 12, marginTop: 2 }}>Zaliczka + dopłata muszą dać co najmniej cenę minimalną wydawanej kurtki.</Text>
+                        )}
+                      </View>
+                    )}
+                        </>
+                      )}
+                    </View>
+                  )}
+
+                  <Modal
+                    transparent={true}
+                    animationType="slide"
+                    visible={editPickupOrdersVisible}
+                    onRequestClose={() => setEditPickupOrdersVisible(false)}
+                  >
+                    <View style={styles.currencyModalContainer}>
+                      <View style={styles.currencyModalContent}>
+                        <SaleModalHeader icon="bag-check" color="#0D6EFD" title="Które zamówienie klient odbiera?" subtitle="Odbiór tylko z zamówieniem z zaliczką - bez niego zostaje zwykła sprzedaż" />
+                        <Text testID="edit-pickup-orders-sold-item" style={{ color: tc('text', '#fff'), fontWeight: '700', marginBottom: 8, width: '100%' }}>
+                          {`Wydajesz: ${`${editData?.fullName || ''} ${editData?.size || ''}`.trim()}`}
+                        </Text>
+                        <ScrollView style={{ maxHeight: 420, width: '100%', marginBottom: 8 }}>
+                          {editPickupOrdersLoading && editPickupOrders.length === 0 ? (
+                            <Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 20 }}>Wczytuję zamówienia…</Text>
+                          ) : editPickupOrders.length === 0 ? (
+                            <Text style={{ color: tc('muted', '#94A3B8'), textAlign: 'center', padding: 20 }}>Brak oczekujących zamówień w tym punkcie - to nie jest odbiór.</Text>
+                          ) : (
+                            sortPickupOrders(editPickupOrders, editData?.fullName).map((order) => {
+                              const matches = orderMatchScore(order, `${editData?.fullName || ''} ${editData?.size || ''}`) >= 3;
+                              return (
+                                <TouchableOpacity
+                                  key={order._id}
+                                  testID={`edit-pickup-order-${order.orderId}`}
+                                  style={[styles.currencyModalItem, matches && { borderColor: '#10B981', borderWidth: 1 }]}
+                                  onPress={() => selectEditPickupOrder(order)}
+                                >
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Text style={[styles.currencyModalItemText, { flex: 1 }]} numberOfLines={1}>{orderProductName(order)}</Text>
+                                    {matches && <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>pasuje</Text>}
+                                    {!matches && isOrderProductMismatch(order, `${editData?.fullName || ''} ${editData?.size || ''}`) && <Text style={{ color: '#F59E0B', fontSize: 12, fontWeight: '700' }}>inny model</Text>}
+                                  </View>
+                                  {!matches && isOrderProductMismatch(order, `${editData?.fullName || ''} ${editData?.size || ''}`) && (
+                                    <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '600', marginTop: 2 }}>
+                                      {`Wymiana na inny model: ${`${editData?.fullName || ''} ${editData?.size || ''}`.trim()}`}
+                                    </Text>
+                                  )}
+                                  <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>
+                                    {`${order.orderId} · ${order.customer?.name || 'Klient'} · zaliczka: ${formatOrderDeposit(order.payment)}`}
+                                  </Text>
+                                  <Text style={{ color: Number(order.remainingPln) > 0 ? '#EF4444' : '#10B981', fontSize: 14, fontWeight: '700', marginTop: 2 }}>
+                                    {`Do dopłaty: ${formatMoney(Number(order.remainingPln) || 0)} zł`}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })
+                          )}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.currencyModalCloseButton} onPress={() => setEditPickupOrdersVisible(false)}>
+                          <Text style={styles.currencyModalCloseButtonText}>Zamknij</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Modal>
 
                   {editPriceRuleSale && (
                     <View testID="edit-payment-mode" style={{ gap: 8, marginBottom: 12 }}>
@@ -3357,7 +3534,7 @@ const Home = () => {
                           placeholderTextColor={tc('muted', '#888')}
                           value={effectiveEditSalePrice}
                           editable={!editCardNoDiscount}
-                          onChangeText={(value) => setEditSalePrice(value.replace(/[^0-9.]/g, ""))}
+                          onChangeText={(value) => setEditSalePrice(sanitizeAmountInput(value))}
                           placeholder="Cena w zł"
                           keyboardType="numeric"
                         />
@@ -3384,7 +3561,7 @@ const Home = () => {
                           placeholderTextColor={tc('muted', '#888')}
                           value={pair.price}
                           onChangeText={(value) => {
-                            const numericValue = value.replace(/[^0-9.]/g, "");
+                            const numericValue = sanitizeAmountInput(value);
                             handleCashPairChange(index, "price", numericValue);
                           }}
                           placeholder="Wpisz kwotę"
@@ -3424,7 +3601,7 @@ const Home = () => {
                             style={[look.formInput, sf.remainingValue, sf.remainingValueText, { color: editIsOverpaid ? '#F59E0B' : editRemainingInCurrency !== null && editRemainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
                             editable={!editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid)}
                             value={editRemainingInput}
-                            onChangeText={(value) => setEditRemainingOverride({ key: editRemainingKey, value: value.replace(/[^0-9.,]/g, "") })}
+                            onChangeText={(value) => setEditRemainingOverride({ key: editRemainingKey, value: sanitizeAmountInput(value) })}
                             placeholder={editRemainingInCurrency === null ? "brak kursu" : (editRemainingSuggested || "0.00")}
                             placeholderTextColor={tc('muted', '#888')}
                             keyboardType="numeric"
@@ -3473,7 +3650,7 @@ const Home = () => {
                           value={pair.price}
                           editable={!editCardNoDiscount || editPaymentMode !== 'card'}
                           onChangeText={(value) => {
-                            const numericValue = value.replace(/[^0-9.]/g, "");
+                            const numericValue = sanitizeAmountInput(value);
                             handleCardPairChange(index, "price", numericValue);
                           }}
                           placeholder="Wpisz kwotę"
@@ -3794,7 +3971,7 @@ const Home = () => {
                   placeholder="0.00"
                   placeholderTextColor={tc('muted', "#ccc")}
                   value={deductionAmount}
-                  onChangeText={setDeductionAmount}
+                  onChangeText={(value) => setDeductionAmount(sanitizeAmountInput(value))}
                   keyboardType="numeric"
                 />
               </View>
@@ -4370,7 +4547,7 @@ const Home = () => {
                         style={[look.formInput, { flex: 1 }]}
                         placeholderTextColor={tc('muted', '#888')}
                         value={productFinalPrice}
-                        onChangeText={(value) => setProductFinalPrice(value.replace(/[^0-9.]/g, ""))}
+                        onChangeText={(value) => setProductFinalPrice(sanitizeAmountInput(value))}
                         placeholder="Cena finalna w zł"
                         keyboardType="numeric"
                       />
@@ -4398,7 +4575,7 @@ const Home = () => {
                         style={[look.formInput, { flex: 1.4 }]}
                         placeholderTextColor={tc('muted', '#888')}
                         value={pair.price}
-                        onChangeText={(value) => handleAddAmountPairChange(index, value.replace(/[^0-9.]/g, ""))}
+                        onChangeText={(value) => handleAddAmountPairChange(index, sanitizeAmountInput(value))}
                         placeholder="Wpisz kwotę"
                         keyboardType="numeric"
                       />
@@ -4444,7 +4621,7 @@ const Home = () => {
                           testID="advance-change-amount"
                           style={[look.formInput, sf.remainingValue, sf.remainingValueText, { color: '#F59E0B' }]}
                           value={addAmountChangeInput}
-                          onChangeText={(value) => setAddAmountChangeOverride({ key: addAmountChangeKey, value: value.replace(/[^0-9.,]/g, "") })}
+                          onChangeText={(value) => setAddAmountChangeOverride({ key: addAmountChangeKey, value: sanitizeAmountInput(value) })}
                           placeholder={addAmountChangeSuggested || "0.00"}
                           placeholderTextColor={tc('muted', '#888')}
                           keyboardType="numeric"
@@ -4994,53 +5171,60 @@ const Home = () => {
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { width: '80%' }]}>
-              <Text style={styles.modalTitle}>Potwierdź usunięcie</Text>
-              
-              <Text style={[styles.modalSubtitle, { marginBottom: 25, textAlign: 'center', lineHeight: 22 }]}>
-                Czy na pewno chcesz usunąć sprzedawcę{'\n'}
-                <Text style={{ fontWeight: 'bold', color: '#0D6EFD' }}>
-                  {employeeToRemove?.firstName} {employeeToRemove?.lastName}
-                </Text>
-                {'\n'}z zespołu?
-              </Text>
+              <Text style={styles.modalTitle}>Usunąć sprzedawcę z zespołu?</Text>
 
-              <View style={{ width: '100%', alignItems: 'center', gap: 12, flexDirection: 'row', justifyContent: 'space-between' }}>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: '#dc3545',
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    flex: 1,
-                    marginRight: 8,
-                    alignItems: 'center'
-                  }}
-                  onPress={() => handleRemoveEmployee(true)}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                    ✓ Usuń
-                  </Text>
-                </TouchableOpacity>
+              {(() => {
+                // Dzisiejsze godziny tego sprzedawcy w punkcie (od nich zależą dniówka i prowizja)
+                const removeId = employeeToRemove?._id;
+                const hours = (todaysWorkHours || []).filter((wh) => String(wh.employeeId?._id || wh.employeeId) === String(removeId));
+                const hasHours = hours.length > 0;
+                const buttonBase = { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, width: '100%', alignItems: 'center' };
+                return (
+                  <>
+                    <Text style={[styles.modalSubtitle, { marginBottom: 18, textAlign: 'center', lineHeight: 22 }]}>
+                      <Text style={{ fontWeight: 'bold', color: '#0D6EFD' }}>
+                        {employeeToRemove?.firstName} {employeeToRemove?.lastName}
+                      </Text>
+                      {hasHours
+                        ? `\nma dziś wpisane godziny ${hours.map((wh) => `${wh.startTime}–${wh.endTime}`).join(', ')}.\nCo zrobić z jego dniówką i prowizją?`
+                        : '\nnie ma dziś wpisanych godzin pracy.'}
+                    </Text>
 
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: tc('surface2', '#2a2a3e'),
-                    borderWidth: 1,
-                    borderColor: tc('border', '#334155'),
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    flex: 1,
-                    marginLeft: 8,
-                    alignItems: 'center'
-                  }}
-                  onPress={cancelRemoveEmployee}
-                >
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>
-                    Anuluj
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                    <View style={{ width: '100%', gap: 10 }}>
+                      <TouchableOpacity
+                        testID="remove-employee-keep-hours"
+                        style={[buttonBase, { backgroundColor: '#0D6EFD' }]}
+                        onPress={() => handleRemoveEmployee(false)}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                          {hasHours ? 'Usuń z listy, zachowaj godziny' : 'Usuń z listy'}
+                        </Text>
+                        {hasHours && (
+                          <Text style={{ color: '#fff', fontSize: 12, marginTop: 2, opacity: 0.85 }}>dniówka i prowizja zostają w wypłacie</Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {hasHours && (
+                        <TouchableOpacity
+                          testID="remove-employee-delete-hours"
+                          style={[buttonBase, { backgroundColor: '#dc3545' }]}
+                          onPress={() => handleRemoveEmployee(true)}
+                        >
+                          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Usuń razem z godzinami</Text>
+                          <Text style={{ color: '#fff', fontSize: 12, marginTop: 2, opacity: 0.85 }}>dziś nie pracował - dniówka i prowizja z dziś znikną</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={[buttonBase, { backgroundColor: tc('surface2', '#2a2a3e'), borderWidth: 1, borderColor: tc('border', '#334155') }]}
+                        onPress={cancelRemoveEmployee}
+                      >
+                        <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                );
+              })()}
             </View>
           </View>
         </Modal>
@@ -5510,7 +5694,7 @@ const Home = () => {
                       placeholderTextColor={tc('muted', "#9ca3af")}
                       keyboardType="decimal-pad"
                       value={calculatorAmount}
-                      onChangeText={setCalculatorAmount}
+                      onChangeText={(value) => setCalculatorAmount(sanitizeAmountInput(value))}
                     />
                   </View>
 
