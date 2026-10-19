@@ -3171,24 +3171,19 @@ const Home = () => {
                     finalCardTotals[currency] = card;
                   });
 
-                  const getRateToPln = (currency) => {
-                    if (!currency || currency === 'PLN') {
-                      return 1;
+                  // Kurs jak przy sprzedaży (plnPerUnit): waluty „za 100” (HUF) dzielone przez 100, kurs własny z panelu.
+                  // Waluta bez kursu NIE jest liczona jak złotówki 1:1 - pomijamy ją i pokazujemy „brak kursu”.
+                  const turnoverMissingRates = new Set();
+                  const sumInPln = (totals) => Object.entries(totals).reduce((sum, [currency, total]) => {
+                    const unit = plnPerUnit(currency || 'PLN', currencyRates);
+                    if (unit === null) {
+                      if (total) turnoverMissingRates.add(currency);
+                      return sum;
                     }
-                    const rate = currencyRates.find(item => item.currency.code === currency);
-                    return rate && rate.buyRate ? rate.buyRate : 1;
-                  };
+                    return sum + total * unit;
+                  }, 0);
 
-                  const totalTurnoverPln = Object.entries(cashTotals).reduce(
-                    (sum, [currency, total]) => sum + total * getRateToPln(currency),
-                    0
-                  ) + Object.entries(cardTotals).reduce(
-                    (sum, [currency, total]) => sum + total * getRateToPln(currency),
-                    0
-                  ) + Object.entries(additionsTotals).reduce(
-                    (sum, [currency, total]) => sum + total * getRateToPln(currency),
-                    0
-                  );
+                  const totalTurnoverPln = sumInPln(cashTotals) + sumInPln(cardTotals) + sumInPln(additionsTotals);
                   
                   return allCurrencies.size > 0 && (
                     <View style={styles.dayCloseCard} testID="day-close-summary">
@@ -3227,7 +3222,9 @@ const Home = () => {
                         icon="stats-chart"
                         color="#F59E0B"
                         label="Obrót dnia"
-                        caption="Suma sprzedaży liczona do obrotu"
+                        caption={turnoverMissingRates.size > 0
+                          ? `Suma sprzedaży liczona do obrotu. Brak kursu: ${[...turnoverMissingRates].join(', ')} - nie wliczone`
+                          : "Suma sprzedaży liczona do obrotu"}
                         totals={{ PLN: totalTurnoverPln }}
                       />
                     </View>
