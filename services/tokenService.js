@@ -454,8 +454,11 @@ class TokenService {
 
         const { accessToken, refreshToken } = await this.getTokens();
 
-        // Inform server about logout (best effort)
-        if (accessToken || refreshToken) {
+        // Inform server about logout (best effort). Wygasły token odpadłby na /user/logout (401) -
+        // wtedy koniec sesji punktu zgłaszamy przez /user/session/end (przyjmuje wygasły token)
+        if (accessToken && this.isTokenExpiring(accessToken, 0)) {
+            await this.endSessionOnServer(accessToken, refreshToken);
+        } else if (accessToken || refreshToken) {
             try {
                 await fetch(getApiUrl('/user/logout'), {
                     method: 'POST',
@@ -475,6 +478,25 @@ class TokenService {
         this.clearAutoLogoutTimer(); // Clear timer on manual logout
         if (!suppressFlagReset) {
             this.isLoggingOut = false; // Clear logout flag
+        }
+    }
+
+    // 🔒 Koniec sesji punktu („jedna osoba na punkcie”) zgłaszany serwerowi, gdy token dostępu już wygasł.
+    // Bez tego punkt zostawał zablokowany („Zalogowany … ostatnio 13 godz. temu”), bo serwer nie wiedział
+    // o wylogowaniu. Serwer sprawdza podpis tokenu (bez daty ważności) i kasuje tylko własną sesję.
+    async endSessionOnServer(accessToken, refreshToken) {
+        if (!accessToken && !refreshToken) return;
+        try {
+            await fetch(getApiUrl('/user/session/end'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+                },
+                body: JSON.stringify({ refreshToken })
+            });
+        } catch (error) {
+            Logger.warn('Zamknięcie sesji na serwerze nie powiodło się:', error);
         }
     }
 
@@ -581,6 +603,9 @@ class TokenService {
     async performAutoLogout() {
         try {
             this.isLoggingOut = true; // Set logout flag
+            // Najpierw serwer: po clearTokens() nie byłoby już czym zgłosić końca sesji punktu
+            const { accessToken, refreshToken } = await this.getTokens();
+            await this.endSessionOnServer(accessToken, refreshToken);
             await this.clearTokens();
             this.clearAutoLogoutTimer();
             
