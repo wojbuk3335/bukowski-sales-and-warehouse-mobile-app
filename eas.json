@@ -34,6 +34,12 @@
     }
   },
   "submit": {
+    "production-company": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed"
+      }
+    },
     "production": {
       "android": {
         "track": "internal"
