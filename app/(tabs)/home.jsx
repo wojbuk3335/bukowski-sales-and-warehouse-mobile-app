@@ -3064,6 +3064,9 @@ const Home = () => {
                         >
                           <Text style={styles.deductionItemTextLeft}>
                             {index + 1}. {item.productName ? `Zaliczka na produkt ${item.productName}` : item.reason}
+                            {item.exchangedFor ? (
+                              <Text style={{ color: '#F59E0B', fontWeight: '600' }}>{`\n↔ wymieniono na: ${item.exchangedFor}`}</Text>
+                            ) : null}
                           </Text>
                           <Text style={styles.deductionItemTextRight}>
                             {(item.type === 'addition' || item.amount > 0)
