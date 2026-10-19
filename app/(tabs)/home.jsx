@@ -284,7 +284,12 @@ const Home = () => {
     return sameLocationUsers;
   };
 
+  // Numer ostatniego pobrania: wolniejsza, starsza odpowiedź nie nadpisuje nowszych danych (np. po edycji)
+  const salesRequestRef = useRef(0);
+  const operationsRequestRef = useRef(0);
+
   const fetchSalesData = async () => {
+    const requestId = ++salesRequestRef.current;
     try {
       const response = await tokenService.authenticatedFetch(getApiUrl('/sales/get-all-sales'));
       
@@ -295,6 +300,7 @@ const Home = () => {
       const data = await response.json();
       
       // Ensure data is an array
+      if (requestId !== salesRequestRef.current) return; // w międzyczasie poszło nowsze pobranie
       const salesArray = Array.isArray(data) ? data : (data?.sales || data?.data || []);
       setSalesData(salesArray); // Update state with API data
 
@@ -657,6 +663,7 @@ const Home = () => {
           prev.map((item) => (item._id === updatedItem._id ? updatedItem : item))
         ); // Update the item in the list
         setEditModalVisible(false); // Close the edit modal
+        await refreshAfterSaleChange(); // sumy, obrót, zaliczki i prowizje z serwera
       } else {
         Logger.error("No valid ID found for the item to update.");
       }
@@ -868,6 +875,7 @@ const Home = () => {
   };
 
   const fetchFinancialOperations = async () => {
+    const requestId = ++operationsRequestRef.current;
     try {
       const response = await tokenService.authenticatedFetch(getApiUrl("/financial-operations"));
       
@@ -878,6 +886,7 @@ const Home = () => {
       const data = await response.json();
       
       // Ensure data is an array
+      if (requestId !== operationsRequestRef.current) return; // w międzyczasie poszło nowsze pobranie
       const operationsArray = Array.isArray(data) ? data : (data?.operations || data?.data || []);
       
       // Filtruj operacje finansowe dla obecnego użytkownika
@@ -904,6 +913,19 @@ const Home = () => {
       } catch (fallbackError) {
         setDeductionsData([]);
       }
+    }
+  };
+
+  // Po edycji / usunięciu sprzedaży serwer zmienia też inne dane (cena w zaliczce zamówienia przy wymianie, prowizje,
+  // zamówienie wraca do oczekujących) - przeładowujemy sprzedaże i operacje, żeby sumy i obrót były aktualne od razu
+  const refreshAfterSaleChange = async () => {
+    try {
+      await Promise.all([
+        fetchSalesData(),
+        user?.symbol ? fetchFinancialOperations() : Promise.resolve(),
+      ]);
+    } catch (error) {
+      // pobieranie ma własną obsługę błędów; lista zostaje z poprawką lokalną
     }
   };
 
@@ -1355,6 +1377,7 @@ const Home = () => {
         prev.filter((item) => item._id !== selectedItem._id)
       ); // Remove the item from the list
       setModalVisible(false); // Close the options modal
+      await refreshAfterSaleChange(); // sumy, obrót, zaliczki i prowizje z serwera
       
       // Backend już automatycznie przeliczył prowizje po usunięciu
       
