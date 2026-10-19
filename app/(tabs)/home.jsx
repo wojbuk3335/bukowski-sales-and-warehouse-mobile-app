@@ -14,6 +14,7 @@ import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, Scre
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polach kwot
+import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
 import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
@@ -21,6 +22,7 @@ import { useCameraPermissions } from "expo-camera"; // Import camera for QR scan
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { appAlert } from '../../services/appAlert';
 
+import { router } from 'expo-router'; // „Dopisz kwotę” → zaliczka przez zamówienie (zakładka „Zamów”)
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Home = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -35,6 +37,10 @@ const Home = () => {
   const [refreshing, setRefreshing] = useState(false); // State for refresh control
   const [editModalVisible, setEditModalVisible] = useState(false); // State for edit modal visibility
   const [editData, setEditData] = useState(null); // State to store data for editing
+  // Blokada podwójnego kliknięcia (słaby zasięg): edycja sprzedaży, „Odpisz kwotę”, „Dopisz kwotę”
+  const [savingEdit, runEditOnce] = useSubmitGuard();
+  const [savingDeduction, runDeductionOnce] = useSubmitGuard();
+  const [savingAddition, runAdditionOnce] = useSubmitGuard();
   // „Odbiór” w edycji: lista zamówień oczekujących w punkcie (zwykła sprzedaż staje się odbiorem tylko z zamówieniem)
   const [editPickupOrders, setEditPickupOrders] = useState([]);
   const [editPickupOrdersVisible, setEditPickupOrdersVisible] = useState(false);
@@ -288,10 +294,14 @@ const Home = () => {
   const salesRequestRef = useRef(0);
   const operationsRequestRef = useRef(0);
 
+  // Dzień, o który pytamy serwer - ten sam co w filtrach „dzisiaj” poniżej (toISOString)
+  const todayParam = () => new Date().toISOString().split('T')[0];
+
   const fetchSalesData = async () => {
     const requestId = ++salesRequestRef.current;
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/sales/get-all-sales'));
+      // Tylko dzisiejsze sprzedaże własnego punktu (dawniej całe archiwum wszystkich punktów przy każdym wejściu)
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/sales/get-all-sales?day=${todayParam()}`));
       
       if (!response || !response.ok) {
         throw new Error('Network response was not ok');
@@ -609,6 +619,14 @@ const Home = () => {
           return;
         }
 
+        // Waluta bez kursu (własny z panelu, a gdy go nie ma - kantor): zmian nie zapisujemy
+        const missingRatesAtSave = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates }).missingRates;
+        if (missingRatesAtSave.length > 0 && (currencyRates || []).length > 0) { // kursy niewczytane - decyduje serwer
+          setErrorMessage(`Brak kursu ${missingRatesAtSave.join(', ')} w Tabeli walut (ani własnego, ani z kantoru). Poproś o uzupełnienie kursu w panelu albo przyjmij płatność w innej walucie.`);
+          setErrorModalVisible(true);
+          return;
+        }
+
         // Wymiana na inny model przy odbiorze: dopłata nie niżej niż minimum kurtki minus zaliczka
         if (editExchangeMinTopUp !== null && editExchangeMissing > 0.005) {
           setErrorMessage(`Wymiana na inną kurtkę: minimalna dopłata to ${formatMoney(editExchangeMinTopUp)} zł (minimum kurtki ${editMinPrice} zł − zaliczka ${formatMoney(editExchangeDeposit)} zł). Brakuje ${formatMoney(editExchangeMissing)} zł.`);
@@ -810,21 +828,29 @@ const Home = () => {
     }
   }, [calculatorModalVisible]);
 
+  // Przesunięcia z dzisiaj: JEDNO zapytanie dla trzech list (dawniej trzy pobrania całego archiwum przesunięć).
+  // Równoległe wywołania (np. przy wejściu na zakładkę) korzystają z tego samego zapytania.
+  const transfersRequestRef = useRef(null);
+  const loadTodayTransfers = () => {
+    if (!transfersRequestRef.current) {
+      transfersRequestRef.current = (async () => {
+        const response = await tokenService.authenticatedFetch(getApiUrl(`/transfer?day=${todayParam()}`));
+        if (!response || !response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : (data?.transfers || data?.data || []);
+      })().finally(() => {
+        setTimeout(() => { transfersRequestRef.current = null; }, 0);
+      });
+    }
+    return transfersRequestRef.current;
+  };
+
   const fetchTransferredItems = async () => {
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl("/transfer"));
-      
-      if (!response || !response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
-      
-      // Ensure data is an array
-      const transferArray = Array.isArray(data) ? data : (data?.transfers || data?.data || []);
-      const filteredData = transferArray.filter((item) => item.transfer_from === user.symbol);
-      
-      setTransferredItems(filteredData); // Filter items by transfer_from
+      const transferArray = await loadTodayTransfers();
+      setTransferredItems(transferArray.filter((item) => item.transfer_from === user.symbol)); // Filter items by transfer_from
     } catch (error) {
       setTransferredItems([]); // Fallback to empty array
     }
@@ -832,16 +858,7 @@ const Home = () => {
 
   const fetchReceivedItems = async () => {
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl("/transfer"));
-      
-      if (!response || !response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
-      
-      // Ensure data is an array
-      const transferArray = Array.isArray(data) ? data : (data?.transfers || data?.data || []);
+      const transferArray = await loadTodayTransfers();
       setReceivedItems(transferArray.filter((item) => item.transfer_to === user.symbol)); // Filter items by transfer_to
     } catch (error) {
       setReceivedItems([]); // Fallback to empty array
@@ -850,25 +867,13 @@ const Home = () => {
 
   const fetchAdvances = async () => {
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl("/transfer"));
-      
-      if (!response || !response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data = await response.json();
-      
-      // Ensure data is an array
-      const transferArray = Array.isArray(data) ? data : (data?.transfers || data?.data || []);
-      
-      // Filtruj tylko te transfery które mają zaliczki i są od obecnego użytkownika
-      const advancesFiltered = transferArray.filter((item) => 
-        item.transfer_from === user.symbol && 
-        item.advancePayment && 
+      const transferArray = await loadTodayTransfers();
+      // Tylko przesunięcia od obecnego użytkownika z zaliczką
+      setAdvancesData(transferArray.filter((item) =>
+        item.transfer_from === user.symbol &&
+        item.advancePayment &&
         item.advancePayment > 0
-      );
-      
-      setAdvancesData(advancesFiltered);
+      ));
     } catch (error) {
       setAdvancesData([]); // Fallback to empty array
     }
@@ -877,7 +882,8 @@ const Home = () => {
   const fetchFinancialOperations = async () => {
     const requestId = ++operationsRequestRef.current;
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl("/financial-operations"));
+      // Tylko dzisiejsze operacje własnego konta
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/financial-operations?day=${todayParam()}`));
       
       if (!response || !response.ok) {
         throw new Error('Network response was not ok');
@@ -1641,15 +1647,13 @@ const Home = () => {
         setSuccessModalVisible(true);
         closeWorkHoursModal(); // Użyj funkcji pomocniczej do zamknięcia
         fetchTodaysWorkHours(); // Refresh today's work hours
-        
-        // 🔄 AUTOMATICALLY RECALCULATE COMMISSIONS after work hours update
-        await recalculateCommissions();
+        // Prowizje przelicza serwer przy zapisie godzin - drugie przeliczenie z telefonu było zbędne
       } else {
         const errorData = await response.json();
-        setSuccessMessage(
+        setErrorMessage(
           errorData.message || "Nie udało się zapisać godzin pracy."
         );
-        setSuccessModalVisible(true);
+        setErrorModalVisible(true);
       }
     } catch (error) {
       setSuccessMessage(
@@ -3153,7 +3157,7 @@ const Home = () => {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.menuCardTitle}>Dopisz kwotę</Text>
-                      <Text style={styles.menuCardSubtitle}>Wpłata do kasy, zaliczka klienta na produkt</Text>
+                      <Text style={styles.menuCardSubtitle}>Wpłata do kasy (zaliczkę klienta przyjmij w „Zamów”)</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
@@ -3713,10 +3717,12 @@ const Home = () => {
                       <Text style={look.neutralButtonText}>Anuluj</Text>
                     </Pressable>
                     <Pressable
-                      style={[sf.button, sf.addButton]}
-                      onPress={updateItem}
+                      style={[sf.button, sf.addButton, savingEdit && { opacity: 0.6 }]}
+                      onPress={() => runEditOnce(updateItem)}
+                      disabled={savingEdit}
+                      testID="edit-save-button"
                     >
-                      <Text style={look.buttonText}>Zapisz</Text>
+                      <Text style={look.buttonText}>{savingEdit ? 'Zapisuję…' : 'Zapisz'}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -4117,11 +4123,12 @@ const Home = () => {
                     paddingHorizontal: 16,
                     borderRadius: 12,
                   }}
-                  onPress={submitDeduction}
+                  onPress={() => runDeductionOnce(submitDeduction)}
+                  disabled={savingDeduction}
                   testID="submit-deduction-button"
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                    Odpisz kwotę
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', opacity: savingDeduction ? 0.6 : 1 }}>
+                    {savingDeduction ? 'Zapisuję…' : 'Odpisz kwotę'}
                   </Text>
                 </TouchableOpacity>
                 
@@ -4301,6 +4308,28 @@ const Home = () => {
                 
                 {/* Radio buttons */}
                 <View style={{ marginBottom: 15 }}>
+                  {/* Nowa zaliczka klienta tylko przez zamówienie: tam jest odbiór, wymiana i jedna prowizja.
+                      „Zaliczka na produkt” zostaje wyłącznie do edycji zaliczek przyjętych tu wcześniej. */}
+                  {!(isEditingAddAmount && reasonType === 'product') && (
+                    <View testID="advance-via-orders" style={{ borderWidth: 1, borderColor: '#0D6EFD', borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: 'rgba(13, 110, 253, 0.10)' }}>
+                      <Text style={{ color: tc('text', '#fff'), fontWeight: '700' }}>Zaliczka od klienta na kurtkę?</Text>
+                      <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 2 }}>
+                        Przyjmij ją przez zamówienie - przy odbiorze wybierzesz je w „Odbiór”, a prowizja policzy się raz.
+                      </Text>
+                      <TouchableOpacity
+                        testID="advance-open-orders"
+                        style={{ marginTop: 10, backgroundColor: '#0D6EFD', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => {
+                          setAddAmountModalVisible(false);
+                          resetAddAmountForm();
+                          router.push('/(tabs)/profile');
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>Przyjmij zaliczkę w „Zamów”</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  {isEditingAddAmount && reasonType === 'product' && (
                   <OptionCard
                     selected={reasonType === 'product'}
                     icon="pricetag-outline"
@@ -4314,10 +4343,11 @@ const Home = () => {
                       setShowProductDropdown(false);
                     }}
                   />
+                  )}
                   <OptionCard
                     selected={reasonType === 'other'}
                     icon="create-outline"
-                    label="Inny powód dopisania"
+                    label={isEditingAddAmount && reasonType === 'product' ? "Inny powód dopisania" : "Wpłata do kasy (inny powód)"}
                     color="#10B981"
                     onPress={() => {
                       setReasonType('other');
@@ -4708,11 +4738,12 @@ const Home = () => {
                     paddingHorizontal: 16,
                     borderRadius: 12,
                   }}
-                  onPress={submitAddAmount}
+                  onPress={() => runAdditionOnce(submitAddAmount)}
+                  disabled={savingAddition}
                   testID="submit-addition-button"
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                    {isEditingAddAmount ? (reasonType === 'other' ? 'Aktualizuj' : 'Aktualizuj kwotę') : 'Dopisz kwotę'}
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', opacity: savingAddition ? 0.6 : 1 }}>
+                    {savingAddition ? 'Zapisuję…' : (isEditingAddAmount ? (reasonType === 'other' ? 'Aktualizuj' : 'Aktualizuj kwotę') : 'Dopisz kwotę')}
                   </Text>
                 </TouchableOpacity>
                 

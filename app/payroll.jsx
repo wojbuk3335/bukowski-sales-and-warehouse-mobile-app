@@ -145,7 +145,8 @@ const Payroll = () => {
     const year = parseInt(selectedYear, 10);
     const monthIndex = parseInt(selectedMonth, 10) - 1;
     const startDate = new Date(year, monthIndex, 1).toISOString();
-    const endDate = new Date(year, monthIndex + 1, 0).toISOString();
+    // Do KOŃCA ostatniego dnia (dawniej północ na jego początku - zaliczka z 31-go w dzień wypadała z rozliczenia)
+    const endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999).toISOString();
     return {
       startDate: encodeURIComponent(startDate),
       endDate: encodeURIComponent(endDate),

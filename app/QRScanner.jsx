@@ -10,7 +10,8 @@ import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
 import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from "../utils/paymentBalance";
-import { sanitizeAmountInput } from "../utils/amountInput"; // przecinek = kropka w polach kwot // sprzedaż w kilku walutach: ile do dopłaty
+import { sanitizeAmountInput } from "../utils/amountInput"; // przecinek = kropka w polach kwot
+import { useSubmitGuard } from "../utils/useSubmitGuard"; // blokada podwójnego kliknięcia przy zapisie // sprzedaż w kilku walutach: ile do dopłaty
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
 import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -34,6 +35,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [salePriceList, setSalePriceList] = useState(null); // pełna cena z cennika - minimum przy płatności kartą
   // Odbiór z wymianą na inny model: { minPrice (wydawanej kurtki), deposit (zaliczka zamówienia w zł) } albo null
   const [pickupExchange, setPickupExchange] = useState(null);
+  // Blokada podwójnego kliknięcia „Dodaj” (słaby zasięg = dwie sprzedaże)
+  const [savingSale, runSaleOnce] = useSubmitGuard();
   const [myPriceList, setMyPriceList] = useState(null); // cennik punktu zalogowanego sprzedawcy (null = brak, karta produktu)
   const [remainingCurrency, setRemainingCurrency] = useState("PLN");
   // Ręcznie poprawiona kwota „Do dopłaty” (np. wyliczone 50 EUR, mówimy klientowi 60 EUR).
@@ -940,6 +943,14 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     const totalCard = validCardPrices.reduce((sum, pair) => sum + parseFloat(pair.price || 0), 0);
     const totalPayment = totalCash + totalCard;
 
+    // Waluta bez kursu (własny z panelu, a gdy go nie ma - kantor): sprzedaży nie zapisujemy
+    const missingRatesAtSave = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates }).missingRates;
+    if (missingRatesAtSave.length > 0 && (currencyRates || []).length > 0) { // kursy niewczytane - decyduje serwer
+      setErrorMessage(`Brak kursu ${missingRatesAtSave.join(', ')} w Tabeli walut (ani własnego, ani z kantoru). Poproś o uzupełnienie kursu w panelu albo przyjmij płatność w innej walucie.`);
+      setErrorModalVisible(true);
+      return;
+    }
+
     // Zamówienie w całości opłacone zaliczką - wydanie bez dopłaty
     const fullyPaidOrder = selectedOrder && !(Number(selectedOrder.remainingPln) > 0);
     if (totalPayment <= 0 && !fullyPaidOrder) {
@@ -1529,10 +1540,12 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     <Text style={look.neutralButtonText}>Anuluj</Text>
                   </Pressable>
                   <Pressable
-                    style={[styles.button, styles.addButton]}
-                    onPress={handleSubmit}
+                    style={[styles.button, styles.addButton, savingSale && { opacity: 0.6 }]}
+                    onPress={() => runSaleOnce(handleSubmit)}
+                    disabled={savingSale}
+                    testID="sale-submit-button"
                   >
-                    <Text style={look.buttonText}>Dodaj</Text>
+                    <Text style={look.buttonText}>{savingSale ? 'Zapisuję…' : 'Dodaj'}</Text>
                   </Pressable>
                 </View>
               </View>
