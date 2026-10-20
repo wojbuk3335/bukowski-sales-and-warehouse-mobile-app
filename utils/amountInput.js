@@ -1,4 +1,5 @@
-// Pole kwoty w trakcie wpisywania: przecinek = kropka, tylko cyfry i jedna kropka, najwyżej 2 miejsca po kropce.
+// Pole kwoty w trakcie wpisywania: przecinek = kropka, tylko cyfry i jedna kropka, najwyżej 4 miejsca po kropce
+// (kursy walut dają ułamki groszy; zaokrąglenie na korzyść sprzedawcy robi utils/paymentBalance.js).
 //
 // Dawniej pola kwot albo USUWAŁY przecinek („12,50” → „1250”), albo przepuszczały cokolwiek, a parseFloat
 // czytał tylko do przecinka („12,50” → 12 zł). Klawiatura numeryczna na Androidzie ma przecinek.
@@ -7,6 +8,6 @@ export const sanitizeAmountInput = (value) => {
   const dot = text.indexOf('.');
   if (dot === -1) return text;
   const whole = text.slice(0, dot);
-  const fraction = text.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+  const fraction = text.slice(dot + 1).replace(/\./g, '').slice(0, 4);
   return `${whole || '0'}.${fraction}`;
 };

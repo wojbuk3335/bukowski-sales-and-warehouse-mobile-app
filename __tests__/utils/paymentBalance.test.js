@@ -1,5 +1,5 @@
 // Sprzedaż w kilku walutach: zapłacono w PLN, do dopłaty w wybranej walucie (kursy „za 100” np. HUF)
-import { applyChangeToCash, computePaymentBalance, inferPaymentMode, plnPerUnit, plnToCurrency, formatMoney } from '../../utils/paymentBalance';
+import { applyChangeToCash, computePaymentBalance, inferPaymentMode, plnPerUnit, plnToCurrency, formatMoney, formatMoneyExact, roundDownMoney, roundUpMoney } from '../../utils/paymentBalance';
 
 const RATES = [
   { currency: { code: 'EUR', name: 'Euro' }, buyRate: 4.25 },
@@ -53,5 +53,24 @@ describe('paymentBalance', () => {
   test('wydana reszta w zł, a klient płacił tylko w EUR: zmniejsza EUR (bez ujemnych kwot)', () => {
     const pairs = applyChangeToCash([{ price: '200', currency: 'EUR' }], 42.5, 'PLN', RATES);
     expect(pairs).toEqual([{ price: '190.00', currency: 'EUR' }]);
+  });
+
+  test('reszta odjęta od wpłaty zostaje dokładna (do 4 miejsc), ułamek grosza nie przepada', () => {
+    expect(applyChangeToCash([{ price: '200', currency: 'EUR' }], 1.14, 'PLN', RATES)).toEqual([{ price: '199.7318', currency: 'EUR' }]); // 200 - 1.14/4.25
+    expect(applyChangeToCash([{ price: '10.003', currency: 'PLN' }], 10, 'PLN', RATES)).toEqual([{ price: '0.003', currency: 'PLN' }]);
+    expect(applyChangeToCash([{ price: '10', currency: 'PLN' }], 10, 'PLN', RATES)).toEqual([]);
+  });
+
+  test('zaokrąglenia na korzyść sprzedawcy: dopłata w górę, reszta w dół, bez błędu zmiennoprzecinkowego', () => {
+    expect(roundUpMoney(199.5305)).toBe('199.54');
+    expect(roundUpMoney(0.1 + 0.2)).toBe('0.30');
+    expect(roundUpMoney(850.00000000001)).toBe('850.00');
+    expect(roundUpMoney(0)).toBe('0.00');
+    expect(roundDownMoney(0.4695)).toBe('0.46');
+    expect(roundDownMoney(1.148)).toBe('1.14');
+    expect(roundDownMoney(849.99999999999)).toBe('850.00');
+    expect(formatMoneyExact(199.530047)).toBe('199.53');
+    expect(formatMoneyExact(199.5324)).toBe('199.5324');
+    expect(formatMoneyExact(425)).toBe('425.00');
   });
 });

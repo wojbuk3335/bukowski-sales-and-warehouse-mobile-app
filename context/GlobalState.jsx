@@ -264,10 +264,11 @@ export const GlobalStateProvider = ({ children }) => {
     };
 
     // Szybkie logowanie na zaufanym telefonie (wzór / PIN / odcisk) - błędy z kodem jak w services/quickLogin
-    const quick_login = async () => {
+    // userId - które z zapamiętanych kont (np. admin albo konto punktu); bez - ostatnio używane
+    const quick_login = async (userId) => {
         setIsLoading(true);
         try {
-            const data = await quickLogin.login();
+            const data = await quickLogin.login(userId);
             return await completeLogin(data);
         } finally {
             setIsLoading(false);

@@ -75,20 +75,36 @@ describe('QRScanner - płatność mieszana', () => {
     await waitFor(() => expect(utils.getByTestId('payment-mode')).toBeTruthy());
 
     fireEvent.press(utils.getByText('Gotówka i karta'));
+    await waitFor(() => expect(utils.queryByTestId('cash-payment-amount-0')).toBeNull()); // bez domyślnego wiersza - jak w gotówce
+    fireEvent.press(utils.getAllByText('Dodaj walutę')[0]);
     fireEvent.changeText(utils.getByTestId('cash-payment-amount-0'), '100');
     fireEvent.press(utils.getByTestId('cash-payment-currency-0'));
     fireEvent.press(await waitFor(() => utils.getByText('EUR')));
 
+    // karta podpowiada to, czego brakuje po gotówce (w górę); kwotę można podnieść, obniżyć poniżej ceny nie (bez rabatu)
+    await waitFor(() => expect(utils.getByTestId('card-payment-amount-0').props.value).toBe('424.00')); // 850 - 100 × 4.26
     expect(utils.getByTestId('card-payment-amount-0').props.editable).toBe(true);
     expect(utils.getByTestId('card-payment-currency-0').props.accessibilityState.disabled).toBe(true);
     expect(utils.getByTestId('card-payment-currency-0')).toHaveTextContent('PLN');
     expect(utils.getByTestId('sale-price-input').props.editable).toBe(false);
-    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '100');
-    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '100');
-    await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 526.00 zł · Do dopłaty kartą: 324.00 zł'));
-    expect(utils.getByTestId('minimum-top-up')).toHaveTextContent('Dopłać jeszcze 324.00 zł, aby osiągnąć minimum.');
-    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424');
-    await waitFor(() => expect(utils.getByTestId('mixed-payment-summary')).toHaveTextContent('Zapłacono: 850.00 zł · Do dopłaty kartą: 0.00 zł'));
+    expect(utils.getByText('Klient wpłaca gotówką')).toBeTruthy();
+    expect(utils.getByText('Klient dopłaca kartą')).toBeTruthy();
+    expect(utils.getByTestId('final-price')).toHaveTextContent('Finalna cena: 850.00 zł');
+    expect(utils.queryByTestId('minimum-price')).toBeNull();
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '420'); // mniej niż brakuje = rabat - blokada
+    await waitFor(() => expect(utils.getByTestId('minimum-price')).toHaveTextContent('Minimalna cena: 850.00 zł'));
+    expect(utils.getByTestId('minimum-top-up-cash')).toHaveTextContent('Kartą trzeba dopłacić jeszcze: 4.00 zł'); // 424 - 420
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '');
+    await waitFor(() => expect(utils.getByTestId('minimum-top-up-cash')).toHaveTextContent('Kartą trzeba dopłacić co najmniej: 424.00 zł'));
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '430'); // nadpłata 6 zł - reszta z gotówki w kasie
+    await waitFor(() => expect(utils.getByTestId('final-price')).toHaveTextContent('Finalna cena: 856.00 zł'));
+    expect(utils.queryByTestId('minimum-price')).toBeNull();
+    expect(utils.getByTestId('extra-change')).toBeTruthy();
+    expect(utils.getByTestId('change-amount-0').props.placeholder).toBe('6.00');
+    fireEvent.changeText(utils.getByTestId('change-amount-0'), '6');
+    await waitFor(() => expect(utils.getByTestId('final-price')).toHaveTextContent('Finalna cena: 850.00 zł'));
+    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424.00');
+    await waitFor(() => expect(utils.queryByTestId('extra-change')).toBeNull());
     expect(utils.getByTestId('cash-payment-section')).toBeTruthy();
     expect(utils.getByTestId('card-payment-section')).toBeTruthy();
 
@@ -104,10 +120,10 @@ describe('QRScanner - płatność mieszana', () => {
     expect(cardAmount.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ opacity: 0.45 })]));
 
     fireEvent.press(utils.getByTestId('payment-mode-mixed'));
+    fireEvent.press(utils.getAllByText('Dodaj walutę')[0]);
     fireEvent.changeText(utils.getByTestId('cash-payment-amount-0'), '100');
     fireEvent.press(utils.getByTestId('cash-payment-currency-0'));
     fireEvent.press(await waitFor(() => utils.getByText('EUR')));
-    fireEvent.changeText(utils.getByTestId('card-payment-amount-0'), '424');
 
     fireEvent.press(utils.getByText('Dodaj'));
     await waitFor(() => {
@@ -115,7 +131,7 @@ describe('QRScanner - płatność mieszana', () => {
       expect(saveCall).toBeTruthy();
       const body = JSON.parse(saveCall[1].body);
       expect(body.cash).toEqual([{ price: '100', currency: 'EUR' }]);
-      expect(body.card).toEqual([{ price: '424', currency: 'PLN' }]);
+      expect(body.card).toEqual([{ price: '424.00', currency: 'PLN' }]);
     });
   });
 });

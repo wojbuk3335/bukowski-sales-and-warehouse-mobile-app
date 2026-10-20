@@ -11,7 +11,8 @@ import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // rozliczenie jak płatność przy sprzedaży
-import { formatMoney, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance'; // zaliczka w kilku walutach
+import { formatMoney, plnPerUnit, plnToCurrency } from '../../utils/paymentBalance';
+import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // zaliczka w kilku walutach
 import { orderEmailMessage } from '../../utils/orderEmailMessage';
 import { addressHint, formatSuggestion, isPostalCodeFormatValid, postalCodeHint } from '../../utils/postalCodeCheck';
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext';
@@ -451,7 +452,7 @@ const Profile = () => {
     if (!mapped.some(item => item.code === 'PLN')) {
       mapped.unshift({ code: 'PLN', name: 'Polski zloty', buyRate: 1 });
     }
-    return mapped;
+    return sortCurrenciesForPicker(mapped);
   })();
 
   const getDepositRateInfo = (currency) => {

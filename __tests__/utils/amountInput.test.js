@@ -1,4 +1,4 @@
-// Pola kwot: przecinek jako kropka, jedna kropka, max 2 miejsca - „12,50” to 12.50, nie 1250 ani 12
+// Pola kwot: przecinek jako kropka, jedna kropka, max 4 miejsca - „12,50” to 12.50, nie 1250 ani 12
 import { sanitizeAmountInput } from '../../utils/amountInput';
 
 describe('sanitizeAmountInput', () => {
@@ -9,7 +9,8 @@ describe('sanitizeAmountInput', () => {
     ['12,', '12.'],
     [',5', '0.5'],
     ['12.5.5', '12.55'],
-    ['12,555', '12.55'],
+    ['12,555', '12.555'],
+    ['12,55555', '12.5555'],
     ['1 200 zł', '1200'],
     ['-50', '50'],
     ['', ''],

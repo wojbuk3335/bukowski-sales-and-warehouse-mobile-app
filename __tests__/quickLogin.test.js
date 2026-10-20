@@ -99,3 +99,32 @@ describe('włączenie i logowanie', () => {
     expect(await quick.shouldOffer({ userId: 'u2' })).toBe(false);
   });
 });
+
+describe('kilka kont na jednym telefonie (admin + konto punktu)', () => {
+  const enableAs = async (quick, account) => {
+    authenticatedFetch.mockResolvedValueOnce(respond(201, { secret: `${account.userId}-`.padEnd(43, 's'), ...account }));
+    return quick.enable({ userId: account.userId });
+  };
+
+  test('drugie konto dopisuje się (nie nadpisuje); logowanie wybranym kontem; odcięcie usuwa tylko to konto', async () => {
+    const quick = load();
+    await enableAs(quick, { userId: 'admin1', email: 'admin@x.pl', symbol: 'ADM', role: 'admin' });
+    await enableAs(quick, { userId: 'u1', email: 'parzygnat@wp.pl', symbol: 'P', role: 'user', sellingPoint: 'Parzygnat' });
+    expect((await quick.getAccounts()).map((a) => a.userId).sort()).toEqual(['admin1', 'u1']);
+    expect(await quick.shouldOffer({ userId: 'admin1' })).toBe(false);
+    expect(await quick.shouldOffer({ userId: 'u1' })).toBe(false);
+
+    global.fetch.mockResolvedValueOnce(respond(200, { success: true, accessToken: 'a', role: 'admin' }));
+    await quick.login('admin1');
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).userId).toBe('admin1');
+    expect((await quick.getAccounts())[0].userId).toBe('admin1'); // ostatnio używane na początku
+
+    global.fetch.mockResolvedValueOnce(respond(401, { code: 'TRUSTED_DEVICE_REJECTED', message: 'odcięty' }));
+    await expect(quick.login('u1')).rejects.toMatchObject({ code: 'TRUSTED_DEVICE_REJECTED' });
+    expect((await quick.getAccounts()).map((a) => a.userId)).toEqual(['admin1']);
+
+    global.fetch.mockResolvedValueOnce(respond(200, { success: true }));
+    await quick.forget('admin1');
+    expect(await quick.getAccounts()).toEqual([]);
+  });
+});

@@ -12,8 +12,9 @@ import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
-import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, syncCashWithPrice } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
-import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polach kwot
+import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, roundDownMoney } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
+import { sanitizeAmountInput } from '../../utils/amountInput';
+import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
 import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
@@ -46,10 +47,6 @@ const Home = () => {
   const [editPickupOrdersVisible, setEditPickupOrdersVisible] = useState(false);
   const [editPickupOrdersLoading, setEditPickupOrdersLoading] = useState(false);
   const [editPaymentMode, setEditPaymentMode] = useState('cash');
-  // Edycja sprzedaży jak „Nowa sprzedaż”: cena (na start = suma wpłat w PLN), waluta i ręczna kwota „Do dopłaty”
-  const [editSalePrice, setEditSalePrice] = useState("");
-  const [editRemainingCurrency, setEditRemainingCurrency] = useState("PLN");
-  const [editRemainingOverride, setEditRemainingOverride] = useState(null);
   const [editMinPrice, setEditMinPrice] = useState(null); // blokada rabatu (cennik punktu / karta produktu), null = bez blokady
   const [editListPrice, setEditListPrice] = useState(null); // pełna cena z cennika - minimum przy płatności kartą
   const [otherAccountsData, setOtherAccountsData] = useState([]); // State for sales on other accounts
@@ -212,7 +209,7 @@ const Home = () => {
   // Get available currencies from currencyRates (dynamic from database)
   const availableCurrencies = (() => {
     if (!currencyRates || currencyRates.length === 0) {
-      return ["PLN", "HUF", "GBP", "ILS", "USD", "EUR", "CAN"].map(code => ({ 
+      return ["PLN", "EUR", "USD", "HUF", "CAN", "GBP", "ILS"].map(code => ({ 
         code, 
         name: code, 
         buyRate: code === "PLN" ? 1 : '-' 
@@ -230,12 +227,12 @@ const Home = () => {
       currencies.unshift({ code: 'PLN', name: 'Polski złoty', buyRate: 1 });
     }
     
-    return currencies;
+    return sortCurrenciesForPicker(currencies);
   })();
 
   const currencyOptions = (() => {
     if (!currencyRates || currencyRates.length === 0) {
-      return ["PLN", "HUF", "GBP", "ILS", "USD", "EUR", "CAN"].map(code => ({
+      return ["PLN", "EUR", "USD", "HUF", "CAN", "GBP", "ILS"].map(code => ({
         code,
         name: code,
         buyRate: code === "PLN" ? 1 : null
@@ -252,7 +249,7 @@ const Home = () => {
       mapped.unshift({ code: "PLN", name: "Polski zloty", buyRate: 1 });
     }
 
-    return mapped;
+    return sortCurrenciesForPicker(mapped);
   })();
 
   // Helper function to check if currency uses "per 100" multiplier (HUF, JPY)
@@ -521,11 +518,6 @@ const Home = () => {
       setCashPriceCurrencyPairs(toEditPairs(data.cash));
       setCardPriceCurrencyPairs(toEditPairs(data.card));
 
-      // Cena nie jest zapisana przy sprzedaży - na start suma wpłat w PLN, więc „Do dopłaty” = 0
-      const { paidPln } = computePaymentBalance({ price: 0, payments: [...(data.cash || []), ...(data.card || [])], currencyRates });
-      setEditSalePrice(paidPln > 0 ? String(Math.round(paidPln * 100) / 100) : "");
-      setEditRemainingCurrency("PLN");
-      setEditRemainingOverride(null);
 
       // Blokada rabatu jak przy sprzedaży: minimum z cennika punktu (bez cennika - z karty produktu)
       const priceList = await loadMyPriceList();
@@ -545,28 +537,10 @@ const Home = () => {
   // „Do dopłaty” / „Reszta do wydania” w edycji - te same wyliczenia co w „Nowa sprzedaż” (QRScanner)
   const editPriceRuleSale = !editData?.isPickup && editListPrice !== null && editListPrice !== undefined;
   const editCardNoDiscount = editPriceRuleSale && editPaymentMode !== 'cash';
-  const effectiveEditSalePrice = editCardNoDiscount ? String(editListPrice) : editSalePrice;
   const showEditCashPayment = !editPriceRuleSale || editPaymentMode !== 'card';
   const showEditCardPayment = !editPriceRuleSale || editPaymentMode !== 'cash';
-  const editPaymentBalance = computePaymentBalance({
-    price: effectiveEditSalePrice,
-    payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs],
-    currencyRates,
-  });
-  const editRemainingInCurrency = plnToCurrency(Math.abs(editPaymentBalance.remainingPln), editRemainingCurrency, currencyRates);
-  const editIsOverpaid = editPaymentBalance.remainingPln < -0.005;
-  const editRemainingVisible = !editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid);
-  const editRemainingSuggested = editRemainingInCurrency === null ? "" : formatMoney(editRemainingInCurrency);
-  const editRemainingKey = `${editRemainingSuggested}|${editRemainingCurrency}|${editIsOverpaid}`;
-  // W edycji „Do dopłaty” / reszta liczy się tylko wpisana ręcznie (podpowiedź w polu jako placeholder) -
-  // inaczej obniżenie wpłaty (np. 1000 → 900) dopisywałoby różnicę z powrotem do gotówki
-  const editRemainingInput = editRemainingOverride && editRemainingOverride.key === editRemainingKey
-    ? editRemainingOverride.value
-    : "";
-  const editRemainingInputNumber = parseFloat(String(editRemainingInput).replace(",", "."));
-  const editRemainingUnit = plnPerUnit(editRemainingCurrency, currencyRates);
-  const editRemainingInputPln = editRemainingUnit !== null && editRemainingInputNumber > 0 ? editRemainingInputNumber * editRemainingUnit : 0;
-  const editClientTotalPln = editIsOverpaid ? editPaymentBalance.paidPln - editRemainingInputPln : editPaymentBalance.paidPln + editRemainingInputPln;
+  // Edycja = poprawka zapisanych wpłat (po fakcie nie ma ceny proponowanej, dopłaty ani reszty): liczy się suma wpłat w PLN
+  const editPaymentBalance = computePaymentBalance({ price: 0, payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs], currencyRates });
 
   const effectiveEditMinPrice = editCardNoDiscount ? editListPrice : editMinPrice;
   // Odbiór z wymianą na inny model (zamówienie wybrane w edycji): minimum dopłaty = minimum kurtki - zaliczka zamówienia
@@ -576,12 +550,13 @@ const Home = () => {
   const editExchangeDeposit = editExchangeOrder ? orderDepositPln(editExchangeOrder) : 0;
   const editExchangeMinTopUp = editExchangeOrder && editMinPrice ? Math.max(0, Number(editMinPrice) - editExchangeDeposit) : null;
   const editExchangeMissing = editExchangeMinTopUp === null ? 0 : Math.max(0, editExchangeMinTopUp - editPaymentBalance.paidPln);
-  const editMinimumTopUpPln = effectiveEditMinPrice == null ? 0 : Math.max(0, Number(effectiveEditMinPrice) - editPaymentBalance.paidPln);
+
+  // Blokada minimum jak przy sprzedaży (0.0001 tylko na błąd zmiennoprzecinkowy)
+  const editBelowMinimum = !editData?.isPickup && Boolean(effectiveEditMinPrice) && editPaymentBalance.paidPln > 0.005 && editPaymentBalance.paidPln < Number(effectiveEditMinPrice) - 0.0001;
 
   const selectEditPaymentMode = (mode) => {
     if (mode === editPaymentMode) return;
     setEditPaymentMode(mode);
-    setEditRemainingOverride(null);
     if (mode === 'card') {
       setCashPriceCurrencyPairs([{ price: '0', currency: 'PLN' }]);
       setCardPriceCurrencyPairs([{ price: String(editListPrice), currency: 'PLN' }]);
@@ -594,15 +569,10 @@ const Home = () => {
   const updateItem = async () => {
     try {
       if (editData?._id) {
-        // Wpłaty jak przy sprzedaży: puste pomijamy, „Do dopłaty” dopisuje się do gotówki, wydana reszta się od niej odejmuje
-        let validCashPrices = cashPriceCurrencyPairs
+        // Zapisujemy wpłaty tak, jak wpisano (puste pomijamy)
+        const validCashPrices = cashPriceCurrencyPairs
           .filter((pair) => pair.price && String(pair.price).trim() !== "")
           .map((pair) => ({ price: pair.price, currency: pair.currency }));
-        if (!editData.isPickup && Number(effectiveEditSalePrice) > 0 && editRemainingInputNumber > 0 && (!editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid))) {
-          validCashPrices = editIsOverpaid
-            ? applyChangeToCash(validCashPrices, editRemainingInputNumber, editRemainingCurrency, currencyRates)
-            : [...validCashPrices, { price: formatMoney(editRemainingInputNumber), currency: editRemainingCurrency }];
-        }
         const validCardPrices = cardPriceCurrencyPairs
           .filter((pair) => pair.price && String(pair.price).trim() !== "")
           .map((pair) => ({ price: pair.price, currency: editPriceRuleSale ? 'PLN' : pair.currency }));
@@ -1642,7 +1612,7 @@ const Home = () => {
         const actionText = result.isUpdate ? 'zaktualizowane' : 'zapisane';
         
         setSuccessMessage(
-          `Godziny pracy dla ${selectedEmployeeForHours.firstName} ${selectedEmployeeForHours.lastName} zostały ${actionText}.\n\nGodziny: ${workStartTime} - ${workEndTime}\nWypłata: ${result.workHours.dailyPay.toFixed(2)} PLN`
+          `Godziny pracy dla ${selectedEmployeeForHours.firstName} ${selectedEmployeeForHours.lastName} zostały ${actionText}.\n\nGodziny: ${workStartTime} - ${workEndTime}`
         );
         setSuccessModalVisible(true);
         closeWorkHoursModal(); // Użyj funkcji pomocniczej do zamknięcia
@@ -1826,7 +1796,7 @@ const Home = () => {
   // Klient wpłacił więcej niż cena: reszta (w walucie „Do dopłaty”) odejmowana od wpłat przy zapisie
   const addAmountIsOverpaid = addAmountBalance.remainingPln < -0.005;
   const addAmountOverpaidInCurrency = plnToCurrency(Math.abs(addAmountBalance.remainingPln), productSaleCurrency, currencyRates);
-  const addAmountChangeSuggested = addAmountOverpaidInCurrency === null ? "" : formatMoney(addAmountOverpaidInCurrency);
+  const addAmountChangeSuggested = addAmountOverpaidInCurrency === null ? "" : roundDownMoney(addAmountOverpaidInCurrency); // reszta w dół
   const addAmountChangeKey = `${addAmountChangeSuggested}|${productSaleCurrency}`;
   const addAmountChangeInput = addAmountChangeOverride && addAmountChangeOverride.key === addAmountChangeKey
     ? addAmountChangeOverride.value
@@ -2428,15 +2398,14 @@ const Home = () => {
   };
 
   const openCurrencyModal = (index, type) => {
+    Keyboard.dismiss(); // po zamknięciu okna fokus nie wraca do pola - klawiatura nie wyskakuje
     setCurrentCurrencyPairIndex(index);
     setCurrentCurrencyType(type);
     setCurrencyModalVisible(true);
   };
 
   const selectCurrencyFromModal = (currency) => {
-    if (currentCurrencyType === "remaining") {
-      setEditRemainingCurrency(currency);
-    } else if (currentCurrencyType === "cash") {
+    if (currentCurrencyType === "cash") {
       handleCashPairChange(currentCurrencyPairIndex, "currency", currency);
     } else if (currentCurrencyType === "card") {
       handleCardPairChange(currentCurrencyPairIndex, "currency", currency);
@@ -2785,6 +2754,28 @@ const Home = () => {
                       title="Sprzedaż"
                       subtitle={`${user?.email || ''} · ${new Date().toLocaleDateString('pl-PL', { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
                     />
+                    {/* „Dodaj sprzedawców” na samej górze, lista sprzedawców pod spodem */}
+                    <View style={{ 
+                      flexDirection: "column", 
+                      marginTop: 12,
+                      marginBottom: 4,
+                    }}>
+                      <TouchableOpacity
+                        testID="add-salesperson-button"
+                        style={styles.menuCard}
+                        onPress={() => setSalespersonModalVisible(true)}
+                      >
+                        <View style={[styles.menuCardIcon, { backgroundColor: '#0D6EFD26' }]}>
+                          <Ionicons name="person-add" size={26} color="#0D6EFD" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.menuCardTitle}>Dodaj sprzedawców</Text>
+                          <Text style={styles.menuCardSubtitle}>Kto dziś pracuje na tym stanowisku</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+                      </TouchableOpacity>
+                    </View>
+                
                     {assignedSalespeople.length > 0 && (
                       <>
                         {assignedSalespeople.map((salesperson, index) => {
@@ -2836,27 +2827,6 @@ const Home = () => {
                   </View>
                 </View>
                 
-                {/* Button for adding salespersons - kept at top for quick access */}
-                <View style={{ 
-                  flexDirection: "column", 
-                  marginBottom: 10,
-                }}>
-                  <TouchableOpacity
-                    testID="add-salesperson-button"
-                    style={styles.menuCard}
-                    onPress={() => setSalespersonModalVisible(true)}
-                  >
-                    <View style={[styles.menuCardIcon, { backgroundColor: '#0D6EFD26' }]}>
-                      <Ionicons name="person-add" size={26} color="#0D6EFD" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.menuCardTitle}>Dodaj sprzedawców</Text>
-                      <Text style={styles.menuCardSubtitle}>Kto dziś pracuje na tym stanowisku</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
-                  </TouchableOpacity>
-                </View>
-                
                 <Text style={styles.sectionLabel}>Sprzedaż dzisiaj</Text>
               </View>
             );
@@ -2874,25 +2844,7 @@ const Home = () => {
             );
             return (
               <View style={{ marginTop: 24 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold" }}>Suma:</Text>
-                  <View style={{ flexDirection: "row" }}>
-                    <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), marginRight: 16 }}>Gotówki:</Text>
-                    {Object.entries(totals.cash || {}).map(([currency, total]) => (
-                      <Text key={`cash-${currency}`} style={{ fontSize: 10, color: tc('text', "#fff"), marginRight: 8 }}>
-                        {total} {currency}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-                  <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), marginRight: 16 }}>Na kartę:</Text>
-                  {Object.entries(totals.card || {}).map(([currency, total]) => (
-                    <Text key={`card-${currency}`} style={{ fontSize: 10, color: tc('text', "#fff"), marginRight: 8 }}>
-                      {total} {currency}
-                    </Text>
-                  ))}
-                </View>
+                {/* Sumy gotówki / karty są w Zamknięciu dnia na dole ekranu */}
                 {/* Section for sales on other accounts */}
                 {otherAccountsData.length > 0 && (
                   <View style={{ marginTop: 24 }}>
@@ -3555,42 +3507,7 @@ const Home = () => {
                       </View>
                       <Text style={sf.paymentTitle}>{editData?.isPickup ? 'Dopłata' : 'Płatność gotówką'}</Text>
                     </View>
-                    {!editData?.isPickup && (
-                      <View style={sf.salePriceRow}>
-                        <Text style={sf.salePriceLabel}>Cena</Text>
-                        <TextInput
-                          testID="edit-sale-price-input"
-                          style={[look.formInput, { flex: 1 }]}
-                          placeholderTextColor={tc('muted', '#888')}
-                          value={effectiveEditSalePrice}
-                          editable={!editCardNoDiscount}
-                          onChangeText={(value) => {
-                            const price = sanitizeAmountInput(value);
-                            setEditSalePrice(price);
-                            // Zmiana ceny = zmiana wpłaty gotówką (jedna wpłata w zł, bez karty); dawniej trzeba było
-                            // osobno wpisać „resztę”, inaczej zapisywała się stara kwota
-                            const synced = syncCashWithPrice({ price, cashPairs: cashPriceCurrencyPairs, cardPairs: cardPriceCurrencyPairs });
-                            if (synced) {
-                              setCashPriceCurrencyPairs(synced);
-                              setEditRemainingOverride(null);
-                            }
-                          }}
-                          placeholder="Cena w zł"
-                          keyboardType="numeric"
-                        />
-                        <Text style={sf.salePriceCurrency}>PLN</Text>
-                      </View>
-                    )}
-                    {!editData?.isPickup && effectiveEditMinPrice ? (
-                      <Text style={[sf.remainingHint, Number(effectiveEditSalePrice) > 0 && Number(effectiveEditSalePrice) < effectiveEditMinPrice - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
-                        {Number(effectiveEditSalePrice) > 0 && Number(effectiveEditSalePrice) < effectiveEditMinPrice - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${effectiveEditMinPrice} zł` : `Najniższa cena: ${effectiveEditMinPrice} zł`}
-                      </Text>
-                    ) : null}
-                    {editPriceRuleSale && editPaymentMode === 'mixed' && (
-                      <Text testID="edit-minimum-top-up" style={{ color: '#10B981', fontWeight: '700', marginBottom: 10 }}>
-                        {editMinimumTopUpPln > 0.005 ? `Dopłać jeszcze ${formatMoney(editMinimumTopUpPln)} zł, aby osiągnąć minimum.` : 'Minimalna cena osiągnięta.'}
-                      </Text>
-                    )}
+                    <Text style={sf.fieldCaption}>{editPaymentMode === 'mixed' ? 'Klient wpłacił gotówką' : 'Klient wpłacił'}</Text>
                     {cashPriceCurrencyPairs.map((pair, index) => (
                       <View
                         key={`cash-${index}`}
@@ -3629,45 +3546,6 @@ const Home = () => {
                       <Ionicons name="add" size={20} color="#0D6EFD" />
                       <Text style={sf.addPairButtonText}>Dodaj walutę</Text>
                     </Pressable>
-                    {!editData?.isPickup && editRemainingVisible && Number(effectiveEditSalePrice) > 0 && (
-                      <View style={sf.remainingSection} testID="edit-remaining-card">
-                        <View style={sf.remainingHeader}>
-                          <Ionicons name={editIsOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={editIsOverpaid ? "#F59E0B" : "#EF4444"} />
-                          <Text style={sf.remainingTitle}>{editIsOverpaid ? `Reszta do wydania: ${editRemainingSuggested || "?"} ${editRemainingCurrency}` : "Do dopłaty"}</Text>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                          <TextInput
-                            testID="edit-remaining-amount"
-                            style={[look.formInput, sf.remainingValue, sf.remainingValueText, { color: editIsOverpaid ? '#F59E0B' : editRemainingInCurrency !== null && editRemainingInCurrency <= 0.005 ? '#10B981' : tc('text', '#fff') }]}
-                            editable={!editPriceRuleSale || editPaymentMode === 'cash' || (editPaymentMode === 'mixed' && editIsOverpaid)}
-                            value={editRemainingInput}
-                            onChangeText={(value) => setEditRemainingOverride({ key: editRemainingKey, value: sanitizeAmountInput(value) })}
-                            placeholder={editRemainingInCurrency === null ? "brak kursu" : (editRemainingSuggested || "0.00")}
-                            placeholderTextColor={tc('muted', '#888')}
-                            keyboardType="numeric"
-                          />
-                          <TouchableOpacity
-                            style={[look.selectField, { flex: 1 }]}
-                            onPress={() => openCurrencyModal(0, "remaining")}
-                          >
-                            <Text style={look.selectFieldText}>{editRemainingCurrency}</Text>
-                            <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
-                          </TouchableOpacity>
-                        </View>
-                        <Text style={sf.remainingHint}>
-                          {editIsOverpaid
-                            ? "Wpisz wydaną resztę. Puste pole = reszty nie wydano."
-                            : "Wpisz kwotę, jeśli klient dopłaca. Puste pole = zapisują się tylko wpłaty powyżej."}
-                        </Text>
-                        <Text style={sf.clientTotal}>
-                          {`Klient zapłaci: ${formatMoney(editClientTotalPln)} zł`}
-                          <Text style={sf.clientTotalPrice}>{`  (cena ${formatMoney(Number(effectiveEditSalePrice) || 0)} zł)`}</Text>
-                        </Text>
-                        {editPaymentBalance.missingRates.length > 0 && (
-                          <Text style={sf.remainingHint}>{`Brak kursu: ${editPaymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
-                        )}
-                      </View>
-                    )}
                   </View>
                   )}
                   {showEditCardPayment && (
@@ -3678,6 +3556,7 @@ const Home = () => {
                       </View>
                       <Text style={sf.paymentTitle}>{editData?.isPickup ? "Dopłata kartą" : "Płatność kartą"}</Text>
                     </View>
+                    {editPaymentMode === 'mixed' && <Text style={sf.fieldCaption}>Klient zapłacił kartą</Text>}
                     {cardPriceCurrencyPairs.map((pair, index) => (
                       <View
                         key={`card-${index}`}
@@ -3699,7 +3578,7 @@ const Home = () => {
                         {editPriceRuleSale ? (
                           <TouchableOpacity
                             testID={`edit-card-payment-currency-${index}`}
-                            style={[look.selectField, { flex: 1 }]}
+                            style={[look.selectField, { flex: 1 }, editPaymentMode === 'card' && { opacity: 0.45 }]}
                             disabled
                             accessibilityState={{ disabled: true }}
                           >
@@ -3718,6 +3597,15 @@ const Home = () => {
                       </View>
                     ))}
                   </View>
+                  )}
+                  {editPaymentBalance.missingRates.length > 0 && (
+                    <Text style={sf.remainingHint}>{`Brak kursu: ${editPaymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
+                  )}
+                  {editPaymentBalance.paidPln > 0.005 && (
+                    <Text testID="edit-final-price" style={sf.finalPriceText}>{`Finalna cena: ${roundDownMoney(editPaymentBalance.paidPln)} zł`}</Text>
+                  )}
+                  {editBelowMinimum && (
+                    <Text testID="edit-minimum-price" style={sf.minimumPriceText}>{`Minimalna cena: ${formatMoney(effectiveEditMinPrice)} zł`}</Text>
                   )}
                   <View style={sf.modalButtons}>
                     <Pressable

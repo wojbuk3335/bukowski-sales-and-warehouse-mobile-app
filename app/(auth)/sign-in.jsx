@@ -30,10 +30,21 @@ const SignIn = () => {
   // Informacja (nie błąd) po przekierowaniu z aplikacji, np. zakończona sesja
   const [notice, setNotice] = useState("");
   const [isAdminPanel, setIsAdminPanel] = useState(false);
+  // Panel (Użytkownik / Administrator) zapamiętany na telefonie - PIN odpala się dla ostatnio używanego panelu
+  const PANEL_KEY = "BukowskiLoginPanel";
+  const rememberPanel = (admin) => AsyncStorage.setItem(PANEL_KEY, admin ? "admin" : "user").catch(() => {});
   const navigation = useNavigation();
   const { setUser, bukowski_login, quick_login, isLoading, user } = useContext(GlobalStateContext);
-  // Szybkie logowanie: zapamiętane konto na tym telefonie (null = brak) i czy pokazać zwykły formularz
-  const [saved, setSaved] = useState(null);
+  // Szybkie logowanie: zapamiętane konta na tym telefonie (admin, konto punktu…) i czy pokazać zwykły formularz
+  const [accounts, setAccounts] = useState([]);
+  // Konta tego panelu: Użytkownik - konta punktów, Administrator - konta adminów (admin ma oba na jednym telefonie)
+  const panelAccounts = accounts.filter((account) => (account.role === 'admin') === isAdminPanel);
+  const saved = panelAccounts.length === 1 ? panelAccounts[0] : null; // jedno konto w panelu - karta „Odblokuj"
+  const reloadAccounts = async () => {
+    const list = await quickLogin.getAccounts().catch(() => []);
+    setAccounts(list);
+    return list;
+  };
   const [showForm, setShowForm] = useState(false);
   const [quickBusy, setQuickBusy] = useState(false);
   // Aktualizacja OTA sprawdzana przy wejściu na ekran logowania (null = sprawdzanie zakończone)
@@ -103,7 +114,20 @@ const SignIn = () => {
   const handlePanelSwitch = async () => {
     const newIsAdminPanel = !isAdminPanel;
     setIsAdminPanel(newIsAdminPanel);
+    setShowForm(false); // nowy panel: jego zapamiętane konto (karta PIN) albo formularz; PIN nie odpala się sam
+    setError("");
+    rememberPanel(newIsAdminPanel);
     await tryAutoLogin(newIsAdminPanel);
+  };
+
+  // Panel na start: zapamiętany, a bez zapamiętanego - panel ostatnio używanego konta PIN
+  // (telefon tylko admina otwiera się na Administratorze)
+  const initialPanel = async (list) => {
+    let stored = null;
+    try { stored = await AsyncStorage.getItem(PANEL_KEY); } catch (error) { stored = null; }
+    const admin = stored ? stored === "admin" : list[0]?.role === 'admin';
+    setIsAdminPanel(admin);
+    return admin;
   };
 
   // Wejście na ekran: zalogowany użytkownik punktu (domyślnie zaznaczony panel „Użytkownik”) wchodzi od razu.
@@ -113,35 +137,38 @@ const SignIn = () => {
     if (updateStage !== null || autoLoginTriedRef.current || params?.reason === "SESSION_REVOKED") return;
     autoLoginTriedRef.current = true;
     (async () => {
-      if (await tryAutoLogin(isAdminPanel)) return;
-      // Bez ważnej sesji: zapamiętane konto -> od razu okno odblokowania (wzór / PIN / odcisk)
-      const stored = await quickLogin.getSaved();
-      setSaved(stored);
-      if (stored && (await quickLogin.availability()) === 'ok') quickSubmit();
+      const list = await reloadAccounts();
+      const admin = await initialPanel(list);
+      if (await tryAutoLogin(admin)) return;
+      // Bez ważnej sesji: jedno zapamiętane konto w tym panelu -> od razu okno odblokowania (wzór / PIN / odcisk) -
+      // tylko przy otwarciu ekranu, nigdy po przełączeniu panelu. Kilka kont w panelu -> lista do wyboru.
+      const inPanel = list.filter((account) => (account.role === 'admin') === admin);
+      if (inPanel.length === 1 && (await quickLogin.availability()) === 'ok') quickSubmit(inPanel[0]);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateStage]);
 
-  // Zapamiętane konto po wejściu na ekran (także po wylogowaniu przez serwer)
+  // Zapamiętane konta i panel po wejściu na ekran (także po wylogowaniu przez serwer)
   useEffect(() => {
-    quickLogin.getSaved().then(setSaved).catch(() => setSaved(null));
+    reloadAccounts().then(initialPanel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Szybkie logowanie: odblokowanie telefonu -> klucz -> sesja (jak po haśle)
-  const quickSubmit = async () => {
+  const quickSubmit = async (account) => {
     if (quickBusy) return;
     setError("");
     setNotice("");
     setQuickBusy(true);
     try {
-      const data = await quick_login();
+      const data = await quick_login(account?.userId);
       setUser(data);
       router.replace(data.role === 'admin' ? "/(admin-tabs)/dashboard" : "/home");
     } catch (quickError) {
       if (quickError.code === 'CANCELLED') return; // zamknięte okno odblokowania - zostaje przycisk „Odblokuj”
       if (quickError.code === 'TRUSTED_DEVICE_REJECTED' || quickError.code === 'NOT_ENABLED') {
-        setSaved(null);
-        setShowForm(true);
+        const left = await reloadAccounts(); // to konto zniknęło z telefonu; pozostałe zostają
+        if (!left.some((item) => (item.role === 'admin') === isAdminPanel)) setShowForm(true); // w tym panelu nic nie zostało
         setError(quickError.message);
       } else if (quickError.code === 'SESSION_ACTIVE') {
         setError(buildSessionActiveMessage(quickError.session));
@@ -153,12 +180,23 @@ const SignIn = () => {
     }
   };
 
-  const forgetPhone = () => {
-    appAlert("Zapomnieć ten telefon?", "Następne logowanie będzie wymagało hasła" + (saved?.role === 'admin' ? " i kodu 2FA" : "") + ".", [
+  const forgetPhone = (account) => {
+    const name = account?.symbol || account?.email || '';
+    appAlert(`Zapomnieć konto ${name} na tym telefonie?`, "Następne logowanie na to konto będzie wymagało hasła" + (account?.role === 'admin' ? " i kodu 2FA" : "") + ".", [
       { text: "Anuluj", style: "cancel" },
-      { text: "Zapomnij", style: "destructive", onPress: async () => { await quickLogin.forget(); setSaved(null); setShowForm(true); } },
+      {
+        text: "Zapomnij",
+        style: "destructive",
+        onPress: async () => {
+          await quickLogin.forget(account?.userId);
+          const left = await reloadAccounts();
+          if (!left.some((item) => (item.role === 'admin') === isAdminPanel)) setShowForm(true); // w tym panelu nic nie zostało
+        },
+      },
     ]);
   };
+
+  const accountLabel = (account) => [account.role === 'admin' ? 'Administrator' : account.sellingPoint, account.email].filter(Boolean).join(' · ');
 
   const submit = async () => {
     try {
@@ -242,39 +280,7 @@ const SignIn = () => {
           />
 
           <View style={styles.card}>
-          {saved && !showForm ? (
-            <View testID="quick-login-card">
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="finger-print" size={28} color="#0D6EFD" />
-                </View>
-                <Text style={styles.cardTitle}>{saved.symbol || saved.email}</Text>
-                <Text style={styles.cardSubtitle}>{[saved.role === 'admin' ? 'Administrator' : saved.sellingPoint, saved.email].filter(Boolean).join(' · ')}</Text>
-              </View>
-              <CustomButton
-                title="Odblokuj"
-                handlePress={quickSubmit}
-                containerStyles={styles.button}
-                isLoading={quickBusy || isLoading || Boolean(updateStage)}
-              />
-              <Text style={styles.quickHint}>Wzór, PIN albo odcisk palca - jak przy odblokowaniu telefonu</Text>
-              <View style={styles.quickLinks}>
-                <TouchableOpacity onPress={() => { setShowForm(true); setError(""); }} testID="quick-other-account">
-                  <Text style={styles.quickLink}>Zaloguj innym kontem</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={forgetPhone} testID="quick-forget">
-                  <Text style={[styles.quickLink, { color: '#EF4444' }]}>Zapomnij ten telefon</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-          <>
-          {saved ? (
-            <TouchableOpacity onPress={() => { setShowForm(false); setError(""); }} style={{ marginBottom: 10 }} testID="quick-back">
-              <Text style={styles.quickLink}>← Szybkie logowanie ({saved.symbol || saved.email})</Text>
-            </TouchableOpacity>
-          ) : null}
-          {/* Wybór panelu: użytkownik / administrator */}
+          {/* Wybór panelu na samej górze: Użytkownik (konta punktów) / Administrator (konta adminów) - PIN i formularz pod spodem */}
           <View style={styles.segment}>
             {[
               { admin: false, label: "Użytkownik", icon: "person" },
@@ -297,6 +303,79 @@ const SignIn = () => {
             })}
           </View>
 
+          {panelAccounts.length > 1 && !showForm ? (
+            <View testID="quick-login-list">
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="finger-print" size={28} color="#0D6EFD" />
+                </View>
+                <Text style={styles.cardTitle}>Wybierz konto</Text>
+                <Text style={styles.cardSubtitle}>Odblokujesz je wzorem, PIN-em albo odciskiem palca</Text>
+              </View>
+              {panelAccounts.map((account) => (
+                <View key={account.userId} style={styles.accountRow}>
+                  <TouchableOpacity
+                    testID={`quick-account-${account.userId}`}
+                    style={styles.accountButton}
+                    disabled={quickBusy || isLoading || Boolean(updateStage)}
+                    onPress={() => quickSubmit(account)}
+                  >
+                    <Ionicons name={account.role === 'admin' ? 'shield-checkmark' : 'person'} size={22} color="#0D6EFD" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountName}>{account.symbol || account.email}</Text>
+                      <Text style={styles.accountMeta} numberOfLines={1}>{accountLabel(account)}</Text>
+                    </View>
+                    <Ionicons name="lock-open-outline" size={20} color={tc('muted', "#94A3B8")} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    testID={`quick-forget-${account.userId}`}
+                    accessibilityLabel={`Zapomnij konto ${account.symbol || account.email}`}
+                    style={styles.accountForget}
+                    onPress={() => forgetPhone(account)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {quickBusy ? <ActivityIndicator color={tc('text', "#fff")} style={{ marginTop: 10 }} /> : null}
+              <View style={styles.quickLinks}>
+                <TouchableOpacity onPress={() => { setShowForm(true); setError(""); }} testID="quick-other-account">
+                  <Text style={styles.quickLink}>Zaloguj innym kontem</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : saved && !showForm ? (
+            <View testID="quick-login-card">
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="finger-print" size={28} color="#0D6EFD" />
+                </View>
+                <Text style={styles.cardTitle}>{saved.symbol || saved.email}</Text>
+                <Text style={styles.cardSubtitle}>{accountLabel(saved)}</Text>
+              </View>
+              <CustomButton
+                title="Odblokuj"
+                handlePress={() => quickSubmit(saved)}
+                containerStyles={styles.button}
+                isLoading={quickBusy || isLoading || Boolean(updateStage)}
+              />
+              <Text style={styles.quickHint}>Wzór, PIN albo odcisk palca - jak przy odblokowaniu telefonu</Text>
+              <View style={styles.quickLinks}>
+                <TouchableOpacity onPress={() => { setShowForm(true); setError(""); }} testID="quick-other-account">
+                  <Text style={styles.quickLink}>Zaloguj innym kontem</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => forgetPhone(saved)} testID="quick-forget">
+                  <Text style={[styles.quickLink, { color: '#EF4444' }]}>Zapomnij ten telefon</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+          <>
+          {panelAccounts.length > 0 ? (
+            <TouchableOpacity onPress={() => { setShowForm(false); setError(""); }} style={{ marginBottom: 10 }} testID="quick-back">
+              <Text style={styles.quickLink}>{saved ? `← Szybkie logowanie (${saved.symbol || saved.email})` : '← Szybkie logowanie (wybór konta)'}</Text>
+            </TouchableOpacity>
+          ) : null}
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderIcon}>
               <Ionicons name={isAdminPanel ? "shield-checkmark" : "log-in"} size={28} color="#0D6EFD" />
@@ -411,6 +490,37 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     marginTop: 10,
+  },
+  accountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  accountButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: tc('surface2', "#1E1E2D"),
+    borderWidth: 1,
+    borderColor: tc('border', "#334155"),
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  accountName: {
+    color: tc('text', "#fff"),
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  accountMeta: {
+    color: tc('muted', "#94A3B8"),
+    fontSize: 12,
+    marginTop: 2,
+  },
+  accountForget: {
+    padding: 10,
   },
   quickLinks: {
     flexDirection: "row",

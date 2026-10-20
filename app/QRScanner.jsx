@@ -9,8 +9,9 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
-import { applyChangeToCash, computePaymentBalance, formatMoney, plnPerUnit, plnToCurrency } from "../utils/paymentBalance";
-import { sanitizeAmountInput } from "../utils/amountInput"; // przecinek = kropka w polach kwot
+import { applyChangeToCash, computePaymentBalance, formatMoney, formatMoneyExact, plnPerUnit, plnToCurrency, roundDownMoney, roundUpMoney } from "../utils/paymentBalance";
+import { sanitizeAmountInput } from "../utils/amountInput";
+import { sortCurrenciesForPicker } from "../utils/currencyOrder"; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from "../utils/useSubmitGuard"; // blokada podwójnego kliknięcia przy zapisie // sprzedaż w kilku walutach: ile do dopłaty
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
 import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
@@ -42,6 +43,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // Ręcznie poprawiona kwota „Do dopłaty” (np. wyliczone 50 EUR, mówimy klientowi 60 EUR).
   // Ważna tylko dla wyliczenia, przy którym ją wpisano (key) - po zmianie wpłat/waluty wraca podpowiedź.
   const [remainingOverride, setRemainingOverride] = useState(null);
+  // Reszta, gdy klient dopłaca więcej niż trzeba (np. 200 EUR przy 195,24 EUR): wiersze kwota + waluta, bo resztę
+  // można wydać w kilku walutach (część w zł, część w euro). currency "" = jak waluta dopłaty.
+  const [changeRows, setChangeRows] = useState([{ price: "", currency: "" }]);
+  const [changeDismissed, setChangeDismissed] = useState(false); // krzyżyk: reszty nie wydajemy (sekcja schowana)
+  const [mixedCardOverride, setMixedCardOverride] = useState(null); // gotówka i karta: ręcznie wpisana kwota karty
   const [currencyMenuVisible, setCurrencyMenuVisible] = useState(false);
   const [currentCurrencyIndex, setCurrentCurrencyIndex] = useState(null);
   const [currentCurrencyType, setCurrentCurrencyType] = useState(""); // "cash" or "card"
@@ -63,7 +69,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // Get available currencies from currencyRates
   const availableCurrencies = (() => {
     if (!currencyRates || currencyRates.length === 0) {
-      return ["PLN", "HUF", "GBP", "ILS", "USD", "EUR", "CAN"].map(code => ({ code, name: code, buyRate: '-' }));
+      return ["PLN", "EUR", "USD", "HUF", "CAN", "GBP", "ILS"].map(code => ({ code, name: code, buyRate: '-' }));
     }
     
     const currencies = currencyRates.map(rate => ({ 
@@ -77,7 +83,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       currencies.unshift({ code: 'PLN', name: 'Polski złoty', buyRate: 1 });
     }
     
-    return currencies;
+    return sortCurrenciesForPicker(currencies);
   })();
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false); // State for currency modal
   const [currentCurrencyPairIndex, setCurrentCurrencyPairIndex] = useState(null); // Track the index of the pair being edited
@@ -360,6 +366,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   };
 
   const openCurrencyModal = (index, type) => {
+    Keyboard.dismiss(); // po zamknięciu okna fokus nie wraca do pola - klawiatura nie wyskakuje
     setCurrentCurrencyIndex(index);
     setCurrentCurrencyType(type);
     setCurrencyModalVisible(true);
@@ -368,6 +375,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const selectCurrencyFromModal = (currency) => {
     if (currentCurrencyType === "remaining") {
       setRemainingCurrency(currency);
+    } else if (currentCurrencyType === "change") {
+      updateChangeRow(currentCurrencyIndex, "currency", currency);
     } else if (currentCurrencyType === "cash") {
       handleCashPairChange(currentCurrencyIndex, "currency", currency);
     } else if (currentCurrencyType === "card") {
@@ -463,9 +472,34 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const cardNoDiscount = priceRuleSale && paymentMode !== "cash";
   const effectiveSalePrice = cardNoDiscount ? String(salePriceList) : salePrice;
   const effectiveSaleMin = cardNoDiscount ? salePriceList : salePriceMin;
-  const effectiveCardPriceCurrencyPairs = cardPriceCurrencyPairs.map((pair) => ({ ...pair, currency: "PLN" }));
+  // Gotówka i karta: bez rabatu - karta dopłaca to, czego brakuje po gotówce (podpowiedź w górę do grosza).
+  // Kwotę można podnieść ręcznie (np. 849.45 → 850 - nadwyżka zostaje u nas, karta nie wydaje reszty),
+  // obniżyć poniżej ceny nie - to byłby rabat (blokada minimum).
+  const cashOnlyBalance = computePaymentBalance({ price: effectiveSalePrice, payments: cashPriceCurrencyPairs, currencyRates });
+  const mixedCardSuggested = paymentMode === "mixed" ? roundUpMoney(Math.max(0, cashOnlyBalance.remainingPln)) : null;
+  const mixedCardAmount = mixedCardSuggested === null
+    ? null
+    : (mixedCardOverride && mixedCardOverride.key === mixedCardSuggested ? mixedCardOverride.value : mixedCardSuggested);
+  const effectiveCardPriceCurrencyPairs = cardPriceCurrencyPairs.map((pair, index) => ({
+    ...pair,
+    currency: "PLN",
+    ...(mixedCardAmount !== null && index === 0 && { price: mixedCardAmount }),
+  }));
+  // Ręczna dopłata i wiersze reszty należą do jednej sprzedaży - czyścimy je przy zmianie sposobu płatności
+  // i po zamknięciu okna (Anuluj / zapis), inaczej wracałyby przy następnej kurtce w tej samej cenie
+  const resetPaymentExtras = () => {
+    setRemainingOverride(null);
+    setChangeRows([{ price: "", currency: "" }]);
+    setChangeDismissed(false);
+    setMixedCardOverride(null);
+  };
+  useEffect(() => {
+    if (!modalVisible) resetPaymentExtras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalVisible]);
   const selectPaymentMode = (mode) => {
     if (mode === paymentMode) return;
+    resetPaymentExtras();
     if (mode === "card") {
       setCashPriceCurrencyPairs([{ price: "0", currency: "PLN" }]);
       setCardPriceCurrencyPairs([{ price: String(salePriceList), currency: "PLN", paymentMode: "card" }]);
@@ -474,6 +508,16 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
     setCardPriceCurrencyPairs([{ price: "", currency: "PLN", ...(mode === "mixed" && { paymentMode: "mixed" }) }]);
   };
+
+  // Płatność gotówką przy zwykłej sprzedaży: bez domyślnego wiersza wpłaty - kwotę podpowiada „Dopłata”,
+  // wiersze walut dodaje się przyciskiem „Dodaj walutę”. W pozostałych trybach zostaje jeden wiersz.
+  const cashRowsOptional = priceRuleSale && paymentMode !== "card";
+  useEffect(() => {
+    // tylko domyślny pusty wiersz - wiersz dodany przyciskiem („added”) zostaje
+    const blankOnly = cashPriceCurrencyPairs.length === 1 && !cashPriceCurrencyPairs[0].added && !String(cashPriceCurrencyPairs[0].price || "").trim();
+    if (cashRowsOptional && blankOnly) setCashPriceCurrencyPairs([]);
+    if (!cashRowsOptional && cashPriceCurrencyPairs.length === 0) setCashPriceCurrencyPairs([{ price: "", currency: "PLN" }]);
+  }, [cashRowsOptional, cashPriceCurrencyPairs]);
 
   // Płatność kartą: kwota zawsze równa cenie z cennika (bez edycji)
   useEffect(() => {
@@ -595,11 +639,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   };
 
   const handleAddCashPair = () => {
-    setCashPriceCurrencyPairs([...cashPriceCurrencyPairs, { price: "", currency: "PLN" }]);
+    setCashPriceCurrencyPairs([...cashPriceCurrencyPairs, { price: "", currency: "PLN", added: true }]);
   };
 
   const handleRemoveCashPair = (index) => {
-    if (cashPriceCurrencyPairs.length > 1) {
+    if (cashPriceCurrencyPairs.length > 1 || cashRowsOptional) {
       const updatedPairs = cashPriceCurrencyPairs.filter((_, i) => i !== index);
       setCashPriceCurrencyPairs(updatedPairs);
     }
@@ -624,9 +668,16 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     payments: [...cashPriceCurrencyPairs, ...effectiveCardPriceCurrencyPairs],
     currencyRates,
   });
-  const remainingInCurrency = plnToCurrency(Math.abs(paymentBalance.remainingPln), remainingCurrency, currencyRates);
-  const isOverpaid = paymentBalance.remainingPln < -0.005;
-  const remainingSuggested = remainingInCurrency === null ? "" : formatMoney(remainingInCurrency);
+  // Nadpłata liczy się z sumy wpłat (gotówka i karta razem); resztę wydaje się z gotówki w kasie
+  const overpayBalance = paymentBalance;
+  const remainingInCurrency = plnToCurrency(Math.abs(overpayBalance.remainingPln), remainingCurrency, currencyRates);
+  // Reszta istnieje tylko, gdy po zaokrągleniu w dół jest co wydać (min. 0.01 w walucie) - nie „Reszta: 0.00”
+  const overpaidChange = overpayBalance.remainingPln < 0 && remainingInCurrency !== null ? roundDownMoney(remainingInCurrency) : "0.00";
+  const isOverpaid = Number(overpaidChange) >= 0.01;
+  // Podpowiedź na korzyść sprzedawcy: dopłata w górę, reszta w dół; nadpłata poniżej grosza = nic do dopłaty
+  const remainingSuggested = remainingInCurrency === null
+    ? ""
+    : (isOverpaid ? overpaidChange : (paymentBalance.remainingPln > 0 ? roundUpMoney(remainingInCurrency) : "0.00"));
   const remainingKey = `${remainingSuggested}|${remainingCurrency}|${isOverpaid}`;
   // Do dopłaty: pole z podpowiedzią (do poprawienia). Reszta: pole puste = reszty nie wydano (do obrotu cała kwota)
   const remainingInput = remainingOverride && remainingOverride.key === remainingKey
@@ -635,12 +686,56 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const remainingInputNumber = parseFloat(String(remainingInput).replace(",", "."));
   // Ile klient zapłaci łącznie: już wpłacone + kwota z pola „Do dopłaty” (przy reszcie: minus reszta), w zł
   const remainingUnit = plnPerUnit(remainingCurrency, currencyRates);
-  const remainingInputPln = remainingUnit !== null && remainingInputNumber > 0 ? remainingInputNumber * remainingUnit : 0;
-  const clientTotalPln = isOverpaid ? paymentBalance.paidPln - remainingInputPln : paymentBalance.paidPln + remainingInputPln;
+  // Pole „Klient dopłaca” jest tylko w płatności gotówką - w mieszanej i kartą jego podpowiedź nie może się wliczać
+  const remainingInputPln = paymentMode === "cash" && remainingUnit !== null && remainingInputNumber > 0 ? remainingInputNumber * remainingUnit : 0;
+  // Dopłata większa niż ta, o którą poprosiliśmy (podpowiedź zaokrąglona w górę): różnica to reszta do wydania.
+  // Liczona względem podpowiedzi, nie surowej ceny - ułamek grosza z zaokrąglenia zostaje u sprzedawcy, bez „reszty”.
+  const suggestedTopUpPln = !isOverpaid && remainingUnit !== null && remainingSuggested
+    ? Number(remainingSuggested) * remainingUnit
+    : Math.max(0, paymentBalance.remainingPln);
+  const extraPaidPln = !isOverpaid && remainingInputPln > suggestedTopUpPln + 0.005
+    ? remainingInputPln - suggestedTopUpPln
+    : 0;
+  // Reszta do wydania: nadpłata z wierszy „Klient wpłaca” albo dopłata większa niż prośba - jedna sekcja dla obu
+  const changeDuePln = isOverpaid ? Math.abs(overpayBalance.remainingPln) : extraPaidPln;
+  // Gotówka i karta: reszta tylko z gotówki od klienta (z karty nie ma, ujemnej wpłaty gotówką też nie) -
+  // podpowiedź nie przekracza tej gotówki, większa reszta blokuje zapis
+  const changeCashCapPln = paymentMode === "mixed" ? cashOnlyBalance.paidPln : Infinity;
+  // Sekcja reszty tylko, gdy po zaokrągleniu w dół naprawdę jest co wydać (min. 0.01 w walucie dopłaty)
+  const extraInCurrency = plnToCurrency(changeDuePln, remainingCurrency, currencyRates);
+  const extraChangeAvailable = changeDuePln > 0 && Number(roundDownMoney(extraInCurrency === null ? changeDuePln : extraInCurrency)) >= 0.01;
+  const extraChangeVisible = extraChangeAvailable && !changeDismissed; // schowana = reszty nie wydano, nic nie odejmujemy
+  // Wiersze reszty: puste pola (podpowiedź tylko jako blady placeholder) - puste = reszty nie wydano
+  const changeRowCurrency = (row) => row.currency || remainingCurrency;
+  const changeRowPln = (row) => {
+    const unit = plnPerUnit(changeRowCurrency(row), currencyRates);
+    const amount = parseFloat(String(row.price || "").replace(",", ".")) || 0;
+    return unit !== null && amount > 0 ? amount * unit : 0;
+  };
+  const changePln = extraChangeVisible ? changeRows.reduce((sum, row) => sum + changeRowPln(row), 0) : 0;
+  // Podpowiedzi wierszy sumują się do całej reszty: wpisane kwoty się odejmują, a to, co zostało, podpowiada
+  // pierwszy pusty wiersz (kolejne puste: 0.00). Każda w walucie swojego wiersza, po kursie do przeliczeń.
+  const typedChangePln = changeRows.reduce((sum, row) => sum + changeRowPln(row), 0);
+  const firstEmptyChangeRow = changeRows.findIndex((row) => !(parseFloat(String(row.price || "").replace(",", ".")) > 0));
+  const changeRowHint = (index) => {
+    const leftPln = index === firstEmptyChangeRow ? Math.max(0, Math.min(changeDuePln, changeCashCapPln) - typedChangePln) : 0;
+    const amount = plnToCurrency(leftPln, changeRowCurrency(changeRows[index]), currencyRates);
+    return amount === null ? "brak kursu" : roundDownMoney(amount); // reszta w dół
+  };
+  const updateChangeRow = (index, field, value) => {
+    setChangeRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+  const clientTotalPln = paymentBalance.paidPln + (isOverpaid ? 0 : remainingInputPln) - changePln;
+  // Poniżej minimum przez za dużą resztę (klient zapłacił dość, sprzedawca wydał za dużo): maksymalna reszta = wpłaty - minimum
+  const paidBeforeChangePln = paymentBalance.paidPln + (isOverpaid ? 0 : remainingInputPln);
+  const maxChangePln = Math.max(0, paidBeforeChangePln - (Number(effectiveSaleMin) || 0));
+  const changeTooMuch = extraChangeVisible && changePln > maxChangePln + 0.0001 && paidBeforeChangePln >= (Number(effectiveSaleMin) || 0) - 0.0001;
+  const changeOverCash = extraChangeVisible && changePln > changeCashCapPln + 0.0001;
   // Kwota, którą sprawdza blokada przy zapisie (gotówka i nadpłata liczą dopłatę, płatność kartą/mieszana nie)
-  const amountCheckedPln = paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid) ? clientTotalPln : paymentBalance.paidPln;
+  const amountCheckedPln = paymentMode === "card" ? paymentBalance.paidPln : clientTotalPln;
   const minimumChecked = !isPickup || Boolean(pickupExchange); // zwykła sprzedaż albo wymiana przy odbiorze
-  const belowMinimum = minimumChecked && Boolean(effectiveSaleMin) && amountCheckedPln > 0.005 && amountCheckedPln < effectiveSaleMin - 0.005;
+  // 0.0001 tylko na błąd zmiennoprzecinkowy - ułamek grosza poniżej minimum też blokuje
+  const belowMinimum = minimumChecked && Boolean(effectiveSaleMin) && amountCheckedPln > 0.005 && amountCheckedPln < effectiveSaleMin - 0.0001;
   const minimumTopUpPln = Math.max(0, Number(effectiveSaleMin) - amountCheckedPln);
   // Minimum w walucie płatności: karta - waluta pozycji karty, gotówka/mieszana - waluta dopłaty (cena minus wpłacone)
   const minimumTargetCurrency = paymentMode === "card" ? (cardPriceCurrencyPairs[0]?.currency || "PLN") : remainingCurrency;
@@ -648,29 +743,25 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const minimumApplies = !isPickup && minimumTargetCurrency !== "PLN" && minimumTargetPln > 0.005 && (paymentMode === "card" || !isOverpaid);
   const minimumInTarget = minimumApplies ? plnToCurrency(minimumTargetPln, minimumTargetCurrency, currencyRates) : null;
   const minimumLabel = paymentMode === "card" ? "Minimalna kwota" : "Minimalna dopłata";
-  const minimumTargetText = minimumInTarget === null ? "" : `${minimumLabel}: ${formatMoney(minimumInTarget)} ${minimumTargetCurrency}`;
+  const minimumTargetText = minimumInTarget === null ? "" : `${minimumLabel}: ${roundUpMoney(minimumInTarget)} ${minimumTargetCurrency}`;
   const minimumNotice = belowMinimum ? (
     <Text testID="minimum-warning" style={{ color: '#EF4444', fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
       {pickupExchange
         ? `Wymiana: minimalna dopłata ${formatMoney(effectiveSaleMin)} zł (minimum kurtki ${pickupExchange.minPrice} zł − zaliczka ${formatMoney(pickupExchange.deposit)} zł), klient dopłaca ${formatMoney(amountCheckedPln)} zł.`
         : `Minimalna cena: ${effectiveSaleMin} zł (klient zapłaci ${formatMoney(amountCheckedPln)} zł).${minimumTargetText ? ` ${minimumTargetText}.` : ""}`}
       <Text testID="minimum-top-up" style={{ color: '#10B981', fontWeight: '700' }}>
-        {` Dopłać jeszcze ${formatMoney(minimumTopUpPln)} zł, aby osiągnąć minimum.`}
+        {` Dopłać jeszcze ${roundUpMoney(minimumTopUpPln)} zł, aby osiągnąć minimum.`}
       </Text>
     </Text>
-  ) : minimumInTarget !== null ? (
-    <Text testID="minimum-converted" style={{ color: tc('muted', '#94A3B8'), fontWeight: '600', marginTop: -4, marginBottom: 6 }}>
-      {`${minimumTargetText} (${formatMoney(minimumTargetPln)} zł)`}
-    </Text>
-  ) : null;
+  ) : null; // kwota wystarcza - bez podpowiedzi „Minimalna dopłata” (w walucie widać ją tylko w ostrzeżeniu)
   // Płatność kartą: bez bloku dopłaty i reszty, zostaje tylko ostrzeżenie o minimum
   const remainingVisible = (paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid)) && Number(effectiveSalePrice) > 0;
   const remainingBlock = (!isPickup || selectedOrder) && remainingVisible ? (
     <View style={styles.remainingSection} testID="remaining-card">
-      <View style={styles.remainingHeader}>
-        <Ionicons name={isOverpaid ? "return-down-back-outline" : "hourglass-outline"} size={18} color={isOverpaid ? "#F59E0B" : "#EF4444"} />
-        <Text style={styles.remainingTitle}>{isOverpaid ? `Reszta do wydania: ${remainingSuggested || "?"} ${remainingCurrency}` : "Dopłata"}</Text>
-      </View>
+      {/* Nadpłata z wierszy „Klient wpłaca”: bez pola dopłaty - od razu sekcja „Reszta do wydania” */}
+      {!isOverpaid && (
+      <>
+      <Text style={styles.salePriceLabel}>Klient dopłaca</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <TextInput
           testID="remaining-amount"
@@ -691,18 +782,112 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
         </TouchableOpacity>
       </View>
-      {isOverpaid && (
-        <Text style={styles.remainingHint}>Wpisz wydaną resztę. Puste pole = reszty nie wydano.</Text>
+      </>
       )}
-      <Text testID="client-total" style={styles.clientTotal}>
-        {`Klient zapłaci: ${formatMoney(clientTotalPln)} zł`}
-        <Text style={styles.clientTotalPrice}>{`  (cena ${formatMoney(Number(effectiveSalePrice) || 0)} zł)`}</Text>
-      </Text>
+      {extraChangeVisible && (
+        <View testID="extra-change" style={styles.changeSection}>
+          <View style={[styles.remainingHeader, { justifyContent: "space-between" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="return-down-back-outline" size={18} color="#F59E0B" />
+              <Text style={styles.remainingTitle}>Reszta do wydania</Text>
+            </View>
+            <TouchableOpacity testID="change-dismiss" accessibilityLabel="Nie wydaję reszty" style={{ padding: 4 }} onPress={() => setChangeDismissed(true)}>
+              <Ionicons name="close" size={22} color={tc('muted', '#94A3B8')} />
+            </TouchableOpacity>
+          </View>
+          {changeRows.map((row, index) => (
+            <View key={`change-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <TextInput
+                testID={`change-amount-${index}`}
+                style={[look.formInput, styles.remainingValue, styles.remainingValueText, { color: '#F59E0B' }]}
+                value={row.price}
+                onChangeText={(value) => updateChangeRow(index, "price", sanitizeAmountInput(value))}
+                placeholder={changeRowHint(index)}
+                placeholderTextColor="rgba(148, 163, 184, 0.35)"
+                keyboardType="numeric"
+              />
+              <TouchableOpacity
+                testID={`change-currency-${index}`}
+                style={[look.selectField, { flex: 1 }]}
+                onPress={() => openCurrencyModal(index, "change")}
+              >
+                <Text style={look.selectFieldText}>{changeRowCurrency(row)}</Text>
+                <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
+              </TouchableOpacity>
+              {index > 0 && (
+                <TouchableOpacity
+                  accessibilityLabel="Usuń walutę reszty"
+                  style={styles.removeTile}
+                  onPress={() => setChangeRows((rows) => rows.filter((_, i) => i !== index))}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+          <Pressable testID="change-add-currency" style={styles.addPairButton} onPress={() => setChangeRows((rows) => [...rows, { price: "", currency: "PLN" }])}>
+            <Ionicons name="add" size={20} color="#0D6EFD" />
+            <Text style={styles.addPairButtonText}>Dodaj walutę</Text>
+          </Pressable>
+        </View>
+      )}
+      {changeOverCash && (
+        <Text testID="change-over-cash" style={styles.minimumPriceText}>
+          {`Reszta (${roundUpMoney(changePln)} zł) większa niż gotówka od klienta (${roundDownMoney(changeCashCapPln)} zł) - resztę wydaje się z gotówki, zmniejsz kwotę kartą`}
+        </Text>
+      )}
+      {extraChangeAvailable && changeDismissed && (
+        <TouchableOpacity testID="change-reopen" style={{ marginTop: 10, alignSelf: "center" }} onPress={() => setChangeDismissed(false)}>
+          <Text style={styles.addPairButtonText}>↩ Reszta nie wydana - wydaj resztę</Text>
+        </TouchableOpacity>
+      )}
       {paymentBalance.missingRates.length > 0 && (
         <Text style={styles.remainingHint}>{`Brak kursu: ${paymentBalance.missingRates.join(", ")} - te wpłaty nie są liczone`}</Text>
       )}
     </View>
   ) : null;
+
+  // Podsumowanie na dole: Finalna cena, a poniżej minimum - Minimalna cena i co zrobić (gotówka: w sekcji gotówki,
+  // gotówka i karta: pod sekcją karty)
+  const saleSummary = pickupExchange ? minimumNotice : (
+                    <>
+                      {(remainingVisible || paymentMode === "mixed") && clientTotalPln > 0.005 && (
+                        <Text testID="final-price" style={styles.finalPriceText}>{`Finalna cena: ${roundDownMoney(clientTotalPln)} zł`}</Text>
+                      )}
+                      {belowMinimum && (
+                        <Text testID="minimum-price" style={styles.minimumPriceText}>{`Minimalna cena: ${formatMoney(effectiveSaleMin)} zł`}</Text>
+                      )}
+                      {belowMinimum && changeTooMuch && (() => {
+                        // klient dał dość - za dużo wydanej reszty; maksimum także w walucie pierwszego wiersza reszty
+                        const firstCurrency = changeRowCurrency(changeRows[0] || {});
+                        const maxInCurrency = firstCurrency !== "PLN" ? plnToCurrency(maxChangePln, firstCurrency, currencyRates) : null;
+                        return (
+                          <Text testID="change-too-much" style={styles.minimumPriceText}>
+                            {`Reszta za duża o ${roundUpMoney(changePln - maxChangePln)} zł - maksymalna reszta: ${roundDownMoney(maxChangePln)} zł${maxInCurrency === null ? "" : ` (${roundDownMoney(maxInCurrency)} ${firstCurrency})`}`}
+                          </Text>
+                        );
+                      })()}
+                      {belowMinimum && !changeTooMuch && (() => {
+                        // kwota do pola „Klient dopłaca”, żeby osiągnąć minimum: minimum minus „Klient wpłaca”
+                        // (zmienia się razem z wpłatami), w walucie dopłaty
+                        if (paymentMode === "mixed") {
+                          // ile jeszcze brakuje kartą (po gotówce i już wpisanej kwocie kartą) - bez rabatu
+                          const cardTyped = Number(mixedCardAmount) > 0 ? Number(mixedCardAmount) : 0;
+                          const cardMissing = roundUpMoney(Math.max(0, Number(effectiveSaleMin) - cashOnlyBalance.paidPln - cardTyped));
+                          const cardMin = roundUpMoney(Math.max(0, Number(effectiveSaleMin) - cashOnlyBalance.paidPln));
+                          return (
+                            <Text testID="minimum-top-up-cash" style={styles.minimumTopUpText}>
+                              {cardTyped > 0 ? `Kartą trzeba dopłacić jeszcze: ${cardMissing} zł` : `Kartą trzeba dopłacić co najmniej: ${cardMin} zł`}
+                            </Text>
+                          );
+                        }
+                        const topUp = plnToCurrency(Math.max(0, Number(effectiveSaleMin) - paymentBalance.paidPln), remainingCurrency, currencyRates);
+                        return topUp === null ? null : (
+                          <Text testID="minimum-top-up-cash" style={styles.minimumTopUpText}>{`Klient musi dopłacić: ${roundUpMoney(topUp)} ${remainingCurrency}`}</Text>
+                        );
+                      })()}
+                    </>
+  );
 
   const handleAddCardPair = () => {
     setCardPriceCurrencyPairs([...cardPriceCurrencyPairs, { price: "", currency: "PLN" }]);
@@ -924,13 +1109,17 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
 
     // Sprzedaż w kilku walutach: do obrotu idzie końcowa kwota („Klient zapłaci”)
     // Płatność mieszana: brakującej kwoty nie dopisujemy po cichu - blokada minimum pokaże, czego brakuje
-    if ((!isPickup || selectedOrder) && Number(effectiveSalePrice) > 0 && remainingInputNumber > 0 && (paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid))) {
-      if (isOverpaid) {
-        // wydana reszta zmniejsza wpłaty gotówką
-        validCashPrices = applyChangeToCash(validCashPrices, remainingInputNumber, remainingCurrency, currencyRates);
-      } else {
-        // dopłata z pola „Do dopłaty” liczy się sama jako wpłata gotówką
-        validCashPrices = [...validCashPrices, { price: formatMoney(remainingInputNumber), currency: remainingCurrency }];
+    if ((!isPickup || selectedOrder) && Number(effectiveSalePrice) > 0 && (paymentMode === "cash" || (paymentMode === "mixed" && isOverpaid))) {
+      // dopłata z pola „Klient dopłaca” liczy się sama jako wpłata gotówką
+      if (!isOverpaid && remainingInputNumber > 0) {
+        validCashPrices = [...validCashPrices, { price: formatMoneyExact(remainingInputNumber), currency: remainingCurrency }];
+      }
+      // wydana reszta (sekcja „Reszta do wydania”, także w kilku walutach) zmniejsza wpłaty gotówką; schowana ✕ = nie wydano
+      if (extraChangeVisible) {
+        changeRows.forEach((row) => {
+          const amount = parseFloat(String(row.price || "").replace(",", ".")) || 0;
+          if (amount > 0) validCashPrices = applyChangeToCash(validCashPrices, amount, changeRowCurrency(row), currencyRates);
+        });
       }
     }
     
@@ -942,6 +1131,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     const totalCash = validCashPrices.reduce((sum, pair) => sum + parseFloat(pair.price || 0), 0);
     const totalCard = validCardPrices.reduce((sum, pair) => sum + parseFloat(pair.price || 0), 0);
     const totalPayment = totalCash + totalCard;
+
+    // Gotówka i karta: reszty nie da się wydać ponad gotówkę od klienta (z karty nie ma, ujemnej wpłaty nie ma)
+    if (changeOverCash) {
+      setErrorMessage(`Reszta ${roundUpMoney(changePln)} zł jest większa niż gotówka od klienta (${roundDownMoney(changeCashCapPln)} zł). Resztę wydaje się z gotówki - zmniejsz kwotę kartą.`);
+      setErrorModalVisible(true);
+      return;
+    }
 
     // Waluta bez kursu (własny z panelu, a gdy go nie ma - kantor): sprzedaży nie zapisujemy
     const missingRatesAtSave = computePaymentBalance({ price: 0, payments: [...validCashPrices, ...validCardPrices], currencyRates }).missingRates;
@@ -1144,29 +1340,19 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   value={modalMessage}
                   editable={false}
                 />
-                <Text style={look.formLabel}>Gdzie</Text>
-                <TextInput
-                  style={styles.inputField}
-                  value={user?.sellingPoint || "Unknown"}
-                  editable={false}
-                  placeholder="Selling Point"
-                />
-                <Text style={look.formLabel}>Sprzedano od</Text>
-                <View style={styles.warningCard}>
-                  <Ionicons name="warning" size={22} color="#F59E0B" />
-                  <Text style={styles.warningText}>
-                    To jest bardzo ważne pole. Proszę o przemyślany wybór!
-                  </Text>
+                {/* „Sprzedano od” w ramce: mały wyśrodkowany podpis nad listą rozwijaną (zamiast dużego ostrzeżenia) */}
+                <View style={styles.sellerFrame}>
+                  <Text style={styles.sellerFrameCaption}>Sprzedano od - bardzo ważne, wybierz uważnie</Text>
+                  <TouchableOpacity
+                    style={[look.selectField, styles.importantSelect]}
+                    onPress={openSellingPointModal}
+                  >
+                    <Text style={[look.selectFieldText, !selectedOption && { color: tc('muted', '#94A3B8') }]}>
+                      {selectedOption || "Wybierz punkt sprzedaży"}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#F59E0B" />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[look.selectField, styles.importantSelect, { marginBottom: 16 }]}
-                  onPress={openSellingPointModal}
-                >
-                  <Text style={[look.selectFieldText, !selectedOption && { color: tc('muted', '#94A3B8') }]}>
-                    {selectedOption || "Wybierz punkt sprzedaży"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#F59E0B" />
-                </TouchableOpacity>
                 {sellingPointMenuVisible && (
                   <Modal
                     transparent={true}
@@ -1364,8 +1550,10 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     <Text style={styles.paymentTitle}>{isPickup ? 'Dopłata' : 'Płatność gotówką'}</Text>
                   </View>
                   {(!isPickup || selectedOrder) && (
+                    <Text style={[styles.salePriceLabel, cardNoDiscount && { opacity: 0.45 }]}>{cardNoDiscount ? "W tej formie płatności nie ma rabatu" : "Cena proponowana klientowi"}</Text>
+                  )}
+                  {(!isPickup || selectedOrder) && (
                     <View style={[styles.salePriceRow, cardNoDiscount && { opacity: 0.45 }]}>
-                      <Text style={styles.salePriceLabel}>Cena</Text>
                       <TextInput
                         testID="sale-price-input"
                         style={[look.formInput, { flex: 1 }]}
@@ -1379,13 +1567,13 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       <Text style={styles.salePriceCurrency}>PLN</Text>
                     </View>
                   )}
-                  {!isPickup && effectiveSaleMin ? (
-                    <Text style={[styles.remainingHint, Number(effectiveSalePrice) > 0 && Number(effectiveSalePrice) < effectiveSaleMin - 0.005 && { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
-                      {cardNoDiscount
-                        ? `Płatność kartą: bez rabatu. Cena z cennika: ${effectiveSaleMin} zł`
-                        : Number(effectiveSalePrice) > 0 && Number(effectiveSalePrice) < effectiveSaleMin - 0.005 ? `Cena jest za niska. Najniższa dopuszczalna: ${effectiveSaleMin} zł` : `Najniższa cena: ${effectiveSaleMin} zł`}
+                  {/* Bez stałej podpowiedzi „Najniższa cena” - tylko ostrzeżenie o za niskiej cenie i informacja przy karcie */}
+                  {!isPickup && !cardNoDiscount && effectiveSaleMin && Number(effectiveSalePrice) > 0 && Number(effectiveSalePrice) < effectiveSaleMin - 0.005 ? (
+                    <Text style={[styles.remainingHint, { color: '#EF4444', fontWeight: '600' }, { marginTop: -6, marginBottom: 10 }]}>
+                      {`Cena jest za niska. Najniższa dopuszczalna: ${effectiveSaleMin} zł`}
                     </Text>
                   ) : null}
+                  <Text style={[styles.salePriceLabel, { marginTop: 10 }, cashLocked && { opacity: 0.45 }]}>{paymentMode === "mixed" ? "Klient wpłaca gotówką" : "Klient wpłaca"}</Text>
                   {cashPriceCurrencyPairs.map((pair, index) => (
                     <View
                       key={`cash-${index}`}
@@ -1413,7 +1601,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         <Text style={look.selectFieldText}>{pair.currency || "PLN"}</Text>
                         <Ionicons name="chevron-down" size={18} color={tc('muted', '#94A3B8')} />
                       </TouchableOpacity>
-                      {index > 0 && (
+                      {(index > 0 || cashRowsOptional) && (
                         <TouchableOpacity
                           accessibilityLabel="Usuń"
                           style={styles.removeTile}
@@ -1431,7 +1619,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </Pressable>
                   )}
                   {paymentMode !== "card" && remainingBlock}
-                  {paymentMode === "cash" && minimumNotice}
+                  {/* Płatność gotówką: krótko na dole - finalna cena, a poniżej minimum także minimalna cena */}
+                  {paymentMode === "cash" && saleSummary}
                 </View>
                 )}
                 {currencyModalVisible && (
@@ -1479,6 +1668,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </View>
                     <Text style={styles.paymentTitle}>{isPickup || paymentMode === "mixed" ? "Dopłata kartą" : "Płatność kartą"}</Text>
                   </View>
+                  {paymentMode === "mixed" && <Text style={styles.salePriceLabel}>Klient dopłaca kartą</Text>}
+                  {paymentMode === "card" && <Text style={styles.salePriceLabel}>W tej formie płatności nie ma rabatu</Text>}
                   {effectiveCardPriceCurrencyPairs.map((pair, index) => (
                     <View
                       key={`card-${index}`}
@@ -1492,7 +1683,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                         value={pair.price}
                         onChangeText={(value) => {
                           const numericValue = sanitizeAmountInput(value);
-                          handleCardPairChange(index, "price", numericValue);
+                          if (paymentMode === "mixed") {
+                            setMixedCardOverride({ key: mixedCardSuggested, value: numericValue }); // podniesiona ręcznie kwota karty
+                          } else {
+                            handleCardPairChange(index, "price", numericValue);
+                          }
                         }}
                         placeholder="Wpisz kwotę"
                         keyboardType="numeric"
@@ -1509,13 +1704,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                       </TouchableOpacity>
                     </View>
                   ))}
-                  {paymentMode === "mixed" && (
-                    <Text testID="mixed-payment-summary" style={styles.remainingHint}>
-                      {`Zapłacono: ${formatMoney(paymentBalance.paidPln)} zł · Do dopłaty kartą: ${formatMoney(Math.max(0, paymentBalance.remainingPln))} zł`}
-                    </Text>
-                  )}
                   {paymentMode === "card" && remainingBlock}
-                  {paymentMode !== "cash" && minimumNotice}
+                  {paymentMode === "card" && minimumNotice}
+                  {paymentMode === "mixed" && saleSummary}
                 </View>
                 )}
                 <View style={styles.modalButtons}>
@@ -1757,22 +1948,65 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  sellerFrame: { // „Sprzedano od”: ramka z podpisem nad listą rozwijaną
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.6)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: 'rgba(245, 158, 11, 0.06)',
+  },
+  sellerFrameCaption: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   salePriceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginBottom: 12,
   },
-  salePriceLabel: {
+  salePriceLabel: { // „Cena proponowana klientowi” - małe, wyśrodkowane nad polem ceny
     color: tc('muted', '#94A3B8'),
-    fontSize: 14,
-    fontWeight: "600",
-    width: 44,
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 6,
   },
   salePriceCurrency: {
     color: tc('muted', '#94A3B8'),
     fontSize: 14,
     fontWeight: "600",
+  },
+  finalPriceText: {
+    color: tc('text', '#fff'),
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  minimumPriceText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  minimumTopUpText: {
+    color: '#10B981',
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  changeSection: { // „Reszta do wydania” - sekcja w sekcji, pokazuje się, gdy klient dopłaca za dużo
+    marginTop: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.45)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
   },
   remainingSection: {
     marginTop: 14,
@@ -1797,17 +2031,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   remainingValueText: {
     fontSize: 17,
     fontWeight: "700",
-  },
-  clientTotal: {
-    color: tc('text', '#fff'),
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 10,
-  },
-  clientTotalPrice: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 13,
-    fontWeight: "400",
   },
   remainingHint: {
     color: tc('muted', '#94A3B8'),

@@ -225,7 +225,7 @@ export const defaultSalePrice = (args) => salePriceRule(args)?.defaultPrice ?? n
 
 // Komunikat blokady albo null, gdy kwota jest w porządku
 export const minimumPriceError = (paidPln, minPrice) => (
-  minPrice && paidPln < minPrice - 0.005
+  minPrice && paidPln < minPrice - 0.0001 // tylko błąd zmiennoprzecinkowy, nie pół grosza na korzyść klienta
     ? `Minimalna cena tego produktu to ${minPrice} zł. Klient płaci ${(Math.round(paidPln * 100) / 100).toFixed(2)} zł - zwiększ kwotę.`
     : null
 );

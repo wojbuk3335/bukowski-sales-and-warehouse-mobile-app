@@ -5,7 +5,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import bukowskiLogo from "./bukowski.png";
 
 import CustomButton from "../components/CustomButton";
-import ThemeSwitch from "../components/ThemeSwitch";
 
 import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
 const Welcome = () => {
@@ -24,8 +23,6 @@ const Welcome = () => {
             handlePress={() => router.push("/(auth)/sign-in")}
             containerStyles={styles.button}
           />
-          {/* Motyw aplikacji (Biały / Szary / Czarny) - domyślnie szary */}
-          <ThemeSwitch style={{ marginHorizontal: 0, marginTop: 28, alignSelf: 'stretch' }} />
         </View>
       </ScrollView>
       <StatusBar backgroundColor={tc('bg', "black")} style={statusBarStyle()} />

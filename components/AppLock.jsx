@@ -9,12 +9,21 @@ import tokenService from '../services/tokenService';
 import { GlobalStateContext } from '../context/GlobalState';
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext';
 import { look } from './AdminLook';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const LOCK_AFTER_MS = 5 * 60 * 1000;
 
 // Czy zablokować: szybkie logowanie włączone, odblokowanie dostępne, sesja ważna
 export const shouldLock = async () => {
-    const saved = await quickLogin.getSaved();
+    // Konto, na które telefon jest teraz zalogowany (przy kilku zapamiętanych kontach - właśnie to)
+    let currentUserId;
+    try {
+        const stored = JSON.parse((await AsyncStorage.getItem('user')) || 'null');
+        currentUserId = stored?.userId || stored?._id;
+    } catch (error) {
+        currentUserId = undefined;
+    }
+    const saved = await quickLogin.getSaved(currentUserId);
     if (!saved) return null;
     if ((await quickLogin.availability()) !== 'ok') return null;
     const authenticated = await tokenService.isAuthenticated().catch(() => false);

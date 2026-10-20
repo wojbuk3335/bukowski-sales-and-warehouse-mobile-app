@@ -1,7 +1,6 @@
 import React from 'react';
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import ThemeSwitch from './ThemeSwitch';
 import { createThemedStyles, tc } from '../context/ThemeContext';
 
 // Wspólny wygląd ekranów panelu użytkownika - taki sam jak w panelu admina:
@@ -12,7 +11,7 @@ import { createThemedStyles, tc } from '../context/ThemeContext';
  * Nagłówek zakładki - jeden niski wiersz (max ~10% wysokości ekranu): kafelek z ikoną, tytuł i podtytuł,
  * opcjonalnie coś po prawej (right, np. saldo) i przycisk wylogowania (kafelek). children - dodatkowy wiersz pod spodem.
  */
-export const ScreenHeader = ({ icon, title, subtitle, children, right, showThemeSwitch = false, showLogout = true }) => {
+export const ScreenHeader = ({ icon, title, subtitle, children, right, showLogout = true }) => {
   // wczytywane leniwie: LogoutButton korzysta z kontekstu aplikacji (nie obciąża ekranów i testów bez wylogowania)
   // eslint-disable-next-line global-require
   const LogoutButton = showLogout ? require('./LogoutButton').default : null;
@@ -29,7 +28,6 @@ export const ScreenHeader = ({ icon, title, subtitle, children, right, showTheme
         {right}
         {LogoutButton && <LogoutButton position="inline" compact />}
       </View>
-      {showThemeSwitch && <ThemeSwitch compact style={{ marginTop: 8 }} />}
       {children ? <View style={{ marginTop: 8 }}>{children}</View> : null}
     </View>
   );

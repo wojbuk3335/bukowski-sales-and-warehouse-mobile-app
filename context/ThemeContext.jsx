@@ -61,21 +61,15 @@ export const createThemedStyles = (factory) => {
 const ThemeContext = createContext({ theme: DEFAULT_THEME, colors: PALETTES[DEFAULT_THEME], setTheme: () => {} });
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setThemeState] = useState(DEFAULT_THEME);
+  // Motyw na stałe szary (decyzja 20.10.2026 - bez przełącznika). Zapisany wcześniej wybór (biały / czarny)
+  // jest ignorowany i usuwany z telefonu. Palety zostają - tc() i style ekranów działają bez zmian.
+  const theme = DEFAULT_THEME;
 
   useEffect(() => {
-    let cancelled = false;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => { if (!cancelled && THEMES.includes(stored)) setThemeState(stored); })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
   }, []);
 
-  const setTheme = (value) => {
-    const next = THEMES.includes(value) ? value : DEFAULT_THEME;
-    setThemeState(next);
-    AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
-  };
+  const setTheme = () => {}; // przełączanie motywu wyłączone
 
   currentTheme = theme; // przed renderem dzieci - style i tc() widzą już nowy motyw
   const contextValue = useMemo(() => ({ theme, colors: PALETTES[theme], setTheme }), [theme]);

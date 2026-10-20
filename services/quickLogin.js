@@ -10,6 +10,8 @@ import tokenService from './tokenService';
 import { getDeviceId, getDeviceName } from './deviceId';
 import Logger from './logger';
 
+// Zapamiętane konta: { accounts: [{ userId, secret, email, symbol, role, sellingPoint, savedAt, lastUsedAt }] }.
+// Dawniej jedno konto (sam obiekt) - odczyt przyjmuje oba formaty.
 const STORE_KEY = 'BukowskiQuickLogin';
 const PROMPTED_KEY = 'BukowskiQuickLoginAsked'; // konto, któremu już zaproponowano (żeby nie pytać przy każdym logowaniu)
 
@@ -61,18 +63,44 @@ export const unlock = async (promptMessage = 'Odblokuj aplikację Bukowski') => 
     }
 };
 
-export const getSaved = async () => {
+const isAccount = (item) => Boolean(item && item.userId && item.secret);
+const lastUsed = (item) => new Date(item.lastUsedAt || item.savedAt || 0).getTime() || 0;
+
+// Wszystkie konta zapamiętane na tym telefonie, ostatnio używane na początku
+export const getAccounts = async () => {
     try {
         const raw = await SecureStore.getItemAsync(STORE_KEY);
-        const saved = raw ? JSON.parse(raw) : null;
-        return saved && saved.userId && saved.secret ? saved : null;
+        const parsed = raw ? JSON.parse(raw) : null;
+        const list = Array.isArray(parsed?.accounts) ? parsed.accounts : (isAccount(parsed) ? [parsed] : []);
+        return list.filter(isAccount).sort((a, b) => lastUsed(b) - lastUsed(a));
     } catch (error) {
-        return null;
+        return [];
     }
 };
 
-export const clearSaved = async () => {
-    try { await SecureStore.deleteItemAsync(STORE_KEY); } catch (error) { /* brak wpisu */ }
+const writeAccounts = async (accounts) => {
+    if (accounts.length === 0) {
+        try { await SecureStore.deleteItemAsync(STORE_KEY); } catch (error) { /* brak wpisu */ }
+        return;
+    }
+    await SecureStore.setItemAsync(STORE_KEY, JSON.stringify({ accounts }));
+};
+
+// Jedno konto: wskazane (userId) albo ostatnio używane; null = brak
+export const getSaved = async (userId) => {
+    const accounts = await getAccounts();
+    if (userId) return accounts.find((item) => item.userId === String(userId)) || null;
+    return accounts[0] || null;
+};
+
+// Usuwa z telefonu jedno konto (userId) albo wszystkie (bez argumentu)
+export const clearSaved = async (userId) => {
+    if (!userId) {
+        await writeAccounts([]);
+        return;
+    }
+    const accounts = await getAccounts();
+    await writeAccounts(accounts.filter((item) => item.userId !== String(userId)));
 };
 
 // Czy zaproponować włączenie (po pełnym logowaniu): moduł jest, ten telefon nie ma jeszcze klucza dla tego konta,
@@ -80,9 +108,8 @@ export const clearSaved = async () => {
 export const shouldOffer = async (user) => {
     if (!user?.userId && !user?._id) return false;
     if (!loadLocalAuth()) return false;
-    const saved = await getSaved();
     const userId = String(user.userId || user._id);
-    if (saved?.userId === userId) return false;
+    if (await getSaved(userId)) return false; // to konto jest już zapamiętane na tym telefonie
     try {
         return (await SecureStore.getItemAsync(PROMPTED_KEY)) !== userId;
     } catch (error) {
@@ -103,23 +130,28 @@ export const enable = async (user) => {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.secret) throw new Error(data?.message || 'Nie udało się włączyć szybkiego logowania');
+    const now = new Date().toISOString();
     const saved = {
-        userId: data.userId,
+        userId: String(data.userId),
         secret: data.secret,
         email: data.email || user?.email || '',
         symbol: data.symbol || user?.symbol || '',
         role: data.role || user?.role || '',
         sellingPoint: data.sellingPoint || user?.sellingPoint || '',
-        savedAt: new Date().toISOString(),
+        savedAt: now,
+        lastUsedAt: now,
     };
-    await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(saved));
+    // Kolejne konto DOPISUJE się do listy (np. admin i konto punktu na jednym telefonie); to samo konto - nowy klucz
+    const others = (await getAccounts()).filter((item) => item.userId !== saved.userId);
+    await writeAccounts([saved, ...others]);
     return saved;
 };
 
-// Logowanie kluczem po odblokowaniu telefonu. Błędy: code 'CANCELLED' (anulowano odblokowanie),
-// 'TRUSTED_DEVICE_REJECTED' (odcięty - klucz usunięty), 'SESSION_ACTIVE' (punkt zajęty), inne - sieć / serwer.
-export const login = async () => {
-    const saved = await getSaved();
+// Logowanie kluczem po odblokowaniu telefonu - konto wskazane (userId) albo ostatnio używane.
+// Błędy: code 'CANCELLED' (anulowano odblokowanie), 'TRUSTED_DEVICE_REJECTED' (odcięty - klucz tego konta usunięty),
+// 'SESSION_ACTIVE' (punkt zajęty), inne - sieć / serwer.
+export const login = async (userId) => {
+    const saved = await getSaved(userId);
     if (!saved) {
         const error = new Error('Szybkie logowanie nie jest włączone na tym telefonie');
         error.code = 'NOT_ENABLED';
@@ -141,17 +173,24 @@ export const login = async () => {
         const error = new Error(data?.message || `Szybkie logowanie nie powiodło się (HTTP ${response.status})`);
         error.code = data?.code || data?.error || '';
         error.session = data?.session || null;
-        if (error.code === 'TRUSTED_DEVICE_REJECTED') await clearSaved(); // odcięty przez admina - pełne logowanie
+        if (error.code === 'TRUSTED_DEVICE_REJECTED') await clearSaved(saved.userId); // odcięty - to konto hasłem
         throw error;
     }
+    // ostatnio używane konto na początku listy (podpowiedź na ekranie logowania)
+    try {
+        const accounts = await getAccounts();
+        const used = { ...saved, lastUsedAt: new Date().toISOString() };
+        await writeAccounts([used, ...accounts.filter((item) => item.userId !== saved.userId)]);
+    } catch (error) { /* tylko kolejność */ }
     return data;
 };
 
-// „Zapomnij ten telefon”: wyłączenie na serwerze (potwierdzone kluczem, bez tokenu) i usunięcie klucza z telefonu
-export const forget = async () => {
-    const saved = await getSaved();
-    await clearSaved();
+// „Zapomnij”: wyłączenie na serwerze (potwierdzone kluczem, bez tokenu) i usunięcie klucza z telefonu -
+// jedno konto (userId) albo ostatnio używane
+export const forget = async (userId) => {
+    const saved = await getSaved(userId);
     if (!saved) return;
+    await clearSaved(saved.userId);
     try {
         await fetch(getApiUrl('/user/trusted-device/forget'), {
             method: 'POST',
@@ -163,4 +202,4 @@ export const forget = async () => {
     }
 };
 
-export default { loadLocalAuth, availability, unlock, getSaved, clearSaved, shouldOffer, rememberDeclined, enable, login, forget };
+export default { loadLocalAuth, availability, unlock, getAccounts, getSaved, clearSaved, shouldOffer, rememberDeclined, enable, login, forget };

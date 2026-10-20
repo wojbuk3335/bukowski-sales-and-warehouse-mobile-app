@@ -52,6 +52,19 @@ export const plnToCurrency = (pln, code, currencyRates) => {
 
 export const formatMoney = (value) => (Math.round(value * 100) / 100).toFixed(2);
 
+// Zaokrąglenia zawsze na korzyść sprzedawcy (kwoty wpisuje się do 4 miejsc, pokazuje do 2):
+//  - to, co klient ma zapłacić (dopłata, brakująca kwota do minimum) - w górę,
+//  - to, co wydajemy klientowi (reszta) - w dół.
+// CENTS_EPS chroni przed błędem zmiennoprzecinkowym (850.00000000001 nie ma stać się 850.01).
+const CENTS_EPS = 1e-7;
+export const roundUpMoney = (value) => (Math.ceil(Number(value) * 100 - CENTS_EPS) / 100).toFixed(2);
+export const roundDownMoney = (value) => (Math.floor(Number(value) * 100 + CENTS_EPS) / 100).toFixed(2);
+// Kwota zapisywana (wpłata po odjęciu reszty): dokładnie, do 4 miejsc, bez zbędnych zer (min. 2 miejsca)
+export const formatMoneyExact = (value) => {
+  const [whole, fraction] = (Math.round(Number(value) * 10000) / 10000).toFixed(4).split(".");
+  return `${whole}.${fraction.replace(/0+$/, "").padEnd(2, "0")}`;
+};
+
 /**
  * Wydana reszta odejmowana od wpłat gotówką (bez ujemnych kwot - prowizje pomijają ujemne wpłaty).
  * Najpierw z wpłat w walucie reszty, potem z pozostałych (przeliczając przez PLN). Zwraca nowe wpłaty.
@@ -71,7 +84,7 @@ export const applyChangeToCash = (cashPairs, changeAmount, changeCurrency, curre
     if (unit === null || amount <= 0) continue;
     const takePln = Math.min(leftPln, amount * unit);
     const rest = amount - takePln / unit;
-    pair.price = rest > 0.004 ? formatMoney(rest) : "";
+    pair.price = rest > 0.00005 ? formatMoneyExact(rest) : ""; // dokładnie - ułamek grosza nie przepada na korzyść klienta
     leftPln -= takePln;
   }
   return pairs.filter((pair) => pair.price && String(pair.price).trim() !== "");
