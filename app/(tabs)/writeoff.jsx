@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,7 +35,7 @@ const WriteOff = () => {
     const [exchangeUsers, setExchangeUsers] = useState([]); // List of users for exchange (includes current user)
     const [transfers, setTransfers] = useState([]); // List of current transfers
     const [allTransfers, setAllTransfers] = useState([]); // List of ALL transfers for validation
-    const [salesData, setSalesData] = useState([]); // List of sales for blocking validation
+    const [salesData, setSalesData] = useState([]); // Sprzedaże z tego punktu czekające na Dobieranie (wyszarzają sprzedane sztuki)
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false); // Dodano nowy stan dla pull-to-refresh
     const [showErrorModal, setShowErrorModal] = useState(false);
@@ -263,12 +263,13 @@ const fetchSales = async () => {
         const data = await response.json();
         const allSales = Array.isArray(data) ? data : [];
         
-        // Filter sales from today only
-        const todaySales = allSales.filter(sale => 
-            sale.date && sale.date.startsWith(today)
+        // Sprzedane, a jeszcze nieodpisane w Dobieraniu (z dowolnego dnia) - te sztuki nadal są na stanie,
+        // ale nie wolno ich przepisać (serwer i tak odrzuci: ITEM_ALREADY_SOLD)
+        const pendingSales = allSales.filter(sale =>
+            sale.from === user?.symbol && sale.barcode && sale.processed !== true && sale.returned !== true
         );
-        
-        setSalesData(todaySales);
+
+        setSalesData(pendingSales);
     } catch (error) {
         setSalesData([]);
         throw error; // Re-throw to be caught by fetchAllRequiredData
@@ -280,6 +281,20 @@ const fetchSales = async () => {
         (transfer) => transfer.transfer_from === user?.symbol
             && (transfer.productId === item.id || (transfer.transfer_to === 'SOLD' && item.barcode && transfer.barcode === item.barcode))
     ) || null;
+
+    // Sztuki sprzedane, a jeszcze nieodpisane: przy N sprzedażach danego kodu wyszarzamy N wolnych sztuk z tym kodem
+    // (jak serwer - przy dwóch identycznych kurtkach i jednej sprzedaży drugą nadal można przepisać)
+    const soldItemIds = useMemo(() => {
+        const soldPerBarcode = {};
+        salesData.forEach((sale) => { soldPerBarcode[sale.barcode] = (soldPerBarcode[sale.barcode] || 0) + 1; });
+        const ids = new Set();
+        filteredData.forEach((item) => {
+            if (!item.barcode || !soldPerBarcode[item.barcode] || todayTransferOf(item)) return;
+            soldPerBarcode[item.barcode] -= 1;
+            ids.add(item.id);
+        });
+        return ids;
+    }, [salesData, filteredData, transfers]);
 
     const transferLabel = (transfer) => {
         if (!transfer) return '';
@@ -496,6 +511,11 @@ const fetchSales = async () => {
                 
                 // Wyświetl szczegółowy błąd z backendu
                 const errorMessage = responseData.message || responseData.error || `HTTP ${response.status}: Failed to create transfer`;
+                if (response.status === 409) {
+                    appAlert("Nie można przepisać", errorMessage);
+                    fetchAllRequiredData(false);
+                    return;
+                }
                 appAlert("Błąd transferu", errorMessage);
                 return;
             }
@@ -830,10 +850,11 @@ const fetchSales = async () => {
                         refreshing={isRefreshing} // Używamy isRefreshing zamiast isLoading
                         renderItem={({ item, index }) => {
                             const transfer = todayTransferOf(item);
+                            const sold = !transfer && soldItemIds.has(item.id);
                             return (
                                 <View
                                     testID={`writeoff-item-${item.id}`}
-                                    style={[look.itemCard, transfer && { opacity: 0.45 }]}
+                                    style={[look.itemCard, (transfer || sold) && { opacity: 0.45 }]}
                                 >
                                     <View style={{ flex: 1 }}>
                                         <Text style={look.itemCardText} numberOfLines={1}>
@@ -841,6 +862,9 @@ const fetchSales = async () => {
                                         </Text>
                                         {transfer && (
                                             <Text style={styles.transferStatusText} numberOfLines={1}>{transferLabel(transfer)}</Text>
+                                        )}
+                                        {sold && (
+                                            <Text testID={`writeoff-sold-${item.id}`} style={styles.transferStatusText} numberOfLines={1}>Sprzedana - czeka na Dobieranie</Text>
                                         )}
                                     </View>
                                     <TouchableOpacity
@@ -881,6 +905,8 @@ const fetchSales = async () => {
                                     />
                                 </>
                             )
+                        ) : selectedItem && soldItemIds.has(selectedItem.id) ? (
+                            <Text testID="writeoff-sold-message" style={look.modalMessage}>Ta kurtka została już sprzedana - czeka na odpisanie w Dobieraniu. Nie można jej przepisać.</Text>
                         ) : selectedItem ? (
                             <>
                                 <ActionItem

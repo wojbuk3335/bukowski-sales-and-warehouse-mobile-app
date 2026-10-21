@@ -47,10 +47,10 @@ const transfers = [
   { _id: 't4', productId: 'item-4', transfer_from: 'P', transfer_to: 'T', date: '2020-01-01T08:00:00.000Z', dateString: '2020-01-01' },
 ];
 
-const renderWriteOff = () => render(
+const renderWriteOff = (items = stateData) => render(
   <GlobalStateContext.Provider value={{
     user,
-    stateData,
+    stateData: items,
     users: [],
     fetchState: jest.fn(() => Promise.resolve()),
     fetchUsers: jest.fn(() => Promise.resolve()),
@@ -111,6 +111,56 @@ describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
     fireEvent.press(screen.getByText('Anuluj'));
 
     fireEvent.press(screen.getByTestId('writeoff-dots-item-4'));
+    expect(screen.getByText('Przepisz do')).toBeTruthy();
+  });
+});
+
+// Sprzedana sztuka (sprzedaż czeka na Dobieranie, z dowolnego dnia) jest wyszarzona i nie ma „Przepisz do” (audyt K3)
+describe('Stan - sprzedane, a jeszcze nieodpisane sztuki', () => {
+  const soldState = [
+    { id: 'twin-1', fullName: 'Ada CZERWONY', size: 'XL', symbol: 'P', barcode: '555' },
+    { id: 'twin-2', fullName: 'Ada CZERWONY', size: 'XL', symbol: 'P', barcode: '555' },
+    { id: 'old-sold', fullName: 'Ewa BRĄZ', size: 'L', symbol: 'P', barcode: '666' },
+    { id: 'processed', fullName: 'Ola SZARY', size: 'S', symbol: 'P', barcode: '777' },
+    { id: 'other-point', fullName: 'Iga RUDY', size: 'M', symbol: 'P', barcode: '888' },
+  ];
+  const sales = [
+    { _id: 's1', barcode: '555', from: 'P', processed: false, date: `${today}T09:00:00.000Z` },
+    { _id: 's2', barcode: '666', from: 'P', processed: false, date: '2020-01-01T09:00:00.000Z' },
+    { _id: 's3', barcode: '777', from: 'P', processed: true, date: `${today}T09:00:00.000Z` },
+    { _id: 's4', barcode: '888', from: 'T', processed: false, date: `${today}T09:00:00.000Z` },
+  ];
+
+  beforeEach(() => {
+    tokenService.authenticatedFetch.mockReset();
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
+      if (url.endsWith('/transfer') && !options.method) return json([]);
+      if (url.endsWith('/sales/get-all-sales')) return json(sales);
+      return json({});
+    });
+  });
+
+  test('dwie identyczne, jedna sprzedana → wyszarzona jedna; stara nieprzetworzona sprzedaż też blokuje', async () => {
+    const screen = renderWriteOff(soldState);
+    await waitFor(() => expect(screen.getByTestId('writeoff-sold-twin-1')).toBeTruthy());
+
+    expect(screen.getByTestId('writeoff-item-twin-1')).toHaveStyle({ opacity: 0.45 });
+    expect(screen.queryByTestId('writeoff-sold-twin-2')).toBeNull();
+    expect(screen.getByTestId('writeoff-sold-old-sold')).toBeTruthy();
+    expect(screen.queryByTestId('writeoff-sold-processed')).toBeNull();
+    expect(screen.queryByTestId('writeoff-sold-other-point')).toBeNull();
+  });
+
+  test('kropki sprzedanej sztuki: komunikat zamiast „Przepisz do”; druga identyczna ma „Przepisz do”', async () => {
+    const screen = renderWriteOff(soldState);
+    await waitFor(() => expect(screen.getByTestId('writeoff-sold-twin-1')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('writeoff-dots-twin-1'));
+    expect(screen.getByTestId('writeoff-sold-message')).toBeTruthy();
+    expect(screen.queryByText('Przepisz do')).toBeNull();
+    fireEvent.press(screen.getByText('Anuluj'));
+
+    fireEvent.press(screen.getByTestId('writeoff-dots-twin-2'));
     expect(screen.getByText('Przepisz do')).toBeTruthy();
   });
 });
