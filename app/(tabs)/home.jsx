@@ -642,6 +642,8 @@ const Home = () => {
           const details = Array.isArray(errorBody?.errors)
             ? errorBody.errors.map((item) => item.msg || item.message).filter(Boolean).join("\n")
             : (errorBody?.message || errorBody?.error || "");
+          // Sprzedaż przetworzona w Dobieraniu: sam komunikat serwera, bez technicznego „HTTP 409”
+          if (errorBody?.code === 'SALE_ALREADY_PROCESSED') throw new Error(`Nie udało się zapisać zmian. ${errorBody.message}`);
           throw new Error(`Nie udało się zapisać zmian (HTTP ${response.status}).${details ? `\n${details}` : ""}`);
         }
 
@@ -1347,7 +1349,11 @@ const Home = () => {
       );
       
       if (!response.ok) {
-        throw new Error("Failed to delete the sale.");
+        // np. sprzedaż odpisana już w Dobieraniu - pokaż powód z serwera
+        const data = await response.json().catch(() => ({}));
+        const serverError = new Error(data?.message || "Nie udało się usunąć sprzedaży. Spróbuj ponownie.");
+        serverError.fromServer = true;
+        throw serverError;
       }
       setFilteredData((prev) =>
         prev.filter((item) => item._id !== selectedItem._id)
@@ -1360,7 +1366,7 @@ const Home = () => {
       setSuccessMessage("Sprzedaż została pomyślnie usunięta!");
       setSuccessModalVisible(true);
     } catch (error) {
-      setErrorMessage("Nie udało się usunąć sprzedaży. Spróbuj ponownie.");
+      setErrorMessage(error.fromServer ? error.message : "Nie udało się usunąć sprzedaży. Spróbuj ponownie.");
       setErrorModalVisible(true);
     }
   };
@@ -2349,7 +2355,9 @@ const Home = () => {
           }
         );
         if (!response.ok) {
-          throw new Error("Failed to update the 'from' field.");
+          // np. sprzedaż odpisana już w Dobieraniu - powód z serwera zamiast cichego błędu
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data?.message || "Nie udało się zmienić „Sprzedano od”. Spróbuj ponownie.");
         }
         setFilteredData((prev) =>
           prev.map((item) => (item._id === selectedItem._id ? updatedItem : item))
@@ -2360,6 +2368,9 @@ const Home = () => {
       }
     } catch (error) {
       Logger.error("Error updating 'from' field:", error.message);
+      setEditFromModalVisible(false);
+      setErrorMessage(error.message);
+      setErrorModalVisible(true);
     }
   };
 
