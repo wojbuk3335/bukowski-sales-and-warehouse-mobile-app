@@ -11,6 +11,8 @@ import {
   TextInput,
   RefreshControl,
   AppState,
+  Image,
+  Pressable,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -22,6 +24,7 @@ import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
 import { KeyboardSafeScreen, useRevealInput } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
+import { itemPictureUrl } from '../../utils/productPicture'; // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -64,6 +67,7 @@ const Users = () => {
   
   // All products cache (for prices)
   const [allProducts, setAllProducts] = useState([]);
+  const [previewPicture, setPreviewPicture] = useState(null); // powiększone zdjęcie kurtki { url, name }
   
   // Corrections modal
   const [showCorrectionsModal, setShowCorrectionsModal] = useState(false);
@@ -1703,6 +1707,28 @@ const Users = () => {
   // delikatne tło i ramka w kolorze, wyraźny pasek z lewej; napisy w kolorze motywu
   const tintCard = (color) => ({ backgroundColor: `${color}1F`, borderColor: `${color}66`, borderLeftColor: color });
 
+  // Po prawej stronie karty tylko miniatura zdjęcia kurtki (i drukarka); dotknięcie = pełny ekran
+  const renderPictureThumb = (item) => {
+    const url = itemPictureUrl(allProducts, item);
+    const name = typeof item?.fullName === 'object' ? item?.fullName?.fullName : item?.fullName;
+    if (!url) {
+      return (
+        <View style={[styles.pictureThumb, styles.pictureThumbEmpty]} testID="dobieranie-picture-empty">
+          <Ionicons name="image-outline" size={20} color={tc('muted', '#94A3B8')} />
+        </View>
+      );
+    }
+    return (
+      <TouchableOpacity
+        testID="dobieranie-picture-thumb"
+        accessibilityLabel={`Powiększ zdjęcie: ${name || 'kurtka'}`}
+        onPress={() => setPreviewPicture({ url, name })}
+      >
+        <Image source={{ uri: url }} style={styles.pictureThumb} resizeMode="cover" />
+      </TouchableOpacity>
+    );
+  };
+
   const renderBlueItem = ({ item, index }) => {
     const isMatched = isBlueItemMatched(item.sourceId);
     const backgroundColor = isMatched ? '#10B981' : '#007bff';
@@ -1717,9 +1743,6 @@ const Users = () => {
     const itemId = item.sourceId || item._id;
     const indicator = blueItemIndicators[itemId];
     
-    // Calculate balance
-    const balance = indicator === 'OK' ? -1 : indicator === 'WARNING' ? 0 : null;
-    const balanceColor = balance === -1 ? '#dc3545' : '#64748B';
     
     return (
       <View style={[styles.transferCard, tintCard(backgroundColor)]}>
@@ -1745,16 +1768,7 @@ const Users = () => {
           </View>
           
           <View style={styles.transferBadges}>
-            {balance !== null && (
-              <View style={[styles.balanceBadge, { backgroundColor: balanceColor }]}>
-                <Text style={styles.balanceBadgeText}>{balance === 0 ? '0' : balance}</Text>
-              </View>
-            )}
-            {isMatched && (
-              <View style={styles.matchedBadge}>
-                <Text style={styles.matchedBadgeText}>✓</Text>
-              </View>
-            )}
+            {renderPictureThumb(item)}
           </View>
         </View>
       </View>
@@ -1823,9 +1837,7 @@ const Users = () => {
           </View>
           
           <View style={styles.transferBadges}>
-            <View style={[styles.balanceBadge, { backgroundColor: '#28a745' }]}>
-              <Text style={styles.balanceBadgeText}>+1</Text>
-            </View>
+            {renderPictureThumb(item)}
             <View style={styles.transferActions}>
             <TouchableOpacity
               style={styles.printButton}
@@ -1863,15 +1875,9 @@ const Users = () => {
                 handlePrintLabel(enrichedItem);
               }}
             >
-              <Ionicons name="print" size={20} color={tc('text', "#fff")} />
+              <Ionicons name="print" size={28} color={tc('text', "#fff")} />
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.returnButton}
-              onPress={() => handleUnpairMatchedItem(item)}
-            >
-              <Ionicons name="arrow-undo" size={20} color={tc('text', "#fff")} />
-            </TouchableOpacity>
+
             </View>
           </View>
         </View>
@@ -1906,9 +1912,7 @@ const Users = () => {
           </View>
           
           <View style={styles.transferBadges}>
-            <View style={[styles.balanceBadge, { backgroundColor: '#28a745' }]}>
-              <Text style={styles.balanceBadgeText}>+1</Text>
-            </View>
+            {renderPictureThumb(item)}
             <View style={styles.transferActions}>
             <TouchableOpacity
               style={styles.printButton}
@@ -1946,17 +1950,9 @@ const Users = () => {
                 handlePrintLabel(enrichedItem);
               }}
             >
-              <Ionicons name="print" size={20} color={tc('text', "#fff")} />
+              <Ionicons name="print" size={28} color={tc('text', "#fff")} />
             </TouchableOpacity>
-            
-            {fromWarehouse && (
-              <TouchableOpacity
-                style={styles.returnButton}
-                onPress={() => handleReturnToWarehouse(item)}
-              >
-                <Ionicons name="arrow-back" size={20} color={tc('text', "#fff")} />
-              </TouchableOpacity>
-            )}
+
             </View>
           </View>
         </View>
@@ -1990,9 +1986,7 @@ const Users = () => {
           </View>
           
           <View style={styles.transferBadges}>
-            <View style={[styles.balanceBadge, { backgroundColor: '#28a745' }]}>
-              <Text style={styles.balanceBadgeText}>+1</Text>
-            </View>
+            {renderPictureThumb(item)}
             <View style={styles.transferActions}>
             <TouchableOpacity
               style={styles.printButton}
@@ -2030,12 +2024,9 @@ const Users = () => {
                 handlePrintLabel(enrichedItem);
               }}
             >
-              <Ionicons name="print" size={20} color={tc('text', "#fff")} />
+              <Ionicons name="print" size={28} color={tc('text', "#fff")} />
             </TouchableOpacity>
-            
-            <View style={styles.yellowBadge}>
-              <Text style={styles.yellowBadgeText}>🟡</Text>
-            </View>
+
             </View>
           </View>
         </View>
@@ -2235,6 +2226,18 @@ const Users = () => {
       <View style={{ paddingHorizontal: 12 }}>
         <ScreenHeader icon="shirt" title="Dobierz" subtitle="Dobieranie produktów z magazynu" />
       </View>
+
+      {/* Powiększone zdjęcie kurtki na cały ekran - dotknięcie zamyka */}
+      <Modal visible={Boolean(previewPicture)} transparent animationType="fade" onRequestClose={() => setPreviewPicture(null)}>
+        <Pressable style={styles.picturePreviewBackdrop} onPress={() => setPreviewPicture(null)} testID="dobieranie-picture-preview">
+          {previewPicture ? (
+            <>
+              <Image source={{ uri: previewPicture.url }} style={styles.picturePreviewImage} resizeMode="contain" />
+              {previewPicture.name ? <Text style={styles.picturePreviewName}>{previewPicture.name}</Text> : null}
+            </>
+          ) : null}
+        </Pressable>
+      </Modal>
 
       <KeyboardSafeScreen>
       <ScrollView alwaysBounceVertical 
@@ -3462,28 +3465,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   printButton: {
     backgroundColor: "rgba(0, 0, 0, 0.3)",
-    padding: 8,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 10,
   },
   returnButton: {
     backgroundColor: "rgba(0, 0, 0, 0.3)",
     padding: 8,
     borderRadius: 8,
-  },
-  matchedBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-    borderWidth: 1,
-    borderColor: "#10B981",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  matchedBadgeText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#10B981",
   },
   buttonContainer: {
     paddingHorizontal: 20,
@@ -4283,18 +4271,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', "#cbd5e1"),
     marginBottom: 10,
   },
-  yellowBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  yellowBadgeText: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
   processingSummaryBox: {
     marginTop: 12,
     padding: 12,
@@ -4428,6 +4404,36 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
+  },
+  pictureThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  pictureThumbEmpty: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.4)',
+  },
+  picturePreviewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  picturePreviewImage: {
+    width: '100%',
+    height: '85%',
+  },
+  picturePreviewName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+    textAlign: 'center',
   },
   balanceBadge: {
     width: 44,
