@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { getApiUrl, API_CONFIG } from '../config/api';
 import AuthErrorHandler from '../utils/authErrorHandler';
 import { SESSION_REVOKED_MESSAGE } from '../utils/sessionLockMessages';
+import { notifyCatalogLock } from '../utils/catalogLockNotice'; // okienko „Edycja zablokowana” (409 z serwera)
 import Logger from './logger';
 import { Platform } from 'react-native';
 import { getDeviceId, getDeviceName } from './deviceId';
@@ -379,6 +380,11 @@ class TokenService {
                 });
             } finally {
                 clearTimeout(timeoutId);
+            }
+
+            // 409 blokady produktów / tabel (nieprzetworzone Dobieranie) - komunikat serwera dla każdego ekranu edycji
+            if (response.status === 409 && typeof response.clone === 'function') {
+                response.clone().json().then(data => notifyCatalogLock(response.status, data)).catch(() => {});
             }
 
             // 🔒 401 {code:'SESSION_REVOKED'}: admin wylogował z panelu albo ten telefon zalogował się
