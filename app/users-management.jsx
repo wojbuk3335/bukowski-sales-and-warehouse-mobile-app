@@ -20,7 +20,7 @@ import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
-import { PageHeader, ModalHeader, OptionCard, PointPill, pointColorMap, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
+import { PageHeader, ModalHeader, OptionCard, PointPill, pointColorMap, look, ActionItem } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 
 // Kolor i ikona roli (tylko wygląd: pasek karty, plakietka, karta wyboru roli)
@@ -35,6 +35,8 @@ const UsersManagement = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [users, setUsers] = useState([]);
+  // Menu ⋮ karty użytkownika (jak w panelu: Edytuj, Wyloguj z punktu, Resetuj 2FA, Usuń)
+  const [actionsUser, setActionsUser] = useState(null);
   const [localizations, setLocalizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -366,6 +368,88 @@ const UsersManagement = () => {
     );
   };
 
+  // Błąd z serwera po polsku, gdy jest (np. nie można zresetować 2FA)
+  const serverMessage = (error, fallback) => error?.response?.data?.message || fallback;
+
+  // Wylogowanie z punktu: zdejmuje blokadę „jedna osoba na punkcie” (jak w panelu)
+  const handleForceLogout = (target) => {
+    appAlert(
+      'Wyloguj z punktu',
+      `Wylogować ${target.email} z punktu? Osoba na telefonie zostanie wylogowana i ktoś inny będzie mógł się zalogować.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Wyloguj',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { accessToken } = await tokenService.getTokens();
+              const response = await axios.post(getApiUrl(`/user/${target._id}/force-logout`), {}, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              setSuccessMessage(response.data?.message || `Użytkownik ${target.email} został wylogowany z punktu.`);
+              setIsSuccessModalVisible(true);
+            } catch (error) {
+              setErrorMessage(serverMessage(error, 'Nie udało się wylogować użytkownika z punktu.'));
+              setIsErrorModalVisible(true);
+            }
+            await fetchUsers().catch(() => {});
+          },
+        },
+      ]
+    );
+  };
+
+  // Reset 2FA konta admina (swojego albo innego admina - np. nowy telefon): przy następnym logowaniu nowy kod QR
+  const handleReset2FA = (target) => {
+    const own = target.email === user?.email;
+    appAlert(
+      'Reset 2FA',
+      own
+        ? 'Zresetować Twoje 2FA?\n\nObecny wpis w Google Authenticator przestanie działać. Przy następnym logowaniu w panelu pojawi się nowy kod QR do zeskanowania.\n\nNie wylogowuj się z panelu, dopóki nie będziesz mieć pod ręką telefonu z Google Authenticator.'
+        : `Zresetować 2FA konta ${target.email}?\n\nObecny wpis w Google Authenticator tej osoby przestanie działać. Przy następnym logowaniu panel pokaże jej nowy kod QR do zeskanowania.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Resetuj 2FA',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { accessToken } = await tokenService.getTokens();
+              const response = await axios.post(getApiUrl(`/user/${target._id}/reset-2fa`), {}, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              setSuccessMessage(response.data?.message || '2FA zostało zresetowane.');
+              setIsSuccessModalVisible(true);
+            } catch (error) {
+              setErrorMessage(serverMessage(error, 'Nie udało się zresetować 2FA.'));
+              setIsErrorModalVisible(true);
+            }
+            await fetchUsers().catch(() => {});
+          },
+        },
+      ]
+    );
+  };
+
+  // Stan sesji punktu (jak w panelu): kto jest zalogowany i na jakim telefonie
+  const sessionText = (item) => {
+    if (item.role === 'admin') return null;
+    const session = item.activeSession;
+    if (!session) return 'Niezalogowany';
+    const started = session.startedAt
+      ? new Date(session.startedAt).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : '?';
+    return `Zalogowany: ${session.deviceName || 'nieznane urządzenie'}, od ${started}`;
+  };
+
+  // Pozycja menu wywołuje akcję po zamknięciu menu (okienko potwierdzenia nie nakłada się na menu)
+  const runFromMenu = (action) => {
+    const target = actionsUser;
+    setActionsUser(null);
+    if (target) setTimeout(() => action(target), 250);
+  };
+
   const getRoleName = (role) => {
     switch (role) {
       case 'admin':
@@ -650,25 +734,59 @@ const UsersManagement = () => {
               </View>
             )}
 
+            {sessionText(userItem) && (
+              <Text
+                testID={`user-session-${userItem._id}`}
+                style={[styles.sessionText, userItem.activeSession ? styles.sessionActive : null]}
+              >
+                {sessionText(userItem)}
+              </Text>
+            )}
             <View style={styles.userActions}>
               <TouchableOpacity
-                style={[styles.actionButton, styles.editButton]}
-                onPress={() => handleEditUser(userItem)}
+                testID={`user-actions-${userItem._id}`}
+                accessibilityLabel={`Akcje: ${userItem.email}`}
+                onPress={() => setActionsUser(userItem)}
+                style={look.dotsButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="create" size={18} color="#fff" />
-                <Text style={styles.actionButtonText}>Edytuj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.deleteButton]}
-                onPress={() => handleDeleteUser(userItem._id)}
-              >
-                <Ionicons name="trash" size={18} color="#fff" />
-                <Text style={styles.actionButtonText}>Usuń</Text>
+                <Text style={look.dotsText}>⋮</Text>
               </TouchableOpacity>
             </View>
           </View>
         ))}
       </ScrollView>
+
+      {/* Menu ⋮ użytkownika - te same akcje co w panelu */}
+      <Modal
+        visible={!!actionsUser}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActionsUser(null)}
+      >
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="ellipsis-horizontal-circle" color="#0D6EFD" title={actionsUser?.email || 'Akcje'} />
+            <ActionItem testID="user-action-edit" icon="create" label="Edytuj" onPress={() => runFromMenu(handleEditUser)} />
+            {actionsUser && actionsUser.role !== 'admin' && actionsUser.activeSession && (
+              <ActionItem testID="user-action-logout" icon="log-out" color="#F59E0B" label="Wyloguj z punktu" onPress={() => runFromMenu(handleForceLogout)} />
+            )}
+            {actionsUser && actionsUser.role === 'admin' && (
+              <ActionItem
+                testID="user-action-reset-2fa"
+                icon="key"
+                color="#8B5CF6"
+                label={actionsUser.email === user?.email ? 'Resetuj moje 2FA' : 'Resetuj 2FA'}
+                onPress={() => runFromMenu(handleReset2FA)}
+              />
+            )}
+            <ActionItem testID="user-action-delete" icon="trash" color="#EF4444" label="Usuń" onPress={() => runFromMenu((target) => handleDeleteUser(target._id))} />
+            <TouchableOpacity testID="user-actions-cancel" style={[look.neutralButton, { flex: 0, alignSelf: 'stretch', marginTop: 12 }]} onPress={() => setActionsUser(null)}>
+              <Text style={look.neutralButtonText}>Anuluj</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add User Modal */}
       <Modal
@@ -866,8 +984,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#CDCDE0'),
     fontSize: 14,
   },
+  sessionText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: tc('muted', '#94A3B8'),
+  },
+  sessionActive: {
+    color: '#22C55E',
+  },
   userActions: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 10,
   },
   actionButton: {
