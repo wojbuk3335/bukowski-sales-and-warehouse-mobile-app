@@ -26,6 +26,7 @@ import { defaultDiscountMinimum, defaultRegularMinimum } from '../utils/defaultS
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { pictureVariantUrl } from '../utils/productPicture'; // miniatury zdjęć z serwera
 
 // Nagłówek dolnego okienka wyboru: kolorowy kafelek z ikoną, tytuł i przycisk zamknięcia
 const SheetHeader = ({ icon, title, onClose, color = '#0D6EFD' }) => (
@@ -1059,7 +1060,7 @@ const ProductsList = () => {
     });
 
   const renderProduct = ({ item, index }) => {
-    const imageUrl = getImageUrl(item.picture);
+    const imageUrl = pictureVariantUrl(getImageUrl(item.picture), 'thumb'); // miniatura 160 px w wierszu listy
 
     // Karta jak w innych listach: miniatura, nazwa i kod, plakietki (kategoria, cena, promocja, wyjątki), akcje jako kafelki
     return (

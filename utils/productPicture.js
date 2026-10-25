@@ -34,6 +34,15 @@ export const pictureUrl = (picture, baseUrl = String(API_CONFIG.BASE_URL || '').
   return `${baseUrl}/images/${value}`;
 };
 
+// Wersja zdjęcia z serwera: 'thumb' 160 px do kart i list, 'preview' 1200 px do powiększenia (zamiast 3 MB oryginału).
+// Adres powstaje z adresu oryginału przez wstawienie /thumb/ lub /preview/ po /images/.
+export const pictureVariantUrl = (picture, variant = 'thumb', baseUrl) => {
+  const url = pictureUrl(picture, baseUrl);
+  if (!url || !['thumb', 'preview'].includes(variant)) return url;
+  return url.replace(/\/images\/(?!thumb\/|preview\/)([^/?#]+)(?=[?#]|$)/, `/images/${variant}/$1`);
+};
+
 export const itemPictureUrl = (goods, item, baseUrl) => pictureUrl(findGoodForItem(goods, item)?.picture, baseUrl);
+export const itemPictureVariantUrl = (goods, item, variant, baseUrl) => pictureVariantUrl(findGoodForItem(goods, item)?.picture, variant, baseUrl);
 
 export default itemPictureUrl;

@@ -22,6 +22,7 @@ import { API_CONFIG, getApiUrl } from "../config/api";
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+import { pictureVariantUrl } from '../utils/productPicture'; // miniatury zdjęć z serwera
 // Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
 // Zwraca komunikat błędu albo null.
 // Liczba z pola ceny: akceptuje przecinek jako separator dziesiętny ("199,99"), puste = NaN
@@ -528,7 +529,7 @@ const Cenniki = () => {
   }, [priceList, searchTerm]);
 
   const renderPriceItem = ({ item, index }) => {
-    const imageUrl = getImageUrl(item.picture);
+    const imageUrl = pictureVariantUrl(getImageUrl(item.picture), 'thumb'); // miniatura 160 px w wierszu listy
     const exceptions = item.priceExceptions || [];
     const promoPrice = formatDiscountPrice(item.discountPrice);
     const priceLines = [
