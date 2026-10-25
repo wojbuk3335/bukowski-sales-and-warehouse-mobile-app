@@ -226,13 +226,20 @@ export const MessageModal = ({ visible, onClose, type = 'success', title, messag
   );
 };
 
-/** Pozycja menu w okienku akcji: ikona w kolorze akcji, tytuł, strzałka. */
-export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, disabled = false }) => (
+/** Pozycja menu w okienku akcji: ikona w kolorze akcji, tytuł (opcjonalnie dopisek pod nim), strzałka. */
+export const ActionItem = ({ icon, label, onPress, color = '#0D6EFD', testID, disabled = false, note = null, noteColor = null }) => (
   <TouchableOpacity testID={testID} disabled={disabled} style={[look.actionItem, disabled && { opacity: 0.5 }]} onPress={onPress}>
     <View style={[look.optionCardIcon, { backgroundColor: `${color}26` }]}>
       <Ionicons name={icon} size={20} color={color} />
     </View>
-    <Text style={look.optionCardLabel}>{label}</Text>
+    {note ? (
+      <View style={{ flex: 1 }}>
+        <Text style={[look.optionCardLabel, { flex: 0 }]}>{label}</Text>
+        <Text testID={testID ? `${testID}-note` : undefined} style={{ fontSize: 12, marginTop: 2, color: noteColor || tc('muted', '#94A3B8') }}>{note}</Text>
+      </View>
+    ) : (
+      <Text style={look.optionCardLabel}>{label}</Text>
+    )}
     <Ionicons name="chevron-forward" size={18} color={tc('muted', '#94A3B8')} />
   </TouchableOpacity>
 );

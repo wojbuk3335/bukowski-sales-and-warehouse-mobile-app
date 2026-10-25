@@ -111,9 +111,24 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   };
 
   const selectSellingPointFromModal = (symbol) => {
+    // Punkt bez tej kurtki na stanie: można wybrać, ale najpierw pytanie - w Dobieraniu powstanie korekta (25.10.2026)
+    if (barcode && saleStockAt(symbol) === 0) {
+      appAlert(
+        `Brak na stanie w punkcie ${symbol}`,
+        `W punkcie ${symbol} nie ma tej kurtki na stanie. Jeśli sprzedaż zostanie zapisana z tego punktu, po przetworzeniu w Dobieraniu powstanie korekta (brak). Wybrać mimo to?`,
+        [
+          { text: "Anuluj", style: "cancel" },
+          { text: "Wybierz", onPress: () => { setSelectedOption(symbol); setSellingPointMenuVisible(false); } },
+        ]
+      );
+      return;
+    }
     setSelectedOption(symbol);
     setSellingPointMenuVisible(false);
   };
+
+  // Ile sztuk z tym kodem leży w danym punkcie (telefon ma stan wszystkich punktów)
+  const saleStockAt = (symbol) => (stateData || []).filter((row) => row.symbol === symbol && row.barcode === barcode).length;
 
   const getMatchingSymbols = (currentBarcode = barcode) => {
     if (!users || !user) {
@@ -1382,6 +1397,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     </Text>
                     <Ionicons name="chevron-down" size={20} color="#F59E0B" />
                   </TouchableOpacity>
+                  {barcode && selectedOption && saleStockAt(selectedOption) === 0 ? (
+                    <Text testID="sale-point-missing-warning" style={[styles.salePointNote, styles.salePointNoteMissing, { textAlign: 'center', marginTop: 6 }]}>
+                      {`W punkcie ${selectedOption} nie ma tej kurtki na stanie - po przetworzeniu powstanie korekta.`}
+                    </Text>
+                  ) : null}
                 </View>
                 {sellingPointMenuVisible && (
                   <Modal
@@ -1399,12 +1419,23 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                             getMatchingSymbols().map((item) => (
                               <TouchableOpacity
                                 key={item._id}
+                                testID={`sale-point-${item.symbol}`}
                                 style={styles.currencyModalItem}
                                 onPress={() => selectSellingPointFromModal(item.symbol)}
                               >
                                 <Text style={styles.currencyModalItemText}>
                                   {item.symbol}
                                 </Text>
+                                {barcode ? (
+                                  <Text
+                                    testID={`sale-point-${item.symbol}-note`}
+                                    style={[styles.salePointNote, saleStockAt(item.symbol) === 0 && styles.salePointNoteMissing]}
+                                  >
+                                    {saleStockAt(item.symbol) > 0
+                                      ? `Na stanie: ${saleStockAt(item.symbol)} szt.`
+                                      : 'Brak na stanie - po przetworzeniu powstanie korekta'}
+                                  </Text>
+                                ) : null}
                               </TouchableOpacity>
                             ))
                           ) : (
@@ -1977,6 +2008,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 6,
     alignItems: "center",
     justifyContent: "center",
+  },
+  salePointNote: { // „Sprzedano od”: stan kurtki w punkcie
+    fontSize: 12,
+    marginTop: 2,
+    color: tc('muted', '#94A3B8'),
+  },
+  salePointNoteMissing: {
+    color: '#EF4444',
   },
   sellerFrame: { // „Sprzedano od”: ramka z podpisem nad listą rozwijaną
     borderWidth: 1,

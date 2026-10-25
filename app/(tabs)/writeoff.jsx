@@ -320,6 +320,37 @@ const fetchSales = async () => {
         }
     };
 
+    // Ile sztuk tej samej kurtki (ten sam kod; bez kodu - nazwa i rozmiar) leży już w punkcie docelowym.
+    // Telefon ma stan wszystkich punktów (GET /state), więc liczymy bez dodatkowego zapytania.
+    const stockAtPoint = (symbol, item = selectedItem) => {
+        if (!item || !symbol || !Array.isArray(stateData)) return 0;
+        return stateData.filter((row) => row.symbol === symbol && (item.barcode
+            ? row.barcode === item.barcode
+            : row.fullName === item.fullName && row.size === item.size)).length;
+    };
+    const stockNote = (symbol) => {
+        const count = stockAtPoint(symbol);
+        return count > 0 ? `Na stanie: ${count} szt.` : 'Brak tego produktu na stanie';
+    };
+    const stockNoteColor = (symbol) => (stockAtPoint(symbol) > 0 ? null : '#EF4444');
+
+    // Przepisanie do punktu bez tej kurtki - można, ale najpierw pytanie (zgłoszenie 25.10.2026)
+    const confirmIfMissingAtTarget = (symbol, proceed) => {
+        if (stockAtPoint(symbol) > 0) {
+            proceed();
+            return;
+        }
+        const name = `${selectedItem?.fullName || ''} ${selectedItem?.size || ''}`.trim();
+        appAlert(
+            `Brak na stanie w punkcie ${symbol}`,
+            `W punkcie ${symbol} nie ma tej kurtki (${name}) na stanie. Czy na pewno przepisać?`,
+            [
+                { text: 'Anuluj', style: 'cancel' },
+                { text: 'Przepisz', onPress: proceed },
+            ]
+        );
+    };
+
     const openModal = (item) => {
         setSelectedItem(item);
         setModalVisible(true);
@@ -958,20 +989,26 @@ const fetchSales = async () => {
                         <ModalHeader icon="swap-horizontal" color="#0D6EFD" title="Wybierz użytkownika" />
                         {/* MAGAZYN option at the top */}
                         <ActionItem
+                            testID="transfer-target-MAGAZYN"
                             icon="archive"
                             color="#F59E0B"
                             label="MAGAZYN"
-                            onPress={() => {
+                            note={stockNote('MAGAZYN')}
+                            noteColor={stockNoteColor('MAGAZYN')}
+                            onPress={() => confirmIfMissingAtTarget('MAGAZYN', () => {
                                 setTransferModalVisible(false);
                                 setMagazynReasonModalVisible(true);
-                            }}
+                            })}
                         />
                         {users.map((item) => (
                             <ActionItem
                                 key={item._id}
+                                testID={`transfer-target-${item.symbol}`}
                                 icon={item.role && item.role.toLowerCase() === 'dom' ? 'home-outline' : 'storefront-outline'}
                                 label={item.symbol}
-                                onPress={() => {
+                                note={stockNote(item.symbol)}
+                                noteColor={stockNoteColor(item.symbol)}
+                                onPress={() => confirmIfMissingAtTarget(item.symbol, () => {
                                     if (item.role && item.role.toLowerCase() === 'dom') {
                                         // Dla użytkownika Dom pokaż modal powodów
                                         setTransferModalVisible(false);
@@ -980,7 +1017,7 @@ const fetchSales = async () => {
                                         // Dla innych użytkowników normalne przepisywanie
                                         initiateTransfer(item.symbol);
                                     }
-                                }}
+                                })}
                             />
                         ))}
                         <TouchableOpacity

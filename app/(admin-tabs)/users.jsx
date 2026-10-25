@@ -27,6 +27,7 @@ import { appAlert } from '../../services/appAlert';
 import { itemPictureVariantUrl, itemPictureUrl, variantToOriginalUrl } from '../../utils/productPicture';
 import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
+import { productRefs, sameProductByRefs } from '../../utils/productPairing'; // krok 3: parowanie po ID towaru i rozmiaru
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Users = () => {
@@ -411,14 +412,17 @@ const Users = () => {
     blueItems.forEach(item => {
       const fullName = item.fullName;
       const size = item.size;
-      
-      // Grouping key: only name + size (barcode can differ!)
-      const key = `${fullName}_${size}`;
-      
+      const refs = productRefs(item);
+
+      // Grouping key: krok 3 - ID towaru i rozmiaru, gdy są; inaczej nazwa + rozmiar (kod może się różnić!)
+      const key = refs.goodsId ? `id:${refs.goodsId}_${refs.sizeId || '-'}` : `${fullName}_${size}`;
+
       if (!groupedByProduct[key]) {
         groupedByProduct[key] = {
           fullName,
           size,
+          goodsId: refs.goodsId,
+          sizeId: refs.sizeId,
           items: []
         };
       }
@@ -437,6 +441,10 @@ const Users = () => {
 
         // Must be from same selling point
         if (stateSymbol !== selectedUserData.symbol) return false;
+
+        // Krok 3: po ID towaru i rozmiaru (wiersze /api/state mają goodsId / sizeId); napisy dla wpisów bez ID
+        const byRefs = sameProductByRefs(group, stateItem);
+        if (byRefs !== null) return byRefs;
 
         // Match by name and size
         const nameMatch = group.fullName === stateFullName;
@@ -681,6 +689,7 @@ const Users = () => {
           fullName: typeof transfer.fullName === 'object' ? transfer.fullName.fullName : transfer.fullName,
           size: typeof transfer.size === 'object' ? transfer.size.Roz_Opis : transfer.size,
           barcode: transfer.barcode || '',
+          ...productRefs(transfer), // krok 3: ID towaru i rozmiaru z przepisania
           sourceId: transfer._id,
           _id: transfer._id
         })),
@@ -690,6 +699,7 @@ const Users = () => {
           fullName: sale.fullName,
           size: sale.size,
           barcode: sale.barcode,
+          ...productRefs(sale), // krok 3: ID towaru i rozmiaru ze sprzedaży
           sourceId: sale._id,
           _id: sale._id,
           isFromSale: true
@@ -724,6 +734,7 @@ const Users = () => {
           barcode: state.barcode,
           fullName: typeof state.fullName === 'object' ? state.fullName.fullName : state.fullName,
           size: typeof state.size === 'object' ? state.size.Roz_Opis : state.size,
+          ...productRefs(state), // krok 3: ID towaru i rozmiaru sztuki z magazynu
           price: state.fullName && state.fullName.price ? state.fullName.price : 0,
           discount_price: state.fullName && state.fullName.discount_price ? state.fullName.discount_price : 0,
           date: state.date
@@ -750,12 +761,17 @@ const Users = () => {
           const nameMatch = blueItem.fullName === warehouseItem.fullName;
           const sizeMatch = blueItem.size === warehouseItem.size;
           
-          const isTransferWithoutBarcode = blueItem.type === 'transfer' && 
+          const isTransferWithoutBarcode = blueItem.type === 'transfer' &&
                                           blueItem.barcode !== warehouseItem.barcode;
-          
-          const isMatched = isTransferWithoutBarcode 
-            ? (nameMatch && sizeMatch) 
-            : (barcodeMatch && nameMatch && sizeMatch);
+
+          // Krok 3 (25.10.2026): gdy obie strony mają ID towaru, decydują ID towaru i rozmiaru (jak serwer);
+          // napisy tylko dla starych wpisów bez ID
+          const byRefs = sameProductByRefs(blueItem, warehouseItem);
+          const isMatched = byRefs !== null
+            ? byRefs
+            : (isTransferWithoutBarcode
+              ? (nameMatch && sizeMatch)
+              : (barcodeMatch && nameMatch && sizeMatch));
           
           if (isMatched) {
             matchedPairsArray.push({
