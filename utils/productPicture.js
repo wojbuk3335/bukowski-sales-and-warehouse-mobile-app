@@ -36,9 +36,23 @@ export const pictureUrl = (picture, baseUrl = String(API_CONFIG.BASE_URL || '').
 
 // Wersja zdjęcia z serwera: 'thumb' 160 px do kart i list, 'preview' 1200 px do powiększenia (zamiast 3 MB oryginału).
 // Adres powstaje z adresu oryginału przez wstawienie /thumb/ lub /preview/ po /images/.
+// Miniatury robi tylko nasz serwer - zdjęcia z innych adresów zostają bez zmian (inaczej obcy serwer dostałby /thumb/)
+const hostOf = (url) => {
+  const match = String(url || '').match(/^https?:\/\/([^/]+)/);
+  return match ? match[1].toLowerCase() : '';
+};
+const isOwnImageUrl = (url, baseUrl) => {
+  const host = hostOf(url);
+  if (!host) return true;
+  const own = new Set(['bukowskiapp.pl', 'www.bukowskiapp.pl', 'localhost:3000']);
+  const baseHost = hostOf(baseUrl || String(API_CONFIG.BASE_URL || ''));
+  if (baseHost) own.add(baseHost);
+  return own.has(host);
+};
+
 export const pictureVariantUrl = (picture, variant = 'thumb', baseUrl) => {
   const url = pictureUrl(picture, baseUrl);
-  if (!url || !['thumb', 'preview'].includes(variant)) return url;
+  if (!url || !['thumb', 'preview'].includes(variant) || !isOwnImageUrl(url, baseUrl)) return url;
   return url.replace(/\/images\/(?!thumb\/|preview\/)([^/?#]+)(?=[?#]|$)/, `/images/${variant}/$1`);
 };
 

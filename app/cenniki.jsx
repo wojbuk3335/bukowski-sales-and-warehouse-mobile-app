@@ -22,7 +22,8 @@ import { API_CONFIG, getApiUrl } from "../config/api";
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
-import { pictureVariantUrl } from '../utils/productPicture'; // miniatury zdjęć z serwera
+import { pictureVariantUrl } from '../utils/productPicture';
+import ThumbImage from '../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatury zdjęć z serwera
 // Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
 // Zwraca komunikat błędu albo null.
 // Liczba z pola ceny: akceptuje przecinek jako separator dziesiętny ("199,99"), puste = NaN
@@ -529,7 +530,9 @@ const Cenniki = () => {
   }, [priceList, searchTerm]);
 
   const renderPriceItem = ({ item, index }) => {
-    const imageUrl = pictureVariantUrl(getImageUrl(item.picture), 'thumb'); // miniatura 160 px w wierszu listy
+    const originalImageUrl = getImageUrl(item.picture);
+    const imageUrl = pictureVariantUrl(originalImageUrl, 'thumb'); // miniatura 160 px w wierszu listy
+    const previewImageUrl = pictureVariantUrl(originalImageUrl, 'preview'); // powiększenie 1200 px
     const exceptions = item.priceExceptions || [];
     const promoPrice = formatDiscountPrice(item.discountPrice);
     const priceLines = [
@@ -561,8 +564,8 @@ const Cenniki = () => {
           <View style={styles.cardRow}>
             <View style={styles.imageContainer}>
               {imageUrl ? (
-                <TouchableOpacity onPress={() => setSelectedPicture(imageUrl)}>
-                  <Image source={{ uri: imageUrl }} style={styles.thumbnail} />
+                <TouchableOpacity onPress={() => setSelectedPicture(previewImageUrl)}>
+                  <ThumbImage uri={imageUrl} fallbackUri={originalImageUrl} style={styles.thumbnail} />
                 </TouchableOpacity>
               ) : (
                 <View style={styles.thumbnailPlaceholder}>

@@ -24,7 +24,8 @@ import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
 import { KeyboardSafeScreen, useRevealInput } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
-import { itemPictureVariantUrl } from '../../utils/productPicture'; // miniatura zdjęcia kurtki na karcie przetwarzania
+import { itemPictureVariantUrl, itemPictureUrl } from '../../utils/productPicture';
+import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -1717,6 +1718,7 @@ const Users = () => {
   const renderPictureThumb = (item) => {
     const url = itemPictureVariantUrl(allProducts, item, 'thumb'); // 160 px na kartę, nie pełne zdjęcie z aparatu
     const previewUrl = itemPictureVariantUrl(allProducts, item, 'preview');
+    const originalUrl = itemPictureUrl(allProducts, item);
     const name = typeof item?.fullName === 'object' ? item?.fullName?.fullName : item?.fullName;
     if (!url) {
       return (
@@ -1731,7 +1733,7 @@ const Users = () => {
         accessibilityLabel={`Powiększ zdjęcie: ${name || 'kurtka'}`}
         onPress={() => setPreviewPicture({ url: previewUrl, name })}
       >
-        <Image source={{ uri: url }} style={styles.pictureThumb} resizeMode="cover" />
+        <ThumbImage uri={url} fallbackUri={originalUrl} style={styles.pictureThumb} resizeMode="cover" />
       </TouchableOpacity>
     );
   };

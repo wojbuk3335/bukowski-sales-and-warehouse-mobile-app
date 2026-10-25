@@ -41,3 +41,10 @@ describe('pictureVariantUrl (mobile)', () => {
     expect(itemPictureVariantUrl(goods, { fullName: 'Ada CZERWONY' }, 'thumb', BASE)).toBe('https://bukowskiapp.pl/images/thumb/ada.jpg');
   });
 });
+
+describe('miniatury tylko z naszego serwera (mobile)', () => {
+  test('obcy serwer → adres bez zmian', () => {
+    expect(pictureVariantUrl('https://stary-serwer.pl/images/a.jpg', 'thumb', 'https://bukowskiapp.pl')).toBe('https://stary-serwer.pl/images/a.jpg');
+    expect(pictureVariantUrl('https://bukowskiapp.pl/images/a.jpg', 'thumb', 'https://bukowskiapp.pl')).toBe('https://bukowskiapp.pl/images/thumb/a.jpg');
+  });
+});

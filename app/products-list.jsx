@@ -26,7 +26,8 @@ import { defaultDiscountMinimum, defaultRegularMinimum } from '../utils/defaultS
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
-import { pictureVariantUrl } from '../utils/productPicture'; // miniatury zdjęć z serwera
+import { pictureVariantUrl } from '../utils/productPicture';
+import ThumbImage from '../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatury zdjęć z serwera
 
 // Nagłówek dolnego okienka wyboru: kolorowy kafelek z ikoną, tytuł i przycisk zamknięcia
 const SheetHeader = ({ icon, title, onClose, color = '#0D6EFD' }) => (
@@ -1060,19 +1061,22 @@ const ProductsList = () => {
     });
 
   const renderProduct = ({ item, index }) => {
-    const imageUrl = pictureVariantUrl(getImageUrl(item.picture), 'thumb'); // miniatura 160 px w wierszu listy
+    const originalImageUrl = getImageUrl(item.picture);
+    const imageUrl = pictureVariantUrl(originalImageUrl, 'thumb'); // miniatura 160 px w wierszu listy
+    const previewImageUrl = pictureVariantUrl(originalImageUrl, 'preview'); // powiększenie 1200 px
 
     // Karta jak w innych listach: miniatura, nazwa i kod, plakietki (kategoria, cena, promocja, wyjątki), akcje jako kafelki
     return (
       <View style={styles.productCard}>
         <TouchableOpacity
           style={styles.productImageContainer}
-          onPress={() => setEnlargedImage(imageUrl)}
+          onPress={() => setEnlargedImage(previewImageUrl)}
           activeOpacity={0.8}
         >
           {item.picture ? (
-            <Image
-              source={{ uri: imageUrl }}
+            <ThumbImage
+              uri={imageUrl}
+              fallbackUri={originalImageUrl}
               style={styles.productImage}
               resizeMode="cover"
             />
