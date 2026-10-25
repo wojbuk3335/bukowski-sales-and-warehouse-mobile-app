@@ -26,7 +26,7 @@ import { defaultDiscountMinimum, defaultRegularMinimum } from '../utils/defaultS
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
-import { pictureVariantUrl } from '../utils/productPicture';
+import { pictureVariantUrl, variantToOriginalUrl } from '../utils/productPicture';
 import ThumbImage from '../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatury zdjęć z serwera
 
 // Nagłówek dolnego okienka wyboru: kolorowy kafelek z ikoną, tytuł i przycisk zamknięcia
@@ -2700,8 +2700,9 @@ Nadpisać ceny w cennikach wszystkich punktów sprzedaży? Jeśli nie, zmieni si
                 <Ionicons name="close-circle" size={40} color={tc('text', "#fff")} />
               </TouchableOpacity>
               {enlargedImage ? (
-                <Image
-                  source={{ uri: enlargedImage }}
+                <ThumbImage
+                  uri={enlargedImage}
+                  fallbackUri={variantToOriginalUrl(enlargedImage)}
                   style={styles.enlargedImage}
                   resizeMode="contain"
                 />

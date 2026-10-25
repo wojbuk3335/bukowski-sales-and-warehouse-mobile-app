@@ -22,7 +22,7 @@ import { API_CONFIG, getApiUrl } from "../config/api";
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
-import { pictureVariantUrl } from '../utils/productPicture';
+import { pictureVariantUrl, variantToOriginalUrl } from '../utils/productPicture';
 import ThumbImage from '../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatury zdjęć z serwera
 // Walidacja ceny w cenniku: cena > 0, promocja 0 albo niższa od ceny, wyjątki z rozmiarem i ceną > 0, bez powtórzeń.
 // Zwraca komunikat błędu albo null.
@@ -1018,7 +1018,7 @@ const Cenniki = () => {
               <Ionicons name="close" size={24} color={tc('text', "#fff")} />
             </TouchableOpacity>
             {selectedPicture && (
-              <Image source={{ uri: selectedPicture }} style={styles.fullImage} resizeMode="contain" />
+              <ThumbImage uri={selectedPicture} fallbackUri={variantToOriginalUrl(selectedPicture)} style={styles.fullImage} resizeMode="contain" />
             )}
           </View>
         </View>

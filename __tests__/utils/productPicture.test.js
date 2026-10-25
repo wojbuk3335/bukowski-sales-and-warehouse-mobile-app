@@ -48,3 +48,11 @@ describe('miniatury tylko z naszego serwera (mobile)', () => {
     expect(pictureVariantUrl('https://bukowskiapp.pl/images/a.jpg', 'thumb', 'https://bukowskiapp.pl')).toBe('https://bukowskiapp.pl/images/thumb/a.jpg');
   });
 });
+
+describe('variantToOriginalUrl (mobile)', () => {
+  test('wersja → oryginał', () => {
+    const { variantToOriginalUrl } = require('../../utils/productPicture');
+    expect(variantToOriginalUrl('https://bukowskiapp.pl/images/preview/a.jpg')).toBe('https://bukowskiapp.pl/images/a.jpg');
+    expect(variantToOriginalUrl('https://inny.pl/a.jpg')).toBe('https://inny.pl/a.jpg');
+  });
+});

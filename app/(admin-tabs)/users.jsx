@@ -24,7 +24,7 @@ import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
 import { KeyboardSafeScreen, useRevealInput } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
-import { itemPictureVariantUrl, itemPictureUrl } from '../../utils/productPicture';
+import { itemPictureVariantUrl, itemPictureUrl, variantToOriginalUrl } from '../../utils/productPicture';
 import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 
@@ -2241,7 +2241,7 @@ const Users = () => {
         <Pressable style={styles.picturePreviewBackdrop} onPress={() => setPreviewPicture(null)} testID="dobieranie-picture-preview">
           {previewPicture ? (
             <>
-              <Image source={{ uri: previewPicture.url }} style={styles.picturePreviewImage} resizeMode="contain" />
+              <ThumbImage uri={previewPicture.url} fallbackUri={variantToOriginalUrl(previewPicture.url)} style={styles.picturePreviewImage} resizeMode="contain" />
               {previewPicture.name ? <Text style={styles.picturePreviewName}>{previewPicture.name}</Text> : null}
             </>
           ) : null}

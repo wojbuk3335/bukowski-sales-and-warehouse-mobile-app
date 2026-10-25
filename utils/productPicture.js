@@ -56,6 +56,9 @@ export const pictureVariantUrl = (picture, variant = 'thumb', baseUrl) => {
   return url.replace(/\/images\/(?!thumb\/|preview\/)([^/?#]+)(?=[?#]|$)/, `/images/${variant}/$1`);
 };
 
+// Adres oryginału z adresu wersji (…/images/preview/<plik> -> …/images/<plik>) - zapas, gdy wersja się nie wczyta
+export const variantToOriginalUrl = (url) => String(url || '').replace(/\/images\/(thumb|preview)\/([^/?#]+)/, '/images/$2') || null;
+
 export const itemPictureUrl = (goods, item, baseUrl) => pictureUrl(findGoodForItem(goods, item)?.picture, baseUrl);
 export const itemPictureVariantUrl = (goods, item, variant, baseUrl) => pictureVariantUrl(findGoodForItem(goods, item)?.picture, variant, baseUrl);
 
