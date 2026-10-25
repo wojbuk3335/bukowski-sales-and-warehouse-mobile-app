@@ -136,6 +136,21 @@ const UsersManagement = () => {
     setShowConfirmPassword(false);
   };
 
+  // Zmiany wrażliwe (własne hasło / e-mail, reset 2FA) serwer przyjmuje tylko z aktualnym hasłem zalogowanego admina
+  // (audyt 15.10.2026). Okienko z polem hasła; null = anulowano.
+  const [passwordPrompt, setPasswordPrompt] = useState(null); // { title, message, resolve }
+  const [promptPassword, setPromptPassword] = useState('');
+  const askCurrentPassword = (title, message) => new Promise((resolve) => {
+    setPromptPassword('');
+    setPasswordPrompt({ title, message, resolve });
+  });
+  const finishPasswordPrompt = (value) => {
+    const prompt = passwordPrompt;
+    setPasswordPrompt(null);
+    setPromptPassword('');
+    prompt?.resolve(value);
+  };
+
   const showError = (message) => {
     setErrorMessage(message);
     setIsErrorModalVisible(true);
@@ -305,6 +320,15 @@ const UsersManagement = () => {
       delete payload.confirmPassword;
       if (!payload.password) delete payload.password;
 
+      // Własne konto: nowe hasło albo zmieniony e-mail wymagają potwierdzenia aktualnym hasłem (serwer odrzuca bez niego)
+      const own = String(editingUser.email || '').toLowerCase() === String(user?.email || '').toLowerCase();
+      const emailChanged = String(payload.email || '').trim().toLowerCase() !== String(editingUser.email || '').toLowerCase();
+      if (own && (payload.password || emailChanged)) {
+        const currentPassword = await askCurrentPassword('Potwierdzenie zmiany', 'Zmieniasz hasło lub e-mail swojego konta. Potwierdź swoim aktualnym hasłem.');
+        if (currentPassword === null) return;
+        payload.currentPassword = currentPassword;
+      }
+
       const { accessToken } = await tokenService.getTokens();
       await axios.put(getApiUrl(`/user/${editingUser._id}`), payload, {
         headers: {
@@ -359,7 +383,8 @@ const UsersManagement = () => {
               await fetchUsers();
             } catch (error) {
               console.error('Error deleting user:', error);
-              setErrorMessage('Nie udało się usunąć użytkownika');
+              // np. własne konto albo ostatni administrator - serwer odmawia z polskim komunikatem
+              setErrorMessage(error?.response?.data?.message || 'Nie udało się usunąć użytkownika');
               setIsErrorModalVisible(true);
             }
           },
@@ -414,9 +439,12 @@ const UsersManagement = () => {
           text: 'Resetuj 2FA',
           style: 'destructive',
           onPress: async () => {
+            // Serwer wymaga potwierdzenia własnym hasłem (token z telefonu to za mało)
+            const currentPassword = await askCurrentPassword('Reset 2FA', 'Potwierdź reset 2FA swoim aktualnym hasłem do panelu.');
+            if (currentPassword === null) return;
             try {
               const { accessToken } = await tokenService.getTokens();
-              const response = await axios.post(getApiUrl(`/user/${target._id}/reset-2fa`), {}, {
+              const response = await axios.post(getApiUrl(`/user/${target._id}/reset-2fa`), { currentPassword }, {
                 headers: { Authorization: `Bearer ${accessToken}` },
               });
               setSuccessMessage(response.data?.message || '2FA zostało zresetowane.');
@@ -853,6 +881,49 @@ const UsersManagement = () => {
       </Modal>
 
       {/* Error Modal */}
+      {/* Potwierdzenie aktualnym hasłem (własne hasło / e-mail, reset 2FA) */}
+      <Modal
+        visible={!!passwordPrompt}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => finishPasswordPrompt(null)}
+      >
+        <KeyboardSafeOverlay>
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="lock-closed" color="#F59E0B" title={passwordPrompt?.title || 'Potwierdzenie'} />
+            <Text style={look.modalMessage}>{passwordPrompt?.message}</Text>
+            <TextInput
+              testID="current-password-input"
+              style={look.formInput}
+              value={promptPassword}
+              onChangeText={setPromptPassword}
+              placeholder="Twoje aktualne hasło"
+              placeholderTextColor={tc('muted', '#94A3B8')}
+              secureTextEntry
+              autoFocus
+              autoCapitalize="none"
+              returnKeyType="done"
+              onSubmitEditing={() => promptPassword && finishPasswordPrompt(promptPassword)}
+            />
+            <View style={look.buttonRow}>
+              <TouchableOpacity
+                testID="current-password-confirm"
+                style={[look.primaryButton, !promptPassword && look.disabled]}
+                disabled={!promptPassword}
+                onPress={() => finishPasswordPrompt(promptPassword)}
+              >
+                <Text style={look.buttonText}>Potwierdź</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="current-password-cancel" style={look.neutralButton} onPress={() => finishPasswordPrompt(null)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        </KeyboardSafeOverlay>
+      </Modal>
+
       <Modal
         visible={isErrorModalVisible}
         animationType="fade"

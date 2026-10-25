@@ -17,6 +17,7 @@ import { GlobalStateContext } from '../context/GlobalState';
 import { getApiUrl } from '../config/api';
 import tokenService from '../services/tokenService';
 import { appAlert } from '../services/appAlert';
+import { stockLocationsText } from '../utils/correctionStock'; // „Jest na stanie: P (1 szt.)” z listy korekt
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
@@ -151,8 +152,21 @@ const CorrectionsList = () => {
       handleStatusUpdate(correctionId, newStatus, correctionData);
       return;
     }
-    setNoteText('');
-    setNotePrompt({ correctionId, newStatus, correctionData });
+    const openNotePrompt = () => {
+      setNoteText('');
+      setNotePrompt({ correctionId, newStatus, correctionData });
+    };
+    // Kurtka jest gdzieś na stanie - właściwa droga to „Wskaż” (zdejmuje ją ze stanu), nie zamknięcie z powodem
+    const whereInStock = stockLocationsText(correctionData?.stockLocations);
+    if (whereInStock) {
+      appAlert('Kurtka jest na stanie', `Ta kurtka jest na stanie: ${whereInStock}. Wskazać ją zamiast zamykać korektę?`, [
+        { text: 'Anuluj', style: 'cancel' },
+        { text: 'Zamknij mimo to', style: 'destructive', onPress: openNotePrompt },
+        { text: 'Wskaż produkt', onPress: () => handleFindProduct(correctionData) },
+      ]);
+      return;
+    }
+    openNotePrompt();
   };
 
   const submitNotePrompt = () => {
@@ -458,6 +472,21 @@ const CorrectionsList = () => {
             <Text style={styles.infoValue}>{correction.sellingPoint}</Text>
           </View>
 
+          {/* „Gdzie jest kurtka”: serwer podaje punkty, w których sztuka jest na stanie (brak pola = stary serwer) */}
+          {correction.status === 'PENDING' && Array.isArray(correction.stockLocations) && (
+            <View style={styles.infoRow}>
+              <Ionicons name="cube-outline" size={16} color={correction.stockLocations.length ? '#16A34A' : '#EF4444'} />
+              <Text
+                style={[styles.stockHint, { color: correction.stockLocations.length ? '#16A34A' : '#EF4444' }]}
+                testID={`stock-hint-${correction._id}`}
+              >
+                {correction.stockLocations.length
+                  ? `Jest na stanie: ${stockLocationsText(correction.stockLocations)}`
+                  : 'Nie ma na żadnym stanie'}
+              </Text>
+            </View>
+          )}
+
           {correction.errorType && (
             <View style={styles.infoRow}>
               <Ionicons name="alert-circle-outline" size={16} color={tc('muted', "#94A3B8")} />
@@ -480,30 +509,34 @@ const CorrectionsList = () => {
         {correction.status === 'PENDING' && (
           <View style={styles.cardActions}>
             {!['REMANENT_BRAK', 'REMANENT_NADWYŻKA'].includes(correction.attemptedOperation) ? (
-              <>
+              // „Wskaż produkt” to główna akcja (zdejmuje sztukę ze stanu) - szeroki przycisk; zamknięcie z powodem mniejsze pod nim
+              <View style={styles.actionsColumn}>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.findButton]}
+                  style={[styles.actionButton, styles.findButton, styles.primaryActionButton]}
                   onPress={() => handleFindProduct(correction)}
                   disabled={searchingProduct}
+                  testID={`find-${correction._id}`}
                 >
-                  <Ionicons name="search" size={16} color="#fff" />
-                  <Text style={styles.actionButtonText}>Wskaż</Text>
+                  <Ionicons name="search" size={18} color="#fff" />
+                  <Text style={[styles.actionButtonText, styles.primaryActionText]}>Wskaż produkt</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.resolveButton]}
-                  onPress={() => requestStatusUpdate(correction._id, 'RESOLVED', correction)}
-                >
-                  <Ionicons name="checkmark-circle" size={16} color="#fff" />
-                  <Text style={styles.actionButtonText}>Rozwiązano</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.ignoreButton]}
-                  onPress={() => requestStatusUpdate(correction._id, 'IGNORED', correction)}
-                >
-                  <Ionicons name="close-circle" size={16} color={tc('text', "#fff")} />
-                  <Text style={[styles.actionButtonText, styles.ignoreButtonText]}>Zignoruj</Text>
-                </TouchableOpacity>
-              </>
+                <View style={styles.secondaryActions}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.secondaryActionButton]}
+                    onPress={() => requestStatusUpdate(correction._id, 'RESOLVED', correction)}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={15} color="#10B981" />
+                    <Text style={[styles.actionButtonText, styles.secondaryActionText]}>Rozwiązano</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.secondaryActionButton]}
+                    onPress={() => requestStatusUpdate(correction._id, 'IGNORED', correction)}
+                  >
+                    <Ionicons name="close-circle-outline" size={15} color={tc('muted', '#94A3B8')} />
+                    <Text style={[styles.actionButtonText, styles.secondaryActionText]}>Zignoruj</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             ) : (
               <>
                 <TouchableOpacity
@@ -1209,6 +1242,37 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   findButton: {
     backgroundColor: '#F59E0B',
+  },
+  // „Wskaż produkt” jako główna akcja, „Rozwiązano” / „Zignoruj” mniejsze pod spodem (25.10.2026)
+  actionsColumn: {
+    flex: 1,
+    gap: 8,
+  },
+  primaryActionButton: {
+    paddingVertical: 14,
+  },
+  primaryActionText: {
+    fontSize: 15,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryActionButton: {
+    paddingVertical: 8,
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+  },
+  secondaryActionText: {
+    color: tc('text', '#fff'),
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  stockHint: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
   },
   resolveButton: {
     backgroundColor: '#10B981',

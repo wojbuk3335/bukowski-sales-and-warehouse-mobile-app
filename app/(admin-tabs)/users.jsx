@@ -28,6 +28,7 @@ import { itemPictureVariantUrl, itemPictureUrl, variantToOriginalUrl } from '../
 import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 import { productRefs, sameProductByRefs } from '../../utils/productPairing'; // krok 3: parowanie po ID towaru i rozmiaru
+import { warsawDay } from '../../utils/warsawDay'; // S16: dzień pozycji liczony po czasie polskim, nie UTC
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Users = () => {
@@ -641,7 +642,7 @@ const Users = () => {
       
       // 2. Filter BLUE transfers (outgoing from this user, not processed, correct date)
       const blueTransfers = allTransfers.filter(transfer => {
-        const transferDate = new Date(transfer.date).toISOString().split('T')[0];
+        const transferDate = warsawDay(transfer.date);
         const isCorrectDate = transferDate === dateStr;
         const isOutgoing = transfer.transfer_from === selectedUserData.symbol && !transfer.fromWarehouse;
         const notProcessed = !transfer.blueProcessed;
@@ -651,7 +652,7 @@ const Users = () => {
       
       // 3. Filter YELLOW transfers (incoming to this user, not processed, correct date)
       const yellowTransfers = allTransfers.filter(transfer => {
-        const transferDate = new Date(transfer.date).toISOString().split('T')[0];
+        const transferDate = warsawDay(transfer.date);
         const isCorrectDate = transferDate === dateStr;
         const isIncoming = transfer.transfer_to === selectedUserData.symbol && transfer.transfer_from !== 'MAGAZYN';
         const notProcessed = !transfer.yellowProcessed;
@@ -673,7 +674,7 @@ const Users = () => {
         const allSales = await salesResponse.json();
         // Filter unprocessed sales for this date and user
         salesItems = allSales.filter(sale => {
-          const saleDate = new Date(sale.timestamp).toISOString().split('T')[0];
+          const saleDate = warsawDay(sale.timestamp);
           const isCorrectDate = saleDate === dateStr;
           const isFromUser = sale.from === selectedUserData.symbol;
           const notProcessed = !sale.processed;

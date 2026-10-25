@@ -9,6 +9,7 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
+import { warsawToday } from '../utils/warsawDay';
 import { applyChangeToCash, computePaymentBalance, formatMoney, formatMoneyExact, plnPerUnit, plnToCurrency, roundDownMoney, roundUpMoney } from "../utils/paymentBalance";
 import { sanitizeAmountInput } from "../utils/amountInput";
 import { sortCurrenciesForPicker } from "../utils/currencyOrder"; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
@@ -1037,7 +1038,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     try {
       const requestBody = {
         sellingPoint: user?.sellingPoint,
-        date: new Date().toISOString().split('T')[0]
+        date: warsawToday() // dzień polski, nie UTC - po 00:00 prowizja liczyła się do wczoraj (S16)
       };
       
       const response = await tokenService.authenticatedFetch(

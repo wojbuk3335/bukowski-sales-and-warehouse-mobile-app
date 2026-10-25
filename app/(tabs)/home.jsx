@@ -558,7 +558,7 @@ const Home = () => {
     if (mode === editPaymentMode) return;
     setEditPaymentMode(mode);
     if (mode === 'card') {
-      setCashPriceCurrencyPairs([{ price: '0', currency: 'PLN' }]);
+      setCashPriceCurrencyPairs([{ price: '', currency: 'PLN' }]); // nie '0' - zapisywała się wpłata gotówkowa 0 zł (audyt Sprzedaż)
       setCardPriceCurrencyPairs([{ price: String(editListPrice), currency: 'PLN' }]);
       return;
     }
@@ -569,12 +569,13 @@ const Home = () => {
   const updateItem = async () => {
     try {
       if (editData?._id) {
-        // Zapisujemy wpłaty tak, jak wpisano (puste pomijamy)
+        // Zapisujemy wpłaty tak, jak wpisano (puste i zerowe pomijamy - wpłata 0 zł to nie wpłata)
+        const hasAmount = (pair) => pair.price && String(pair.price).trim() !== "" && parseFloat(String(pair.price).replace(',', '.')) > 0;
         const validCashPrices = cashPriceCurrencyPairs
-          .filter((pair) => pair.price && String(pair.price).trim() !== "")
+          .filter(hasAmount)
           .map((pair) => ({ price: pair.price, currency: pair.currency }));
         const validCardPrices = cardPriceCurrencyPairs
-          .filter((pair) => pair.price && String(pair.price).trim() !== "")
+          .filter(hasAmount)
           .map((pair) => ({ price: pair.price, currency: editPriceRuleSale ? 'PLN' : pair.currency }));
 
         // Validate that at least one price (cash or card) is provided
@@ -2653,40 +2654,6 @@ const Home = () => {
       Logger.error('Error converting price:', error);
       setProductPriceInCurrency(pricePLN.toFixed(2));
       setShowCurrencyConversion(false);
-    }
-  };
-
-  // Function to calculate advance percentage with currency conversion
-  const calculateAdvanceWithConversion = async (advanceAmount, advanceCurrency, productPricePLN, customRate = null) => {
-    try {
-      // If custom rate provided, use it temporarily
-      if (customRate && customRate > 0) {
-        // Manual conversion with custom rate
-        const multiplier = getMultiplier(advanceCurrency);
-        const advanceInPLN = (advanceAmount / multiplier) * customRate;
-        const percentage = (advanceInPLN / productPricePLN) * 100;
-        
-        return {
-          advanceAmount,
-          advanceCurrency,
-          advanceInPLN: Math.round(advanceInPLN * 100) / 100,
-          productPrice: productPricePLN,
-          percentage: Math.round(percentage * 100) / 100,
-          exchangeRate: customRate,
-          conversionDate: new Date().toISOString()
-        };
-      } else {
-        // Use stored rate via service
-        const calculation = await CurrencyService.calculateAdvancePercentage(
-          advanceAmount, 
-          advanceCurrency, 
-          productPricePLN
-        );
-        return calculation;
-      }
-    } catch (error) {
-      Logger.error('Error calculating advance percentage:', error);
-      return null;
     }
   };
 

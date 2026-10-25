@@ -40,7 +40,8 @@ const renderScreen = () => render(
 const pressAlertButton = async (text) => {
   const call = appAlert.mock.calls[appAlert.mock.calls.length - 1];
   const button = (call[2] || []).find((b) => b.text === text);
-  await act(async () => { await button.onPress(); });
+  // bez czekania na koniec onPress: reset 2FA czeka w nim na okienko z hasłem (od 25.10) - czekanie zawiesiłoby test
+  await act(async () => { button.onPress(); });
 };
 
 describe('Zarządzanie użytkownikami - menu ⋮', () => {
@@ -107,6 +108,11 @@ describe('Zarządzanie użytkownikami - menu ⋮', () => {
 
     expect(appAlert).toHaveBeenCalledWith('Reset 2FA', expect.stringContaining('kolega@test.pl'), expect.any(Array));
     await pressAlertButton('Resetuj 2FA');
-    expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/user/adm2/reset-2fa'), {}, expect.any(Object));
+    // od 25.10 reset 2FA wymaga potwierdzenia aktualnym hasłem admina
+    await waitFor(() => expect(screen.getByTestId('current-password-input')).toBeTruthy());
+    expect(axios.post).not.toHaveBeenCalledWith(expect.stringContaining('/reset-2fa'), expect.anything(), expect.anything());
+    fireEvent.changeText(screen.getByTestId('current-password-input'), 'MojeHaslo1!');
+    await act(async () => { fireEvent.press(screen.getByTestId('current-password-confirm')); });
+    await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/user/adm2/reset-2fa'), { currentPassword: 'MojeHaslo1!' }, expect.any(Object)));
   });
 });

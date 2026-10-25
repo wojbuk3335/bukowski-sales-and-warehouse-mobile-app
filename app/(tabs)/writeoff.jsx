@@ -14,6 +14,12 @@ import { appAlert } from '../../services/appAlert';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActionItem, ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+// Skaner (components/scanner/ScanCamera, kamera) wczytywany dopiero po otwarciu „Skanuj metkę” - ekran przepisywania
+// nie ładuje kamery, dopóki nikt jej nie użyje
+const loadScanCamera = () => require('../../components/scanner/ScanCamera').default;
+import useProductCatalog from '../../hooks/useProductCatalog'; // baza produktów i nazwy po kodzie z metki (Wymiana: oddana kurtka)
+import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
+import { warsawToday } from '../../utils/warsawDay'; // S16: „dziś” po czasie polskim
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
@@ -49,6 +55,17 @@ const WriteOff = () => {
     const [successMessage, setSuccessMessage] = useState(""); // Message for success modal
     const [panKazekModalVisible, setPanKazekModalVisible] = useState(false); // Modal for Pan Kazek confirmation
     const [exchangeModalVisible, setExchangeModalVisible] = useState(false); // Modal for exchange location selection
+    // Wymiana, krok 2: kurtka oddana przez klienta (jedzie do MAGAZYNU)
+    const [returnPrompt, setReturnPrompt] = useState(null); // { exchangeTransferId, givenLabel }
+    const [returnCandidates, setReturnCandidates] = useState([]);
+    const [returnLoading, setReturnLoading] = useState(false);
+    const [returnSaving, setReturnSaving] = useState(false);
+    const [returnCode, setReturnCode] = useState('');
+    const [returnView, setReturnView] = useState('main'); // 'main' | 'scan' | 'picker'
+    const [returnCodeFocused, setReturnCodeFocused] = useState(false); // wpisywanie kodu: lista sprzedaży schowana
+    const [returnPickerSearch, setReturnPickerSearch] = useState('');
+    const [returnPickerGood, setReturnPickerGood] = useState(null); // kurtka wybrana z bazy - czeka na rozmiar
+    const { goodsList, pickerSizes, getProductNameFromBarcode, isKnownProductCode } = useProductCatalog();
     
     // Animacje dla kropek ładowania
     const dot1Anim = useRef(new Animated.Value(0)).current;
@@ -62,7 +79,7 @@ const WriteOff = () => {
     // Get today's date in YYYY-MM-DD format
     // FOR TESTING: Uncomment line below to simulate tomorrow
     // const today = '2025-08-11'; // TEST: Simulate tomorrow (dzień później)
-    const today = new Date().toISOString().split('T')[0]; // NORMAL: Real today
+    const today = warsawToday(); // dzień polski, nie UTC (S16: po północy UTC ma jeszcze wczoraj)
 
     // Animacja kropek
     useEffect(() => {
@@ -421,7 +438,7 @@ const fetchSales = async () => {
             const allExchanges = Array.isArray(data.data) ? data.data : [];
             
             // Filter exchanges for current user's symbol (today only)
-            const today = new Date().toISOString().split('T')[0];
+            const today = warsawToday();
             const todayExchanges = allExchanges.filter(
                 (exchange) => exchange.symbol === user?.symbol && exchange.dateString === today
             );
@@ -643,6 +660,113 @@ const fetchSales = async () => {
         setPanKazekModalVisible(true);
     };
 
+    // Wymiana, krok 2 (25.10.2026): kurtka oddana przez klienta. Lista sprzedaży z tego punktu z 14 dni albo kod z metki;
+    // serwer zapisuje ją jako przepisanie do MAGAZYNU (tylko żółta noga) - po Dobieraniu MAGAZYNU jest na jego stanie.
+    // „Pomiń” = jak dawniej: oddaną kurtkę admin dopisuje do magazynu ręcznie.
+    const openReturnPrompt = async (exchangeTransferId, givenLabel) => {
+        setReturnCode('');
+        setReturnView('main');
+        setReturnPickerSearch('');
+        setReturnPickerGood(null);
+        setReturnCandidates([]);
+        setReturnPrompt({ exchangeTransferId, givenLabel });
+        setReturnLoading(true);
+        try {
+            const response = await tokenService.authenticatedFetch(getApiUrl('/transfer/exchange-return/candidates'));
+            const data = response.ok ? await response.json() : null;
+            setReturnCandidates(Array.isArray(data?.sales) ? data.sales : []);
+        } catch (error) {
+            Logger.error('Exchange return candidates failed:', error);
+            setReturnCandidates([]);
+        } finally {
+            setReturnLoading(false);
+        }
+    };
+
+    const finishExchange = (returnedLabel) => {
+        setReturnPrompt(null);
+        setSuccessMessage(returnedLabel
+            ? `Wymiana została zapisana.\nOddana kurtka ${returnedLabel} pojedzie do MAGAZYNU - pojawi się w Dobieraniu dla MAGAZYNU.`
+            : 'Wymiana została zapisana.\nOddanej kurtki nie wskazano - trzeba ją dopisać do magazynu ręcznie.');
+        setSuccessModalVisible(true);
+    };
+
+    const saveReturnedItem = async (payload, label) => {
+        if (!returnPrompt || returnSaving) return;
+        setReturnSaving(true);
+        try {
+            const response = await tokenService.authenticatedFetch(getApiUrl('/transfer/exchange-return'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ exchangeTransferId: returnPrompt.exchangeTransferId, ...payload }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                appAlert('Nie zapisano oddanej kurtki', data?.message || 'Spróbuj ponownie albo pomiń.');
+                return;
+            }
+            finishExchange(label || `${data.fullName} ${data.size}`);
+        } catch (error) {
+            Logger.error('Exchange return save failed:', error);
+            appAlert('Nie zapisano oddanej kurtki', 'Brak połączenia z serwerem. Spróbuj ponownie albo pomiń.');
+        } finally {
+            setReturnSaving(false);
+        }
+    };
+
+    // Kod z metki oddanej kurtki musi być zawsze poprawny: 13 cyfr, zgodna cyfra kontrolna EAN-13 i produkt z naszej bazy
+    const checkReturnCode = (rawCode) => {
+        const code = String(rawCode || '').trim();
+        if (!code) return { state: 'idle' };
+        if (!/^\d+$/.test(code)) return { state: 'invalid', message: 'Kod z metki ma same cyfry.' };
+        if (code.length !== 13) return { state: 'invalid', message: `Kod z metki ma 13 cyfr (jest ${code.length}).` };
+        if (!isValidEan13(code)) return { state: 'invalid', message: 'Błędna cyfra kontrolna - sprawdź, czy kod jest dobrze przepisany.' };
+        const name = getProductNameFromBarcode(code);
+        if (!isKnownProductCode(code, name)) return { state: 'invalid', message: 'Nie ma takiego produktu w bazie.' };
+        return { state: 'ok', code, name: String(name || '').startsWith('Nieznany kod') ? '' : name };
+    };
+    const typedCodeCheck = checkReturnCode(returnCode);
+
+    const submitReturnCode = () => {
+        if (typedCodeCheck.state !== 'ok') return;
+        saveReturnedItem({ barcode: typedCodeCheck.code }, typedCodeCheck.name || null);
+    };
+
+    // Skan metki: ten sam warunek co przy wpisaniu; błędny kod - komunikat i skanujemy dalej
+    const handleReturnScan = ({ data }) => {
+        const check = checkReturnCode(data);
+        if (check.state !== 'ok') {
+            appAlert('Nieprawidłowa metka', check.message || 'Nie udało się odczytać kodu.');
+            return;
+        }
+        setReturnView('main');
+        saveReturnedItem({ barcode: check.code }, check.name || null);
+    };
+
+    // Wybór z bazy produktów: cała baza (nie tylko sprzedaże); kurtka wymaga rozmiaru, kod = model + kolor + rozmiar
+    const returnPickerResults = useMemo(() => {
+        const words = returnPickerSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        return (goodsList || [])
+            .filter((good) => good?.fullName && good?.code)
+            .filter((good) => words.every((word) => `${good.fullName} ${good.category || ''}`.toLowerCase().includes(word)))
+            .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), 'pl'))
+            .slice(0, 60);
+    }, [goodsList, returnPickerSearch]);
+    const chooseReturnPickerGood = (good) => {
+        if (good.category === 'Kurtki kożuchy futra') {
+            setReturnPickerGood(good);
+            return;
+        }
+        saveReturnedItem({ barcode: String(good.code) }, good.fullName);
+    };
+
+    const formatSaleDay = (value) => {
+        const date = value ? new Date(value) : null;
+        return date && !Number.isNaN(date.getTime())
+            ? date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })
+            : '';
+    };
+
     const handleExchange = async (toSymbol) => {
         if (!selectedItem) {
             appAlert("Error", "No item selected for exchange.");
@@ -721,15 +845,14 @@ const fetchSales = async () => {
 
             const transferResult = await transferResponse.json();
 
-            // Show success message
-            setSuccessMessage(`Wymiana została pomyślnie zapisana!\nTransfer ID: ${transferResult._id || 'unknown'}\nData: ${today}`);
-            setSuccessModalVisible(true);
+            setModalVisible(false);
+            setExchangeModalVisible(false);
+
+            // Krok 2: którą kurtkę klient oddaje - pojedzie do MAGAZYNU (sukces pokazujemy po tym kroku)
+            openReturnPrompt(transferResult._id, `${selectedItem.fullName} ${selectedItem.size}`);
 
             // Refresh data to update UI
             await fetchAllRequiredData(false);
-
-            setModalVisible(false);
-            setExchangeModalVisible(false);
         } catch (error) {
             Logger.error('Unexpected error during exchange:', error);
             appAlert("Error", "Wystąpił nieoczekiwany błąd podczas zapisywania wymiany.");
@@ -1406,6 +1529,198 @@ const fetchSales = async () => {
                     </View>
                 </View>
             </Modal>
+
+            {/* Wymiana, krok 2: którą kurtkę klient oddaje (jedzie do MAGAZYNU).
+                Trzy drogi: sprzedaż z listy, kod z metki (wpisany - sprawdzany na bieżąco - albo zeskanowany), wybór z bazy produktów */}
+            <Modal
+                visible={!!returnPrompt}
+                transparent={returnView !== 'scan'}
+                animationType="slide"
+                onRequestClose={() => (returnView === 'main' ? finishExchange(null) : setReturnView('main'))}
+            >
+                {returnView === 'scan' ? (() => { const ScanCamera = loadScanCamera(); return (
+                    <View style={styles.returnScanContainer}>
+                        <ScanCamera
+                            enabled={!returnSaving}
+                            onScanned={handleReturnScan}
+                            resolveName={(code) => (checkReturnCode(code).state === 'ok' ? checkReturnCode(code).name : null)}
+                            hint="Zeskanuj metkę oddanej kurtki"
+                        >
+                            <TouchableOpacity testID="return-scan-close" style={styles.returnScanClose} onPress={() => setReturnView('main')}>
+                                <Ionicons name="close" size={26} color="#fff" />
+                            </TouchableOpacity>
+                        </ScanCamera>
+                    </View>
+                ); })() : (
+                <KeyboardSafeOverlay>
+                <View style={look.modalOverlay}>
+                    <View style={look.modalContent}>
+                        {returnView === 'picker' ? (
+                            <>
+                                <ModalHeader icon="search" color="#FF9800" title={returnPickerGood ? 'Rozmiar oddanej kurtki' : 'Wybierz z bazy produktów'} />
+                                {returnPickerGood ? (
+                                    <>
+                                        <Text style={styles.returnGiven}>{returnPickerGood.fullName}</Text>
+                                        <FlatList
+                                            data={pickerSizes}
+                                            keyExtractor={(size) => String(size._id || size.Roz_Kod)}
+                                            style={{ maxHeight: 320, width: '100%' }}
+                                            renderItem={({ item: size }) => (
+                                                <ActionItem
+                                                    testID={`return-size-${size.Roz_Opis}`}
+                                                    icon="resize-outline"
+                                                    color="#FF9800"
+                                                    label={size.Roz_Opis}
+                                                    disabled={returnSaving}
+                                                    onPress={() => saveReturnedItem(
+                                                        { barcode: jacketCodeForSize(returnPickerGood.code, size.Roz_Kod) },
+                                                        `${returnPickerGood.fullName} ${size.Roz_Opis}`
+                                                    )}
+                                                />
+                                            )}
+                                        />
+                                        <TouchableOpacity style={[look.neutralButton, { flex: 0, marginTop: 10 }]} onPress={() => setReturnPickerGood(null)}>
+                                            <Text style={look.neutralButtonText}>Wróć do listy produktów</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : (
+                                    <>
+                                        <TextInput
+                                            testID="return-picker-search"
+                                            style={[styles.customReasonInput, styles.returnSearchInput]}
+                                            value={returnPickerSearch}
+                                            onChangeText={setReturnPickerSearch}
+                                            placeholder="Szukaj: nazwa, kolor, kategoria"
+                                            placeholderTextColor={tc('muted', '#94A3B8')}
+                                            autoFocus
+                                        />
+                                        <FlatList
+                                            data={returnPickerResults}
+                                            keyExtractor={(good) => String(good._id || good.code)}
+                                            style={{ maxHeight: 320, width: '100%' }}
+                                            keyboardShouldPersistTaps="handled"
+                                            ListEmptyComponent={(
+                                                <Text style={styles.returnHint}>
+                                                    {goodsList.length === 0 ? 'Wczytuję bazę produktów…' : 'Nic nie pasuje - zmień wyszukiwanie.'}
+                                                </Text>
+                                            )}
+                                            renderItem={({ item: good }) => (
+                                                <ActionItem
+                                                    testID={`return-good-${good.code}`}
+                                                    icon="pricetag-outline"
+                                                    color="#FF9800"
+                                                    label={good.fullName}
+                                                    note={good.category || null}
+                                                    disabled={returnSaving}
+                                                    onPress={() => chooseReturnPickerGood(good)}
+                                                />
+                                            )}
+                                        />
+                                    </>
+                                )}
+                                <TouchableOpacity
+                                    testID="return-picker-back"
+                                    style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
+                                    onPress={() => { setReturnPickerGood(null); setReturnView('main'); }}
+                                >
+                                    <Text style={look.neutralButtonText}>Anuluj</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <ModalHeader icon="repeat" color="#FF9800" title="Którą kurtkę klient oddaje?" />
+                                <Text style={styles.returnGiven}>Wydajesz: {returnPrompt?.givenLabel}</Text>
+                                <Text style={styles.returnHint}>Oddana kurtka pojedzie do MAGAZYNU.</Text>
+
+                                {/* Przy wpisywaniu kodu lista i przyciski się chowają - okienko jest niższe i mieści się nad klawiaturą */}
+                                {!returnCodeFocused && (<>
+                                <Text style={styles.returnSectionTitle}>Sprzedaże w tym punkcie z 14 dni:</Text>
+                                <View style={styles.returnList}>
+                                    {returnLoading ? (
+                                        <Text style={styles.returnHint}>Wczytuję sprzedaże…</Text>
+                                    ) : returnCandidates.length === 0 ? (
+                                        <Text style={styles.returnHint}>Brak sprzedaży z ostatnich 14 dni - zeskanuj metkę, wpisz kod albo wybierz z bazy.</Text>
+                                    ) : (
+                                        <FlatList
+                                            data={returnCandidates}
+                                            keyExtractor={(sale) => String(sale._id)}
+                                            style={{ maxHeight: 200 }}
+                                            renderItem={({ item: sale }) => (
+                                                <ActionItem
+                                                    testID={`return-sale-${sale._id}`}
+                                                    icon="return-down-back-outline"
+                                                    color="#FF9800"
+                                                    label={`${sale.fullName} ${sale.size}`}
+                                                    note={[formatSaleDay(sale.timestamp), sale.priceLabel, sale.from ? `od ${sale.from}` : ''].filter(Boolean).join(' · ')}
+                                                    disabled={returnSaving}
+                                                    onPress={() => saveReturnedItem({ saleId: sale._id }, `${sale.fullName} ${sale.size}`)}
+                                                />
+                                            )}
+                                        />
+                                    )}
+                                </View>
+
+                                <View style={styles.returnActionsRow}>
+                                    <TouchableOpacity testID="return-open-scan" style={[look.primaryButton, styles.returnActionButton]} onPress={() => setReturnView('scan')}>
+                                        <Ionicons name="scan-outline" size={18} color="#fff" />
+                                        <Text style={look.buttonText}>Skanuj metkę</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity testID="return-open-picker" style={[look.primaryButton, styles.returnActionButton, { backgroundColor: '#FF9800' }]} onPress={() => setReturnView('picker')}>
+                                        <Ionicons name="search-outline" size={18} color="#fff" />
+                                        <Text style={look.buttonText}>Z bazy</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                </>)}
+
+                                <Text style={styles.returnSectionTitle}>albo wpisz kod z metki:</Text>
+                                {/* Wynik sprawdzenia NAD polem - pod polem przykrywała go klawiatura */}
+                                {typedCodeCheck.state !== 'idle' && (
+                                    <Text
+                                        testID="return-code-check"
+                                        style={[styles.returnCodeCheck, { color: typedCodeCheck.state === 'ok' ? '#16A34A' : '#EF4444' }]}
+                                    >
+                                        {typedCodeCheck.state === 'ok' ? `✓ ${typedCodeCheck.name || 'Kod poprawny'}` : typedCodeCheck.message}
+                                    </Text>
+                                )}
+                                <View style={styles.returnCodeRow}>
+                                    <TextInput
+                                        testID="return-code-input"
+                                        style={[styles.customReasonInput, styles.returnCodeInput]}
+                                        value={returnCode}
+                                        onChangeText={(text) => setReturnCode(text.replace(/\s/g, ''))}
+                                        placeholder="13 cyfr z metki"
+                                        placeholderTextColor={tc('muted', '#94A3B8')}
+                                        keyboardType="number-pad"
+                                        maxLength={13}
+                                        returnKeyType="done"
+                                        onSubmitEditing={submitReturnCode}
+                                        onFocus={() => setReturnCodeFocused(true)}
+                                        onBlur={() => setReturnCodeFocused(false)}
+                                    />
+                                    <TouchableOpacity
+                                        testID="return-code-save"
+                                        style={[look.primaryButton, styles.returnCodeButton, (typedCodeCheck.state !== 'ok' || returnSaving) && look.disabled]}
+                                        disabled={typedCodeCheck.state !== 'ok' || returnSaving}
+                                        onPress={submitReturnCode}
+                                    >
+                                        <Text style={look.buttonText}>Zapisz</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <TouchableOpacity
+                                    testID="return-skip"
+                                    style={[look.neutralButton, { flex: 0, marginTop: 10 }]}
+                                    onPress={() => finishExchange(null)}
+                                >
+                                    <Text style={look.neutralButtonText}>Pomiń - dopiszę ręcznie</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
+                </View>
+                </KeyboardSafeOverlay>
+                )}
+            </Modal>
         </>
     );
 };
@@ -1600,6 +1915,82 @@ const styles = createThemedStyles(() => StyleSheet.create({
     customReasonContainer: {
         width: '90%',
         marginVertical: 10,
+    },
+    // Wymiana, krok 2: okienko oddanej kurtki
+    returnGiven: {
+        color: tc('text', '#fff'),
+        fontSize: 14,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginTop: 6,
+    },
+    returnHint: {
+        color: tc('muted', '#94A3B8'),
+        fontSize: 13,
+        textAlign: 'center',
+        marginVertical: 4,
+    },
+    returnSectionTitle: {
+        color: tc('text', '#fff'),
+        fontSize: 13,
+        fontWeight: '600',
+        marginTop: 12,
+        marginBottom: 6,
+    },
+    returnList: {
+        width: '100%',
+    },
+    returnCodeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        width: '100%',
+    },
+    returnCodeInput: {
+        flex: 1,
+        marginBottom: 0,
+        borderColor: tc('border', '#334155'),
+    },
+    returnCodeButton: {
+        flex: 0,
+        paddingHorizontal: 16,
+    },
+    returnCodeCheck: {
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 6,
+        alignSelf: 'flex-start',
+    },
+    returnActionsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        width: '100%',
+        marginTop: 12,
+    },
+    returnActionButton: {
+        flex: 1,
+        flexDirection: 'row',
+        gap: 6,
+    },
+    returnSearchInput: {
+        width: '100%',
+        borderColor: tc('border', '#334155'),
+        marginBottom: 8,
+    },
+    returnScanContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    returnScanClose: {
+        position: 'absolute',
+        top: 48,
+        right: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     customReasonInput: {
         backgroundColor: tc('surface', 'black'),

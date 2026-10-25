@@ -174,8 +174,8 @@ describe('CorrectionsList modals', () => {
 
     const screen = renderWithUser();
 
-    await waitFor(() => screen.getByText('Wskaż'));
-    fireEvent.press(screen.getByText('Wskaż'));
+    await waitFor(() => screen.getByText('Wskaż produkt'));
+    fireEvent.press(screen.getByText('Wskaż produkt'));
 
     await waitFor(() => screen.getByText('Lokalizacje produktu'));
     fireEvent.press(screen.getAllByText('Odpisz')[0]);
@@ -234,8 +234,8 @@ describe('CorrectionsList modals', () => {
 
     const screen = renderWithUser();
 
-    await waitFor(() => screen.getByText('Wskaż'));
-    fireEvent.press(screen.getByText('Wskaż'));
+    await waitFor(() => screen.getByText('Wskaż produkt'));
+    fireEvent.press(screen.getByText('Wskaż produkt'));
 
     await waitFor(() => screen.getByText('Lokalizacje produktu'));
     fireEvent.press(screen.getByText('Odpisz'));
@@ -306,8 +306,8 @@ describe('CorrectionsList modals', () => {
 
     const screen = renderWithUser();
 
-    await waitFor(() => screen.getByText('Wskaż'));
-    fireEvent.press(screen.getByText('Wskaż'));
+    await waitFor(() => screen.getByText('Wskaż produkt'));
+    fireEvent.press(screen.getByText('Wskaż produkt'));
 
     await waitFor(() => screen.getByText('Lokalizacje produktu'));
     fireEvent.press(screen.getAllByText('Odpisz')[0]);
