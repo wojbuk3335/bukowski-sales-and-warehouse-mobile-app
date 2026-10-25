@@ -322,4 +322,36 @@ describe('CorrectionsList modals', () => {
     expect(screen.getByText('Kurtka letnia S -1')).toBeTruthy();
     expect(screen.getByText('📦 MAGAZYN')).toBeTruthy();
   });
+
+  // Ręczne „Rozwiązano” / „Zignoruj” (bez odpisania sztuki) wymaga powodu - okienko z polem, bez powodu nie zapisuje
+  test.each([['Rozwiązano', 'RESOLVED'], ['Zignoruj', 'IGNORED']])('%s: pyta o powód i wysyła go do serwera', async (buttonLabel, status) => {
+    const correction = {
+      _id: 'cor_note', status: 'PENDING', attemptedOperation: 'TRANSFER', fullName: 'Ada CZERWONY', size: 'XL',
+      sellingPoint: 'Parzygnat', barcode: '0010701300002', createdAt: new Date().toISOString(), transactionId: 'tx_n',
+    };
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
+      if (url.includes('/corrections') && !options.method) return createResponse([correction]);
+      if (url.includes('/corrections/cor_note') && options.method === 'PUT') return createResponse({ correction: { ...correction, status } });
+      return createResponse([]);
+    });
+
+    const screen = renderWithUser();
+    await waitFor(() => expect(screen.getByText('Ada CZERWONY')).toBeTruthy());
+
+    fireEvent.press(screen.getAllByText(buttonLabel)[0]);
+    await waitFor(() => expect(screen.getByTestId('correction-note-input')).toBeTruthy());
+
+    // za krótki powód - Zapisz nic nie wysyła
+    fireEvent.changeText(screen.getByTestId('correction-note-input'), 'ok');
+    fireEvent.press(screen.getByTestId('correction-note-save'));
+    const putCalls = () => tokenService.authenticatedFetch.mock.calls.filter(([, o]) => o && o.method === 'PUT');
+    expect(putCalls()).toHaveLength(0);
+
+    fireEvent.changeText(screen.getByTestId('correction-note-input'), 'kurtka odnaleziona na stanie');
+    fireEvent.press(screen.getByTestId('correction-note-save'));
+    await waitFor(() => expect(putCalls()).toHaveLength(1));
+    const body = JSON.parse(putCalls()[0][1].body);
+    expect(body.status).toBe(status);
+    expect(body.resolutionNote).toBe('kurtka odnaleziona na stanie');
+  });
 });

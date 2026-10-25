@@ -25,6 +25,9 @@ const CorrectionsList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user } = useContext(GlobalStateContext);
   const [corrections, setCorrections] = useState([]);
+  // Okienko powodu przy ręcznym „Rozwiązano” / „Zignoruj” (serwer wymaga powodu: RESOLUTION_NOTE_REQUIRED)
+  const [notePrompt, setNotePrompt] = useState(null); // { correctionId, newStatus, correctionData }
+  const [noteText, setNoteText] = useState('');
   const [filteredCorrections, setFilteredCorrections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -140,7 +143,27 @@ const CorrectionsList = () => {
     });
   };
 
-  const handleStatusUpdate = async (correctionId, newStatus, correctionData = null) => {
+  // Ręczne rozliczenie bez odpisania sztuki - najpierw powód; po odpisaniu przez „Wskaż” serwer rozlicza korektę sam
+  const requestStatusUpdate = (correctionId, newStatus, correctionData = null) => {
+    const isManualClose = (newStatus === 'RESOLVED' || newStatus === 'IGNORED')
+      && (correctionData?.status || 'PENDING') === 'PENDING';
+    if (!isManualClose) {
+      handleStatusUpdate(correctionId, newStatus, correctionData);
+      return;
+    }
+    setNoteText('');
+    setNotePrompt({ correctionId, newStatus, correctionData });
+  };
+
+  const submitNotePrompt = () => {
+    const note = noteText.trim();
+    if (note.length < 3 || !notePrompt) return;
+    const { correctionId, newStatus, correctionData } = notePrompt;
+    setNotePrompt(null);
+    handleStatusUpdate(correctionId, newStatus, correctionData, note);
+  };
+
+  const handleStatusUpdate = async (correctionId, newStatus, correctionData = null, resolutionNote = null) => {
     try {
       const response = await tokenService.authenticatedFetch(
         getApiUrl(`/corrections/${correctionId}`),
@@ -149,7 +172,8 @@ const CorrectionsList = () => {
           body: JSON.stringify({
             status: newStatus,
             resolvedBy: user.email,
-            description: `Status zmieniony na ${newStatus}`
+            description: `Status zmieniony na ${newStatus}`,
+            ...(resolutionNote ? { resolutionNote } : {})
           }),
         }
       );
@@ -184,7 +208,9 @@ const CorrectionsList = () => {
 
         await loadCorrections();
       } else {
-        appAlert('Błąd', 'Nie udało się zaktualizować statusu korekty');
+        let serverMessage = '';
+        try { serverMessage = (await response.json())?.message || ''; } catch (_e) { serverMessage = ''; }
+        appAlert('Błąd', serverMessage || 'Nie udało się zaktualizować statusu korekty');
       }
     } catch (error) {
       console.error('Error updating status:', error);
@@ -465,14 +491,14 @@ const CorrectionsList = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.resolveButton]}
-                  onPress={() => handleStatusUpdate(correction._id, 'RESOLVED', correction)}
+                  onPress={() => requestStatusUpdate(correction._id, 'RESOLVED', correction)}
                 >
                   <Ionicons name="checkmark-circle" size={16} color="#fff" />
                   <Text style={styles.actionButtonText}>Rozwiązano</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.ignoreButton]}
-                  onPress={() => handleStatusUpdate(correction._id, 'IGNORED', correction)}
+                  onPress={() => requestStatusUpdate(correction._id, 'IGNORED', correction)}
                 >
                   <Ionicons name="close-circle" size={16} color={tc('text', "#fff")} />
                   <Text style={[styles.actionButtonText, styles.ignoreButtonText]}>Zignoruj</Text>
@@ -482,14 +508,14 @@ const CorrectionsList = () => {
               <>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.resolveButton]}
-                  onPress={() => handleStatusUpdate(correction._id, 'RESOLVED', correction)}
+                  onPress={() => requestStatusUpdate(correction._id, 'RESOLVED', correction)}
                 >
                   <Ionicons name="checkmark-circle" size={16} color="#fff" />
                   <Text style={styles.actionButtonText}>Rozwiązano</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.ignoreButton]}
-                  onPress={() => handleStatusUpdate(correction._id, 'IGNORED', correction)}
+                  onPress={() => requestStatusUpdate(correction._id, 'IGNORED', correction)}
                 >
                   <Ionicons name="close-circle" size={16} color={tc('text', "#fff")} />
                   <Text style={[styles.actionButtonText, styles.ignoreButtonText]}>Zignoruj</Text>
@@ -497,6 +523,10 @@ const CorrectionsList = () => {
               </>
             )}
           </View>
+        )}
+
+        {correction.status !== 'PENDING' && !!correction.resolutionNote && (
+          <Text style={styles.resolutionNote} testID={`correction-note-${correction._id}`}>💬 {correction.resolutionNote}</Text>
         )}
 
         {correction.status === 'RESOLVED' && (
@@ -879,6 +909,54 @@ const CorrectionsList = () => {
       </Modal>
 
       {/* Success Modal */}
+      <Modal
+        visible={!!notePrompt}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setNotePrompt(null)}
+      >
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, styles.confirmModal]}>
+            <ModalHeader
+              icon={notePrompt?.newStatus === 'IGNORED' ? 'close-circle-outline' : 'checkmark-circle-outline'}
+              color={notePrompt?.newStatus === 'IGNORED' ? '#64748B' : '#22C55E'}
+              title={notePrompt?.newStatus === 'IGNORED' ? 'Powód zignorowania' : 'Powód rozwiązania'}
+            />
+            <Text style={styles.confirmText}>
+              {notePrompt?.newStatus === 'IGNORED'
+                ? `Dlaczego ignorujesz korektę „${`${notePrompt?.correctionData?.fullName || ''} ${notePrompt?.correctionData?.size || ''}`.trim()}”?`
+                : `Dlaczego korekta „${`${notePrompt?.correctionData?.fullName || ''} ${notePrompt?.correctionData?.size || ''}`.trim()}” jest rozwiązana bez odpisania sztuki?`}
+            </Text>
+            <TextInput
+              testID="correction-note-input"
+              style={[look.formInput, styles.noteInput]}
+              value={noteText}
+              onChangeText={setNoteText}
+              placeholder="np. kurtka odnaleziona na stanie, błąd skanowania"
+              placeholderTextColor={tc('muted', '#94A3B8')}
+              multiline
+              autoFocus
+            />
+            {noteText.trim().length > 0 && noteText.trim().length < 3 && (
+              <Text style={styles.noteHint}>Co najmniej 3 znaki.</Text>
+            )}
+            <View style={[look.buttonRow, { width: '100%', marginTop: 12 }]}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setNotePrompt(null)}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="correction-note-save"
+                style={[look.primaryButton, noteText.trim().length < 3 && look.disabled]}
+                onPress={submitNotePrompt}
+                disabled={noteText.trim().length < 3}
+              >
+                <Text style={look.buttonText}>Zapisz</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal
         visible={showSuccessModal}
         animationType="fade"
@@ -1342,6 +1420,24 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   confirmModal: {
     maxWidth: 420,
+  },
+  noteInput: {
+    width: '100%',
+    minHeight: 72,
+    marginTop: 8,
+    textAlignVertical: 'top',
+  },
+  resolutionNote: {
+    marginTop: 6,
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: tc('muted', '#94A3B8'),
+  },
+  noteHint: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    fontSize: 12,
+    color: tc('muted', '#94A3B8'),
   },
   confirmText: {
     fontSize: 14,
