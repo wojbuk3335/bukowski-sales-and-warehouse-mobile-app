@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -23,9 +23,30 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import { GlobalStateContext } from "../context/GlobalState";
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
-import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { PageHeader, ModalHeader, ActionItem, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
 import { buildLabelZpl } from "../utils/labelZpl"; // układ metki (jak na serwerze)
+
+// Powody dodania / usunięcia - te same wartości i napisy co w panelu (Warehouse.js, serwer przyjmuje dokładnie te)
+export const ADD_REASON_OPTIONS = [
+  { value: "production-intake", label: "Przyjęcie z produkcji" },
+  { value: "inventory-correction", label: "Korekta inwentaryzacyjna" },
+  { value: "return-to-warehouse", label: "Zwrot z punktu" },
+  { value: "other", label: "Inny ruch magazynowy" },
+];
+export const DELETE_REASON_OPTIONS = [
+  { value: "inventory-correction", label: "Korekta inwentaryzacyjna" },
+  { value: "return-to-production", label: "Zwrot do produkcji" },
+  { value: "damage-disposal", label: "Uszkodzenie / likwidacja" },
+  { value: "other", label: "Inny ruch magazynowy" },
+];
+// Torebki, portfele i pozostały asortyment dodaje się bez rozmiaru (jak w panelu)
+const NO_SIZE_CATEGORIES = ["Torebki", "Portfele", "Pozostały asortyment"];
+const PAGE_SIZE = 30; // karty rysowane porcjami - lista magazynu bywa długa
+const toLocalDay = (date) => {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 const WarehouseMobile = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets();
@@ -45,7 +66,16 @@ const WarehouseMobile = () => {
   const [tableData, setTableData] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isCorrection, setIsCorrection] = useState(false); // Correction mode state
+  const [isCorrection, setIsCorrection] = useState(false); // tryb korekt (ekran „Stany” punktu)
+  // Magazyn jak w panelu: okienko powodu przy dodaniu, menu ⋮ na karcie, okienko powodu przy usunięciu
+  const [addPrompt, setAddPrompt] = useState(null); // { good, sizeLabel, sizeId }
+  const [addReason, setAddReason] = useState("production-intake");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionsItem, setActionsItem] = useState(null); // karta z otwartym menu ⋮
+  const [deletePrompt, setDeletePrompt] = useState(null); // { item }
+  const [deleteReason, setDeleteReason] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const magazynIdRef = useRef(null); // id konta MAGAZYN - pobierane raz
   const [targetUserId, setTargetUserId] = useState(paramUserId || null);
   const [targetUserName, setTargetUserName] = useState(paramUserName || null);
   const [targetUserRole, setTargetUserRole] = useState(paramRole || null);
@@ -201,8 +231,9 @@ const WarehouseMobile = () => {
     fetchTableData();
   }, [isLoggedIn, isStatesMode, isAllStatesMode, targetSymbol, targetUserRole, targetUserId]);
 
-  // Zmiana cennika lub produktów gdziekolwiek (panel, inny telefon) od razu odświeża ten ekran
-  useLiveRefresh(["pricelists", "goods", "states"], () => fetchTableData(), { enabled: Boolean(isLoggedIn && isFocused) });
+  // Zmiany na żywo (panel, inny telefon): stan osobno, towary i cenniki osobno - bez pobierania wszystkiego naraz
+  useLiveRefresh(["states"], () => fetchTableData(), { enabled: Boolean(isLoggedIn && isFocused) });
+  useLiveRefresh(["pricelists", "goods"], () => { fetchGoods(); fetchPriceList(); }, { enabled: Boolean(isLoggedIn && isFocused) });
 
   // Ensure data loads on screen focus for both magazyn and stany
   useEffect(() => {
@@ -232,6 +263,7 @@ const WarehouseMobile = () => {
         await Promise.all([
           fetchGoods(),
           fetchSizes(),
+          fetchPriceList(),
           fetchTableData(),
         ]);
       } catch (error) {
@@ -244,68 +276,14 @@ const WarehouseMobile = () => {
     initializeFetch();
   }, [isLoggedIn]);
 
+  // Karty produktów (raz; odświeżane zdarzeniem „goods”). Ceny z cennika liczy priceForGood przy dodaniu i wyświetlaniu.
   const fetchGoods = async () => {
     try {
-      
-      // Step 1: Resolve user for dedykowany cennik
-      let priceListUserId = targetUserId;
-      if (!priceListUserId) {
-        const usersUrl = getApiUrl("/user");
-        const usersResponse = await tokenService.authenticatedFetch(usersUrl);
-        const usersData = await usersResponse.json();
-        const magazynUser = usersData?.users?.find(u => u.symbol === 'MAGAZYN');
-        priceListUserId = magazynUser?._id;
-      }
-      
-      // Step 2: Fetch dedykowany cennik if user exists
-      let priceList = null;
-      if (priceListUserId) {
-        try {
-          const priceListUrl = getApiUrl(`/pricelists/${priceListUserId}`);
-          const priceListResponse = await tokenService.authenticatedFetch(priceListUrl);
-          const priceListData = await priceListResponse.json();
-          priceList = priceListData?.priceList || [];
-        } catch (error) {
-          // Continue without dedykowany cennik
-        }
-      }
-      
-      // Step 3: Fetch base goods
       const url = getApiUrl("/excel/goods/get-all-goods");
       const response = await tokenService.authenticatedFetch(url);
       const data = await response.json();
-      
       if (data?.goods && Array.isArray(data.goods)) {
-        // Step 4: Merge with dedykowany cennik prices
-        const mergedGoods = data.goods.map(good => {
-          let finalPrice = good.price;
-          let finalDiscountPrice = good.discount_price;
-          
-          if (priceList && priceList.length > 0) {
-            const priceListItem = priceList.find(item => 
-              (item.originalGoodId && item.originalGoodId === good._id) ||
-              item.fullName === good.fullName
-            );
-            
-            if (priceListItem) {
-              finalPrice = priceListItem.price !== undefined ? priceListItem.price : finalPrice;
-              finalDiscountPrice = priceListItem.discountPrice !== undefined ? priceListItem.discountPrice : finalDiscountPrice;
-              
-
-            }
-          }
-          
-          return {
-            ...good,
-            price: finalPrice,
-            discount_price: finalDiscountPrice
-          };
-        });
-        
-        const validGoods = mergedGoods.filter(
-          (good) => good.fullName && good.fullName.trim() !== ""
-        );
-        
+        const validGoods = data.goods.filter((good) => good.fullName && good.fullName.trim() !== "");
         setGoods(validGoods);
         setFilteredProducts(validGoods);
       } else {
@@ -313,6 +291,30 @@ const WarehouseMobile = () => {
       }
     } catch (error) {
       console.error("❌ Error fetching goods:", error.message);
+    }
+  };
+
+  // Id konta MAGAZYN (cennik, etykiety) - pobierane raz, nie przy każdym odświeżeniu
+  const resolveMagazynId = async () => {
+    if (magazynIdRef.current) return magazynIdRef.current;
+    const usersResponse = await tokenService.authenticatedFetch(getApiUrl("/user"));
+    const usersData = await usersResponse.json();
+    const magazynUser = usersData?.users?.find((u) => u.symbol === "MAGAZYN");
+    magazynIdRef.current = magazynUser?._id || null;
+    return magazynIdRef.current;
+  };
+
+  // Cennik punktu, którego stan oglądamy (MAGAZYN albo punkt z parametrów)
+  const fetchPriceList = async () => {
+    try {
+      const priceListUserId = targetUserId || (await resolveMagazynId());
+      if (!priceListUserId) return;
+      setPriceListOwnerId(priceListUserId);
+      const priceListResponse = await tokenService.authenticatedFetch(getApiUrl(`/pricelists/${priceListUserId}`));
+      const priceListData = await priceListResponse.json();
+      setPriceList(priceListData?.priceList || []);
+    } catch (error) {
+      // bez cennika - karta produktu
     }
   };
 
@@ -334,38 +336,13 @@ const WarehouseMobile = () => {
     }
   };
 
+  // Odświeżenie listy: tylko stan (duża odpowiedź) - karty produktów i cennik ładują się osobno, raz.
+  // Dawniej każde odświeżenie (po każdej dodanej sztuce!) pobierało też wszystkie towary, użytkowników i cennik.
   const fetchTableData = async () => {
     try {
-      // Step 1: Fetch fresh goods prices
-      const goodsUrl = getApiUrl("/excel/goods/get-all-goods");
-      const goodsResponse = await tokenService.authenticatedFetch(goodsUrl);
-      const goodsData = await goodsResponse.json();
-      setGoods(goodsData?.goods || []);
-      
-      // Step 2: Fetch dedykowany cennik once for all states
-      let fetchedPriceList = null;
-      try {
-        let priceListUserId = targetUserId;
-        if (!priceListUserId) {
-          const usersUrl = getApiUrl("/user");
-          const usersResponse = await tokenService.authenticatedFetch(usersUrl);
-          const usersData = await usersResponse.json();
-          const magazynUser = usersData?.users?.find(u => u.symbol === 'MAGAZYN');
-          priceListUserId = magazynUser?._id;
-        }
-        
-        if (priceListUserId) {
-          setPriceListOwnerId(priceListUserId);
-          const priceListUrl = getApiUrl(`/pricelists/${priceListUserId}`);
-          const priceListResponse = await tokenService.authenticatedFetch(priceListUrl);
-          const priceListData = await priceListResponse.json();
-          fetchedPriceList = priceListData?.priceList || [];
-        }
-      } catch (error) {
-        // Continue without dedykowany cennik
+      if (!priceListOwnerId) {
+        await fetchPriceList();
       }
-      
-      setPriceList(fetchedPriceList || []);
 
       // Tryb „Wszystkie stany”: każda sztuka wyceniana cennikiem punktu, w którym leży
       if (isAllStatesMode) {
@@ -391,16 +368,17 @@ const WarehouseMobile = () => {
         }
         setPriceListsBySymbol(lists);
       }
-      
+
       // Step 3: Fetch state data - NO price transformation here
       // renderTableRow will handle all price lookup and display
       const url = getApiUrl("/state");
       const response = await tokenService.authenticatedFetch(url);
       const data = await response.json();
       if (data) {
-        // Filter by current symbol if in states mode
+        // Ekran „Magazyn” pokazuje tylko MAGAZYN, ekran punktu tylko ten punkt; „Wszystkie stany” - wszystko.
+        // Dawniej ekran Magazynu brał cały stan wszystkich punktów (błąd: wolno i zły licznik).
         const currentSymbol = resolveCurrentSymbol();
-        const filteredData = isStatesMode && !isAllStatesMode && currentSymbol
+        const filteredData = !isAllStatesMode && currentSymbol
           ? data.filter((item) => {
               const itemSymbol = typeof item.symbol === 'string'
                 ? item.symbol
@@ -410,7 +388,7 @@ const WarehouseMobile = () => {
               return itemSymbol === currentSymbol;
             })
           : data;
-        
+
         // Najnowsza sztuka na górze: kolejność dodania (czas zapisany w identyfikatorze MongoDB), potem data
         const idOf = (row) => String(row.id || row._id || "");
         const sortedData = [...filteredData].sort((a, b) => {
@@ -469,20 +447,96 @@ const WarehouseMobile = () => {
     }
   };
 
-  // Select product from dropdown
+  // Cena sztuki jak w panelu: cennik MAGAZYNU (wyjątek rozmiaru, inaczej cena / promocja), bez niego karta produktu
+  const priceForGood = (good, sizeLabel) => {
+    const fromList = (priceList || []).find((item) =>
+      (good?._id && item.originalGoodId && String(item.originalGoodId) === String(good._id))
+      || item.fullName === good?.fullName || item.productName === good?.fullName);
+    const source = fromList && Number(fromList.price) > 0
+      ? { price: fromList.price, discount: fromList.discountPrice || 0, exceptions: fromList.priceExceptions || [] }
+      : { price: good?.price || 0, discount: good?.discount_price || 0, exceptions: good?.priceExceptions || [] };
+    const exception = sizeLabel
+      ? source.exceptions.find((ex) => ((ex?.size && ex.size.Roz_Opis) || ex?.size) === sizeLabel)
+      : null;
+    if (exception && Number(exception.value) > 0) return { price: Number(exception.value), discount: 0 };
+    return { price: Number(source.price) || 0, discount: Number(source.discount) || 0 };
+  };
+
+  const isMagazynMode = !isStatesMode && !isAllStatesMode;
+
+  // Wybór produktu: torebki / portfele / pozostały asortyment bez rozmiaru -> od razu okienko powodu (jak w panelu)
   const selectProduct = (product) => {
     setProductName(product.fullName);
     setShowProductDropdown(false);
+    if (isMagazynMode && NO_SIZE_CATEGORIES.includes(product.category)) {
+      setAddReason("production-intake");
+      setAddPrompt({ good: product, sizeLabel: null, sizeId: null });
+      return;
+    }
     setTimeout(() => {
       sizeInputRef.current?.focus();
     }, 100);
   };
 
-  // Select size and add product
+  // Wybór rozmiaru: Magazyn -> okienko powodu dodania; ekran punktu -> dodanie jak dotąd (korekta)
   const selectSize = (size) => {
     setSelectedSize(size.Roz_Opis);
     setShowSizeDropdown(false);
+    if (isMagazynMode) {
+      const good = goods.find((g) => g.fullName === productName);
+      if (!good) {
+        showNotification({ title: "Błąd", message: "Produkt nie znaleziony w bazie", type: "error" });
+        return;
+      }
+      setAddReason("production-intake");
+      setAddPrompt({ good, sizeLabel: size.Roz_Opis, sizeId: size._id });
+      return;
+    }
     addProduct(size.Roz_Opis);
+  };
+
+  // Dodanie do magazynu jednym zapisem (ten sam adres co panel: POST /warehouse/batch-add, cała ilość naraz, z numerem
+  // jednorazowym). Dawniej telefon wysyłał N osobnych zapisów jeden po drugim i po każdym przeładowywał cały stan.
+  const confirmAddToWarehouse = async () => {
+    if (!addPrompt || isSubmitting) return;
+    const { good, sizeLabel, sizeId } = addPrompt;
+    const quantityNum = Math.min(Math.max(parseInt(quantity, 10) || 1, 1), 99);
+    const { price, discount } = priceForGood(good, sizeLabel);
+    const isCorrectionFromReason = addReason === "inventory-correction";
+    const items = Array.from({ length: quantityNum }).map(() => ({
+      goodsId: good._id,
+      sizeId: sizeId || null,
+      price,
+      discount_price: discount,
+      isCorrection: isCorrectionFromReason,
+      date: selectedDate.toISOString(),
+    }));
+    const idempotencyKey = `wh-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    setIsSubmitting(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/warehouse/batch-add"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, additionReason: addReason, idempotencyKey }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || "Błąd podczas dodawania produktu");
+      }
+      setAddPrompt(null);
+      setProductName("");
+      setSelectedSize("");
+      setQuantity("1");
+      await fetchTableData();
+      setTimeout(() => {
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+        productInputRef.current?.focus();
+      }, 100);
+    } catch (error) {
+      showNotification({ title: "Błąd", message: error.message, type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Add product to warehouse
@@ -526,47 +580,12 @@ const WarehouseMobile = () => {
         setLoading(false);
         return;
       }
-      
-      // Use dedicated price list for selected selling point
-      let finalPrice = selectedGood.price;
-      let finalDiscountPrice = selectedGood.discount_price || 0;
-      
-      try {
-        let priceListUserId = targetUserId;
-        if (!priceListUserId) {
-          const usersUrl = getApiUrl("/user");
-          const usersResponse = await tokenService.authenticatedFetch(usersUrl);
-          const usersData = await usersResponse.json();
-          const magazynUser = usersData?.users?.find(u => u.symbol === 'MAGAZYN');
-          priceListUserId = magazynUser?._id;
-        }
-        
-        if (priceListUserId) {
-          const priceListUrl = getApiUrl(`/pricelists/${priceListUserId}`);
-          const priceListResponse = await tokenService.authenticatedFetch(priceListUrl);
-          const priceListData = await priceListResponse.json();
-          
-          const priceList = priceListData?.priceList || [];
-          
-          if (priceList && priceList.length > 0) {
-            const priceListItem = priceList.find(item =>
-              (item.originalGoodId && item.originalGoodId === selectedGood._id) ||
-              item.fullName === selectedGood.fullName
-            );
-            
-            if (priceListItem && priceListItem.price !== undefined) {
-              finalPrice = priceListItem.price;
-              finalDiscountPrice = priceListItem.discountPrice || 0;
-            }
-          }
-        }
-      } catch (priceError) {
-        console.error('Price list fetch error:', priceError.message);
-        // If price list fetch fails, fall back to product price
-      }
+
+      // Cena z cennika punktu załadowanego raz przy wejściu (bez pobierania przy każdym dodaniu)
+      const { price: finalPrice, discount: finalDiscountPrice } = priceForGood(selectedGood, sizeValue);
 
       const currentSymbol = isStatesMode ? resolveCurrentSymbol() : "MAGAZYN";
-      
+
       if (isStatesMode && !currentSymbol) {
         showNotification({
           title: "Błąd",
@@ -576,7 +595,7 @@ const WarehouseMobile = () => {
         setLoading(false);
         return;
       }
-      
+
       const dataToSend = {
         fullName: productName,
         size: sizeValue,
@@ -587,11 +606,11 @@ const WarehouseMobile = () => {
         price: `${finalPrice};${finalDiscountPrice || 0}`,
         isCorrection: isCorrection, // Add correction mode flag
       };
-      
+
       // Add product multiple times based on quantity
       const quantityNum = parseInt(quantity) || 1;
       const url = getApiUrl("/state");
-      
+
       for (let i = 0; i < quantityNum; i++) {
         const response = await tokenService.authenticatedFetch(url, {
           method: "POST",
@@ -600,24 +619,20 @@ const WarehouseMobile = () => {
           },
           body: JSON.stringify(dataToSend),
         });
-        
+
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Błąd podczas dodawania produktu');
         }
       }
-      
+
       // Reset form
       setProductName("");
       setSelectedSize("");
       setQuantity("1");
-      
-      console.log('🔄 Odświeżanie danych tabeli...');
-      // Refresh table and refocus on product input
+
       await fetchTableData();
-      
-      console.log('🟢 ===== PRODUKT DODANY DO MAGAZYNU POMYŚLNIE =====');
-      
+
       // Scroll to top to show newly added product
       setTimeout(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -633,47 +648,70 @@ const WarehouseMobile = () => {
       });
     } finally {
       setLoading(false);
-      console.log('🔚 Zakończenie procesu dodawania produktu');
     }
   };
 
-  // Delete product from warehouse
-  const deleteProduct = async (id) => {
-    const alertTitle = isCorrection 
-      ? "Usuń produkt (korekta - zostanie uwzględniona w raportach)"
-      : "Usuń produkt (produkcja)";
-    const alertMessage = "Czy chcesz usunąć ten produkt?";
-    
+  // Usunięcie sztuki: te same nagłówki co panel (powód, czy korekta, dzień zdarzenia); serwer odmawia (409),
+  // gdy dzień jest wcześniejszy niż przyjęcie sztuki
+  const performDelete = async (id, removalReason) => {
+    const response = await tokenService.authenticatedFetch(getApiUrl(`/state/${id}`), {
+      method: "DELETE",
+      headers: {
+        "removal-reason": removalReason,
+        "is-correction": removalReason === "inventory-correction" ? "true" : "false",
+        "event-date": toLocalDay(selectedDate || new Date()),
+      },
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || errorData.error || "Nie udało się usunąć sztuki.");
+    }
+    await fetchTableData();
+  };
+
+  // Magazyn: okienko „Usuń produkt z magazynu” z wyborem powodu (jak w panelu)
+  const confirmDeleteWithReason = async () => {
+    if (!deletePrompt || !deleteReason || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await performDelete(deletePrompt.item.id || deletePrompt.item._id, deleteReason);
+      setDeletePrompt(null);
+    } catch (error) {
+      showNotification({ title: "Nie można usunąć sztuki", message: error.message, type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteProduct = (item) => {
+    if (isMagazynMode) {
+      setDeleteReason("");
+      setDeletePrompt({ item });
+      return;
+    }
+    // Ekran punktu („Panel korekt”): potwierdzenie jak dotąd, zapis jako korekta
     showNotification({
-      title: alertTitle,
-      message: alertMessage,
+      title: "Usuń produkt (korekta - zostanie uwzględniona w raportach)",
+      message: "Czy chcesz usunąć ten produkt?",
       type: "confirmation",
       confirmText: "Usuń",
       cancelText: "Anuluj",
       onConfirm: async () => {
         try {
-          const deleteUrl = getApiUrl(`/state/${id}`);
-          await tokenService.authenticatedFetch(deleteUrl, {
-            method: "DELETE",
-            headers: { 
-              "is-correction": isCorrection ? "true" : "false"
-            },
-          });
-          await fetchTableData();
-          showNotification({
-            title: "Sukces",
-            message: "Produkt usunięty",
-            type: "success",
-          });
+          await performDelete(item.id || item._id, "inventory-correction");
+          showNotification({ title: "Sukces", message: "Produkt usunięty", type: "success" });
         } catch (error) {
-          showNotification({
-            title: "Błąd",
-            message: error.message,
-            type: "error",
-          });
+          showNotification({ title: "Nie można usunąć sztuki", message: error.message, type: "error" });
         }
       },
     });
+  };
+
+  // Menu ⋮ karty: akcja po zamknięciu menu (okienko nie nakłada się na menu)
+  const runRowAction = (action) => {
+    const item = actionsItem;
+    setActionsItem(null);
+    if (item) setTimeout(() => action(item), 250);
   };
 
   // Handle date picker change
@@ -742,9 +780,10 @@ const WarehouseMobile = () => {
           fullName: editFullName,
           date: editDate.toISOString(),
           size: editSize,
+          sellingPoint: typeof editingItem.symbol === "string" ? editingItem.symbol : editingItem.sellingPoint?.symbol, // jak panel
         }),
       });
-      
+
       setShowEditModal(false);
       await fetchTableData();
     } catch (error) {
@@ -762,14 +801,14 @@ const WarehouseMobile = () => {
       const fullNameStr = typeof item.fullName === "string"
         ? item.fullName
         : (item.fullName?.fullName || "N/A");
-      
-      const sizeStr = typeof item.size === "object" 
+
+      const sizeStr = typeof item.size === "object"
         ? (item.size?.Roz_Opis || item.size || "-")
         : (item.size || "-");
-      
+
       const barcode = item.barcode || "NO-BARCODE";
       const symbol = "02"; // MAGAZYN = 02
-      
+
       // Układ metki wspólny z serwerem (utils/labelZpl.js) - wydruk zapasowy wygląda tak samo
       return buildLabelZpl({ productName: fullNameStr, price: priceValue, size: sizeStr, pointNumber: symbol, barcode });
     } catch (error) {
@@ -811,8 +850,8 @@ const WarehouseMobile = () => {
       const fullNameStr = typeof item.fullName === "string"
         ? item.fullName
         : (item.fullName?.fullName || "N/A");
-      
-      const sizeStr = typeof item.size === "object" 
+
+      const sizeStr = typeof item.size === "object"
         ? (item.size?.Roz_Opis || item.size)
         : item.size;
 
@@ -852,7 +891,7 @@ const WarehouseMobile = () => {
           // serwer niedostępny - druk lokalny poniżej
         }
       }
-      
+
       // Parse price string "price;discount_price"
       let standardPrice = 0;
       let discountPrice = 0;
@@ -863,21 +902,21 @@ const WarehouseMobile = () => {
       } else {
         standardPrice = parseFloat(item.price) || 0;
       }
-      
+
       // Find matching good to get priceExceptions
       const matchingGood = goods.find(g => g.fullName === fullNameStr);
       const priceExceptions = matchingGood?.priceExceptions || [];
-      
+
       // **PRIORITY 1**: Check if there's a price exception for this size
       const priceException = priceExceptions.find(ex => {
-        const exceptionSize = typeof ex.size === 'object' 
-          ? (ex.size?.Roz_Opis || ex.size?.name) 
+        const exceptionSize = typeof ex.size === 'object'
+          ? (ex.size?.Roz_Opis || ex.size?.name)
           : ex.size;
         return exceptionSize === sizeStr;
       });
-      
+
       let printCount = 0;
-      
+
       if (priceException) {
         // Print 1 label with exception price
         const zpl = generateZplCode(item, priceException.value);
@@ -889,7 +928,7 @@ const WarehouseMobile = () => {
         // Print 2 labels - discount and standard
         const discountZpl = generateZplCode(item, discountPrice);
         const regularZpl = generateZplCode(item, standardPrice);
-        
+
         if (discountZpl && regularZpl) {
           const success1 = await sendZplToPrinter(discountZpl);
           const success2 = await sendZplToPrinter(regularZpl);
@@ -903,7 +942,7 @@ const WarehouseMobile = () => {
           if (success) printCount = 1;
         }
       }
-      
+
       // Silent printing - no success modal
       if (printCount === 0) {
         showNotification({
@@ -968,13 +1007,14 @@ const WarehouseMobile = () => {
     const itemSymbol = typeof item.symbol === "string" ? item.symbol : item.sellingPoint?.symbol;
     const rowPriceList = isAllStatesMode ? (priceListsBySymbol[itemSymbol] || []) : priceList;
     if (rowPriceList && rowPriceList.length > 0 && item.fullName) {
-      priceListItem = rowPriceList.find(pli =>
-        (pli.fullName && pli.fullName === fullNameStr) ||
-        (pli.originalGoodId && item.fullName?._id && pli.originalGoodId === item.fullName._id.toString())
-      );
+      // słownik zamiast przeszukiwania cennika przy każdej karcie
+      const lookup = isAllStatesMode ? buildPriceListLookup(rowPriceList) : priceListLookup;
+      priceListItem = lookup.byName.get(fullNameStr)
+        || (item.fullName?._id ? lookup.byGoodId.get(String(item.fullName._id)) : null)
+        || null;
       // 0 zł w cenniku = brak ceny w cenniku punktu: liczy się karta produktu (jak etykiety z serwera)
       if (priceListItem && !(Number(priceListItem.price) > 0)) priceListItem = null;
-      
+
       // Cena wyświetlana = AKTUALNY cennik punktu (jak etykiety); cena ze stanu tylko gdy cennik nie ma produktu lub ma 0 zł
       const hasStoredPrice = !(Number(priceListItem?.price) > 0) && Number(item.price) > 0;
       if (priceListItem) {
@@ -985,10 +1025,7 @@ const WarehouseMobile = () => {
     }
 
     if (!priceListItem && goods && goods.length > 0) {
-      const goodsItem = goods.find(good =>
-        (item.fullName?._id && good._id && good._id === item.fullName._id) ||
-        good.fullName === fullNameStr
-      );
+      const goodsItem = (item.fullName?._id && goodsLookup.byId.get(String(item.fullName._id))) || goodsLookup.byName.get(fullNameStr);
 
       if (goodsItem) { // bez ceny w cenniku punktu: aktualna karta produktu (jak etykiety z serwera)
         displayPrice = goodsItem.price !== undefined ? goodsItem.price : displayPrice;
@@ -996,7 +1033,7 @@ const WarehouseMobile = () => {
         displayPriceExceptions = goodsItem.priceExceptions !== undefined ? goodsItem.priceExceptions : displayPriceExceptions;
       }
     }
-    
+
     // Compute exceptions string - ensure all values are strings
     const exceptionsText = displayPriceExceptions && displayPriceExceptions.length > 0
       ? displayPriceExceptions
@@ -1064,35 +1101,38 @@ const WarehouseMobile = () => {
           </View>
         ) : null}
 
-        {/* Action buttons */}
-        <View style={styles.cardActionButtons}>
+        {/* Menu ⋮ jak w panelu: Edytuj, Drukuj etykietę, Usuń */}
+        <View style={[styles.cardActionButtons, { justifyContent: "flex-end" }]}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
-            onPress={() => handleEditClick(item)}
+            testID={`warehouse-actions-${item.id || item._id}`}
+            accessibilityLabel={`Akcje: ${fullNameStr}`}
+            onPress={() => setActionsItem(item)}
+            style={look.dotsButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="pencil" size={18} color="#F59E0B" />
-            <Text style={styles.actionButtonText}>Edytuj</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.printButton]}
-            onPress={() => handlePrintLabel(item)}
-          >
-            <Ionicons name="print" size={18} color="#0D6EFD" />
-            <Text style={styles.actionButtonText}>Drukuj</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => deleteProduct(item.id || item._id)}
-          >
-            <Ionicons name="trash" size={18} color="#DC3545" />
-            <Text style={styles.actionButtonText}>Usuń</Text>
+            <Text style={look.dotsText}>⋮</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
+
+  // Słowniki do kart (budowane raz na zmianę danych, nie na każdą kartę)
+  const goodsLookup = useMemo(() => ({
+    byId: new Map((goods || []).map((g) => [String(g._id), g])),
+    byName: new Map((goods || []).map((g) => [g.fullName, g])),
+  }), [goods]);
+  const buildPriceListLookup = (list) => {
+    const byName = new Map();
+    const byGoodId = new Map();
+    (list || []).forEach((pli) => {
+      if (pli.fullName && !byName.has(pli.fullName)) byName.set(pli.fullName, pli);
+      if (pli.originalGoodId && !byGoodId.has(String(pli.originalGoodId))) byGoodId.set(String(pli.originalGoodId), pli);
+    });
+    return { byName, byGoodId };
+  };
+  const priceListLookup = useMemo(() => buildPriceListLookup(priceList), [priceList]);
+  const visibleRows = tableData.slice(0, visibleCount);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: tc('bg', "#000000") }]}>
@@ -1121,7 +1161,7 @@ const WarehouseMobile = () => {
             <Ionicons name="cube-outline" size={20} color="#0D6EFD" />
           </View>
           <Text style={styles.productCounterText}>
-            {counterLabel}: <Text style={styles.productCounterNumber}>{tableData.length}</Text>
+            {counterLabel}: <Text style={styles.productCounterNumber} testID="warehouse-counter">{tableData.length}</Text>
           </Text>
         </View>
 
@@ -1142,29 +1182,11 @@ const WarehouseMobile = () => {
             </View>
           ) : (
             <View style={styles.correctionAlert}>
-              <Pressable
-                style={styles.checkboxContainer}
-                onPress={() => setIsCorrection(!isCorrection)}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
-                    isCorrection && styles.checkboxChecked,
-                  ]}
-                >
-                  {isCorrection && (
-                    <Ionicons name="checkmark" size={16} color="#fff" />
-                  )}
-                </View>
-                <Text style={styles.correctionLabel}>Tryb korekty</Text>
-              </Pressable>
               <View style={styles.correctionInfoRow}>
                 <Ionicons name="information-circle-outline" size={20} color="#0D6EFD" />
                 <Text style={styles.correctionInfo}>
-                  <Text style={styles.correctionInfoBold}>Informacja:</Text> Checkbox
-                  jest przeznaczony dla korekt inwentaryzacyjnych. Wszystkie operacje
-                  dodawania i usuwania produktów{" "}
-                  <Text style={styles.correctionInfoBold}>będą uwzględniane w raportach</Text>.
+                  Po wybraniu produktu (i rozmiaru) wskażesz <Text style={styles.correctionInfoBold}>powód dodania</Text>:
+                  przyjęcie z produkcji, korekta inwentaryzacyjna, zwrot z punktu albo inny ruch - jak w panelu.
                 </Text>
               </View>
             </View>
@@ -1202,6 +1224,7 @@ const WarehouseMobile = () => {
                 {filteredProducts.slice(0, 10).map((product, idx) => (
                   <TouchableOpacity
                     key={idx}
+                    testID={`product-suggestion-${product._id || idx}`}
                     style={styles.dropdownItem}
                     onPress={() => selectProduct(product)}
                   >
@@ -1236,6 +1259,7 @@ const WarehouseMobile = () => {
                 {filteredSizes.map((size, idx) => (
                   <TouchableOpacity
                     key={idx}
+                    testID={`size-suggestion-${size._id || idx}`}
                     style={styles.dropdownItem}
                     onPress={() => selectSize(size)}
                   >
@@ -1274,18 +1298,116 @@ const WarehouseMobile = () => {
         {/* Products List as Cards */}
         <FlatList
           ref={listRef}
-          data={tableData}
+          data={visibleRows}
           renderItem={renderTableRow}
-          keyExtractor={(item, idx) => item._id || idx.toString()}
+          keyExtractor={(item, idx) => String(item.id || item._id || idx)}
           scrollEnabled={false}
+          initialNumToRender={PAGE_SIZE}
           ListEmptyComponent={
             <View style={look.emptyState}>
               <Ionicons name="cube-outline" size={48} color={tc('muted', "#94A3B8")} />
               <Text style={look.emptyStateText}>Brak produktów w magazynie</Text>
             </View>
           }
+          ListFooterComponent={tableData.length > visibleCount ? (
+            <TouchableOpacity
+              testID="warehouse-show-more"
+              style={[look.neutralButton, { flex: 0, alignSelf: "stretch", marginTop: 8 }]}
+              onPress={() => setVisibleCount((n) => n + PAGE_SIZE)}
+            >
+              <Text style={look.neutralButtonText}>{`Pokaż więcej (${tableData.length - visibleCount} pozostałych)`}</Text>
+            </TouchableOpacity>
+          ) : null}
         />
       </ScrollView>
+
+      {/* Menu ⋮ karty - te same akcje co w panelu */}
+      {actionsItem && (
+        <View style={styles.notificationOverlay}>
+          <View style={styles.notificationModal}>
+            <ModalHeader
+              icon="ellipsis-horizontal-circle"
+              color="#0D6EFD"
+              title={typeof actionsItem.fullName === "string" ? actionsItem.fullName : (actionsItem.fullName?.fullName || "Akcje")}
+            />
+            <ActionItem testID="warehouse-action-edit" icon="pencil" color="#F59E0B" label="Edytuj" onPress={() => runRowAction(handleEditClick)} />
+            <ActionItem testID="warehouse-action-print" icon="print" label="Drukuj etykietę" onPress={() => runRowAction(handlePrintLabel)} />
+            <ActionItem testID="warehouse-action-delete" icon="trash" color="#DC3545" label="Usuń" onPress={() => runRowAction(deleteProduct)} />
+            <TouchableOpacity style={[look.neutralButton, { flex: 0, alignSelf: "stretch", marginTop: 12 }]} onPress={() => setActionsItem(null)}>
+              <Text style={look.neutralButtonText}>Anuluj</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Dodaj produkt do magazynu - powód dodania (jak w panelu) */}
+      {addPrompt && (
+        <View style={styles.notificationOverlay}>
+          <View style={styles.notificationModal}>
+            <ModalHeader icon="add-circle-outline" color="#F59E0B" title="Dodaj produkt do magazynu" />
+            <Text style={styles.reasonProduct}>
+              {`Dodawany produkt: ${addPrompt.good.fullName}${addPrompt.sizeLabel ? ` (${addPrompt.sizeLabel})` : ""}${(parseInt(quantity, 10) || 1) > 1 ? ` × ${parseInt(quantity, 10)}` : ""}`}
+            </Text>
+            <Text style={styles.label}>Wybierz powód dodania</Text>
+            {ADD_REASON_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                testID={`add-reason-${option.value}`}
+                style={[styles.reasonOption, addReason === option.value && styles.reasonOptionSelected]}
+                onPress={() => setAddReason(option.value)}
+              >
+                <Ionicons name={addReason === option.value ? "radio-button-on" : "radio-button-off"} size={20} color={addReason === option.value ? "#F59E0B" : tc('muted', "#94A3B8")} />
+                <Text style={styles.reasonOptionText}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={[look.buttonRow, { width: "100%", marginTop: 12 }]}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setAddPrompt(null)} disabled={isSubmitting}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="add-reason-confirm" style={[look.primaryButton, isSubmitting && look.disabled]} onPress={confirmAddToWarehouse} disabled={isSubmitting}>
+                <Text style={look.buttonText}>{isSubmitting ? "Dodawanie..." : "Dodaj"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Usuń produkt z magazynu - powód usunięcia (jak w panelu) */}
+      {deletePrompt && (
+        <View style={styles.notificationOverlay}>
+          <View style={styles.notificationModal}>
+            <ModalHeader icon="trash-outline" color="#DC3545" title="Usuń produkt z magazynu" />
+            <Text style={styles.reasonProduct}>
+              {`${typeof deletePrompt.item.fullName === "string" ? deletePrompt.item.fullName : (deletePrompt.item.fullName?.fullName || "")} (${safeString(deletePrompt.item.size) || "-"})`}
+            </Text>
+            <Text style={styles.label}>Wybierz powód usunięcia</Text>
+            {DELETE_REASON_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                testID={`delete-reason-${option.value}`}
+                style={[styles.reasonOption, deleteReason === option.value && styles.reasonOptionSelected]}
+                onPress={() => setDeleteReason(option.value)}
+              >
+                <Ionicons name={deleteReason === option.value ? "radio-button-on" : "radio-button-off"} size={20} color={deleteReason === option.value ? "#DC3545" : tc('muted', "#94A3B8")} />
+                <Text style={styles.reasonOptionText}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={[look.buttonRow, { width: "100%", marginTop: 12 }]}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setDeletePrompt(null)} disabled={isSubmitting}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="delete-reason-confirm"
+                style={[look.primaryButton, { backgroundColor: "#DC3545" }, (!deleteReason || isSubmitting) && look.disabled]}
+                onPress={confirmDeleteWithReason}
+                disabled={!deleteReason || isSubmitting}
+              >
+                <Text style={look.buttonText}>{isSubmitting ? "Usuwanie..." : "Usuń"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && (
@@ -1785,6 +1907,33 @@ const styles = createThemedStyles(() => StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginTop: 4,
+  },
+  reasonProduct: {
+    color: tc('text', '#fff'),
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    marginBottom: 8,
+    width: '100%',
+  },
+  reasonOptionSelected: {
+    borderColor: '#F59E0B',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  reasonOptionText: {
+    color: tc('text', '#fff'),
+    fontSize: 15,
   },
   notificationOverlay: {
     position: "absolute",
