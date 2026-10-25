@@ -314,6 +314,19 @@ const fetchSales = async () => {
         return ids;
     }, [salesData, filteredData, transfers]);
 
+    // Dzisiejsze przepisania / wymiany z tego punktu już odpisane w Dobieraniu: sztuki nie ma już na stanie,
+    // ale zostaje na liście wyszarzona z napisem „Przetworzone” (bez akcji)
+    const processedTodayRows = useMemo(() => transfers
+        .filter((transfer) => transfer.transfer_from === user?.symbol && transfer.blueProcessed && transfer.transfer_to !== 'SOLD'
+            && !filteredData.some((item) => item.id === transfer.productId))
+        .map((transfer) => ({
+            id: `processed-${transfer._id}`,
+            fullName: transfer.fullName,
+            size: transfer.size,
+            barcode: transfer.barcode,
+            processedTransfer: transfer,
+        })), [transfers, filteredData, user]);
+
     const transferLabel = (transfer) => {
         if (!transfer) return '';
         if (transfer.transfer_to === 'SOLD') return 'Sprzedano';
@@ -999,11 +1012,24 @@ const fetchSales = async () => {
                             />
                         }
                         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
-                        data={filteredData}
+                        data={[...filteredData, ...processedTodayRows]}
                         keyExtractor={(item) => item.id}
                         onRefresh={() => fetchAllRequiredData(true)} // true = to jest refresh action
                         refreshing={isRefreshing} // Używamy isRefreshing zamiast isLoading
                         renderItem={({ item, index }) => {
+                            if (item.processedTransfer) {
+                                return (
+                                    <View testID={`writeoff-processed-${item.processedTransfer._id}`} style={[look.itemCard, { opacity: 0.45 }]}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={look.itemCardText} numberOfLines={1}>
+                                                {index + 1}. {item.fullName}  {item.size}
+                                            </Text>
+                                            <Text style={styles.transferStatusText} numberOfLines={1}>{transferLabel(item.processedTransfer)}</Text>
+                                            <Text style={styles.processedLabel} numberOfLines={1}>Przetworzone</Text>
+                                        </View>
+                                    </View>
+                                );
+                            }
                             const transfer = todayTransferOf(item);
                             const sold = !transfer && soldItemIds.has(item.id);
                             return (
@@ -1828,6 +1854,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     transferStatusText: {
         color: '#F59E0B',
         fontSize: 12,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    processedLabel: { // „Przetworzone” pod sztuką odpisaną w Dobieraniu
+        color: '#EF4444',
+        fontSize: 11,
         fontWeight: '600',
         marginTop: 2,
     },

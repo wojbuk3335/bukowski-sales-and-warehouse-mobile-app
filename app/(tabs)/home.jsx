@@ -15,6 +15,7 @@ import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycj
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, roundDownMoney } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput';
 import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
+import { warsawToday } from '../../utils/warsawDay'; // dzień polski, nie UTC (S16)
 import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
@@ -2651,7 +2652,8 @@ const Home = () => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           renderItem={({ item, index }) => (
-            <View style={styles.item}>
+            <View style={[styles.item, item.processed && { opacity: 0.6 }]}>
+              <View style={{ flex: 1 }}>
               <Text
                 style={[
                   styles.itemTextLeft,
@@ -2688,6 +2690,11 @@ const Home = () => {
                   <Text style={{ color: '#28a745', fontSize: 16, marginLeft: 5 }}>●</Text>
                 )}
               </Text>
+              {/* Sprzedaż odpisana już w Dobieraniu - nie da się jej usunąć ani zmienić punktu */}
+              {item.processed && (
+                <Text testID={`sale-processed-${item._id}`} style={styles.processedLabel}>Przetworzone</Text>
+              )}
+              </View>
               <TouchableOpacity onPress={() => { setSelectedItem(item); setModalVisible(true); }} style={styles.dotsButton}>
                 <Text style={styles.dotsText}>⋮</Text>
               </TouchableOpacity>
@@ -2784,7 +2791,7 @@ const Home = () => {
             // Only show transfers with a valid date matching today
             // FOR TESTING: Uncomment line below to simulate tomorrow
             // const today = '2025-08-11'; // TEST: Simulate tomorrow (dzień później)
-            const today = new Date().toISOString().split('T')[0]; // NORMAL: Real today
+            const today = warsawToday(); // dzień polski, nie UTC (S16)
             const transferredToday = transferredItems.filter(
               item => item.date && item.date.startsWith(today) && item.transfer_to !== 'SOLD'
             );
@@ -2831,8 +2838,9 @@ const Home = () => {
                     {transferredToday.map((item, index) => (
                       <View
                         key={item._id || `${item.productId || 'transfer'}-${index}`}
-                        style={styles.item}
+                        style={[styles.item, item.blueProcessed && { opacity: 0.6 }]}
                       >
+                        <View style={{ flex: 1 }}>
                         <Text
                           style={[
                             styles.itemTextLeft,
@@ -2855,6 +2863,11 @@ const Home = () => {
                             </Text>
                           )}
                         </Text>
+                        {/* odpisane już w Dobieraniu - nie da się anulować */}
+                        {item.blueProcessed && (
+                          <Text testID={`transfer-processed-${item._id}`} style={styles.processedLabel}>Przetworzone</Text>
+                        )}
+                        </View>
                         <TouchableOpacity
                           style={styles.dotsButton}
                           onPress={() => {
@@ -2875,8 +2888,9 @@ const Home = () => {
                     {receivedToday.map((item, index) => (
                       <View
                         key={item._id || `${item.productId || 'received'}-${index}`}
-                        style={styles.receivedItem}
+                        style={[styles.receivedItem, item.yellowProcessed && { opacity: 0.6 }]}
                       >
+                        <View style={{ flex: 1 }}>
                         <Text
                           style={[
                             styles.receivedItemTextLeft,
@@ -2888,6 +2902,11 @@ const Home = () => {
                         >
                           {index + 1}. {item.fullName} {item.size} - Przesłano z: {item.transfer_from}
                         </Text>
+                        {/* dopisane już w Dobieraniu do stanu tego punktu */}
+                        {item.yellowProcessed && (
+                          <Text testID={`received-processed-${item._id}`} style={styles.processedLabel}>Przetworzone</Text>
+                        )}
+                        </View>
                         <TouchableOpacity style={styles.dotsButton}>
                           <Text style={styles.dotsText}>⋮</Text>
                         </TouchableOpacity>
@@ -6138,7 +6157,12 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     textAlign: "left",
-    flex: 1,
+  },
+  processedLabel: { // „Przetworzone” pod pozycją odpisaną w Dobieraniu
+    color: '#EF4444',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
   },
   itemTextRight: {
     color: tc('text', "white"),
