@@ -14,6 +14,7 @@ import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, Scre
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, roundDownMoney } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput';
+import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
@@ -52,8 +53,6 @@ const Home = () => {
   const [otherAccountsData, setOtherAccountsData] = useState([]); // State for sales on other accounts
   const [transferredItems, setTransferredItems] = useState([]); // State for transferred items
   const [receivedItems, setReceivedItems] = useState([]); // State for items transferred to this account
-  const [editFromModalVisible, setEditFromModalVisible] = useState(false); // State for new modal visibility
-  const [newFromValue, setNewFromValue] = useState(""); // State for the new 'from' value
   const [symbolSelectionVisible, setSymbolSelectionVisible] = useState(false); // State for symbol selection visibility
   const [selectedSymbol, setSelectedSymbol] = useState(""); // State for selected symbol
   const [cashPriceCurrencyPairs, setCashPriceCurrencyPairs] = useState([{ price: "", currency: "PLN" }]); // State for cash payment
@@ -267,6 +266,9 @@ const Home = () => {
   };
 
   // Funkcja identyczna z QRScanner - filtruje użytkowników z tej samej lokalizacji
+  // Stan edytowanej kurtki w punkcie (po kodzie) - jak saleStockAt w „Nowa sprzedaż”
+  const editStockAt = (symbol) => (stateData || []).filter((row) => row.symbol === symbol && row.barcode === editData?.barcode).length;
+
   const getMatchingSymbols = () => {
     if (!users || !user) {
       return [];
@@ -2344,37 +2346,6 @@ const Home = () => {
     setRefreshing(false);
   };
 
-  const updateFromField = async () => {
-    try {
-      if (selectedItem?._id) {
-        const updatedItem = { ...selectedItem, from: newFromValue }; // Update the 'from' field
-        const response = await tokenService.authenticatedFetch(
-          getApiUrl(`/sales/update-sales/${selectedItem._id}`),
-          {
-            method: "PATCH",
-            body: JSON.stringify(updatedItem),
-          }
-        );
-        if (!response.ok) {
-          // np. sprzedaż odpisana już w Dobieraniu - powód z serwera zamiast cichego błędu
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data?.message || "Nie udało się zmienić „Sprzedano od”. Spróbuj ponownie.");
-        }
-        setFilteredData((prev) =>
-          prev.map((item) => (item._id === selectedItem._id ? updatedItem : item))
-        ); // Update the item in the list
-        setEditFromModalVisible(false); // Close the modal
-      } else {
-        Logger.error("No valid ID found for the selected item.");
-      }
-    } catch (error) {
-      Logger.error("Error updating 'from' field:", error.message);
-      setEditFromModalVisible(false);
-      setErrorMessage(error.message);
-      setErrorModalVisible(true);
-    }
-  };
-
   const handleAddCashPair = () => {
     setCashPriceCurrencyPairs([...cashPriceCurrencyPairs, { price: "", currency: "PLN" }]);
   };
@@ -3324,29 +3295,31 @@ const Home = () => {
                     editable={false}
                     placeholder="Selling Point"
                   />
-                  <Text style={look.formLabel}>Sprzedano od</Text>
-                  <View style={sf.warningCard}>
-                    <Ionicons name="warning" size={22} color="#F59E0B" />
-                    <Text style={sf.warningText}>
-                      To jest bardzo ważne pole. Proszę o przemyślany wybór!
-                    </Text>
+                  {/* „Sprzedano od” jak w „Nowa sprzedaż” (QRScanner): ramka z podpisem, lista ze stanem kurtki w punkcie, czerwony napis przy braku */}
+                  <View style={styles.sellerFrame}>
+                    <Text style={styles.sellerFrameCaption}>Sprzedano od - bardzo ważne, wybierz uważnie</Text>
+                    <TouchableOpacity
+                      style={[look.selectField, sf.importantSelect]}
+                      onPress={() => {
+                        if (getMatchingSymbols().length > 0) {
+                          setSymbolSelectionVisible(true);
+                        } else {
+                          setErrorMessage("Nie znaleziono punktów sprzedaży w Twojej lokalizacji.");
+                          setErrorModalVisible(true);
+                        }
+                      }}
+                    >
+                      <Text style={[look.selectFieldText, !editData?.from && { color: tc('muted', '#94A3B8') }]}>
+                        {editData?.from ? pointNameBySymbol(users, editData.from) : "Wybierz punkt sprzedaży"}
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#F59E0B" />
+                    </TouchableOpacity>
+                    {editData?.barcode && editData?.from && editStockAt(editData.from) === 0 ? (
+                      <Text testID="edit-point-missing-warning" style={[styles.salePointNote, styles.salePointNoteMissing, { textAlign: 'center', marginTop: 6 }]}>
+                        {`W punkcie ${editData.from} nie ma tej kurtki na stanie - po przetworzeniu powstanie korekta.`}
+                      </Text>
+                    ) : null}
                   </View>
-                  <TouchableOpacity
-                    style={[look.selectField, sf.importantSelect, { marginBottom: 16 }]}
-                    onPress={() => {
-                      if (getMatchingSymbols().length > 0) {
-                        setSymbolSelectionVisible(true);
-                      } else {
-                        setErrorMessage("Nie znaleziono punktów sprzedaży w Twojej lokalizacji.");
-                        setErrorModalVisible(true);
-                      }
-                    }}
-                  >
-                    <Text style={[look.selectFieldText, !editData?.from && { color: tc('muted', '#94A3B8') }]}>
-                      {editData?.from || "Wybierz punkt sprzedaży"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#F59E0B" />
-                  </TouchableOpacity>
 
                   {/* Checkbox Odbiór */}
                   <TouchableOpacity
@@ -3607,72 +3580,6 @@ const Home = () => {
           </KeyboardSafeScreen>
           </View>
         </Modal>
-        {/* Edit From Modal */}
-        <Modal
-          transparent={true}
-          visible={editFromModalVisible}
-          animationType="fade"
-          onRequestClose={() => setEditFromModalVisible(false)}
-        >
-          <KeyboardSafeOverlay>
-          <View className="flex-1 justify-center items-center bg-black bg-opacity-50" style={{ flex: 1 }}>
-            <View
-              className="w-3/4 rounded-lg shadow-lg"
-              style={{
-                backgroundColor: tc('bg', "black"),
-                borderWidth: 1,
-                borderColor: tc('border', '#475569'),
-              }}
-            >
-              <View
-                className="p-4 rounded-t-lg"
-                style={{
-                  backgroundColor: tc('bg', "black"),
-                }}
-              >
-                <Text className="text-lg font-bold text-white text-center">Edytuj Miejsce</Text>
-              </View>
-              <View className="p-6">
-                <TextInput
-                  style={{
-                    backgroundColor: "white",
-                    color: "black",
-                    padding: 10,
-                    borderRadius: 10,
-                    marginBottom: 10,
-                  }}
-                  value={newFromValue}
-                  onChangeText={(text) => setNewFromValue(text)} // Update the new 'from' value
-                  placeholder="Wprowadź nowe miejsce"
-                />
-                <Pressable
-                  onPress={updateFromField}
-                  style={{
-                    backgroundColor: "#0d6efd",
-                    paddingVertical: 14,
-                    paddingHorizontal: 20,
-                    borderRadius: 12,
-                    marginBottom: 10,
-                  }}
-                >
-                  <Text style={{ color: "white", fontWeight: "bold", textAlign: "center" }}>Zapisz</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setEditFromModalVisible(false)}
-                  style={{
-                    backgroundColor: "#6c757d",
-                    paddingVertical: 14,
-                    paddingHorizontal: 20,
-                    borderRadius: 12,
-                  }}
-                >
-                  <Text style={{ color: "white", fontWeight: "bold", textAlign: "center" }}>Anuluj</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-          </KeyboardSafeOverlay>
-        </Modal>
         {/* Symbol Selection Modal - Identyczny z QRScanner */}
         <Modal
           transparent={true}
@@ -3688,15 +3595,26 @@ const Home = () => {
                   getMatchingSymbols().map((item) => (
                     <TouchableOpacity
                       key={item._id || item.symbol}
-                      style={styles.currencyModalItem}
+                      testID={`edit-point-${item.symbol}`}
+                      style={[styles.currencyModalItem, styles.pointItemCentered]}
                       onPress={() => {
                         setEditData((prev) => ({ ...prev, from: item.symbol })); // Update 'from' field
                         setSymbolSelectionVisible(false); // Close modal
                       }}
                     >
-                      <Text style={styles.currencyModalItemText}>
-                        {item.symbol}
+                      <Text style={[styles.currencyModalItemText, { textAlign: 'center' }]}>
+                        {pointDisplayName(item)}
                       </Text>
+                      {editData?.barcode ? (
+                        <Text
+                          testID={`edit-point-${item.symbol}-note`}
+                          style={[styles.salePointNote, { textAlign: 'center' }, editStockAt(item.symbol) === 0 && styles.salePointNoteMissing]}
+                        >
+                          {editStockAt(item.symbol) > 0
+                            ? `Na stanie: ${editStockAt(item.symbol)} szt.`
+                            : 'Brak na stanie - po przetworzeniu powstanie korekta'}
+                        </Text>
+                      ) : null}
                     </TouchableOpacity>
                   ))
                 ) : (
@@ -6405,9 +6323,10 @@ const styles = createThemedStyles(() => StyleSheet.create({
     textAlign: "right",
   },
   // Style identyczne z QRScanner dla modal wyboru symboli
+  // Okienko wyboru (punkt, waluta) - te same style co w „Nowa sprzedaż” (QRScanner)
   currencyModalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -6416,9 +6335,34 @@ const styles = createThemedStyles(() => StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     width: '90%',
-    maxHeight: '80%',
+    maxHeight: '85%',
     borderWidth: 1,
     borderColor: tc('border', '#232533'),
+  },
+  salePointNote: { // „Sprzedano od”: stan kurtki w punkcie
+    fontSize: 12,
+    marginTop: 2,
+    color: tc('muted', '#94A3B8'),
+  },
+  salePointNoteMissing: {
+    color: '#EF4444',
+  },
+  pointItemCentered: { // lista punktów: nazwa i stan wyśrodkowane
+    alignItems: 'center',
+  },
+  sellerFrame: { // „Sprzedano od”: ramka z podpisem nad listą rozwijaną
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.6)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: 'rgba(245, 158, 11, 0.06)',
+  },
+  sellerFrameCaption: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   currencyModalTitle: {
     fontSize: 20,
@@ -6428,38 +6372,33 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginBottom: 20,
   },
   currencyModalItem: {
-    backgroundColor: '#0d6efd',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 8,
+    backgroundColor: tc('surface2', '#1E1E2D'),
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginVertical: 4,
     borderWidth: 1,
-    borderColor: '#ffffff',
-    alignItems: 'center',
-    width: '100%',
-    alignSelf: 'center',
+    borderColor: tc('border', '#334155'),
   },
   currencyModalItemText: {
-    color: '#ffffff',
+    color: tc('text', '#ffffff'),
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   currencyModalCloseButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 15,
+    backgroundColor: tc('surface2', '#2a2a3e'),
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 8,
+    borderRadius: 12,
+    marginTop: 8,
     borderWidth: 1,
-    borderColor: '#ffffff',
+    borderColor: tc('border', '#334155'),
     alignItems: 'center',
-    width: '100%',
-    marginTop: 20,
-    alignSelf: 'center',
   },
   currencyModalCloseButtonText: {
-    color: "white",
+    color: tc('text', '#fff'), // przycisk ma tło motywu (jak w QRScanner), więc i tekst z motywu
     fontSize: 16,
+    fontWeight: 'bold',
   },
   // Salesperson modal styles
   salespersonModalOverlay: {

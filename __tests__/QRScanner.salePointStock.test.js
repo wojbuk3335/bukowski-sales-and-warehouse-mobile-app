@@ -72,7 +72,7 @@ describe('Sprzedano od - stan kurtki w punkcie', () => {
   test('lista punktów: P „Na stanie: 2 szt.”, T czerwone „Brak na stanie - po przetworzeniu powstanie korekta”', async () => {
     const utils = await openSaleForm();
     expect(utils.queryByTestId('sale-point-missing-warning')).toBeNull(); // domyślnie P - kurtka jest
-    fireEvent.press(utils.getByText('P'));
+    fireEvent.press(utils.getByText('Parzygnat')); // pole pokazuje pełną nazwę punktu
     await waitFor(() => expect(utils.getByTestId('sale-point-T')).toBeTruthy());
     expect(utils.getByTestId('sale-point-P-note').props.children).toBe('Na stanie: 2 szt.');
     const missing = utils.getByTestId('sale-point-T-note');
@@ -82,7 +82,7 @@ describe('Sprzedano od - stan kurtki w punkcie', () => {
 
   test('wybór T (brak kurtki) → pytanie; „Wybierz” ustawia T i pokazuje ostrzeżenie pod polem', async () => {
     const utils = await openSaleForm();
-    fireEvent.press(utils.getByText('P'));
+    fireEvent.press(utils.getByText('Parzygnat')); // pole pokazuje pełną nazwę punktu
     await waitFor(() => expect(utils.getByTestId('sale-point-T')).toBeTruthy());
     fireEvent.press(utils.getByTestId('sale-point-T'));
 
@@ -97,7 +97,7 @@ describe('Sprzedano od - stan kurtki w punkcie', () => {
 
   test('wybór punktu z kurtką → bez pytania', async () => {
     const utils = await openSaleForm();
-    fireEvent.press(utils.getByText('P'));
+    fireEvent.press(utils.getByText('Parzygnat')); // pole pokazuje pełną nazwę punktu
     await waitFor(() => expect(utils.getByTestId('sale-point-P')).toBeTruthy());
     fireEvent.press(utils.getByTestId('sale-point-P'));
     expect(appAlert.mock.calls.some(([title]) => String(title).startsWith('Brak na stanie'))).toBe(false);

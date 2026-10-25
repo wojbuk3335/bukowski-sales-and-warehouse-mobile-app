@@ -9,6 +9,7 @@ import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
+import { pointDisplayName, pointNameBySymbol } from '../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 import { warsawToday } from '../utils/warsawDay';
 import { applyChangeToCash, computePaymentBalance, formatMoney, formatMoneyExact, plnPerUnit, plnToCurrency, roundDownMoney, roundUpMoney } from "../utils/paymentBalance";
 import { sanitizeAmountInput } from "../utils/amountInput";
@@ -1394,7 +1395,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                     onPress={openSellingPointModal}
                   >
                     <Text style={[look.selectFieldText, !selectedOption && { color: tc('muted', '#94A3B8') }]}>
-                      {selectedOption || "Wybierz punkt sprzedaży"}
+                      {selectedOption ? pointNameBySymbol(users, selectedOption) : "Wybierz punkt sprzedaży"}
                     </Text>
                     <Ionicons name="chevron-down" size={20} color="#F59E0B" />
                   </TouchableOpacity>
@@ -1421,16 +1422,16 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                               <TouchableOpacity
                                 key={item._id}
                                 testID={`sale-point-${item.symbol}`}
-                                style={styles.currencyModalItem}
+                                style={[styles.currencyModalItem, styles.pointItemCentered]}
                                 onPress={() => selectSellingPointFromModal(item.symbol)}
                               >
-                                <Text style={styles.currencyModalItemText}>
-                                  {item.symbol}
+                                <Text style={[styles.currencyModalItemText, { textAlign: 'center' }]}>
+                                  {pointDisplayName(item)}
                                 </Text>
                                 {barcode ? (
                                   <Text
                                     testID={`sale-point-${item.symbol}-note`}
-                                    style={[styles.salePointNote, saleStockAt(item.symbol) === 0 && styles.salePointNoteMissing]}
+                                    style={[styles.salePointNote, { textAlign: 'center' }, saleStockAt(item.symbol) === 0 && styles.salePointNoteMissing]}
                                   >
                                     {saleStockAt(item.symbol) > 0
                                       ? `Na stanie: ${saleStockAt(item.symbol)} szt.`
@@ -2017,6 +2018,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   salePointNoteMissing: {
     color: '#EF4444',
+  },
+  pointItemCentered: { // lista punktów: nazwa i stan wyśrodkowane
+    alignItems: 'center',
   },
   sellerFrame: { // „Sprzedano od”: ramka z podpisem nad listą rozwijaną
     borderWidth: 1,

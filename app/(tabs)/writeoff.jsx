@@ -20,6 +20,7 @@ const loadScanCamera = () => require('../../components/scanner/ScanCamera').defa
 import useProductCatalog from '../../hooks/useProductCatalog'; // baza produktów i nazwy po kodzie z metki (Wymiana: oddana kurtka)
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { warsawToday } from '../../utils/warsawDay'; // S16: „dziś” po czasie polskim
+import { pointDisplayName } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
@@ -1128,7 +1129,7 @@ const fetchSales = async () => {
                                 key={item._id}
                                 testID={`transfer-target-${item.symbol}`}
                                 icon={item.role && item.role.toLowerCase() === 'dom' ? 'home-outline' : 'storefront-outline'}
-                                label={item.symbol}
+                                label={pointDisplayName(item)}
                                 note={stockNote(item.symbol)}
                                 noteColor={stockNoteColor(item.symbol)}
                                 onPress={() => confirmIfMissingAtTarget(item.symbol, () => {
