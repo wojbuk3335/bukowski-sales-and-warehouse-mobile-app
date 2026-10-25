@@ -38,6 +38,9 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [pickupExchange, setPickupExchange] = useState(null);
   // Blokada podwójnego kliknięcia „Dodaj” (słaby zasięg = dwie sprzedaże)
   const [savingSale, runSaleOnce] = useSubmitGuard();
+  // Jednorazowy numer bieżącej sprzedaży (audyt S12): nadany przy pierwszym „Dodaj”, ten sam przy ponowieniu
+  // po zerwanym połączeniu - serwer nie zapisze sprzedaży drugi raz. Nowa sprzedaż / zamknięcie okna = nowy numer.
+  const pendingSaleIdRef = useRef(null);
   const [myPriceList, setMyPriceList] = useState(null); // cennik punktu zalogowanego sprzedawcy (null = brak, karta produktu)
   const [remainingCurrency, setRemainingCurrency] = useState("PLN");
   // Ręcznie poprawiona kwota „Do dopłaty” (np. wyliczone 50 EUR, mówimy klientowi 60 EUR).
@@ -630,6 +633,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       // Otwórz formularz na cały ekran: kamera się chowa (poniżej), klawiatura zamknięta -
       // wcześniej kamera i klawiatura zajmowały po pół ekranu i formularza nie było widać (iPhone)
       Keyboard.dismiss();
+      pendingSaleIdRef.current = null; // nowa sprzedaż - nowy numer przy „Dodaj”
       setModalVisible(true);
     }
   };
@@ -1197,6 +1201,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       return;
     }
 
+    if (!pendingSaleIdRef.current) {
+      pendingSaleIdRef.current = `sale-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    payload.clientRequestId = pendingSaleIdRef.current;
+
     try {
       const response = await tokenService.authenticatedFetch(getApiUrl("/sales/save-sales"), {
         method: 'POST',
@@ -1206,15 +1215,20 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         Logger.error('❌ Response error:', errorData);
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+        const httpError = new Error(errorData.message || `HTTP ${response.status}`);
+        httpError.isHttp = true; // serwer odpowiedział i odrzucił - sprzedaż NIE jest zapisana
+        throw httpError;
       }
       
       const responseData = await response.json();
       
       // Backend już automatycznie przeliczył prowizje po dodaniu sprzedaży
       
+      pendingSaleIdRef.current = null;
       // Show success modal instead of alert
-      setSuccessMessage("Dane zostały zapisane pomyślnie!");
+      setSuccessMessage(responseData?.duplicate
+        ? "Ta sprzedaż była już zapisana (poprzednia próba doszła do serwera) - nie zapisano jej drugi raz."
+        : "Dane zostały zapisane pomyślnie!");
       setSuccessModalVisible(true);
 
       // Reset modal state
@@ -1225,6 +1239,22 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       setModalMessage("");
     } catch (error) {
       Logger.error("Error saving data:", error);
+      // Brak odpowiedzi serwera (zasięg, limit czasu): sprzedaż mogła się zapisać. Formularz zostaje,
+      // a „Spróbuj ponownie” wysyła ten sam numer - serwer zwróci zapisaną sprzedaż zamiast tworzyć drugą.
+      const isNoResponse = !error?.isHttp && !error?.isAuthError && error?.code !== 'SESSION_REVOKED'
+        && !String(error?.message || '').includes('401');
+      if (isNoResponse) {
+        appAlert(
+          "Brak odpowiedzi serwera",
+          "Sprzedaż mogła się zapisać. Kliknij „Spróbuj ponownie” - jeśli już jest zapisana, nie zapisze się drugi raz. Formularz został zachowany.",
+          [
+            { text: "Zamknij", style: "cancel" },
+            { text: "Spróbuj ponownie", onPress: () => runSaleOnce(handleSubmit) },
+          ]
+        );
+        return;
+      }
+      pendingSaleIdRef.current = null; // serwer odrzucił - sprzedaż niezapisana, następna próba to nowa sprzedaż
       
       let errorMessage = "Failed to save data.";
       if (error.message.includes('401')) {
