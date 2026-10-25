@@ -1544,13 +1544,15 @@ const Users = () => {
       ).length;
       
       // Now call undo endpoint
+      // Cofamy dokładnie ten zapis, który pokazuje przycisk (audyt W6) - serwer odmówi, jeśli nie jest już ostatni
       const url = getApiUrl('/transfer/undo-last');
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ transactionId: lastTransaction.transactionId })
       });
       
       if (response.ok) {
@@ -1646,7 +1648,11 @@ const Users = () => {
       } else {
         const errorText = await response.text();
         console.error('Undo error:', errorText);
-        appAlert("Błąd", "Nie udało się cofnąć transakcji");
+        // Powód z serwera po polsku (np. w międzyczasie zapisano inną transakcję, albo kurtki nie dało się przywrócić - W6)
+        let serverMessage = '';
+        try { serverMessage = JSON.parse(errorText)?.message || ''; } catch (_e) { serverMessage = ''; }
+        appAlert("Nie cofnięto", serverMessage || "Nie udało się cofnąć transakcji");
+        if (serverMessage) checkLastTransaction(); // przycisk pokaże aktualny ostatni zapis
       }
     } catch (error) {
       console.error('Error undoing transaction:', error);
@@ -2582,7 +2588,9 @@ const Users = () => {
                   disabled={processing}
                 >
                   <Ionicons name="arrow-undo" size={24} color={tc('text', "#fff")} />
-                  <Text style={styles.undoButtonText}>Cofnij ostatnią transakcję</Text>
+                  <Text style={styles.undoButtonText}>
+                    {`Cofnij zapis dla ${lastTransaction.userSymbol} z ${new Date(lastTransaction.timestamp).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
