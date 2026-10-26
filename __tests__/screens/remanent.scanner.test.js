@@ -81,6 +81,17 @@ describe('Remanent - wspólny skaner i wynik porównania', () => {
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       if (url.endsWith('/remanent/current-state')) return response({ data: pointState });
       if (url.endsWith('/remanent/session/current')) return response({ session });
+      // wynik „Remanent vs stan” liczy serwer (stan fizyczny, skany wszystkich telefonów)
+      if (url.endsWith('/remanent/session/s1/preview')) {
+        return response({ result: {
+          scope: 'all', currentStateCount: 2, stateCount: 3, remanentCount: 1, manualCount: 0, missingCount: 1, excessCount: 0,
+          adjustments: { unprocessedSales: 1, unprocessedOutgoing: 0, unprocessedIncoming: 0, exchangeReturns: 0, notOnState: 0 },
+          missingItems: [{ code: CODE_46, name: 'Amanda CZARNY', size: '46', expectedCount: 1, actualCount: 0, missingCount: 1 }],
+          extraItems: [],
+          expectedItems: [{ code: CODE_44, name: 'Amanda CZARNY', size: '44', count: 1 }, { code: CODE_46, name: 'Amanda CZARNY', size: '46', count: 1 }],
+          scannedItems: [{ code: CODE_44, name: 'Amanda CZARNY 44', count: 1, manualCount: 0 }],
+        } });
+      }
       if (url.includes('/excel/goods/get-all-goods')) return response({ goods: [] });
       if (url.endsWith('/remanent/session/s1/items') && options.method === 'POST') {
         const body = JSON.parse(options.body);
@@ -126,6 +137,7 @@ describe('Remanent - wspólny skaner i wynik porównania', () => {
     expect(screen.getByTestId('stat-excess').props.children).toBe(0);
     expect(screen.getByText('Amanda CZARNY 46')).toBeTruthy();
     expect(screen.getByText('Zakończ remanent i zapisz wynik')).toBeTruthy();
+    expect(screen.getByTestId('compare-note').props.children).toBe('Uwzględniono nieprzetworzone: sprzedane 1 szt.. Liczymy tak, jak kurtki leżą w punkcie.');
     screen.unmount();
   }, 20000);
 });

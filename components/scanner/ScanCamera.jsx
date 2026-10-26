@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Image, Modal, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
@@ -9,6 +9,17 @@ import { ModalHeader, look } from "../AdminLook";
 import { tc } from "../../context/ThemeContext";
 import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
+import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
+
+// Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
+const keepAwakeModule = () => {
+  try {
+    return require("expo-keep-awake");
+  } catch (error) {
+    return null;
+  }
+};
+const KEEP_AWAKE_TAG = "scanner-bluetooth";
 
 /**
  * Skaner kodów kreskowych - ten sam w każdym miejscu aplikacji (wzór: „Nowa sprzedaż”):
@@ -16,7 +27,11 @@ import Logger from "../../services/logger";
  * pod napisem „Odczytaj ze zdjęcia” i „Wpisz kod”. Zdjęcie i wpisany kod kończą się tak samo jak skan (onScanned).
  *
  * Props:
- *   onScanned({ data, type })  - odczytany kod (type: typ kodu z kamery/zdjęcia albo "manual")
+ *   onScanned({ data, type })  - odczytany kod (type: typ kodu z kamery/zdjęcia, "manual" albo "bluetooth" - z czytnika)
+ *
+ * Tryb czytnika Bluetooth (26.10.2026): przycisk „Czytnik” pod ramką przełącza na czytnik sparowany z telefonem jako
+ * klawiatura (np. Zebra DS2278). Kamera jest wyłączona, ukryte pole odbiera kody „wpisywane” przez czytnik (Enter = kod),
+ * każdy kod idzie do onScanned jak skan. Wybór trybu i „nie gaś ekranu” zapamiętane (scannerInputMode.js).
  *   enabled                    - false = skaner wstrzymany (np. otwarty formularz); po ponownym true ramka wraca na środek
  *   continuous                 - tryb ciągły (Remanent, „Sprawdź”): po skanie ramka sama wraca do szukania,
  *                                zdjęcie nie zostaje na ekranie
@@ -51,6 +66,48 @@ const ScanCamera = ({
   const [permission, requestPermission] = useCameraPermissions();
   const onScannedRef = useRef(onScanned);
   onScannedRef.current = onScanned;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+
+  // Czytnik Bluetooth: tryb zapamiętany w telefonie, ukryte pole na kody, „nie gaś ekranu”
+  const [inputMode, setInputModeState] = useState("camera");
+  const [btBuffer, setBtBuffer] = useState("");
+  const [btLastCode, setBtLastCode] = useState("");
+  const [keepAwakeOn, setKeepAwakeOn] = useState(false);
+  const btInputRef = useRef(null);
+  useEffect(() => {
+    let active = true;
+    getInputMode().then((mode) => { if (active) setInputModeState(mode); });
+    getKeepAwake().then((on) => { if (active) setKeepAwakeOn(on); });
+    return () => { active = false; };
+  }, []);
+  const switchInputMode = (mode) => {
+    setInputModeState(mode);
+    setBtBuffer("");
+    setInputMode(mode);
+  };
+  const toggleKeepAwake = (on) => {
+    setKeepAwakeOn(on);
+    setKeepAwake(on);
+  };
+  // Pole czytnika musi mieć fokus, gdy skaner jest aktywny (po zamknięciu formularza fokus wraca sam)
+  useEffect(() => {
+    if (inputMode !== "bluetooth" || !enabled) return undefined;
+    const timer = setTimeout(() => btInputRef.current?.focus?.(), 50);
+    return () => clearTimeout(timer);
+  }, [inputMode, enabled]);
+  // Ekran nie gaśnie, dopóki działa tryb czytnika z włączonym „nie gaś ekranu”
+  useEffect(() => {
+    const keepAwake = keepAwakeModule();
+    if (!keepAwake) return undefined;
+    const shouldHold = inputMode === "bluetooth" && keepAwakeOn;
+    if (shouldHold) {
+      Promise.resolve(keepAwake.activateKeepAwakeAsync?.(KEEP_AWAKE_TAG)).catch(() => {});
+    }
+    return () => {
+      Promise.resolve(keepAwake.deactivateKeepAwake?.(KEEP_AWAKE_TAG)).catch(() => {});
+    };
+  }, [inputMode, keepAwakeOn]);
 
   // Tryb ciągły: po potwierdzonym skanie ramka sama wraca do szukania (ekran sam pilnuje powtórek tej samej metki)
   const [rearmKey, setRearmKey] = useState(0);
@@ -65,6 +122,29 @@ const ScanCamera = ({
   };
 
   const smartScan = useSmartBarcodeScan({ enabled, onConfirmed: deliver, rearmKey });
+
+  // Kody z czytnika: Enter (onSubmitEditing) kończy kod; znak nowej linii w tekście też (kilka kodów naraz z pamięci czytnika)
+  const deliverBluetoothCode = (raw) => {
+    const code = cleanScannerCode(raw);
+    if (!code) return;
+    setBtLastCode(code);
+    if (!enabledRef.current) return; // formularz otwarty - kod bez odbiorcy (jak zasłonięta kamera)
+    onScannedRef.current?.({ data: code, type: "bluetooth" });
+  };
+  const handleBluetoothText = (text) => {
+    if (/[\r\n]/.test(text)) {
+      const { codes, rest } = splitScannerInput(text);
+      codes.forEach(deliverBluetoothCode);
+      setBtBuffer(rest);
+      return;
+    }
+    setBtBuffer(text);
+  };
+  const handleBluetoothSubmit = () => {
+    deliverBluetoothCode(btBuffer);
+    setBtBuffer("");
+    setTimeout(() => btInputRef.current?.focus?.(), 0);
+  };
 
   // „Odczytaj ze zdjęcia”: zdjęcie z galerii pokazywane zamiast kamery, kod odczytany z pliku
   const [photoUri, setPhotoUri] = useState(null);
@@ -170,11 +250,97 @@ const ScanCamera = ({
     );
   }
 
+  const manualAction = { label: "Wpisz kod", icon: "keypad-outline", onPress: onManualCode || (() => setManualCodeVisible(true)), testID: "enter-code" };
   const actions = enabled ? [
     { label: "Odczytaj ze zdjęcia", icon: "images-outline", onPress: pickPhotoAndScan, disabled: photoScanning, testID: "scan-from-photo" },
-    { label: "Wpisz kod", icon: "keypad-outline", onPress: onManualCode || (() => setManualCodeVisible(true)), testID: "enter-code" },
+    manualAction,
     ...extraActions,
+    { label: "Czytnik", icon: "bluetooth", onPress: () => switchInputMode("bluetooth"), testID: "scan-mode-bluetooth" },
   ] : [];
+
+  if (inputMode === "bluetooth") {
+    // Czytnik Bluetooth: kamera wyłączona, ukryte pole odbiera kody; dotknięcie panelu przywraca fokus
+    const bt = btStyles();
+    return (
+      <View style={[styles.container, style]}>
+        <TouchableOpacity activeOpacity={0.95} style={bt.panel} onPress={() => btInputRef.current?.focus?.()} testID="bluetooth-panel">
+          <TextInput
+            ref={btInputRef}
+            style={styles.btHiddenInput}
+            value={btBuffer}
+            onChangeText={handleBluetoothText}
+            onSubmitEditing={handleBluetoothSubmit}
+            blurOnSubmit={false}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="none"
+            showSoftInputOnFocus={false}
+            caretHidden
+            editable={enabled}
+            testID="bluetooth-scan-input"
+          />
+          <Ionicons name="bluetooth" size={56} color={bt.icon} />
+          <Text style={bt.title}>Czytnik Bluetooth</Text>
+          <Text style={bt.hint}>
+            {enabled
+              ? `${hint || "Naciśnij spust czytnika na metce."}\nDotknij tutaj, jeśli czytnik nie reaguje.`
+              : "Czytnik wstrzymany - zamknij formularz, żeby skanować dalej."}
+          </Text>
+          {!!btLastCode && (
+            <Text style={bt.last} testID="bluetooth-last">Ostatni odczyt: {btLastCode}</Text>
+          )}
+          <View style={styles.btActionsRow}>
+            <TouchableOpacity style={bt.action} onPress={() => switchInputMode("camera")} testID="scan-mode-camera" accessibilityRole="button">
+              <Ionicons name="camera-outline" size={18} color={bt.actionText.color} />
+              <Text style={bt.actionText}>Kamera</Text>
+            </TouchableOpacity>
+            {enabled && [manualAction, ...extraActions].map((action) => (
+              <TouchableOpacity key={action.label} style={bt.action} onPress={action.onPress} disabled={action.disabled} testID={action.testID} accessibilityRole="button">
+                {!!action.icon && <Ionicons name={action.icon} size={18} color={bt.actionText.color} />}
+                <Text style={bt.actionText}>{action.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.btKeepAwakeRow}>
+            <Text style={bt.keepAwakeText}>Nie gaś ekranu w trybie czytnika</Text>
+            <Switch value={keepAwakeOn} onValueChange={toggleKeepAwake} trackColor={{ true: bt.icon }} testID="scanner-keep-awake" />
+          </View>
+          {children}
+        </TouchableOpacity>
+
+        {/* Ręczne wpisanie kodu - to samo okienko co przy kamerze */}
+        <Modal visible={manualCodeVisible} transparent animationType="fade" onRequestClose={closeManualCode}>
+          <KeyboardSafeScreen>
+            <View style={look.modalOverlay}>
+              <View style={look.modalContent}>
+                <ModalHeader icon="keypad" color="#0D6EFD" title="Wpisz kod kreskowy" subtitle="Kod z metki, np. 0040408300005" />
+                <TextInput
+                  testID="manual-code-input"
+                  style={look.formInput}
+                  value={manualCode}
+                  onChangeText={(text) => setManualCode(text.replace(/\s+/g, ""))}
+                  placeholder="Kod kreskowy"
+                  placeholderTextColor={tc('muted', "#64748B")}
+                  keyboardType="number-pad"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={submitManualCode}
+                />
+                <View style={look.buttonRow}>
+                  <TouchableOpacity style={look.neutralButton} onPress={closeManualCode}>
+                    <Text style={look.neutralButtonText}>Anuluj</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity testID="manual-code-submit" style={[look.primaryButton, manualCodeCheck.state !== "ok" && { opacity: 0.5 }]} onPress={submitManualCode} disabled={manualCodeCheck.state !== "ok"}>
+                    <Text style={look.buttonText}>Dalej</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </KeyboardSafeScreen>
+        </Modal>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, style]}>
@@ -258,6 +424,21 @@ const styles = StyleSheet.create({
   camera: { flex: 1 },
   permission: { justifyContent: "center", alignItems: "center", padding: 20 },
   permissionText: { color: "#fff", fontSize: 16, textAlign: "center", marginBottom: 20 },
+  btHiddenInput: { position: "absolute", opacity: 0, height: 1, width: 1, top: 0, left: 0 },
+  btActionsRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10, marginTop: 12, paddingHorizontal: 12 },
+  btKeepAwakeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
+});
+
+// Panel czytnika w kolorach motywu aplikacji (szary: tło, karta, tekst), liczone przy każdym renderze
+const btStyles = () => ({
+  panel: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10, backgroundColor: tc('bg', '#000') },
+  title: { color: tc('text', '#fff'), fontSize: 20, fontWeight: "700" },
+  hint: { color: tc('muted', '#CBD5E1'), fontSize: 14, textAlign: "center", lineHeight: 20 },
+  last: { color: "#10B981", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 4 },
+  action: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: tc('border', '#232533'), backgroundColor: tc('surface2', '#232533') },
+  actionText: { color: tc('text', '#fff'), fontSize: 14, fontWeight: "600" },
+  keepAwakeText: { color: tc('muted', '#CBD5E1'), fontSize: 13 },
+  icon: tc('primary', '#0d6efd'),
 });
 
 export default ScanCamera;

@@ -25,7 +25,6 @@ import { KeyboardSafeOverlay } from '../../components/KeyboardSafe'; // klawiatu
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
 import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
-import { compareScans } from '../../utils/compareScans';
 import { productNameFromBarcode } from '../../utils/productName';
 const Remanent = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -63,6 +62,7 @@ const Remanent = () => {
   // Stan punktu (sztuki na stanie) - pobierany raz przy wejściu/odświeżeniu/zatwierdzeniu, nie przy każdej zmianie listy
   const [pointState, setPointState] = useState([]);
   const [filteredRemanentData, setFilteredRemanentData] = useState([]); // Przefiltrowane dane
+  const [scanSearch, setScanSearch] = useState(''); // wyszukiwarka zeskanowanych sztuk (nazwa, rozmiar, kod) - 26.10.2026
 
   // Advanced filter modal states
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -304,6 +304,25 @@ const Remanent = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remanentData, advancedFilters, stockByKod, colorByKod, sizeByKod, goodsByCode]);
 
+  // Wyszukiwarka zeskanowanych sztuk: nazwa, rozmiar, kolor, model i kod; kilka słów = wszystkie muszą pasować;
+  // bez polskich znaków i wielkości liter („czarny 44”, „amanda”, „0040408”). Tylko do znalezienia pozycji na liście -
+  // postęp i porównanie ze stanem liczą się z całej przefiltrowanej listy, nie z wyniku szukania.
+  const searchText = (value) => String(value || '')
+    .toLowerCase()
+    .replace(/ł/g, 'l')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // znaki diakrytyczne po rozłożeniu NFD
+  const searchWords = searchText(scanSearch).split(/\s+/).filter(Boolean);
+  const visibleRemanentData = React.useMemo(() => {
+    if (searchWords.length === 0) return filteredRemanentData;
+    return filteredRemanentData.filter((item) => {
+      const info = describeBarcode(item.code);
+      const haystack = searchText([item.name, item.code, info.item, info.model, info.color, info.size].filter(Boolean).join(' '));
+      return searchWords.every((word) => haystack.includes(word));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredRemanentData, scanSearch, stockByKod, colorByKod, sizeByKod, goodsByCode]);
+
   // Postęp liczony lokalnie ze stanu punktu i skanów (bez zapytań do serwera przy każdej zmianie)
   useEffect(() => {
     const expectedByBarcode = {};
@@ -378,9 +397,11 @@ const Remanent = () => {
   });
 
   // Wczytuje OTWARTĄ sesję remanentu punktu (bez limitu skanów, wspólną dla wszystkich telefonów punktu)
-  const fetchRemanentData = async () => {
+  // silent: odświeżenie w tle (np. po odmowie zapisu) bez pełnoekranowego spinnera - spinner zastępował cały ekran
+  // razem ze skanerem, a skaner przy ponownym zamontowaniu tracił niezatwierdzone skany (audyt 26.10.2026)
+  const fetchRemanentData = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       fetchPointState();
       const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/session/current'));
       if (response.ok) {
@@ -432,7 +453,8 @@ const Remanent = () => {
       const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/close`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result: comparisonResults || null, filters: activeFilterLabels })
+        // wynik liczy serwer; telefon podaje tylko kody z filtrów (z podglądu „Sprawdź”)
+        body: JSON.stringify({ filterCodes: comparisonCodesRef.current, filters: activeFilterLabels })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -509,7 +531,7 @@ const Remanent = () => {
 
   // „Zatwierdź (N)” w skanerze: zapis skanów do sesji punktu. true = zapisane (lista skanera się czyści),
   // false = skany zostają w skanerze i można zatwierdzić ponownie
-  const confirmScannedJackets = async (scannedJackets, { showToast: showScanToast }) => {
+  const confirmScannedJackets = async (scannedJackets, { showToast: showScanToast, batchId }) => {
     try {
       // Autora (scannedBy) i punkt ustawia serwer z tokenu; ceny w remanencie nie są używane
       const remanentItemsForAPI = scannedJackets.map(jacket => ({
@@ -529,14 +551,21 @@ const Remanent = () => {
       const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${activeSession._id}/items`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: remanentItemsForAPI })
+        // batchId: ten sam klucz przy ponownej próbie tego samego zestawu - serwer nie dopisze skanów drugi raz
+        body: JSON.stringify({ items: remanentItemsForAPI, batchId: batchId || undefined })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         // Skany NIE giną: zostają na liście skanera, można zatwierdzić ponownie
         showScanToast(data?.message || 'Nie zapisano skanów - sprawdź połączenie i zatwierdź ponownie.', 'warn');
-        if (response.status === 409) fetchRemanentData();
+        if (response.status === 409) fetchRemanentData({ silent: true });
         return false;
+      }
+      if (data?.duplicate) {
+        // Poprzednia próba doszła do serwera, tylko odpowiedź nie wróciła - lista z serwera, bez podwójnego liczenia
+        showScanToast('Te skany były już zapisane.', 'warn');
+        fetchRemanentData({ silent: true });
+        return true;
       }
       setRemanentData(prev => [...prev, ...(data.added || []).map((item) => toRemanentItem(item, activeSession._id))]);
       showScanToast(`Zapisano ${remanentItemsForAPI.length} szt.`);
@@ -625,7 +654,7 @@ const Remanent = () => {
     }
   };
 
-  // Zamknięcie skanera (X / wstecz) - niezatwierdzone skany odrzuca sam skaner
+  // Zamknięcie skanera (X / wstecz) - o niezatwierdzone skany pyta sam skaner
   const closeScanner = () => {
     setScannerVisible(false);
   };
@@ -639,49 +668,57 @@ const Remanent = () => {
     }
   };
 
+  // „Sprawdź”: wynik liczy SERWER (skany ze wszystkich telefonów punktu, stan fizyczny: bez sprzedanych / przepisanych
+  // a nieprzetworzonych, z przychodzącymi i zwrotami od klienta). Telefon wybiera tylko kody pasujące do filtrów
+  // (serwer nie zna słowników filtrów) - audyt Remanentu 26.10.2026, dawniej liczone z lokalnej listy tego telefonu.
+  const comparisonCodesRef = useRef(null); // kody z filtrów użyte w podglądzie - te same idą do zakończenia
+  const fetchServerResult = async (filterCodes) => {
+    if (!session) return null;
+    const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/preview`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filterCodes ? { filterCodes } : {})
+    });
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => ({}));
+    return data?.result || null;
+  };
   const performStateCheck = async () => {
     try {
-      // NIE resetuj wysłanych korekt - pozostaw je zapamiętane
-
-      // Świeży stan punktu (jedno zapytanie, tylko ten punkt)
-      const freshState = await fetchPointState();
-      if (freshState) {
-        let currentState = freshState;
-
-        // Te same filtry co na liście (po kodzie kreskowym: asortyment, kolor, rozmiar)
-        currentState = currentState.filter(item => matchesFilters(item.barcode));
-
-        // Porównaj remanent z aktualnym stanem (uwzględniając filtr asortymentu):
-        // braki - produkty w stanie, ale nie w remanencie; nadwyżki - w remanencie, ale nie w stanie
-        const { missingItems, extraItems, missingCount, excessCount } = compareScans(currentState, filteredRemanentData);
-
-        // Pokaż wyniki w modalu
-        Logger.debug('🔍 Porównanie:', {
-          currentStateCount: currentState.length,
-          remanentCount: filteredRemanentData.length,
-          missingItems: missingItems,
-          extraItems: extraItems
-        });
-
-        setComparisonResults({
-          currentStateCount: currentState.length,
-          remanentCount: filteredRemanentData.length,
-          manualCount: filteredRemanentData.filter((item) => item.manual).length,
-          missingCount,
-          excessCount,
-          missingItems: missingItems,
-          extraItems: extraItems
-        });
-        setComparisonModalVisible(true);
-
-      } else {
-        Logger.error('❌ Failed to fetch current state');
-        setClearResult({ ok: false, text: 'Nie udało się pobrać stanu punktu. Sprawdź połączenie i spróbuj ponownie.' });
+      fetchPointState(); // odświeżenie postępu w tle
+      let result = await fetchServerResult(null);
+      if (!result) {
+        setClearResult({ ok: false, text: 'Nie udało się pobrać wyniku z serwera. Sprawdź połączenie i spróbuj ponownie.' });
+        return;
       }
+      let codes = null;
+      if (hasActiveFilters) {
+        // Te same filtry co na liście (po kodzie kreskowym: asortyment, kolor, rozmiar) - zbiór kodów z pełnego wyniku
+        const allCodes = [...(result.expectedItems || []), ...(result.scannedItems || [])].map((item) => String(item.code));
+        codes = [...new Set(allCodes)].filter((code) => matchesFilters(code));
+        result = (await fetchServerResult(codes.length > 0 ? codes : ['-'])) || { ...result, scope: 'filtered', currentStateCount: 0, remanentCount: 0, manualCount: 0, missingCount: 0, excessCount: 0, missingItems: [], extraItems: [] };
+      }
+      comparisonCodesRef.current = codes;
+      Logger.debug('🔍 Porównanie (serwer):', { currentStateCount: result.currentStateCount, remanentCount: result.remanentCount, adjustments: result.adjustments });
+      setComparisonResults(result);
+      setComparisonModalVisible(true);
     } catch (error) {
       Logger.error('❌ Error checking current state:', error);
       setClearResult({ ok: false, text: 'Nie udało się sprawdzić stanu. Sprawdź połączenie i spróbuj ponownie.' });
     }
+  };
+
+  // Opis uwzględnionych nieprzetworzonych operacji (pod tytułem wyniku)
+  const adjustmentsNote = (result) => {
+    const adj = result?.adjustments;
+    if (!adj) return null;
+    const parts = [];
+    if (adj.unprocessedSales > 0) parts.push(`sprzedane ${adj.unprocessedSales} szt.`);
+    if (adj.unprocessedOutgoing > 0) parts.push(`przepisane dalej ${adj.unprocessedOutgoing} szt.`);
+    if (adj.unprocessedIncoming > 0) parts.push(`przychodzące ${adj.unprocessedIncoming} szt.`);
+    if (adj.exchangeReturns > 0) parts.push(`zwroty od klienta ${adj.exchangeReturns} szt.`);
+    if (parts.length === 0) return null;
+    return `Uwzględniono nieprzetworzone: ${parts.join(', ')}. Liczymy tak, jak kurtki leżą w punkcie.`;
   };
 
 
@@ -851,10 +888,46 @@ const Remanent = () => {
           <Text style={styles.emptySubtext}>Kliknij „Skanuj” i zeskanuj sztuki. Każdy skan to jedna sztuka.</Text>
         </View>
       ) : (
+        <>
+        {/* Wyszukiwarka zeskanowanych sztuk */}
+        <View style={styles.scanSearchWrap}>
+          <View style={styles.selectSearchBox}>
+            <Ionicons name="search" size={16} color={tc('muted', "#94A3B8")} />
+            <TextInput
+              style={styles.selectSearchInput}
+              placeholder="Szukaj zeskanowanych: nazwa, rozmiar, kod"
+              placeholderTextColor={tc('muted', "#64748B")}
+              value={scanSearch}
+              onChangeText={setScanSearch}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              testID="remanent-search-input"
+            />
+            {scanSearch ? (
+              <TouchableOpacity onPress={() => setScanSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} testID="remanent-search-clear">
+                <Ionicons name="close-circle" size={16} color={tc('muted', "#94A3B8")} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {searchWords.length > 0 && (
+            <Text style={styles.scanSearchCount} testID="remanent-search-count">
+              Znaleziono {visibleRemanentData.length} z {filteredRemanentData.length} szt.
+            </Text>
+          )}
+        </View>
         <FlatList alwaysBounceVertical
-          data={filteredRemanentData}
+          data={visibleRemanentData}
           renderItem={renderRemanentItem}
           keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={searchWords.length > 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={48} color="#CDCDE0" />
+              <Text style={styles.emptyText}>Nic nie znaleziono</Text>
+              <Text style={styles.emptySubtext}>Żadna zeskanowana sztuka nie pasuje do „{scanSearch.trim()}”.</Text>
+            </View>
+          ) : null}
           contentContainerStyle={[styles.listContainer, { paddingBottom: 16 }]}
           refreshControl={
             <RefreshControl
@@ -866,6 +939,7 @@ const Remanent = () => {
           }
           showsVerticalScrollIndicator={false}
         />
+        </>
       )}
 
       <View style={styles.footer}>
@@ -947,6 +1021,7 @@ const Remanent = () => {
         onConfirm={confirmScannedJackets}
         goods={goodsList}
         pickerSizes={pickerSizes}
+        draftKey={user?.symbol ? `remanent-${user.symbol}` : null}
       />
 
       {/* Historia zakończonych remanentów punktu */}
@@ -1094,6 +1169,7 @@ const Remanent = () => {
         onClose={() => setComparisonModalVisible(false)}
         title="Remanent vs stan"
         subtitle={hasActiveFilters ? `Filtry: ${activeFilterLabels.join(' · ')}` : null}
+        note={adjustmentsNote(comparisonResults)}
         results={comparisonResults}
         actions={session ? (
           // Zakończenie remanentu: zapis wyniku w historii punktu
@@ -1614,6 +1690,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
+  },
+  scanSearchWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  scanSearchCount: {
+    fontSize: 12,
+    color: tc('muted', '#94A3B8'),
+    marginTop: 6,
+    marginLeft: 4,
   },
   emptyText: {
     fontSize: 18,

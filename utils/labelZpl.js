@@ -15,12 +15,18 @@
 // Kod: Code 128 w trybie automatycznym (cyfry parami - kod krótszy). NIE EAN-13: kod EAN-13 zaczynający się od zera
 // jest jednocześnie UPC-A i skanery w telefonach obcinają pierwsze zero (0040408300005 -> 040408300005), a prawie
 // wszystkie nasze kody zaczynają się od zera. Code 128 czyta się dokładnie tak, jak jest wydrukowany.
-// Grubość kreski: największa, przy której kod mieści się w lewej części metki z białym marginesem. Kreska 4 pkt
-// (0,34 mm - decyzja użytkownika: grubsza kreska ważniejsza niż duża cena) z marginesem 6 szerokości kreski
-// (ok. 2 mm), cieńsze kreski z pełnym marginesem 10 szerokości kreski.
+// Grubość kreski: największa, przy której kod mieści się w lewej części metki z PEŁNYM białym marginesem
+// 10 szerokości kreski z każdej strony (norma Code 128). 26.10.2026: dawniej kreska 4 pkt z marginesem tylko 6X
+// (2,0 mm z lewej, 2,5 mm do obróconej ceny) - aparat w telefonie nie znajdował końca kodu (cena tuż przy
+// kreskach działa jak kolejne kreski), kod z ekranu czytał się od razu, z metki nie. Dla 13 cyfr wychodzi kreska
+// 3 pkt (0,25 mm, kod 31 mm, po ok. 7 mm bieli z każdej strony). Druk najwolniejszy (^PR2) - równiejsze krawędzie.
 
 const LABEL_WIDTH = 590; // 50 mm przy 300 dpi
 const LABEL_HEIGHT = 400;
+const PRINT_SPEED_IPS = 2; // najwolniejszy druk (2 cale/s): równe krawędzie kresek ważniejsze niż czas wydruku
+const PRINT_DARKNESS = 12; // domyślne zaczernienie (^MD, względem ustawienia drukarki) - do korekty po próbie przy drukarce
+const MIN_MODULE_WIDTH = 3; // kreska nigdy cieńsza niż 3 pkt (0,25 mm) - 2 pkt (stare metki) aparat czytał źle
+const QUIET_ZONE_MODULES = 10; // biały margines z każdej strony kodu: 10 szerokości kreski (norma Code 128)
 const EDGE = 12;
 const PRICE_FONT = 40; // wysokość liter ceny = szerokość kolumny ceny (mniejsza cena = miejsce na kreskę 4 pkt)
 const PRICE_X = LABEL_WIDTH - 4 - PRICE_FONT; // cena dosunięta maksymalnie do prawej krawędzi
@@ -54,9 +60,9 @@ const code128Modules = (data) => {
 // z wymaganym białym marginesem (kod wyśrodkowany - marginesy wychodzą równe)
 const barcodeGeometry = (data, areaWidth = AREA_WIDTH) => {
     const modules = code128Modules(data);
-    let moduleWidth = 1;
-    for (const width of [4, 3, 2]) {
-        const quietModules = 2 * (width >= 4 ? 6 : 10);
+    let moduleWidth = MIN_MODULE_WIDTH;
+    for (const width of [4, MIN_MODULE_WIDTH]) {
+        const quietModules = 2 * QUIET_ZONE_MODULES; // pełny margines z obu stron, dla każdej grubości
         if ((modules + quietModules) * width <= areaWidth) {
             moduleWidth = width;
             break;
@@ -77,7 +83,8 @@ const boldField = (x, y, font, block, hex, rotation = 'N') => [
     `^FO${x + 1},${y}^A0${rotation},${font},${font}${block}^FH_^FD${hex}^FS`,
 ].join('\n');
 
-const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) => {
+// darkness: zaczernienie względem ustawienia drukarki (^MD, -30..30); bez podania - PRINT_DARKNESS
+const buildLabelZpl = ({ productName, price, size, pointNumber, barcode, darkness } = {}) => {
     const name = (productName || 'N/A').toString();
     const priceText = price !== null && price !== undefined && price !== '' ? `${price} zł` : '';
     const sizeText = isUndefinedSize(size) ? '' : String(size).trim();
@@ -93,6 +100,8 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode } = {}) 
         '^XA',
         '^CI28',
         '^MMT',
+        `^PR${PRINT_SPEED_IPS},${PRINT_SPEED_IPS},${PRINT_SPEED_IPS}`,
+        `^MD${Math.max(-30, Math.min(30, Math.round(Number.isFinite(Number(darkness)) && darkness !== null && darkness !== '' ? Number(darkness) : PRINT_DARKNESS)))}`,
         `^PW${LABEL_WIDTH}`,
         `^LL${String(LABEL_HEIGHT).padStart(4, '0')}`,
         '^LS0',

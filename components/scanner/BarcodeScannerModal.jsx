@@ -15,6 +15,15 @@ import ScanCamera from './ScanCamera'; // kamera jak w całej aplikacji: ramka, 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext';
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłania pola w nakładce
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Niezatwierdzone skany zapisywane w pamięci telefonu (audyt Remanentu 26.10.2026): zabicie aplikacji, aktualizacja
+// albo wylogowanie nie kasują zeskanowanych sztuk - po otwarciu skanera lista wraca
+const DRAFT_PREFIX = 'scanner-draft:';
+// Czytnik Bluetooth (26.10.2026): tryb i ukryte pole są we wspólnym skanerze (ScanCamera); tu kod z czytnika
+// (type 'bluetooth') to zawsze jedna sztuka bez pytania o powtórkę (laser nie czyta jednej metki kilka razy jak kamera),
+// a kody z pamięci czytnika przetwarzane są po kolei (kolejka).
+export const draftStorageKey = (draftKey) => `${DRAFT_PREFIX}${draftKey}`;
 
 // Skaner kodów kreskowych w trybie ciągłym - ten sam w Remanencie (panel użytkownika) i w zakładce „Sprawdź” (panel admina).
 // Kamera, potwierdzenie skanu nad kamerą (toast) z wibracją, okienko „ta sama metka / kolejna sztuka”,
@@ -22,7 +31,10 @@ import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłan
 // O tym, czy kod przyjąć i jaki pokazać komunikat, decyduje ekran (validateCode); co zrobić ze skanami - onConfirm.
 //
 // Props:
-//   visible, onClose                - widoczność; zamknięcie (X / wstecz) odrzuca niezatwierdzone skany
+//   visible, onClose                - widoczność; zamknięcie (X / wstecz) przy niezatwierdzonych skanach pyta:
+//                                     zatwierdź / wróć / odrzuć (dawniej odrzucało po cichu)
+//   draftKey                        - klucz pamięci telefonu dla niezatwierdzonych skanów (np. symbol punktu);
+//                                     bez klucza skany nie są zapamiętywane między otwarciami skanera
 //   title                           - tytuł nad kamerą
 //   permission, requestPermission   - z useCameraPermissions() ekranu (jedno źródło stanu uprawnień)
 //   resolveName(code)               - nazwa produktu po kodzie (może być async)
@@ -32,7 +44,9 @@ import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłan
 //                                     ok=false: kod odrzucony (message w toaście); ok=true bez message:
 //                                     domyślny komunikat „Dodano: …”.
 //   countSaved(code)                - ile sztuk tego kodu jest już policzonych poza skanerem (do pytania o powtórkę)
-//   onConfirm(pieces, { groups, showToast }) - async; true = przyjęte (lista skanera się czyści), false = skany zostają
+//   onConfirm(pieces, { groups, showToast, batchId }) - async; true = przyjęte (z listy znikają TYLKO wysłane sztuki,
+//                                     skany zrobione w trakcie zapisu zostają), false = skany zostają;
+//                                     batchId - ten sam klucz przy ponownej próbie tego samego zestawu (serwer nie liczy podwójnie)
 //   goods, pickerSizes              - karty produktów i rozmiary dla „Z bazy”
 
 // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
@@ -55,6 +69,7 @@ const BarcodeScannerModal = ({
   onConfirm,
   goods = [],
   pickerSizes = [],
+  draftKey = null,
 }) => {
   useAppTheme(); // przerysowanie po zmianie motywu
   const [scannedJackets, setScannedJackets] = useState([]);
@@ -75,17 +90,51 @@ const BarcodeScannerModal = ({
   const [scanToast, setScanToast] = useState(null); // { text, kind: 'ok' | 'warn' | 'error' }
   const scanToastTimer = useRef(null);
   const savingScansRef = useRef(false);
+  const [closePrompt, setClosePrompt] = useState(false); // X / wstecz przy niezatwierdzonych skanach
+  const btQueueRef = useRef([]); // kody z czytnika czekające na przetworzenie (po kolei)
+  const btDrainingRef = useRef(false);
+  const pendingBatchRef = useRef({ key: '', batchId: '' }); // ten sam zestaw sztuk = ten sam klucz zatwierdzenia
+  const draftLoadedRef = useRef(false);
 
   // Toast nie może zostać z odliczaniem po zamknięciu ekranu
   useEffect(() => () => clearTimeout(scanToastTimer.current), []);
 
-  // Otwarcie skanera: zawsze pusta lista i włączone skanowanie (skan dokończony już po zamknięciu nie przechodzi dalej)
+  // Otwarcie skanera: włączone skanowanie; lista z pamięci telefonu (niezatwierdzone skany z poprzedniego
+  // otwarcia / sprzed zabicia aplikacji), bez klucza - pusta
   useEffect(() => {
-    if (visible) {
-      setScannedJackets([]);
-      setScanningEnabled(true);
+    if (!visible) {
+      draftLoadedRef.current = false;
+      return;
     }
-  }, [visible]);
+    setScanningEnabled(true);
+    setClosePrompt(false);
+    if (!draftKey) {
+      setScannedJackets([]);
+      draftLoadedRef.current = true;
+      return;
+    }
+    let cancelled = false;
+    AsyncStorage.getItem(draftStorageKey(draftKey))
+      .then((raw) => {
+        if (cancelled) return;
+        let restored = [];
+        try { restored = JSON.parse(raw || '[]'); } catch (error) { restored = []; }
+        const pieces = Array.isArray(restored) ? restored.filter((piece) => piece && piece.code) : [];
+        setScannedJackets(pieces);
+        if (pieces.length > 0) showScanToast(`Przywrócono ${pieces.length} niezatwierdzonych skanów - zatwierdź je.`, 'warn');
+      })
+      .catch(() => setScannedJackets([]))
+      .finally(() => { if (!cancelled) draftLoadedRef.current = true; });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, draftKey]);
+
+  // Każda zmiana listy niezatwierdzonych skanów trafia do pamięci telefonu
+  useEffect(() => {
+    if (!visible || !draftKey || !draftLoadedRef.current) return;
+    const key = draftStorageKey(draftKey);
+    (scannedJackets.length > 0 ? AsyncStorage.setItem(key, JSON.stringify(scannedJackets)) : AsyncStorage.removeItem(key)).catch(() => {});
+  }, [scannedJackets, visible, draftKey]);
 
   const showScanToast = (text, kind = 'ok') => {
     setScanToast({ text, kind });
@@ -116,7 +165,11 @@ const BarcodeScannerModal = ({
     }, RESUME_AFTER_MS);
   };
 
-  const handleScan = async ({ data }) => {
+  const handleScan = async ({ data, type }) => {
+    if (type === 'bluetooth') {
+      enqueueBluetoothCode(data); // czytnik: każdy kod po kolei, bez pauzy „ta sama metka” (laser czyta raz)
+      return;
+    }
     // Ta sama metka odczytana ponownie w krótkim czasie = ten sam odczyt kamery, ignorujemy.
     // Po przerwie ten sam kod to KOLEJNA SZTUKA (identyczne kurtki mają identyczny kod).
     const now = Date.now();
@@ -154,7 +207,7 @@ const BarcodeScannerModal = ({
 
   // Wspólna ścieżka dla skanu i kodu dodanego ręcznie: nazwa, decyzja ekranu, powtórka pod rząd, dodanie.
   // Wywołujący ustawia scanBusyRef = true; ta funkcja zwalnia blokadę po zakończeniu.
-  const processCode = async (data, manual) => {
+  const processCode = async (data, manual, { bluetooth = false } = {}) => {
     // Nazwa produktu (błąd nie może zablokować skanera na stałe)
     let productName = '';
     try {
@@ -185,6 +238,14 @@ const BarcodeScannerModal = ({
 
     const name = verdict.name || productName;
 
+    if (bluetooth) {
+      // Czytnik: każde naciśnięcie spustu to jedna sztuka - bez pytania o powtórkę
+      addScannedPiece(data, name, alreadyCounted, manual, verdict);
+      scanFeedback(toastKindOf(verdict.tone));
+      resumeScanning();
+      return;
+    }
+
     // Ten sam kod co POPRZEDNI skan (pod rząd): pytamy, czy to ta sama metka.
     // Ten sam kod po innych skanach przechodzi normalnie jako kolejna sztuka.
     if (alreadyCounted > 0 && lastAcceptedCodeRef.current === data) {
@@ -198,6 +259,26 @@ const BarcodeScannerModal = ({
     resumeScanning();
   };
 
+  // Kody z czytnika Bluetooth: kolejka przetwarzana po kolei (tryb wsadowy czytnika wysyła wiele kodów naraz)
+  const drainBluetoothQueue = async () => {
+    if (btDrainingRef.current) return;
+    btDrainingRef.current = true;
+    try {
+      while (btQueueRef.current.length > 0) {
+        const code = btQueueRef.current.shift();
+        // eslint-disable-next-line no-await-in-loop
+        await processCode(code, false, { bluetooth: true });
+      }
+    } finally {
+      btDrainingRef.current = false;
+    }
+  };
+  const enqueueBluetoothCode = (raw) => {
+    const code = String(raw || '').trim();
+    if (!code) return;
+    btQueueRef.current.push(code);
+    drainBluetoothQueue();
+  };
   // Ręczne dodanie (wpisany kod / wybór z bazy) - ta sama ścieżka co skan
   const processManualCode = async (code) => {
     scanBusyRef.current = true;
@@ -315,10 +396,19 @@ const BarcodeScannerModal = ({
       return; // nic do zatwierdzenia albo zapis już trwa (podwójne kliknięcie)
     }
     savingScansRef.current = true;
+    // Migawka wysyłanych sztuk: skany zrobione W TRAKCIE zapisu zostają na liście (dawniej lista była czyszczona w całości)
+    const toSend = scannedJackets;
+    const sentIds = new Set(toSend.map((piece) => piece.id));
+    // Ten sam zestaw przy ponownej próbie = ten sam klucz zatwierdzenia (serwer nie dopisze drugi raz)
+    const setKey = toSend.map((piece) => piece.id).join(',');
+    if (pendingBatchRef.current.key !== setKey) {
+      pendingBatchRef.current = { key: setKey, batchId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}` };
+    }
     try {
-      const accepted = await onConfirm(scannedJackets, { groups: scannedGroups, showToast: showScanToast });
+      const accepted = await onConfirm(toSend, { groups: scannedGroups, showToast: showScanToast, batchId: pendingBatchRef.current.batchId });
       if (accepted) {
-        setScannedJackets([]);
+        pendingBatchRef.current = { key: '', batchId: '' };
+        setScannedJackets((prev) => prev.filter((piece) => !sentIds.has(piece.id)));
         setScanningEnabled(true);
       }
     } catch (error) {
@@ -328,17 +418,45 @@ const BarcodeScannerModal = ({
     }
   };
 
-  // Zamknięcie (X / wstecz): niezatwierdzone skany są odrzucane
-  const cancelScanning = () => {
+  // Zamknięcie (X / wstecz): przy niezatwierdzonych skanach pytanie (zatwierdź / wróć / odrzuć) - dawniej
+  // jedno przypadkowe dotknięcie „wstecz” kasowało wszystkie zeskanowane sztuki (audyt 26.10.2026)
+  const resetScannerUi = () => {
     setDuplicatePrompt(null);
     setQuantityEdit(null);
     setManualCodeOpen(false);
     setPickerOpen(false);
     setPickerGood(null);
+    setClosePrompt(false);
     scanBusyRef.current = false;
-    setScannedJackets([]);
     setScanningEnabled(true);
+  };
+  const closeScanner = () => {
+    resetScannerUi();
     if (onClose) onClose();
+  };
+  const cancelScanning = () => {
+    if (savingScansRef.current) return; // zapis w toku - nie zamykamy
+    if (scannedJackets.length > 0) {
+      setClosePrompt(true);
+      return;
+    }
+    closeScanner();
+  };
+  const discardAndClose = () => {
+    setScannedJackets([]);
+    pendingBatchRef.current = { key: '', batchId: '' };
+    if (draftKey) AsyncStorage.removeItem(draftStorageKey(draftKey)).catch(() => {});
+    closeScanner();
+  };
+  const confirmAndClose = async () => {
+    setClosePrompt(false);
+    const before = scannedJackets.length;
+    await confirmScannedJackets();
+    // zamykamy tylko, gdy zapis przeszedł (lista pusta); inaczej skany zostają w skanerze
+    setScannedJackets((prev) => {
+      if (prev.length === 0 && before > 0) setTimeout(closeScanner, 0);
+      return prev;
+    });
   };
 
   return (
@@ -357,8 +475,6 @@ const BarcodeScannerModal = ({
         </View>
 
         <View style={styles.scannerContainer}>
-          {/* Kamera jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod”.
-              Tryb ciągły - kolejne sztuki; co zrobić z kodem decyduje handleScan (bez zmian) */}
           <ScanCamera
             continuous
             enabled={visible && scanningEnabled && !manualCodeOpen && !pickerOpen && !duplicatePrompt && !quantityEdit}
@@ -408,6 +524,34 @@ const BarcodeScannerModal = ({
               )}
               showsHorizontalScrollIndicator={false}
             />
+          </View>
+        )}
+
+        {closePrompt && (
+          <View style={[StyleSheet.absoluteFill, styles.filterOverlay]} testID="scanner-close-prompt">
+            <View style={styles.filterCard}>
+              <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                <Ionicons name="alert-circle-outline" size={48} color="#F59E0B" />
+              </View>
+              <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Niezatwierdzone skany</Text>
+              <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 14 }}>
+                Masz {scannedJackets.length} {scannedJackets.length === 1 ? 'zeskanowaną sztukę' : 'zeskanowanych sztuk'} bez zatwierdzenia. Co zrobić?
+              </Text>
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={confirmAndClose} testID="scanner-close-confirm">
+                  <Ionicons name="checkmark" size={18} color="white" />
+                  <Text style={styles.filterCardButtonText}>Zatwierdź i zamknij</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setClosePrompt(false)} testID="scanner-close-back">
+                  <Ionicons name="camera" size={18} color={tc('text', 'white')} />
+                  <Text style={styles.filterCardButtonText}>Wróć do skanowania</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={discardAndClose} testID="scanner-close-discard">
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  <Text style={[styles.filterCardButtonText, { color: '#EF4444' }]}>Odrzuć skany i zamknij</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         )}
 

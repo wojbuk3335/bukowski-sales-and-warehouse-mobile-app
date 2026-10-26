@@ -18,6 +18,7 @@ import { countsOf, piecesSummary } from '../../utils/compareScans';
 // Props:
 //   visible, onClose     - widoczność; strzałka wstecz / systemowe wstecz zamyka
 //   title, subtitle      - nagłówek (subtitle opcjonalny, np. aktywne filtry)
+//   note                 - dodatkowa informacja pod nagłówkiem (np. uwzględnione nieprzetworzone operacje)
 //   results              - { currentStateCount, remanentCount, missingItems, extraItems, missingCount?, excessCount? }
 //   labels               - teksty zależne od ekranu (patrz DEFAULT_LABELS)
 //   actions              - opcjonalny element pod listami (np. „Zakończ remanent i zapisz wynik”)
@@ -42,6 +43,7 @@ const ScanCompareResultModal = ({
   onClose,
   title,
   subtitle,
+  note = null,
   results,
   labels: customLabels,
   actions = null,
@@ -72,6 +74,9 @@ const ScanCompareResultModal = ({
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.comparisonTitle} numberOfLines={1}>{title}</Text>
+            {note ? (
+              <Text style={[styles.comparisonSubtitle, { marginTop: 4 }]} numberOfLines={3} testID="compare-note">{note}</Text>
+            ) : null}
             {subtitle ? (
               <Text style={styles.comparisonSubtitle} numberOfLines={2}>{subtitle}</Text>
             ) : null}
