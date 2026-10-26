@@ -29,6 +29,7 @@ import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 import { productRefs, sameProductByRefs } from '../../utils/productPairing'; // krok 3: parowanie po ID towaru i rozmiaru
 import { warsawDay } from '../../utils/warsawDay'; // S16: dzień pozycji liczony po czasie polskim, nie UTC
+import { describeSkipped, skippedCountLabel, skippedFromBatchResult } from '../../utils/batchSkippedMessages'; // D7: pozycje pominięte przez serwer
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Users = () => {
@@ -52,6 +53,10 @@ const Users = () => {
   
   // Processing state
   const [processing, setProcessing] = useState(false);
+  // D9 (audyt Dobierania 25.10.2026): blokada „Przetwórz” od pierwszego dotknięcia - `processing` ustawiał się
+  // dopiero po zapytaniach do serwera, więc szybkie drugie dotknięcie drukowało etykiety i zapisywało drugi raz
+  const processGateRef = useRef(false);
+  const executeGateRef = useRef(false);
   const [showControlModal, setShowControlModal] = useState(false);
   const [controlModalData, setControlModalData] = useState(null);
   const [lastTransaction, setLastTransaction] = useState(null);
@@ -1059,6 +1064,16 @@ const Users = () => {
   };
 
   const handleProcessItems = async (options = {}) => {
+    if (processGateRef.current || executeGateRef.current) return; // D9: drugie dotknięcie w trakcie
+    processGateRef.current = true;
+    try {
+      await runProcessItems(options);
+    } finally {
+      processGateRef.current = false;
+    }
+  };
+
+  const runProcessItems = async (options = {}) => {
     const {
       skipOnlyOrangeGate = false,
       processingDateOverride = null
@@ -1261,8 +1276,10 @@ const Users = () => {
   };
 
   const executeProcessItems = async (processingDateOverride = null) => {
+    if (executeGateRef.current) return; // D9: jeden zapis naraz (np. podwójne dotknięcie potwierdzenia druku)
+    executeGateRef.current = true;
     setProcessing(true);
-    
+
     try {
       const selectedUserData = users.find(u => u._id === selectedUserId);
       const processingDate = processingDateOverride || selectedDate;
@@ -1305,7 +1322,8 @@ const Users = () => {
       let orangeCount = 0;
       let greenMatchedCount = 0;
       let correctionsCount = 0;
-      
+      let skippedEntries = []; // D7: pozycje pominięte przez serwer (usunięte / anulowane / już przyjęte)
+
       // Store initial counts BEFORE processing
       const initialBlueCount = blueItems.length;
       const initialTransfersCount = transfers.length;
@@ -1393,14 +1411,24 @@ const Users = () => {
         }
 
         const batchResult = await response.json();
-        const savedCorrectionsCount = Number(batchResult?.savedCorrections || 0);
-        correctionsCount = savedCorrectionsCount > 0 ? savedCorrectionsCount : missingItems.length;
-        
+        // Liczba korekt z serwera (braki, których pozycji już nie ma w bazie, nie stają się korektą)
+        correctionsCount = batchResult?.savedCorrections !== undefined
+          ? Number(batchResult.savedCorrections || 0)
+          : missingItems.length;
+
+        // D7: pominięte pozycje nie zmieniły stanu - nie liczymy ich w podsumowaniu
+        skippedEntries = skippedFromBatchResult(batchResult);
+        const skippedIds = new Set(skippedEntries.map(entry => String(entry?.id)).filter(id => id && id !== 'null'));
+        const skippedBlueCount = availableBlueItems
+          .filter(blue => skippedIds.has(String(blue.type === 'sale' ? blue.sourceId : blue._id)))
+          .length;
+        const skippedYellowCount = yellowItems.filter(item => skippedIds.has(String(item._id))).length;
+
         // Update counters from batch result
-        allBlueCount = availableBlueItems.length;
+        allBlueCount = availableBlueItems.length - skippedBlueCount;
         orangeCount = warehouseItemsToProcess.length;
         greenMatchedCount = matchedWarehouseItems.length;
-        yellowCount = yellowItems.length;
+        yellowCount = yellowItems.length - skippedYellowCount;
         processedCount = allBlueCount + orangeCount + greenMatchedCount + yellowCount;
 
       } catch (error) {
@@ -1491,9 +1519,10 @@ const Users = () => {
         warehouseBeforeCount,
         warehouseAfterCount,
         warehouseProcessedCount,
-        isWarehouse
+        isWarehouse,
+        skipped: skippedEntries.map(entry => describeSkipped(entry, users)) // D7
       });
-      
+
       // Clear greyed items after processing - BUT NOT for MAGAZYN user (persist grey state)
       if (!selectedUserData || 
           (selectedUserData.symbol !== 'MAGAZYN' && selectedUserData.symbol !== 'Magazyn')) {
@@ -1522,6 +1551,7 @@ const Users = () => {
       console.error('Error processing items:', error);
       appAlert("Błąd", "Wystąpił błąd podczas przetwarzania");
     } finally {
+      executeGateRef.current = false;
       setProcessing(false);
     }
   };
@@ -2811,6 +2841,19 @@ const Users = () => {
                           <View style={styles.warningContent}>
                             <Text style={styles.warningTitle}>UWAGA! Nie wszystkie produkty z dnia zostały przetworzone</Text>
                             <Text style={styles.warningText}>Nieprzetworzonych pozycji: {controlModalData.remainingItems}</Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {Array.isArray(controlModalData.skipped) && controlModalData.skipped.length > 0 && (
+                        <View style={styles.warningBox} testID="control-skipped-items">
+                          <Text style={styles.warningEmoji}>⚠️</Text>
+                          <View style={styles.warningContent}>
+                            <Text style={styles.warningTitle}>Pominięto {skippedCountLabel(controlModalData.skipped.length)}</Text>
+                            {controlModalData.skipped.map((text, index) => (
+                              <Text key={index} style={styles.warningText}>{text}</Text>
+                            ))}
+                            <Text style={styles.warningText}>Te pozycje nie zmieniły stanu i nie są wliczone w obliczenie.</Text>
                           </View>
                         </View>
                       )}
