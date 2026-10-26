@@ -20,7 +20,8 @@ const loadScanCamera = () => require('../../components/scanner/ScanCamera').defa
 import useProductCatalog from '../../hooks/useProductCatalog'; // baza produktów i nazwy po kodzie z metki (Wymiana: oddana kurtka)
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { warsawDay, warsawToday } from '../../utils/warsawDay'; // S16: „dziś” i dzień pozycji po czasie polskim
-import { pointDisplayName } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
+import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
+import { isExchangeReturn } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
@@ -292,29 +293,43 @@ const fetchSales = async () => {
 
     // Sztuki sprzedane, a jeszcze nieodpisane: przy N sprzedażach danego kodu wyszarzamy N wolnych sztuk z tym kodem
     // (jak serwer - przy dwóch identycznych kurtkach i jednej sprzedaży drugą nadal można przepisać)
+    // Mapa: ID sztuki → sprzedaż (żeby napis mówił, w którym punkcie ją sprzedano - 26.10.2026)
     const soldItemIds = useMemo(() => {
-        const soldPerBarcode = {};
-        salesData.forEach((sale) => { soldPerBarcode[sale.barcode] = (soldPerBarcode[sale.barcode] || 0) + 1; });
-        const ids = new Set();
+        const salesPerBarcode = {};
+        salesData.forEach((sale) => { (salesPerBarcode[sale.barcode] = salesPerBarcode[sale.barcode] || []).push(sale); });
+        const sold = new Map();
         filteredData.forEach((item) => {
-            if (!item.barcode || !soldPerBarcode[item.barcode] || todayTransferOf(item)) return;
-            soldPerBarcode[item.barcode] -= 1;
-            ids.add(item.id);
+            const pending = item.barcode ? salesPerBarcode[item.barcode] : null;
+            if (!pending || pending.length === 0 || todayTransferOf(item)) return;
+            sold.set(item.id, pending.shift());
         });
-        return ids;
+        return sold;
     }, [salesData, filteredData, transfers]);
+
+    // Gdzie sprzedano: pełna nazwa punktu (sprzedaż zapisuje nazwę punktu, w którym ją zrobiono)
+    const soldPointName = (sale) => {
+        const place = String(sale?.sellingPoint || '').trim();
+        if (!place) return pointNameBySymbol(globalUsers, sale?.from);
+        return place.toUpperCase() === 'MAGAZYN' ? 'MAGAZYN' : place;
+    };
+    const soldLabel = (sale) => `Sprzedana w punkcie ${soldPointName(sale)} - czeka na uzupełnienie`;
 
     // Dzisiejsze przepisania / wymiany z tego punktu już odpisane w Dobieraniu: sztuki nie ma już na stanie,
     // ale zostaje na liście wyszarzona z napisem „Przetworzone” (bez akcji)
+    // Kurtka oddana przez klienta przy wymianie (26.10.2026): nigdy nie była na stanie punktu - serwer zapisuje ją od razu
+    // jako odpisaną z punktu, ale do MAGAZYNU trafia dopiero po przyjęciu w Dobieraniu. Do tego czasu „czeka na dopisanie”,
+    // po przyjęciu w MAGAZYNIE znika z listy punktu (jest już własnością magazynu).
     const processedTodayRows = useMemo(() => transfers
         .filter((transfer) => transfer.transfer_from === user?.symbol && transfer.blueProcessed && transfer.transfer_to !== 'SOLD'
             && !filteredData.some((item) => item.id === transfer.productId))
+        .filter((transfer) => !(isExchangeReturn(transfer) && transfer.yellowProcessed))
         .map((transfer) => ({
             id: `processed-${transfer._id}`,
             fullName: transfer.fullName,
             size: transfer.size,
             barcode: transfer.barcode,
             processedTransfer: transfer,
+            awaitingWarehouse: isExchangeReturn(transfer),
         })), [transfers, filteredData, user]);
 
     // Przepisanie z dzisiaj (dzień polski) - tylko takie można anulować z telefonu
@@ -324,11 +339,19 @@ const fetchSales = async () => {
         const [y, m, d] = String(warsawDay(transfer.date)).split('-');
         return ` (${d}.${m}.${y})`;
     };
-    const transferLabel = (transfer) => {
+    // pending: sztuka jeszcze na stanie - dopisek „czeka na uzupełnienie” jak przy sprzedanej (26.10.2026);
+    // punkt docelowy pełną nazwą („Tata”), MAGAZYN wielkimi literami
+    const transferLabel = (transfer, { pending = false } = {}) => {
         if (!transfer) return '';
+        const waiting = pending ? ' - czeka na uzupełnienie' : '';
         if (transfer.transfer_to === 'SOLD') return 'Sprzedano';
-        if (transfer.transfer_to === 'Wymiana') return `Wymiana${transfer.reason?.startsWith('Wymiana - ') ? ` - ${transfer.reason.replace('Wymiana - ', '')}` : ''}${transferDayLabel(transfer)}`;
-        return `Przepisano do: ${transfer.transfer_to}${transferDayLabel(transfer)}`;
+        if (transfer.transfer_to === 'Wymiana') {
+            // „Wymiana w punkcie Tata” - jak „Sprzedana w punkcie …” (powód zapisuje symbol punktu wymiany)
+            const exchangePoint = transfer.reason?.startsWith('Wymiana - ') ? transfer.reason.replace('Wymiana - ', '').trim() : '';
+            const where = exchangePoint ? ` w punkcie ${pointNameBySymbol(globalUsers, exchangePoint)}` : '';
+            return `Wymiana${where}${transferDayLabel(transfer)}${waiting}`;
+        }
+        return `Przepisano do: ${pointNameBySymbol(globalUsers, transfer.transfer_to)}${transferDayLabel(transfer)}${waiting}`;
     };
 
     const cancelTransfer = async (transfer) => {
@@ -356,27 +379,12 @@ const fetchSales = async () => {
             ? row.barcode === item.barcode
             : row.fullName === item.fullName && row.size === item.size)).length;
     };
+    // Przy przepisaniu stan w punkcie docelowym to tylko informacja („Na stanie: 2 szt.”). Brak kurtki w punkcie
+    // docelowym nie ma znaczenia - bez czerwonego napisu i bez pytania (decyzja właściciela 26.10.2026; ostrzeżenie
+    // o braku na stanie zostaje tylko przy sprzedaży, przy wyborze punktu „Sprzedano od”).
     const stockNote = (symbol) => {
         const count = stockAtPoint(symbol);
-        return count > 0 ? `Na stanie: ${count} szt.` : 'Brak tego produktu na stanie';
-    };
-    const stockNoteColor = (symbol) => (stockAtPoint(symbol) > 0 ? null : '#EF4444');
-
-    // Przepisanie do punktu bez tej kurtki - można, ale najpierw pytanie (zgłoszenie 25.10.2026)
-    const confirmIfMissingAtTarget = (symbol, proceed) => {
-        if (stockAtPoint(symbol) > 0) {
-            proceed();
-            return;
-        }
-        const name = `${selectedItem?.fullName || ''} ${selectedItem?.size || ''}`.trim();
-        appAlert(
-            `Brak na stanie w punkcie ${symbol}`,
-            `W punkcie ${symbol} nie ma tej kurtki (${name}) na stanie. Czy na pewno przepisać?`,
-            [
-                { text: 'Anuluj', style: 'cancel' },
-                { text: 'Przepisz', onPress: proceed },
-            ]
-        );
+        return count > 0 ? `Na stanie: ${count} szt.` : null;
     };
 
     const openModal = (item) => {
@@ -429,34 +437,6 @@ const fetchSales = async () => {
             setUsers(finalFilteredUsers);
         } catch (error) {
             throw error; // Re-throw to be caught by fetchAllRequiredData
-        }
-    };
-
-    // Fetch exchange items from API
-    const fetchExchangeItems = async () => {
-        if (!user?.symbol) {
-            return;
-        }
-        
-        try {
-            const response = await tokenService.authenticatedFetch(getApiUrl('/exchange'));
-            
-            if (!response.ok) {
-                throw new Error(`Failed to fetch exchanges: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const allExchanges = Array.isArray(data.data) ? data.data : [];
-            
-            // Filter exchanges for current user's symbol (today only)
-            const today = warsawToday();
-            const todayExchanges = allExchanges.filter(
-                (exchange) => exchange.symbol === user?.symbol && exchange.dateString === today
-            );
-            
-            setExchangeItems(todayExchanges);
-        } catch (error) {
-            Logger.error('Error fetching exchange items:', error);
         }
     };
 
@@ -1021,8 +1001,10 @@ const fetchSales = async () => {
                                             <Text style={look.itemCardText} numberOfLines={1}>
                                                 {index + 1}. {item.fullName}  {item.size}
                                             </Text>
-                                            <Text style={styles.transferStatusText} numberOfLines={1}>{transferLabel(item.processedTransfer)}</Text>
-                                            <Text style={styles.processedLabel} numberOfLines={1}>Przetworzone</Text>
+                                            <Text style={styles.transferStatusText} numberOfLines={1}>{item.awaitingWarehouse ? 'Zwrot od klienta do MAGAZYNU - czeka na dopisanie' : transferLabel(item.processedTransfer)}</Text>
+                                            {!item.awaitingWarehouse && (
+                                                <Text style={styles.processedLabel} numberOfLines={1}>Przetworzone</Text>
+                                            )}
                                         </View>
                                     </View>
                                 );
@@ -1039,10 +1021,10 @@ const fetchSales = async () => {
                                             {index + 1}. {item.fullName}  {item.size}
                                         </Text>
                                         {transfer && (
-                                            <Text style={styles.transferStatusText} numberOfLines={1}>{transferLabel(transfer)}</Text>
+                                            <Text style={styles.transferStatusText} numberOfLines={1}>{transferLabel(transfer, { pending: true })}</Text>
                                         )}
                                         {sold && (
-                                            <Text testID={`writeoff-sold-${item.id}`} style={styles.transferStatusText} numberOfLines={1}>Sprzedana - czeka na Dobieranie</Text>
+                                            <Text testID={`writeoff-sold-${item.id}`} style={styles.transferStatusText} numberOfLines={1}>{soldLabel(soldItemIds.get(item.id))}</Text>
                                         )}
                                     </View>
                                     <TouchableOpacity
@@ -1073,7 +1055,7 @@ const fetchSales = async () => {
                                 <Text style={look.modalMessage}>Ten produkt został dziś sprzedany. Anulowanie sprzedaży odbywa się w zakładce Sprzedaż.</Text>
                             ) : (
                                 <>
-                                    <Text style={look.modalMessage}>{transferLabel(todayTransferOf(selectedItem))}</Text>
+                                    <Text style={look.modalMessage}>{transferLabel(todayTransferOf(selectedItem), { pending: true })}</Text>
                                     {isTodayTransfer(todayTransferOf(selectedItem)) ? (
                                         <ActionItem
                                             testID="cancel-transfer"
@@ -1084,12 +1066,12 @@ const fetchSales = async () => {
                                         />
                                     ) : (
                                         // z wcześniejszego dnia anulować może tylko administrator w panelu (serwer: tylko tego samego dnia)
-                                        <Text testID="transfer-previous-day" style={look.modalMessage}>Przepisanie z wcześniejszego dnia czeka na Dobieranie - anulować może tylko administrator w panelu.</Text>
+                                        <Text testID="transfer-previous-day" style={look.modalMessage}>Przepisanie z wcześniejszego dnia czeka na uzupełnienie - anulować może tylko administrator w panelu.</Text>
                                     )}
                                 </>
                             )
                         ) : selectedItem && soldItemIds.has(selectedItem.id) ? (
-                            <Text testID="writeoff-sold-message" style={look.modalMessage}>Ta kurtka została już sprzedana - czeka na odpisanie w Dobieraniu. Nie można jej przepisać.</Text>
+                            <Text testID="writeoff-sold-message" style={look.modalMessage}>Ta kurtka została już sprzedana w punkcie {soldPointName(soldItemIds.get(selectedItem.id))} - czeka na uzupełnienie. Nie można jej przepisać.</Text>
                         ) : selectedItem ? (
                             <>
                                 <ActionItem
@@ -1146,11 +1128,10 @@ const fetchSales = async () => {
                             color="#F59E0B"
                             label="MAGAZYN"
                             note={stockNote('MAGAZYN')}
-                            noteColor={stockNoteColor('MAGAZYN')}
-                            onPress={() => confirmIfMissingAtTarget('MAGAZYN', () => {
+                            onPress={() => {
                                 setTransferModalVisible(false);
                                 setMagazynReasonModalVisible(true);
-                            })}
+                            }}
                         />
                         {users.map((item) => (
                             <ActionItem
@@ -1159,8 +1140,7 @@ const fetchSales = async () => {
                                 icon={item.role && item.role.toLowerCase() === 'dom' ? 'home-outline' : 'storefront-outline'}
                                 label={pointDisplayName(item)}
                                 note={stockNote(item.symbol)}
-                                noteColor={stockNoteColor(item.symbol)}
-                                onPress={() => confirmIfMissingAtTarget(item.symbol, () => {
+                                onPress={() => {
                                     if (item.role && item.role.toLowerCase() === 'dom') {
                                         // Dla użytkownika Dom pokaż modal powodów
                                         setTransferModalVisible(false);
@@ -1169,7 +1149,7 @@ const fetchSales = async () => {
                                         // Dla innych użytkowników normalne przepisywanie
                                         initiateTransfer(item.symbol);
                                     }
-                                })}
+                                }}
                             />
                         ))}
                         <TouchableOpacity

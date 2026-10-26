@@ -1,8 +1,9 @@
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
-// „Przepisz do”: przy każdym punkcie stan tej kurtki w punkcie docelowym; punkt bez niej - czerwony napis
-// i pytanie przed przepisaniem (dalej można wybrać każdy punkt) - zgłoszenie 25.10.2026.
+// „Przepisz do”: przy punkcie, który ma już tę kurtkę - „Na stanie: N szt.” (zgłoszenie 25.10.2026).
+// Brak kurtki w punkcie docelowym nie ma znaczenia przy przepisaniu - bez czerwonego napisu i bez pytania
+// (decyzja 26.10.2026; ostrzeżenie o braku na stanie zostaje tylko przy sprzedaży).
 
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (effect) => {
@@ -68,14 +69,13 @@ describe('Przepisz do - stan w punkcie docelowym', () => {
     });
   });
 
-  test('przy punktach: „Na stanie: 2 szt.” albo czerwone „Brak tego produktu na stanie”', async () => {
+  test('przy punktach: „Na stanie: 2 szt.”; punkt bez tej kurtki bez żadnego napisu', async () => {
     const screen = renderWriteOff();
     await openTransferPicker(screen);
     expect(screen.getByTestId('transfer-target-T-note').props.children).toBe('Na stanie: 2 szt.');
-    const missing = screen.getByTestId('transfer-target-M-note');
-    expect(missing.props.children).toBe('Brak tego produktu na stanie');
-    expect(missing.props.style).toEqual(expect.objectContaining({ color: '#EF4444' }));
-    expect(screen.getByTestId('transfer-target-MAGAZYN-note').props.children).toBe('Brak tego produktu na stanie');
+    expect(screen.queryByTestId('transfer-target-M-note')).toBeNull();
+    expect(screen.queryByTestId('transfer-target-MAGAZYN-note')).toBeNull();
+    expect(screen.queryByText('Brak tego produktu na stanie')).toBeNull();
   });
 
   test('punkt z tą kurtką → przepisanie bez pytania', async () => {
@@ -87,16 +87,12 @@ describe('Przepisz do - stan w punkcie docelowym', () => {
     expect(appAlert.mock.calls.some(([title]) => String(title).startsWith('Brak na stanie'))).toBe(false);
   });
 
-  test('punkt bez tej kurtki → pytanie; „Anuluj” nic nie robi, „Przepisz” przepisuje', async () => {
+  test('punkt bez tej kurtki → przepisanie od razu, bez pytania', async () => {
     const screen = renderWriteOff();
     await openTransferPicker(screen);
     fireEvent.press(screen.getByTestId('transfer-target-M'));
-    const call = appAlert.mock.calls.find(([title]) => title === 'Brak na stanie w punkcie M');
-    expect(call[1]).toBe('W punkcie M nie ma tej kurtki (Ada CZERWONY XL) na stanie. Czy na pewno przepisać?');
-    expect(transferPosts()).toHaveLength(0);
-
-    await act(async () => { await call[2].find((b) => b.text === 'Przepisz').onPress(); });
     await waitFor(() => expect(transferPosts()).toHaveLength(1));
     expect(JSON.parse(transferPosts()[0][1].body).transfer_to).toBe('M');
+    expect(appAlert.mock.calls.some(([title]) => String(title).startsWith('Brak na stanie'))).toBe(false);
   });
 });

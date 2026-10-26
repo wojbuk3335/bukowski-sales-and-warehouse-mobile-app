@@ -68,7 +68,7 @@ beforeEach(() => {
 test('wczorajsze nieprzetworzone przepisanie: kurtka wyszarzona z datą, w opcjach bez „Anuluj”', async () => {
   const screen = renderWriteOff();
   const [d, m, y] = [yesterdayDay.slice(8, 10), yesterdayDay.slice(5, 7), yesterdayDay.slice(0, 4)];
-  await waitFor(() => expect(screen.getByText(`Przepisano do: T (${d}.${m}.${y})`)).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(`Przepisano do: Tata (${d}.${m}.${y}) - czeka na uzupełnienie`)).toBeTruthy());
   expect(screen.getByTestId('writeoff-item-old-1').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ opacity: 0.45 })]));
   fireEvent.press(screen.getByTestId('writeoff-dots-old-1'));
   await waitFor(() => expect(screen.getByTestId('transfer-previous-day')).toBeTruthy());
@@ -77,7 +77,7 @@ test('wczorajsze nieprzetworzone przepisanie: kurtka wyszarzona z datą, w opcja
 
 test('przepisanie z 00:30 w nocy (UTC jeszcze wczoraj) jest dzisiejsze: bez daty w napisie, z „Anuluj przepisanie”', async () => {
   const screen = renderWriteOff();
-  await waitFor(() => expect(screen.getByText('Przepisano do: T')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeTruthy());
   fireEvent.press(screen.getByTestId('writeoff-dots-night-1'));
   await waitFor(() => expect(screen.getByTestId('cancel-transfer')).toBeTruthy());
 });

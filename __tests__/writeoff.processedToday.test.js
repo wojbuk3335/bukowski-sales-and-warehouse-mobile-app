@@ -31,7 +31,7 @@ const stateData = [{ id: 'p-ada', fullName: 'Ada CZERWONY', size: 'XL', symbol: 
 const transfers = [
   // odpisana w Dobieraniu - sztuki nie ma już na stanie
   { _id: 'tr-done', productId: 'gone-1', fullName: 'Zuza GRANAT', size: 'M', barcode: '999', transfer_from: 'P', transfer_to: 'T', blueProcessed: true, date: `${today}T08:00:00.000Z`, dateString: today },
-  // czeka na Dobieranie - sztuka dalej na stanie
+  // czeka na uzupełnienie - sztuka dalej na stanie
   { _id: 'tr-wait', productId: 'p-ada', fullName: 'Ada CZERWONY', size: 'XL', barcode: '555', transfer_from: 'P', transfer_to: 'T', blueProcessed: false, date: `${today}T09:00:00.000Z`, dateString: today },
 ];
 
@@ -56,14 +56,44 @@ beforeEach(() => {
   });
 });
 
-test('przetworzone przepisanie: wyszarzony wiersz z „Przepisano do: T” i „Przetworzone”; nieprzetworzone bez „Przetworzone”', async () => {
+test('przetworzone przepisanie: wyszarzony wiersz z „Przepisano do: Tata” i „Przetworzone”; nieprzetworzone z „czeka na uzupełnienie”', async () => {
   const screen = renderWriteOff();
   await waitFor(() => expect(screen.getByTestId('writeoff-processed-tr-done')).toBeTruthy());
   const row = screen.getByTestId('writeoff-processed-tr-done');
   expect(row.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ opacity: 0.45 })]));
   expect(screen.getByText(/Zuza GRANAT/)).toBeTruthy();
-  expect(screen.getAllByText('Przepisano do: T')).toHaveLength(2);
+  expect(screen.getByText('Przepisano do: Tata')).toBeTruthy(); // przetworzone
+  expect(screen.getByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeTruthy(); // jeszcze na stanie
   expect(screen.getAllByText('Przetworzone')).toHaveLength(1);
   expect(screen.getByTestId('writeoff-item-p-ada')).toBeTruthy(); // nieprzetworzona dalej jako zwykła sztuka
   expect(screen.queryByTestId('writeoff-dots-gone-1')).toBeNull(); // bez akcji
+});
+
+// Kurtka oddana przez klienta przy wymianie (26.10.2026): serwer od razu oznacza ją jako odpisaną z punktu, ale do MAGAZYNU
+// trafia dopiero po przyjęciu w Dobieraniu - do tego czasu „czeka na dopisanie” (nie „Przetworzone”), potem znika z listy
+test('zwrot z wymiany: „czeka na dopisanie” do przyjęcia w MAGAZYNIE, potem znika z listy punktu', async () => {
+  const exchangeReturn = (yellowProcessed) => ({
+    _id: 'tr-return', productId: 'EXCHANGE_RETURN_tr-x', exchangeReturnFor: 'tr-x', fullName: 'Alan SZARY', size: '3XL', barcode: '402',
+    transfer_from: 'P', transfer_to: 'MAGAZYN', reason: 'Zwrot z wymiany', blueProcessed: true, yellowProcessed, date: `${today}T10:00:00.000Z`, dateString: today,
+  });
+  const withTransfers = (list) => tokenService.authenticatedFetch.mockImplementation((url) => {
+    if (url.endsWith('/transfer')) return json(list);
+    if (url.endsWith('/sales/get-all-sales')) return json([]);
+    if (url.endsWith('/exchange')) return json([]);
+    return json({});
+  });
+
+  withTransfers([exchangeReturn(false)]);
+  const waiting = renderWriteOff();
+  await waitFor(() => expect(waiting.getByTestId('writeoff-processed-tr-return')).toBeTruthy());
+  expect(waiting.getByText('Zwrot od klienta do MAGAZYNU - czeka na dopisanie')).toBeTruthy();
+  expect(waiting.queryByText('Przetworzone')).toBeNull();
+  waiting.unmount();
+
+  withTransfers([exchangeReturn(true)]);
+  const accepted = renderWriteOff();
+  await waitFor(() => expect(tokenService.authenticatedFetch).toHaveBeenCalled());
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(accepted.queryByTestId('writeoff-processed-tr-return')).toBeNull();
+  expect(accepted.queryByText(/Alan SZARY/)).toBeNull();
 });

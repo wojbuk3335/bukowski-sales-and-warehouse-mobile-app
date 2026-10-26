@@ -77,8 +77,8 @@ describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
     await waitFor(() => expect(screen.getByTestId('writeoff-item-item-1')).toBeTruthy());
 
     expect(screen.getByTestId('writeoff-item-item-1')).toHaveStyle({ opacity: 0.45 });
-    expect(screen.getByText('Przepisano do: T')).toBeTruthy();
-    expect(screen.getByText('Wymiana - T')).toBeTruthy();
+    expect(screen.getByText('Przepisano do: T - czeka na uzupełnienie')).toBeTruthy();
+    expect(screen.getByText('Wymiana w punkcie T - czeka na uzupełnienie')).toBeTruthy();
     expect(screen.getByText('Sprzedano')).toBeTruthy();
     expect(screen.getByTestId('writeoff-item-item-4')).not.toHaveStyle({ opacity: 0.45 });
   });
@@ -116,7 +116,7 @@ describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
   });
 });
 
-// Sprzedana sztuka (sprzedaż czeka na Dobieranie, z dowolnego dnia) jest wyszarzona i nie ma „Przepisz do” (audyt K3)
+// Sprzedana sztuka (sprzedaż czeka na uzupełnienie, z dowolnego dnia) jest wyszarzona i nie ma „Przepisz do” (audyt K3)
 describe('Stan - sprzedane, a jeszcze nieodpisane sztuki', () => {
   const soldState = [
     { id: 'twin-1', fullName: 'Ada CZERWONY', size: 'XL', symbol: 'P', barcode: '555' },
@@ -126,7 +126,7 @@ describe('Stan - sprzedane, a jeszcze nieodpisane sztuki', () => {
     { id: 'other-point', fullName: 'Iga RUDY', size: 'M', symbol: 'P', barcode: '888' },
   ];
   const sales = [
-    { _id: 's1', barcode: '555', from: 'P', processed: false, date: `${today}T09:00:00.000Z` },
+    { _id: 's1', barcode: '555', from: 'P', sellingPoint: 'Tata', processed: false, date: `${today}T09:00:00.000Z` }, // towar z P sprzedany w Tacie
     { _id: 's2', barcode: '666', from: 'P', processed: false, date: '2020-01-01T09:00:00.000Z' },
     { _id: 's3', barcode: '777', from: 'P', processed: true, date: `${today}T09:00:00.000Z` },
     { _id: 's4', barcode: '888', from: 'T', processed: false, date: `${today}T09:00:00.000Z` },
@@ -146,6 +146,8 @@ describe('Stan - sprzedane, a jeszcze nieodpisane sztuki', () => {
     await waitFor(() => expect(screen.getByTestId('writeoff-sold-twin-1')).toBeTruthy());
 
     expect(screen.getByTestId('writeoff-item-twin-1')).toHaveStyle({ opacity: 0.45 });
+    expect(screen.getByTestId('writeoff-sold-twin-1').props.children).toBe('Sprzedana w punkcie Tata - czeka na uzupełnienie');
+    expect(screen.getByTestId('writeoff-sold-old-sold').props.children).toBe('Sprzedana w punkcie P - czeka na uzupełnienie'); // stara sprzedaż bez nazwy punktu - symbol
     expect(screen.queryByTestId('writeoff-sold-twin-2')).toBeNull();
     expect(screen.getByTestId('writeoff-sold-old-sold')).toBeTruthy();
     expect(screen.queryByTestId('writeoff-sold-processed')).toBeNull();

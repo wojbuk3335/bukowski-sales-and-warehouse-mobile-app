@@ -15,6 +15,7 @@ import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycj
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, roundDownMoney } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput';
 import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
+import { isExchangeReturn } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie
 import { warsawToday } from '../../utils/warsawDay'; // dzień polski, nie UTC (S16)
 import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
@@ -2461,17 +2462,20 @@ const Home = () => {
       // Load current rate from storage as default
       try {
         const tableRate = currencyRates.find(rate => rate.currency.code === currency);
+        // Kurs zapamiętany poza blokiem if (26.10.2026): dawniej `currentRate` był widoczny tylko w else,
+        // a niżej użyty - przy walucie bez własnego kursu kończyło się błędem
+        let chosenRate;
         if (tableRate && tableRate.buyRate) {
-          setProductSaleCurrencyRate(tableRate.buyRate.toString());
+          chosenRate = tableRate.buyRate;
         } else {
-          const currentRate = await CurrencyService.getCurrencyRate(currency);
-          setProductSaleCurrencyRate(currentRate.toString());
+          chosenRate = await CurrencyService.getCurrencyRate(currency);
         }
-        
+        setProductSaleCurrencyRate(chosenRate.toString());
+
         // Update local exchangeRates state immediately
         setExchangeRates(prev => ({
           ...prev,
-          [currency]: tableRate && tableRate.buyRate ? tableRate.buyRate : currentRate
+          [currency]: chosenRate
         }));
         
       } catch (error) {
@@ -2792,8 +2796,13 @@ const Home = () => {
             // FOR TESTING: Uncomment line below to simulate tomorrow
             // const today = '2025-08-11'; // TEST: Simulate tomorrow (dzień później)
             const today = warsawToday(); // dzień polski, nie UTC (S16)
+            // Kurtka oddana przez klienta przy wymianie (26.10.2026): osobna sekcja „Zwrot od klienta” - serwer od razu
+            // oznacza ją jako odpisaną z punktu, ale „Przetworzone” dopiero po dopisaniu w MAGAZYNIE (yellowProcessed)
             const transferredToday = transferredItems.filter(
-              item => item.date && item.date.startsWith(today) && item.transfer_to !== 'SOLD'
+              item => item.date && item.date.startsWith(today) && item.transfer_to !== 'SOLD' && !isExchangeReturn(item)
+            );
+            const returnsToday = transferredItems.filter(
+              item => item.date && item.date.startsWith(today) && isExchangeReturn(item)
             );
             const receivedToday = receivedItems.filter(
               item => item.date && item.date.startsWith(today)
@@ -2853,9 +2862,9 @@ const Home = () => {
                           {index + 1}. {item.fullName} {item.size} - {
                             item.transfer_to === 'Wymiana' 
                               ? (item.reason?.startsWith('Wymiana - ') 
-                                  ? `Wymiana w punkcie ${item.reason.replace('Wymiana - ', '')}` 
+                                  ? `Wymiana w punkcie ${pointNameBySymbol(users, item.reason.replace('Wymiana - ', '').trim())}` 
                                   : `Wymiana${item.reason ? ` w punkcie ${item.reason}` : ''}`)
-                              : `Przepisano do: ${item.transfer_to}`
+                              : `Przepisano do: ${pointNameBySymbol(users, item.transfer_to)}`
                           }
                           {item.reason && (item.transfer_to?.toLowerCase() === 'dom' || item.transfer_to?.toLowerCase() === 'd') && (
                             <Text style={{ fontSize: 11, color: "#fbbf24" }}>
@@ -2877,6 +2886,38 @@ const Home = () => {
                         >
                           <Text style={styles.dotsText}>⋮</Text>
                         </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {/* Zwrot od klienta przy wymianie - kurtka jedzie do MAGAZYNU; „Przetworzone” po dopisaniu w MAGAZYNIE */}
+                {returnsToday.length > 0 && (
+                  <View style={{ marginTop: 24 }} testID="exchange-returns-section">
+                    <Text style={{ fontSize: 13, color: tc('muted', "#d1d5db"), fontWeight: "bold", marginBottom: 8 }}>Zwrot od klienta:</Text>
+                    {returnsToday.map((item, index) => (
+                      <View
+                        key={item._id || `return-${index}`}
+                        testID={`exchange-return-${item._id}`}
+                        style={[styles.item, item.yellowProcessed && { opacity: 0.6 }]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.itemTextLeft,
+                              {
+                                fontSize: (item.fullName?.length || 0) + (item.size?.length || 0) > 20 ? 10 : 12,
+                                fontWeight: "bold",
+                              },
+                            ]}
+                          >
+                            {index + 1}. {item.fullName} {item.size} - do MAGAZYNU
+                          </Text>
+                          {item.yellowProcessed ? (
+                            <Text testID={`exchange-return-processed-${item._id}`} style={styles.processedLabel}>Przetworzone</Text>
+                          ) : (
+                            <Text testID={`exchange-return-waiting-${item._id}`} style={styles.processedLabel}>Czeka na dopisanie</Text>
+                          )}
+                        </View>
                       </View>
                     ))}
                   </View>
