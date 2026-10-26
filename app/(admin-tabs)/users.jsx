@@ -30,6 +30,7 @@ import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateCho
 import { productRefs, sameProductByRefs } from '../../utils/productPairing'; // krok 3: parowanie po ID towaru i rozmiaru
 import { warsawDay } from '../../utils/warsawDay'; // S16: dzień pozycji liczony po czasie polskim, nie UTC
 import { describeSkipped, skippedCountLabel, skippedFromBatchResult } from '../../utils/batchSkippedMessages'; // D7: pozycje pominięte przez serwer
+import { batchErrorToPolish } from '../../utils/batchErrorMessages'; // polskie komunikaty błędów zapisu (jak w panelu)
 
 import { createThemedStyles, tc, tcl, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Users = () => {
@@ -282,30 +283,6 @@ const Users = () => {
       }
     } catch (error) {
       console.error('Error fetching products:', error);
-    }
-  };
-
-  const fetchColors = async () => {
-    try {
-      const { accessToken } = await tokenService.getTokens();
-      const url = getApiUrl('/excel/color/get-all-colors');
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const colorsData = data.colors || [];
-        
-        // Filter by Kol_Kod instead of Kol_Opis (many colors have empty Kol_Opis)
-        const validColors = colorsData.filter(
-          color => color && color.Kol_Kod && color.Kol_Kod.trim() !== ""
-        );
-        setColors(validColors);
-      }
-    } catch (error) {
-      console.error('Error fetching colors:', error);
     }
   };
 
@@ -1404,8 +1381,12 @@ const Users = () => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('❌ Batch processing failed:', errorText);
-          
-          setBatchErrorMessage(`Nie udało się przetworzyć transakcji. ${errorText}`);
+
+          // Polski opis błędu i co zrobić (dawniej surowy tekst odpowiedzi serwera)
+          let parsedError = null;
+          try { parsedError = JSON.parse(errorText); } catch (_e) { parsedError = null; }
+          const polishError = batchErrorToPolish(response.status, parsedError, errorText);
+          setBatchErrorMessage(`${polishError.message}\n\n${polishError.instruction}`);
           setShowBatchErrorModal(true);
           return;
         }
@@ -1433,8 +1414,18 @@ const Users = () => {
 
       } catch (error) {
         console.error('Error in batch processing:', error);
-        setBatchErrorMessage('Nie udało się połączyć z serwerem. Sprawdź połączenie internetowe.');
+        // D10 (audyt Dobierania 25.10.2026): zerwane połączenie w trakcie zapisu - serwer mógł zdążyć zapisać.
+        // Odświeżamy listę, żeby pracownik widział, co zostało, zamiast klikać „Przetwórz” w ciemno.
+        setBatchErrorMessage(
+          'Połączenie z serwerem zostało przerwane w trakcie zapisu - nie wiadomo, czy zapis przeszedł.\n\n' +
+          'Lista została odświeżona: pozycje, które zniknęły, są już zapisane. Przetwórz tylko to, co zostało.'
+        );
         setShowBatchErrorModal(true);
+        try {
+          await Promise.all([fetchItemsToPick(), fetchAllStates(), checkLastTransaction()]);
+        } catch (_refreshError) {
+          // brak sieci - lista odświeży się przy następnym wejściu
+        }
         return;
       }
 
@@ -1481,15 +1472,21 @@ const Users = () => {
       // Calculate how many items were TO BE processed (before processing)
       const totalItemsToProcess = initialBlueCount + initialTransfersCount;
       
-      // Fetch items again to check what remains
-      const checkUrl = getApiUrl(`/state/items-to-pick?userId=${selectedUserId}&date=${dateStr}`);
-      const checkResponse = await fetch(checkUrl, {
-        headers: {
-          'Authorization': `Bearer ${accessTokenAfter}`
-        }
-      });
-      const checkData = await checkResponse.json();
-      const remainingItems = (checkData.blueItems?.length || 0) + (checkData.transfers?.length || 0);
+      // Ile pozycji tego punktu z tego dnia zostało nieprzetworzonych - ze statusu dnia na serwerze.
+      // Dawniej czytane z /state/items-to-pick pola blueItems/transfers, których ta odpowiedź nie ma (zawsze 0).
+      let remainingItems = 0;
+      try {
+        const statusResponse = await fetch(getApiUrl(`/state/processing-status?date=${dateStr}`), {
+          headers: {
+            'Authorization': `Bearer ${accessTokenAfter}`
+          }
+        });
+        const statusData = statusResponse.ok ? await statusResponse.json() : null;
+        const pointEntry = (statusData?.currentUnprocessedUsers || []).find(entry => entry?.symbol === userSymbol);
+        remainingItems = Number(pointEntry?.count || 0);
+      } catch (_statusError) {
+        remainingItems = 0;
+      }
 
       // Calculate warehouse state (like web app)
       // Only orange items from warehouse affect warehouse count (NOT yellow transfers!)
@@ -1538,10 +1535,16 @@ const Users = () => {
 
       // Show corrections summary first (same UX intent as web), then control modal.
       if (correctionsCount > 0) {
+        // D12: lista z telefonu tylko wtedy, gdy zgadza się z korektami założonymi przez serwer
+        // (serwer sam sprawdza stan - kurtka, którą telefon uznał za brak, mogła zostać odpisana normalnie)
+        const skippedIdSet = new Set(skippedEntries.map(entry => String(entry?.id)));
+        const reportedMissing = missingItems.filter(item => !skippedIdSet.has(String(item?.originalData?._id)));
+        const listMatchesServer = reportedMissing.length === correctionsCount;
         setCorrectionsData({
           success: true,
           count: correctionsCount,
-          items: missingItems
+          items: listMatchesServer ? reportedMissing : [],
+          note: listMatchesServer ? null : 'Szczegóły w zakładce Korekty.'
         });
         setShowCorrectionsModal(true);
       } else {
@@ -3053,9 +3056,15 @@ const Users = () => {
               <Text style={styles.confirmModalMessage}>
                 Do korekt przeniesiono: {correctionsData?.count || correctionsData?.items?.length || 0}
               </Text>
-              <Text style={[styles.confirmModalMessage, { marginTop: 8 }]}> 
-                Następujące produkty nie zostały znalezione w stanie i zostały automatycznie przeniesione do korekt:
-              </Text>
+              {correctionsData?.note ? (
+                <Text style={[styles.confirmModalMessage, { marginTop: 8 }]} testID="corrections-note">
+                  {correctionsData.note}
+                </Text>
+              ) : (
+                <Text style={[styles.confirmModalMessage, { marginTop: 8 }]}>
+                  Następujące produkty nie zostały znalezione w stanie i zostały automatycznie przeniesione do korekt:
+                </Text>
+              )}
             </View>
             
             <ScrollView style={styles.correctionsScrollView}>
