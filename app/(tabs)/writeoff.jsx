@@ -19,7 +19,7 @@ import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'
 const loadScanCamera = () => require('../../components/scanner/ScanCamera').default;
 import useProductCatalog from '../../hooks/useProductCatalog'; // baza produktów i nazwy po kodzie z metki (Wymiana: oddana kurtka)
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
-import { warsawToday } from '../../utils/warsawDay'; // S16: „dziś” po czasie polskim
+import { warsawDay, warsawToday } from '../../utils/warsawDay'; // S16: „dziś” i dzień pozycji po czasie polskim
 import { pointDisplayName } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -219,38 +219,28 @@ const fetchTransfers = async () => {
 
         const data = await response.json();
         
-        // COMPLETE DAILY RESET: Filter ALL operations to show only TODAY's transfers
-        // After midnight, everything resets - both UI and validation
         const allTransfers = Array.isArray(data) ? data : [];
-        
-        // For UI highlighting: only TODAY's transfers involving this user
+        // Dzień przepisania po czasie polskim (dawniej prefiks daty UTC - po północy do 2:00 dzisiejsze wyglądało na wczorajsze)
+        const isToday = (transfer) => !!transfer.date && warsawDay(transfer.date) === today;
+
+        // Na liście: dzisiejsze przepisania tego punktu ORAZ nieprzetworzone z wcześniejszych dni (26.10.2026):
+        // kurtka przepisana wczoraj, a jeszcze nieodpisana w Dobieraniu, dalej jest wyszarzona - serwer i tak
+        // nie pozwoli jej przepisać drugi raz, a sprzedawca ma widzieć dlaczego (jak przy sprzedanej)
         const todayUserTransfers = allTransfers.filter(
             (transfer) =>
                 (transfer.transfer_from === user?.symbol || transfer.transfer_to === user?.symbol) &&
-                transfer.date &&
-                transfer.date.startsWith(today)
+                (isToday(transfer) || (transfer.transfer_from === user?.symbol && transfer.blueProcessed !== true))
         );
-        
+
         // FIXED: For sold items - include ALL sales from today for UI highlighting
         // We need to show all sold items to block jackets with same barcode regardless of who sold them
         const todaySoldItems = allTransfers.filter(
-            transfer => transfer.transfer_to === 'SOLD' && 
-                       transfer.date &&
-                       transfer.date.startsWith(today)
+            transfer => transfer.transfer_to === 'SOLD' && isToday(transfer)
         );
-        
-        // CHANGED: For validation - check ALL transfers but filter by date
-        // This ensures jackets can be transferred again after midnight
-        const todayUserProductTransfers = allTransfers.filter(
-            (transfer) => {
-                // Check if transfer is from TODAY for ANY product
-                const isToday = transfer.date && transfer.date.startsWith(today);
-                
-                // Only include TODAY's transfers (regardless of user - this is for blocking validation)
-                return isToday;
-            }
-        );
-        
+
+        // For validation - today's transfers (any product, any user); the server guard is the real protection
+        const todayUserProductTransfers = allTransfers.filter(isToday);
+
         // Combine today's transfers for UI
         const todayTransfers = [...todayUserTransfers, ...todaySoldItems];
         const uniqueTodayTransfers = todayTransfers.filter((transfer, index, self) => 
@@ -327,11 +317,18 @@ const fetchSales = async () => {
             processedTransfer: transfer,
         })), [transfers, filteredData, user]);
 
+    // Przepisanie z dzisiaj (dzień polski) - tylko takie można anulować z telefonu
+    const isTodayTransfer = (transfer) => !!transfer?.date && warsawDay(transfer.date) === today;
+    const transferDayLabel = (transfer) => {
+        if (!transfer?.date || isTodayTransfer(transfer)) return '';
+        const [y, m, d] = String(warsawDay(transfer.date)).split('-');
+        return ` (${d}.${m}.${y})`;
+    };
     const transferLabel = (transfer) => {
         if (!transfer) return '';
         if (transfer.transfer_to === 'SOLD') return 'Sprzedano';
-        if (transfer.transfer_to === 'Wymiana') return `Wymiana${transfer.reason?.startsWith('Wymiana - ') ? ` - ${transfer.reason.replace('Wymiana - ', '')}` : ''}`;
-        return `Przepisano do: ${transfer.transfer_to}`;
+        if (transfer.transfer_to === 'Wymiana') return `Wymiana${transfer.reason?.startsWith('Wymiana - ') ? ` - ${transfer.reason.replace('Wymiana - ', '')}` : ''}${transferDayLabel(transfer)}`;
+        return `Przepisano do: ${transfer.transfer_to}${transferDayLabel(transfer)}`;
     };
 
     const cancelTransfer = async (transfer) => {
@@ -1077,13 +1074,18 @@ const fetchSales = async () => {
                             ) : (
                                 <>
                                     <Text style={look.modalMessage}>{transferLabel(todayTransferOf(selectedItem))}</Text>
-                                    <ActionItem
-                                        testID="cancel-transfer"
-                                        icon="arrow-undo"
-                                        color="#EF4444"
-                                        label={todayTransferOf(selectedItem).transfer_to === 'Wymiana' ? 'Anuluj wymianę' : 'Anuluj przepisanie'}
-                                        onPress={() => cancelTransfer(todayTransferOf(selectedItem))}
-                                    />
+                                    {isTodayTransfer(todayTransferOf(selectedItem)) ? (
+                                        <ActionItem
+                                            testID="cancel-transfer"
+                                            icon="arrow-undo"
+                                            color="#EF4444"
+                                            label={todayTransferOf(selectedItem).transfer_to === 'Wymiana' ? 'Anuluj wymianę' : 'Anuluj przepisanie'}
+                                            onPress={() => cancelTransfer(todayTransferOf(selectedItem))}
+                                        />
+                                    ) : (
+                                        // z wcześniejszego dnia anulować może tylko administrator w panelu (serwer: tylko tego samego dnia)
+                                        <Text testID="transfer-previous-day" style={look.modalMessage}>Przepisanie z wcześniejszego dnia czeka na Dobieranie - anulować może tylko administrator w panelu.</Text>
+                                    )}
                                 </>
                             )
                         ) : selectedItem && soldItemIds.has(selectedItem.id) ? (

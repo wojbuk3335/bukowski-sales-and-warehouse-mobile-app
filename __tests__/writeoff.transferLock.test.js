@@ -44,7 +44,8 @@ const transfers = [
   { _id: 't1', productId: 'item-1', transfer_from: 'P', transfer_to: 'T', date: `${today}T08:00:00.000Z`, dateString: today },
   { _id: 't2', productId: 'item-2', transfer_from: 'P', transfer_to: 'Wymiana', reason: 'Wymiana - T', date: `${today}T08:00:00.000Z`, dateString: today },
   { _id: 't3', productId: 'item-3', barcode: '333', transfer_from: 'P', transfer_to: 'SOLD', date: `${today}T08:00:00.000Z`, dateString: today },
-  { _id: 't4', productId: 'item-4', transfer_from: 'P', transfer_to: 'T', date: '2020-01-01T08:00:00.000Z', dateString: '2020-01-01' },
+  // wczorajsze, już odpisane w Dobieraniu - nie wyszarza (nieprzetworzone z wcześniejszych dni od 26.10 wyszarzają - test writeoff.pendingPreviousDay)
+  { _id: 't4', productId: 'item-4', transfer_from: 'P', transfer_to: 'T', blueProcessed: true, date: '2020-01-01T08:00:00.000Z', dateString: '2020-01-01' },
 ];
 
 const renderWriteOff = (items = stateData) => render(
@@ -71,7 +72,7 @@ describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
     });
   });
 
-  test('dzisiejsze przepisanie jest wyszarzone, wczorajsze nie', async () => {
+  test('dzisiejsze przepisanie jest wyszarzone, wczorajsze przetworzone nie', async () => {
     const screen = renderWriteOff();
     await waitFor(() => expect(screen.getByTestId('writeoff-item-item-1')).toBeTruthy());
 
