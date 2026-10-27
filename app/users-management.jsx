@@ -396,11 +396,50 @@ const UsersManagement = () => {
   // Błąd z serwera po polsku, gdy jest (np. nie można zresetować 2FA)
   const serverMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
-  // Wylogowanie z punktu: zdejmuje blokadę „jedna osoba na punkcie” (jak w panelu)
+  // Zalogowane telefony punktu (lista; starsza odpowiedź serwera miała tylko jedną sesję)
+  const sessionsOf = (item) => (Array.isArray(item?.activeSessions) && item.activeSessions.length > 0
+    ? item.activeSessions
+    : (item?.activeSession ? [item.activeSession] : []));
+
+  // Ile telefonów może być zalogowanych na punkcie naraz (27.10.2026): 1 albo 2 (remanent we dwie osoby) - jak w panelu
+  const handleToggleMaxDevices = (target) => {
+    const next = target.maxDevices === 2 ? 1 : 2;
+    appAlert(
+      next === 2 ? 'Dwa telefony na punkcie' : 'Jeden telefon na punkcie',
+      next === 2
+        ? `Pozwolić, żeby na punkcie ${target.email} były zalogowane 2 telefony naraz (np. remanent we dwie osoby)? Obie osoby będą widziały sprzedaż punktu.`
+        : `Wrócić do jednego telefonu na punkcie ${target.email}? Już zalogowane telefony zostają zalogowane do wylogowania.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: next === 2 ? 'Pozwól na 2' : 'Tylko 1',
+          onPress: async () => {
+            try {
+              const { accessToken } = await tokenService.getTokens();
+              const response = await axios.patch(getApiUrl(`/user/${target._id}/max-devices`), { maxDevices: next }, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              setSuccessMessage(response.data?.message || (next === 2 ? 'Na punkcie mogą być zalogowane 2 telefony.' : 'Na punkcie może być zalogowany 1 telefon.'));
+              setIsSuccessModalVisible(true);
+              fetchUsers();
+            } catch (error) {
+              setErrorMessage(serverMessage(error, 'Nie udało się zmienić liczby telefonów na punkcie.'));
+              setIsErrorModalVisible(true);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Wylogowanie z punktu: zdejmuje blokadę „jedna osoba na punkcie” (jak w panelu; wylogowuje WSZYSTKIE telefony)
   const handleForceLogout = (target) => {
+    const phones = sessionsOf(target).length;
     appAlert(
       'Wyloguj z punktu',
-      `Wylogować ${target.email} z punktu? Osoba na telefonie zostanie wylogowana i ktoś inny będzie mógł się zalogować.`,
+      phones > 1
+        ? `Wylogować ${target.email} z punktu? Wszystkie zalogowane telefony (${phones}) zostaną wylogowane i ktoś inny będzie mógł się zalogować.`
+        : `Wylogować ${target.email} z punktu? Osoba na telefonie zostanie wylogowana i ktoś inny będzie mógł się zalogować.`,
       [
         { text: 'Anuluj', style: 'cancel' },
         {
@@ -463,12 +502,17 @@ const UsersManagement = () => {
   // Stan sesji punktu (jak w panelu): kto jest zalogowany i na jakim telefonie
   const sessionText = (item) => {
     if (item.role === 'admin') return null;
-    const session = item.activeSession;
-    if (!session) return 'Niezalogowany';
-    const started = session.startedAt
+    const sessions = sessionsOf(item);
+    const limit = item.maxDevices === 2 ? ' · dozwolone 2 telefony' : ''; // admin pozwolił na dwa telefony (remanent we dwie osoby)
+    if (sessions.length === 0) return `Niezalogowany${limit}`;
+    const startedText = (session) => (session.startedAt
       ? new Date(session.startedAt).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-      : '?';
-    return `Zalogowany: ${session.deviceName || 'nieznane urządzenie'}, od ${started}`;
+      : '?');
+    if (sessions.length === 1) {
+      return `Zalogowany: ${sessions[0].deviceName || 'nieznane urządzenie'}, od ${startedText(sessions[0])}${limit}`;
+    }
+    const phones = sessions.map((session) => `${session.deviceName || 'nieznane urządzenie'} (od ${startedText(session)})`).join(', ');
+    return `Zalogowane ${sessions.length} telefony: ${phones}${limit}`;
   };
 
   // Pozycja menu wywołuje akcję po zamknięciu menu (okienko potwierdzenia nie nakłada się na menu)
@@ -765,7 +809,7 @@ const UsersManagement = () => {
             {sessionText(userItem) && (
               <Text
                 testID={`user-session-${userItem._id}`}
-                style={[styles.sessionText, userItem.activeSession ? styles.sessionActive : null]}
+                style={[styles.sessionText, sessionsOf(userItem).length > 0 ? styles.sessionActive : null]}
               >
                 {sessionText(userItem)}
               </Text>
@@ -796,8 +840,17 @@ const UsersManagement = () => {
           <View style={look.modalContent}>
             <ModalHeader icon="ellipsis-horizontal-circle" color="#0D6EFD" title={actionsUser?.email || 'Akcje'} />
             <ActionItem testID="user-action-edit" icon="create" label="Edytuj" onPress={() => runFromMenu(handleEditUser)} />
-            {actionsUser && actionsUser.role !== 'admin' && actionsUser.activeSession && (
+            {actionsUser && actionsUser.role !== 'admin' && sessionsOf(actionsUser).length > 0 && (
               <ActionItem testID="user-action-logout" icon="log-out" color="#F59E0B" label="Wyloguj z punktu" onPress={() => runFromMenu(handleForceLogout)} />
+            )}
+            {actionsUser && actionsUser.role !== 'admin' && (
+              <ActionItem
+                testID="user-action-max-devices"
+                icon="phone-portrait"
+                color="#0D6EFD"
+                label={actionsUser.maxDevices === 2 ? 'Jeden telefon na punkcie' : 'Dwa telefony na punkcie (remanent we dwie osoby)'}
+                onPress={() => runFromMenu(handleToggleMaxDevices)}
+              />
             )}
             {actionsUser && actionsUser.role === 'admin' && (
               <ActionItem

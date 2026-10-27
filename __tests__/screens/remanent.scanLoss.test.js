@@ -33,6 +33,7 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 jest.mock('../../components/LogoutButton', () => () => null);
+jest.mock('../../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../config/api', () => ({ getApiUrl: (endpoint) => `http://mock.api${endpoint}` }));
 
 const CODE_44 = '1234504400007';
@@ -183,7 +184,8 @@ describe('Remanent - niezatwierdzone skany nie giną', () => {
     await waitFor(() => expect(screen.getByText('Zatwierdź (1)')).toBeTruthy());
     slowSessionFetch = true;
     fireEvent.press(screen.getByText('Zatwierdź (1)'));
-    await waitFor(() => expect(screen.getByText('Remanent nie jest otwarty. Odśwież ekran.')).toBeTruthy());
+    // komunikat w skanerze (toast) i w oknie aplikacji (R8) - stąd getAllByText
+    await waitFor(() => expect(screen.getAllByText('Remanent nie jest otwarty. Odśwież ekran.').length).toBeGreaterThan(0));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); }); // odświeżenie w toku
     expect(screen.queryByText('Ładowanie remanentów...')).toBeNull(); // bez pełnoekranowego spinnera
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });

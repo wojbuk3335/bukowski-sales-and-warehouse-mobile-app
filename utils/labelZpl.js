@@ -19,7 +19,7 @@
 // 10 szerokości kreski z każdej strony (norma Code 128). 26.10.2026: dawniej kreska 4 pkt z marginesem tylko 6X
 // (2,0 mm z lewej, 2,5 mm do obróconej ceny) - aparat w telefonie nie znajdował końca kodu (cena tuż przy
 // kreskach działa jak kolejne kreski), kod z ekranu czytał się od razu, z metki nie. Dla 13 cyfr wychodzi kreska
-// 3 pkt (0,25 mm, kod 31 mm, po ok. 7 mm bieli z każdej strony). Druk najwolniejszy (^PR2) - równiejsze krawędzie.
+// 3 pkt (0,25 mm, kod 31 mm, po ok. 5,5 mm bieli z każdej strony przy cenie 80 pkt). Druk najwolniejszy (^PR2) - równiejsze krawędzie.
 
 const LABEL_WIDTH = 590; // 50 mm przy 300 dpi
 const LABEL_HEIGHT = 400;
@@ -28,7 +28,7 @@ const PRINT_DARKNESS = 12; // domyślne zaczernienie (^MD, względem ustawienia 
 const MIN_MODULE_WIDTH = 3; // kreska nigdy cieńsza niż 3 pkt (0,25 mm) - 2 pkt (stare metki) aparat czytał źle
 const QUIET_ZONE_MODULES = 10; // biały margines z każdej strony kodu: 10 szerokości kreski (norma Code 128)
 const EDGE = 12;
-const PRICE_FONT = 40; // wysokość liter ceny = szerokość kolumny ceny (mniejsza cena = miejsce na kreskę 4 pkt)
+const PRICE_FONT = 80; // wysokość liter ceny (6,8 mm) = szerokość kolumny ceny; 27.10.2026 dwa razy większa (było 40) - decyzja właściciela
 const PRICE_X = LABEL_WIDTH - 4 - PRICE_FONT; // cena dosunięta maksymalnie do prawej krawędzi
 const PRICE_LENGTH = 285; // długość pola ceny (wzdłuż krawędzi), cena wyśrodkowana
 const AREA_WIDTH = PRICE_X - 6; // lewa część metki: nazwa, kod, rozmiar
@@ -94,7 +94,7 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode, darknes
     const pointWidth = 110;
     const nameWidth = AREA_WIDTH - EDGE - pointWidth - 6;
     const { moduleWidth, x: barcodeX } = barcodeGeometry(code);
-    const digitsFont = code.length > 15 ? 18 : 22;
+    const digitsFont = code.length > 15 ? 24 : 30; // cyfry pod kodem ~2,5 mm (27.10.2026: było 22 = 1,9 mm; pod kodem jest ok. 6 mm miejsca)
 
     const lines = [
         '^XA',

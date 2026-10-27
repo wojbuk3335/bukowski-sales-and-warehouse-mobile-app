@@ -173,6 +173,7 @@ export const login = async (userId) => {
         const error = new Error(data?.message || `Szybkie logowanie nie powiodło się (HTTP ${response.status})`);
         error.code = data?.code || data?.error || '';
         error.session = data?.session || null;
+        error.sessions = Array.isArray(data?.sessions) ? data.sessions : null; // wszystkie zalogowane telefony (limit 2)
         if (error.code === 'TRUSTED_DEVICE_REJECTED') await clearSaved(saved.userId); // odcięty - to konto hasłem
         throw error;
     }

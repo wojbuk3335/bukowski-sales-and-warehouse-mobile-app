@@ -170,6 +170,20 @@ describe('utils/sessionLockMessages', () => {
     expect(formatTimeAgo(undefined, now)).toBeNull();
   });
 
+  test('buildSessionActiveMessage: dwa zalogowane telefony (admin pozwolił na 2) wylicza oba', () => {
+    const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.toISOString(); };
+    const sessions = [
+      { deviceName: 'Android', startedAt: at(9, 15), lastSeenAt: at(9, 20) },
+      { deviceName: 'iPhone', startedAt: at(10, 5), lastSeenAt: at(10, 6) },
+    ];
+    expect(buildSessionActiveMessage(sessions[1], Date.now(), sessions)).toBe(
+      'Na tym punkcie są już zalogowane 2 telefony (Android od 09:15, iPhone od 10:05). ' +
+      'Poproś o wylogowanie jednego z nich albo administratora o wylogowanie z panelu.'
+    );
+    // jedna sesja na liście - zwykły komunikat o jednym telefonie
+    expect(buildSessionActiveMessage(sessions[0], Date.now(), [sessions[0]])).toContain('jest już zalogowany inny telefon (Android, od 09:15');
+  });
+
   test('buildSessionActiveMessage pomija brakujące pola i wraca do ogólnego komunikatu', () => {
     expect(buildSessionActiveMessage(undefined)).toBe(GENERIC_SESSION_ACTIVE_MESSAGE);
     expect(buildSessionActiveMessage({})).toBe(GENERIC_SESSION_ACTIVE_MESSAGE);

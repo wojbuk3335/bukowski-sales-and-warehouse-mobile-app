@@ -28,7 +28,8 @@ describe("smartScanLogic", () => {
   test("EAN-13 ze złą cyfrą kontrolną odrzucony, poprawny i inne formaty przyjęte", () => {
     expect(isPlausibleCode("0100600300002", "ean13")).toBe(true);
     expect(isPlausibleCode("0100600300003", "ean13")).toBe(false);
-    expect(isPlausibleCode("0100600300003", "code128")).toBe(false); // 13 cyfr = sprawdzamy jak EAN-13
+    expect(isPlausibleCode("0100600300003", "code128")).toBe(true); // Code 128 ma własną sumę kontrolną - nie sprawdzamy jak EAN-13 (26.10.2026)
+    expect(isPlausibleCode("0100600300003", "32")).toBe(false); // ean13 jako numer typu (iOS)
     expect(isPlausibleCode("ABC-123", "code128")).toBe(true);
     expect(isPlausibleCode("", "ean13")).toBe(false);
   });

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Image, Modal, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Image, Modal, Platform, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
@@ -47,6 +47,12 @@ const KEEP_AWAKE_TAG = "scanner-bluetooth";
 
 // Tylko formaty, które drukujemy (metki Code 128) - inne (UPC-A, Code 39, EAN-8) dawały błędne odczyty
 export const SCAN_BARCODE_TYPES = ["code128", "ean13", "qr"];
+// Lekkie przybliżenie TYLKO na iPhonie (audyt skanera 26.10.2026): expo-camera nie włącza obiektywu makro, a aparat
+// iPhone'a ostrzy najbliżej z 12-20 cm; ramka 280 pkt kazała trzymać telefon ~9 cm od metki - obraz był nieostry
+// i nic się nie dekodowało. Z przybliżeniem kod wypełnia ramkę z 15-20 cm. expo-camera liczy zoom jako
+// maxZoom^zoom (CameraSessionManager.swift: videoZoomFactor = pow(videoMaxZoomFactor, zoom)), więc 0,12 ≈ 1,4-1,8×.
+// Android czyta bez zoomu - bez zmian.
+export const IOS_SCAN_ZOOM = 0.12;
 // Zdjęcie bywa odczytane jako inny typ niż na żywo - drugie podejście ze wszystkimi formatami
 const PHOTO_FALLBACK_TYPES = ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"];
 const CONTINUOUS_REARM_MS = 600;
@@ -351,6 +357,7 @@ const ScanCamera = ({
         <CameraView
           style={styles.camera}
           facing={facing}
+          zoom={Platform.OS === "ios" ? IOS_SCAN_ZOOM : 0}
           barcodeScannerSettings={{ barcodeTypes: SCAN_BARCODE_TYPES }}
           onBarcodeScanned={enabled ? smartScan.onBarcodeScanned : undefined}
         />

@@ -92,6 +92,31 @@ describe('Zarządzanie użytkownikami - menu ⋮', () => {
     expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/user/p1/force-logout'), {}, expect.any(Object));
   });
 
+  test('dwa telefony na punkcie: karta pokazuje oba telefony, menu przełącza limit przez PATCH /user/:id/max-devices', async () => {
+    axios.patch = jest.fn().mockResolvedValue({ data: { message: 'p@test.pl: na punkcie może być zalogowany 1 telefon.' } });
+    const users = USERS.map((u) => (u._id === 'p1'
+      ? { ...u, maxDevices: 2, activeSessions: [u.activeSession, { id: 's2', deviceName: 'iPhone', startedAt: '2026-10-25T08:30:00.000Z' }] }
+      : u));
+    axios.get.mockImplementation((url) => Promise.resolve({
+      data: url.includes('localization') ? { localizations: [] } : { users },
+    }));
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('user-actions-p1')).toBeTruthy());
+    expect(screen.getByTestId('user-session-p1').props.children).toMatch(/Zalogowane 2 telefony: Samsung \(od .*\), iPhone \(od .*\) · dozwolone 2 telefony/);
+
+    fireEvent.press(screen.getByTestId('user-actions-p1'));
+    expect(screen.getByText('Jeden telefon na punkcie')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('user-action-max-devices'));
+    act(() => { jest.advanceTimersByTime(300); });
+    expect(appAlert).toHaveBeenCalledWith('Jeden telefon na punkcie', expect.stringContaining('Wrócić do jednego telefonu'), expect.any(Array));
+    await pressAlertButton('Tylko 1');
+    expect(axios.patch).toHaveBeenCalledWith(expect.stringContaining('/user/p1/max-devices'), { maxDevices: 1 }, expect.any(Object));
+
+    // punkt bez drugiego telefonu: pozycja włączająca 2
+    fireEvent.press(screen.getByTestId('user-actions-t1'));
+    expect(screen.getByText('Dwa telefony na punkcie (remanent we dwie osoby)')).toBeTruthy();
+  });
+
   test('admin: „Resetuj moje 2FA” dla siebie, „Resetuj 2FA” dla kolegi → POST /user/:id/reset-2fa', async () => {
     const screen = renderScreen();
     await waitFor(() => expect(screen.getByTestId('user-actions-adm1')).toBeTruthy());

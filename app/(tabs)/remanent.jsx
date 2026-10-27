@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
 import { GlobalStateContext } from '../../context/GlobalState';
 import tokenService from '../../services/tokenService';
+import useLiveRefresh from '../../services/useLiveRefresh'; // skany drugiego telefonu punktu widoczne od razu
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../config/remainingProductTypes';
@@ -393,7 +394,8 @@ const Remanent = () => {
     value: item.value || 0,
     location: user?.symbol,
     scannedAt: item.scannedAt,
-    timestamp: item.scannedAt
+    timestamp: item.scannedAt,
+    device: item.device || '' // nazwa telefonu (remanent we dwie osoby na jednym koncie)
   });
 
   // Wczytuje OTWARTĄ sesję remanentu punktu (bez limitu skanów, wspólną dla wszystkich telefonów punktu)
@@ -483,6 +485,10 @@ const Remanent = () => {
     setRefreshing(false);
   };
 
+  // Remanent we dwie osoby (27.10.2026): serwer zgłasza każdą zmianę skanów sesji punktu - lista i postęp
+  // odświeżają się w tle na obu telefonach (bez pociągania listy w dół); także rozpoczęcie / zakończenie remanentu
+  useLiveRefresh(['remanent'], () => fetchRemanentData({ silent: true }));
+
   // Skaner
   const openQRScanner = async () => {
     if (!permission?.granted) {
@@ -529,6 +535,24 @@ const Remanent = () => {
     [sizes]
   );
 
+  const pad2 = (value) => String(value).padStart(2, '0');
+  // „DD.MM HH:MM” w czasie telefonu
+  const formatDayClock = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '?';
+    return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  };
+  // Odpowiedź 409 z serwera: { message, closed?: { closedAt, closedBy } } gdy remanent został zakończony
+  const closedElsewhereText = (data) => {
+    const closed = data?.closed;
+    if (closed && (closed.closedAt || closed.closedBy)) {
+      const who = closed.closedBy || 'inny telefon';
+      const when = closed.closedAt ? ` o ${formatDayClock(closed.closedAt)}` : '';
+      return `Remanent został zakończony przez ${who}${when}. Niezatwierdzone skany zostają w skanerze - rozpocznij nowy remanent, żeby je zapisać, albo odrzuć je.`;
+    }
+    return data?.message || 'Remanent nie jest otwarty. Odśwież ekran.';
+  };
+
   // „Zatwierdź (N)” w skanerze: zapis skanów do sesji punktu. true = zapisane (lista skanera się czyści),
   // false = skany zostają w skanerze i można zatwierdzić ponownie
   const confirmScannedJackets = async (scannedJackets, { showToast: showScanToast, batchId }) => {
@@ -542,10 +566,11 @@ const Remanent = () => {
         scannedAt: new Date().toISOString()
       }));
 
-      // Zapis do sesji punktu; bez sesji najpierw ją rozpoczynamy
-      const activeSession = session || await startSession();
+      // Zapis do sesji punktu. Bez otwartej sesji NIE zakładamy nowej po cichu (R8, audyt 26.10.2026): gdy drugi telefon
+      // zakończył remanent, „Zatwierdź” dopisywałoby skany do nowego, pustego remanentu
+      const activeSession = session;
       if (!activeSession) {
-        showScanToast('Nie zapisano - nie udało się rozpocząć remanentu. Skany zostają, spróbuj ponownie.', 'warn');
+        showScanToast('Remanent nie jest rozpoczęty - kliknij „Rozpocznij remanent”, skany zostają w skanerze.', 'warn');
         return false;
       }
       const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${activeSession._id}/items`), {
@@ -557,8 +582,15 @@ const Remanent = () => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         // Skany NIE giną: zostają na liście skanera, można zatwierdzić ponownie
+        if (response.status === 409) {
+          // Remanent zamknięty (np. na innym telefonie): kto i kiedy - w skanerze i w oknie (R8, audyt 26.10.2026)
+          const text = closedElsewhereText(data);
+          showScanToast(text, 'warn');
+          setClearResult({ ok: false, text });
+          fetchRemanentData({ silent: true });
+          return false;
+        }
         showScanToast(data?.message || 'Nie zapisano skanów - sprawdź połączenie i zatwierdź ponownie.', 'warn');
-        if (response.status === 409) fetchRemanentData({ silent: true });
         return false;
       }
       if (data?.duplicate) {
@@ -578,8 +610,13 @@ const Remanent = () => {
   };
 
 
-  // Wyczyść wszystko: usuwa WSZYSTKIE zapisane skany remanentu tego użytkownika na serwerze
-  // (nie tylko te widoczne na liście - lista pokazuje ostatnie zapisy), potem odświeża widok.
+  // Wyczyść wszystko: usuwa WSZYSTKIE skany bieżącego remanentu punktu na serwerze - także te zrobione na innych
+  // telefonach punktu (R9, audyt 26.10.2026: dawniej okno mówiło tylko o liczbie z tego telefonu). Przed oknem
+  // odświeżamy listę w tle, żeby liczba w pytaniu była aktualna.
+  const openClearDialog = () => {
+    fetchRemanentData({ silent: true });
+    setConfirmClearOpen(true);
+  };
   const clearAllRemanent = async () => {
     setConfirmClearOpen(false);
     if (!session) return;
@@ -592,7 +629,10 @@ const Remanent = () => {
         return;
       }
       setRemanentData([]);
-      setClearResult({ ok: true, text: 'Skany tego remanentu zostały wyczyszczone. Możesz liczyć od nowa.' });
+      const removed = Number.isFinite(Number(data?.removed)) ? Number(data.removed) : null;
+      setClearResult({ ok: true, text: removed === null
+        ? 'Skany tego remanentu (ze wszystkich telefonów punktu) zostały wyczyszczone. Możesz liczyć od nowa.'
+        : `Usunięto ${removed} skanów (ze wszystkich telefonów punktu). Możesz liczyć od nowa.` });
     } catch (error) {
       setClearResult({ ok: false, text: 'Nie udało się wyczyścić remanentu. Sprawdź połączenie i spróbuj ponownie.' });
     } finally {
@@ -763,18 +803,55 @@ const Remanent = () => {
   };
 
   // Render individual remanent item
+  // Wiek otwartego remanentu - powyżej 20 h pokazujemy ostrzeżenie (remanent liczy się jednego dnia)
+  const OLD_SESSION_MS = 20 * 60 * 60 * 1000;
+  const sessionAgeMs = session?.startedAt ? Math.max(0, Date.now() - new Date(session.startedAt).getTime()) : 0;
+  const sessionAgeHours = Math.floor(sessionAgeMs / (60 * 60 * 1000));
+  const sessionAgeLabel = sessionAgeHours >= 48 ? `${Math.floor(sessionAgeHours / 24)} dni` : `${sessionAgeHours} godz.`;
+
+  // Lista: jeden wiersz na kod z licznikiem ×N (audyt 26.10.2026 - dawniej 1 wiersz = 1 sztuka, 500 sztuk = 500 wierszy).
+  // Postęp, wyszukiwarka („Znaleziono N z M szt.”) i porównanie liczą się nadal po sztukach (visibleRemanentData).
+  // X w wierszu usuwa JEDNĄ sztukę - ostatnio zeskanowaną z tego kodu. Grupy od ostatnio skanowanego.
+  const groupedRemanentData = React.useMemo(() => {
+    const groups = new Map();
+    visibleRemanentData.forEach((item) => {
+      const code = String(item.code || '');
+      const at = new Date(item.scannedAt || 0).getTime() || 0;
+      const group = groups.get(code) || { code, name: item.name, count: 0, ids: [], manualCount: 0, latestScannedAt: -1, latestId: item.id, devices: [] };
+      group.count += 1;
+      group.ids.push(item.id);
+      if (item.device && !group.devices.includes(item.device)) group.devices.push(item.device);
+      if (item.manual) group.manualCount += 1;
+      if (at >= group.latestScannedAt) {
+        group.latestScannedAt = at;
+        group.latestId = item.id;
+        group.name = item.name || group.name;
+      }
+      groups.set(code, group);
+    });
+    return [...groups.values()].sort((a, b) => b.latestScannedAt - a.latestScannedAt);
+  }, [visibleRemanentData]);
+  // Nazwa telefonu przy pozycji tylko wtedy, gdy skanuje więcej niż jeden telefon (jeden telefon = szum)
+  const multiDevice = React.useMemo(() => new Set(remanentData.map((item) => item.device).filter(Boolean)).size > 1, [remanentData]);
+
   const renderRemanentItem = ({ item }) => (
     <View style={styles.remanentItem}>
       <View style={[styles.itemHeader, { marginBottom: 0 }]}>
         <View style={{ flex: 1, marginRight: 8 }}>
-          <Text style={styles.itemName}>{item.name || 'Produkt'}</Text>
-          {item.manual ? <Text style={styles.manualBadge}>wpisane ręcznie</Text> : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[styles.itemName, { flexShrink: 1 }]}>{item.name || 'Produkt'}</Text>
+            {item.count > 1 ? <Text style={styles.countBadge} testID="remanent-row-count">×{item.count}</Text> : null}
+          </View>
+          {item.manualCount > 0 ? <Text style={styles.manualBadge}>wpisane ręcznie: {item.manualCount}</Text> : null}
+          {multiDevice && item.devices.length > 0 ? <Text style={styles.deviceText} testID="remanent-row-device">{item.devices.join(', ')}</Text> : null}
         </View>
         <View style={styles.itemHeaderRight}>
           <Text style={styles.itemCode}>{item.code || 'N/A'}</Text>
           <TouchableOpacity
-            onPress={() => removeRemanentItem(item.id)}
+            onPress={() => removeRemanentItem(item.latestId)}
             style={styles.removeRemanentButton}
+            accessibilityLabel="Usuń jedną sztukę"
+            testID={`remanent-remove-${item.code}`}
           >
             <Ionicons name="close" size={18} color="white" />
           </TouchableOpacity>
@@ -869,6 +946,16 @@ const Remanent = () => {
         </View>
       ) : null}
 
+      {/* Stary, wciąż otwarty remanent (audyt 26.10.2026): żeby nie dosypywać skanów do liczenia sprzed dni */}
+      {session && sessionAgeMs > OLD_SESSION_MS ? (
+        <View style={styles.oldSessionBanner} testID="remanent-old-session">
+          <Ionicons name="alert-circle" size={18} color="#F59E0B" />
+          <Text style={styles.oldSessionText}>
+            Ten remanent trwa od {formatDayClock(session.startedAt)} ({sessionAgeLabel}). Jeśli to stare liczenie, zakończ je albo wyczyść i zacznij od nowa.
+          </Text>
+        </View>
+      ) : null}
+
       {!session ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="clipboard-outline" size={64} color={tc('muted', "#CDCDE0")} />
@@ -917,9 +1004,9 @@ const Remanent = () => {
           )}
         </View>
         <FlatList alwaysBounceVertical
-          data={visibleRemanentData}
+          data={groupedRemanentData}
           renderItem={renderRemanentItem}
-          keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+          keyExtractor={(item) => item.code}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={searchWords.length > 0 ? (
             <View style={styles.emptyContainer}>
@@ -959,7 +1046,7 @@ const Remanent = () => {
 
         <TouchableOpacity
           style={[styles.clearAllButton, (clearingAll || remanentData.length === 0) && { opacity: 0.5 }]}
-          onPress={() => setConfirmClearOpen(true)}
+          onPress={openClearDialog}
           disabled={clearingAll || remanentData.length === 0}
         >
           {clearingAll ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="trash" size={20} color="white" />}
@@ -976,7 +1063,7 @@ const Remanent = () => {
             </View>
             <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 8 }]}>Wyczyścić cały remanent?</Text>
             <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
-              Zostaną usunięte wszystkie skany bieżącego remanentu ({remanentData.length} szt.). Remanent pozostaje rozpoczęty. Tej operacji nie da się cofnąć.
+              Zostaną usunięte wszystkie skany bieżącego remanentu ze wszystkich telefonów punktu ({remanentData.length} szt. wg ostatniego odświeżenia). Remanent pozostaje rozpoczęty. Tej operacji nie da się cofnąć.
             </Text>
             <View style={{ gap: 10, marginTop: 8 }}>
               <TouchableOpacity style={[styles.dialogStackButton, { backgroundColor: '#DC2626' }]} onPress={clearAllRemanent}>
@@ -1485,6 +1572,36 @@ const styles = createThemedStyles(() => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  countBadge: {
+    color: tc('text', 'white'),
+    backgroundColor: tc('surface2', '#2A2A3C'),
+    borderWidth: 1,
+    borderColor: tc('border', '#232533'),
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  oldSessionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#B45309',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  oldSessionText: {
+    flex: 1,
+    color: tc('text', 'white'),
+    fontSize: 13,
+  },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1964,6 +2081,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: 'white',
     fontSize: 15,
     fontWeight: '600',
+  },
+  deviceText: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 2,
   },
   manualBadge: {
     color: '#F59E0B',

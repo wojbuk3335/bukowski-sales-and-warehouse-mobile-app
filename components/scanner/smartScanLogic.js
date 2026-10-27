@@ -44,12 +44,15 @@ export const isRectCenterInsideFrame = (rect, frame, margin = 12) => {
   );
 };
 
-// Odczyt wiarygodny sam w sobie (np. EAN-13 z poprawną cyfrą kontrolną)
+// Odczyt wiarygodny sam w sobie (np. EAN-13 z poprawną cyfrą kontrolną).
+// Cyfrę kontrolną EAN-13 sprawdzamy TYLKO, gdy aparat zgłosił format ean13 (audyt skanera 26.10.2026): nasze metki to
+// Code 128 z własną sumą kontrolną, a dawniej każdy 13-cyfrowy odczyt przechodził test EAN-13 - kod z katalogu
+// bez „ładnej” 13. cyfry był po cichu nieskanowalny.
 export const isPlausibleCode = (data, type) => {
   const value = String(data || "").trim();
   if (!value) return false;
   const isEan13 = String(type || "").toLowerCase().includes("ean13") || String(type || "") === "32";
-  if (isEan13 || /^\d{13}$/.test(value)) {
+  if (isEan13) {
     return isValidEan13(value);
   }
   return true;

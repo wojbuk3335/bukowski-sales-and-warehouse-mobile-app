@@ -171,7 +171,7 @@ const SignIn = () => {
         if (!left.some((item) => (item.role === 'admin') === isAdminPanel)) setShowForm(true); // w tym panelu nic nie zostało
         setError(quickError.message);
       } else if (quickError.code === 'SESSION_ACTIVE') {
-        setError(buildSessionActiveMessage(quickError.session));
+        setError(buildSessionActiveMessage(quickError.session, Date.now(), quickError.sessions));
       } else {
         setError(quickError.message || "Szybkie logowanie nie powiodło się. Spróbuj ponownie albo zaloguj się hasłem.");
       }
@@ -245,8 +245,9 @@ const SignIn = () => {
     } catch (error) {
       // 🔒 SESSION BLOCKING: na tym punkcie jest już zalogowany inny telefon
       if (error.code === 'SESSION_ACTIVE' || error.message?.includes('Konto jest już zalogowane')) {
-        // error.session = { startedAt, lastSeenAt, deviceName } z backendu; bez niego ogólny komunikat
-        setError(buildSessionActiveMessage(error.session));
+        // error.session = { startedAt, lastSeenAt, deviceName } z backendu; bez niego ogólny komunikat;
+        // error.sessions = wszystkie zalogowane telefony, gdy admin pozwolił na 2
+        setError(buildSessionActiveMessage(error.session, Date.now(), error.sessions));
       } else if (error.code === 'INVALID_CREDENTIALS') {
         setError("Nieprawidłowy email lub hasło. Spróbuj ponownie.");
       } else if (error.code === 'FORBIDDEN') {

@@ -37,7 +37,18 @@ export const formatTimeAgo = (value, now = Date.now()) => {
 
 // Komunikat 403 SESSION_ACTIVE: kto (nazwa urządzenia), od kiedy i kiedy ostatnio był aktywny.
 // session = { startedAt (ISO), lastSeenAt (ISO), deviceName }
-export const buildSessionActiveMessage = (session, now = Date.now()) => {
+// sessions (27.10.2026, admin pozwolił na 2 telefony): lista wszystkich zalogowanych telefonów - gdy jest ich więcej
+// niż jeden, komunikat wylicza wszystkie
+export const buildSessionActiveMessage = (session, now = Date.now(), sessions = null) => {
+    if (Array.isArray(sessions) && sessions.length > 1) {
+        const phones = sessions.map((entry) => {
+            const name = typeof entry?.deviceName === 'string' && entry.deviceName.trim() ? entry.deviceName.trim() : 'nieznane urządzenie';
+            const startedAt = formatClock(entry?.startedAt);
+            return startedAt ? `${name} od ${startedAt}` : name;
+        });
+        return `Na tym punkcie są już zalogowane ${sessions.length} telefony (${phones.join(', ')}). ` +
+            'Poproś o wylogowanie jednego z nich albo administratora o wylogowanie z panelu.';
+    }
     if (!session || typeof session !== 'object') return GENERIC_SESSION_ACTIVE_MESSAGE;
 
     const details = [];

@@ -347,6 +347,7 @@ export const GlobalStateProvider = ({ children }) => {
                     error.status = 403;
                     // { startedAt, lastSeenAt, deviceName } - ekran logowania pokazuje, kto i od kiedy zajmuje punkt
                     error.session = errorData.session || null;
+                    error.sessions = Array.isArray(errorData.sessions) ? errorData.sessions : null; // wszystkie telefony (limit 2)
                     throw error;
                 }
 
