@@ -31,6 +31,7 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 jest.mock('../../components/LogoutButton', () => () => null);
+jest.mock('../../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('../../config/api', () => ({ getApiUrl: (endpoint) => `http://mock.api${endpoint}` }));
 
 const CODE_44 = '1234504400007';
