@@ -21,10 +21,10 @@ jest.mock('expo-camera', () => {
 const CODE = '0040600300001'; // EAN-13 z poprawną cyfrą kontrolną
 
 // kamera podaje kilka klatek z tym samym kodem - ramka przyjmuje kod po 3 zgodnych odczytach
-const cameraFrames = async (screen, data, frames = 3) => {
+const cameraFrames = async (screen, data, frames = 3, type = 'code128') => {
   for (let frame = 0; frame < frames; frame += 1) {
     await act(async () => {
-      screen.getByTestId('camera-view').props.onBarcodeScanned?.({ data, type: 'code128' });
+      screen.getByTestId('camera-view').props.onBarcodeScanned?.({ data, type });
     });
   }
 };
@@ -45,12 +45,17 @@ describe('ScanCamera', () => {
     expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'code128' });
   });
 
-  test('EAN-13 ze złą cyfrą kontrolną jest odrzucany', async () => {
+  test('EAN-13 ze złą cyfrą kontrolną jest odrzucany; ten sam ciąg cyfr z Code 128 (metka) przechodzi', async () => {
+    // 27.10.2026: cyfra kontrolna EAN-13 sprawdzana tylko dla odczytów typu ean13 - Code 128 ma własną sumę
+    // kontrolną, a kod z katalogu bez „ładnej” 13. cyfry był po cichu nieskanowalny
     const onScanned = jest.fn();
     const screen = render(<ScanCamera onScanned={onScanned} />);
 
-    await cameraFrames(screen, '0040600300009', 5);
+    await cameraFrames(screen, '0040600300009', 5, 'ean13');
     expect(onScanned).not.toHaveBeenCalled();
+
+    await cameraFrames(screen, '0040600300009', 3, 'code128');
+    expect(onScanned).toHaveBeenCalledWith({ data: '0040600300009', type: 'code128' });
   });
 
   test('wstrzymany skaner: bez odczytów z kamery i bez przycisków', () => {
