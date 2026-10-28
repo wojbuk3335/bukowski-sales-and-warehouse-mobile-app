@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor, act } from '@testing-library/react-native';
+import { render, waitFor, act, fireEvent } from '@testing-library/react-native';
 
 // Stan: dzisiejsze przepisanie odpisane już w Dobieraniu zostaje na liście wyszarzone z napisem „Przetworzone”;
 // nieprzetworzone pokazuje jak dotąd „Przepisano do: …” (25.10.2026).
@@ -120,5 +120,33 @@ test('zdarzenie z serwera odświeża listę w tle: nowe przepisanie pojawia się
   const onLive = useLiveRefresh.mock.calls[useLiveRefresh.mock.calls.length - 1][1];
   await act(async () => { await onLive(); });
   await waitFor(() => expect(screen.getByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeTruthy());
+  screen.unmount();
+});
+
+// Wyszukiwarka na górze Stanu (28.10.2026): nazwa / rozmiar / kod, bez polskich znaków; licznik „Znaleziono N z M”
+test('wyszukiwarka zawęża listę po nazwie, rozmiarze i kodzie; X czyści', async () => {
+  const screen = renderWriteOff();
+  await waitFor(() => expect(screen.getByTestId('writeoff-item-p-ada')).toBeTruthy());
+  expect(screen.getByText(/Zuza GRANAT/)).toBeTruthy(); // przetworzone dziś też na liście
+  expect(screen.queryByTestId('writeoff-search-count')).toBeNull();
+
+  fireEvent.changeText(screen.getByTestId('writeoff-search-input'), 'ZUZA granat');
+  expect(screen.getByTestId('writeoff-search-count').props.children.join('')).toBe('Znaleziono 1 z 2');
+  expect(screen.queryByTestId('writeoff-item-p-ada')).toBeNull();
+  expect(screen.getByText(/Zuza GRANAT/)).toBeTruthy();
+
+  fireEvent.changeText(screen.getByTestId('writeoff-search-input'), '555'); // kod z metki
+  expect(screen.getByTestId('writeoff-item-p-ada')).toBeTruthy();
+  expect(screen.queryByText(/Zuza GRANAT/)).toBeNull();
+
+  fireEvent.changeText(screen.getByTestId('writeoff-search-input'), 'xl czerwony');
+  expect(screen.getByTestId('writeoff-item-p-ada')).toBeTruthy();
+
+  fireEvent.changeText(screen.getByTestId('writeoff-search-input'), 'nie ma takiej');
+  expect(screen.getByText('Nic nie znaleziono')).toBeTruthy();
+
+  fireEvent.press(screen.getByTestId('writeoff-search-clear'));
+  expect(screen.queryByTestId('writeoff-search-count')).toBeNull();
+  expect(screen.getByTestId('writeoff-item-p-ada')).toBeTruthy();
   screen.unmount();
 });

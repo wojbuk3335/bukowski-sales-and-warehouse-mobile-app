@@ -23,6 +23,7 @@ import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { warsawDay, warsawToday } from '../../utils/warsawDay'; // S16: „dziś” i dzień pozycji po czasie polskim
 import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 import { isExchangeReturn } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie
+import { searchWords, matchesSearch } from '../../utils/searchText'; // wyszukiwarka na liście Stanu (bez polskich znaków)
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
@@ -47,6 +48,7 @@ const WriteOff = () => {
     const [salesData, setSalesData] = useState([]); // Sprzedaże z tego punktu czekające na Dobieranie (wyszarzają sprzedane sztuki)
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false); // Dodano nowy stan dla pull-to-refresh
+    const [stateSearch, setStateSearch] = useState(''); // wyszukiwarka na górze listy (28.10.2026): nazwa, rozmiar, kod
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [customReason, setCustomReason] = useState(""); // Stan dla niestandardowego powodu
@@ -355,6 +357,15 @@ const fetchSales = async () => {
     };
     // pending: sztuka jeszcze na stanie - dopisek „czeka na uzupełnienie” jak przy sprzedanej (26.10.2026);
     // punkt docelowy pełną nazwą („Tata”), MAGAZYN wielkimi literami
+    // Lista: sztuki na stanie + dzisiejsze przetworzone; wyszukiwarka zawęża po nazwie, rozmiarze i kodzie
+    // (bez polskich znaków i wielkości liter), numeracja liczy się od widocznych wierszy
+    const allRows = useMemo(() => [...filteredData, ...processedTodayRows], [filteredData, processedTodayRows]);
+    const searchTerms = searchWords(stateSearch);
+    const searchActive = searchTerms.length > 0;
+    const visibleRows = useMemo(() => (searchActive
+        ? allRows.filter((row) => matchesSearch([row.fullName, row.size, row.barcode], searchTerms))
+        : allRows), [allRows, searchTerms, searchActive]);
+
     const transferLabel = (transfer, { pending = false } = {}) => {
         if (!transfer) return '';
         const waiting = pending ? ' - czeka na uzupełnienie' : '';
@@ -996,14 +1007,41 @@ const fetchSales = async () => {
                     <FlatList alwaysBounceVertical
                         testID="writeoff-flatlist"
                         ListHeaderComponent={
-                            <ScreenHeader
-                                icon="layers"
-                                title="Stan"
-                                subtitle={`Produktów: ${filteredData.length} · ${user?.email || "Nieznany użytkownik"}`}
-                            />
+                            <View>
+                                <ScreenHeader
+                                    icon="layers"
+                                    title="Stan"
+                                    subtitle={`Produktów: ${filteredData.length} · ${user?.email || "Nieznany użytkownik"}`}
+                                />
+                                {/* Wyszukiwarka (28.10.2026): nazwa, rozmiar, kod z metki; kilka słów = wszystkie muszą pasować */}
+                                <View style={styles.searchBox}>
+                                    <Ionicons name="search" size={18} color={tc('muted', '#94A3B8')} />
+                                    <TextInput
+                                        testID="writeoff-search-input"
+                                        style={styles.searchInput}
+                                        value={stateSearch}
+                                        onChangeText={setStateSearch}
+                                        placeholder="Szukaj: nazwa, rozmiar, kod"
+                                        placeholderTextColor={tc('muted', '#64748B')}
+                                        autoCorrect={false}
+                                        autoCapitalize="none"
+                                        returnKeyType="search"
+                                        clearButtonMode="while-editing"
+                                    />
+                                    {stateSearch ? (
+                                        <TouchableOpacity onPress={() => setStateSearch('')} testID="writeoff-search-clear" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                            <Ionicons name="close-circle" size={18} color={tc('muted', '#94A3B8')} />
+                                        </TouchableOpacity>
+                                    ) : null}
+                                </View>
+                                {searchActive ? (
+                                    <Text style={styles.searchCount} testID="writeoff-search-count">Znaleziono {visibleRows.length} z {allRows.length}</Text>
+                                ) : null}
+                            </View>
                         }
                         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
-                        data={[...filteredData, ...processedTodayRows]}
+                        data={visibleRows}
+                        ListEmptyComponent={searchActive ? <Text style={styles.searchEmpty}>Nic nie znaleziono</Text> : null}
                         keyExtractor={(item) => item.id}
                         onRefresh={() => fetchAllRequiredData(true)} // true = to jest refresh action
                         refreshing={isRefreshing} // Używamy isRefreshing zamiast isLoading
@@ -1846,6 +1884,34 @@ const styles = createThemedStyles(() => StyleSheet.create({
         color: '#ffffff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    searchBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: tc('surface2', '#1E1E2D'),
+        borderWidth: 1,
+        borderColor: tc('border', '#334155'),
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        marginBottom: 8,
+    },
+    searchInput: {
+        flex: 1,
+        paddingVertical: 10,
+        fontSize: 15,
+        color: tc('text', '#fff'),
+    },
+    searchCount: {
+        color: tc('muted', '#94A3B8'),
+        fontSize: 12,
+        marginBottom: 6,
+        marginLeft: 4,
+    },
+    searchEmpty: {
+        color: tc('muted', '#94A3B8'),
+        textAlign: 'center',
+        paddingVertical: 24,
     },
     transferStatusText: {
         color: '#F59E0B',
