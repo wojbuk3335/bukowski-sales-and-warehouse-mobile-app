@@ -5,7 +5,9 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 // (z datą w napisie, bez „Anuluj” - to tylko administrator w panelu); dzień liczony po czasie polskim, więc
 // przepisanie z 00:30 w nocy jest dzisiejsze (można anulować).
 
+jest.mock('../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() })); // odświeżanie na żywo (28.10.2026)
 jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => true,
   useFocusEffect: (effect) => {
     const React = require('react');
     React.useEffect(() => effect(), []);

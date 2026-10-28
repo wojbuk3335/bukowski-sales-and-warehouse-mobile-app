@@ -1,7 +1,9 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
+jest.mock('../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() })); // odświeżanie na żywo (28.10.2026)
 jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => true,
   useFocusEffect: (effect) => {
     const React = require('react');
     React.useEffect(() => effect(), []);

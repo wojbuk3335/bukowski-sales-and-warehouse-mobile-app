@@ -6,7 +6,9 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 // albo zeskanowany), wybór z całej bazy produktów (kurtka + rozmiar). Serwer zapisuje oddaną kurtkę jako przepisanie do MAGAZYNU;
 // „Pomiń” = jak dawniej (oddaną kurtkę admin dopisuje ręcznie).
 
+jest.mock('../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() })); // odświeżanie na żywo (28.10.2026)
 jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => true,
   useFocusEffect: (effect) => {
     const React = require('react');
     React.useEffect(() => effect(), []);

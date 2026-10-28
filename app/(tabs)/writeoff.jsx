@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from "../../config/api";
 import { GlobalStateContext } from "../../context/GlobalState";
 import tokenService from "../../services/tokenService";
+import useLiveRefresh from "../../services/useLiveRefresh"; // stan, sprzedaż i przepisania na żywo (bez przeciągania listy)
 import Logger from "../../services/logger"; // Import logger service
 import AuthFix from "../../components/AuthFix";
 import LogoutButton from "../../components/LogoutButton";
@@ -141,19 +142,25 @@ const WriteOff = () => {
         }
     }, [globalUsers]);
 
+    // isRefreshAction: true = przeciągnięcie listy (mały spinner u góry), false = pełny ekran ładowania,
+    // 'silent' = odświeżenie w tle po zdarzeniu z serwera (bez spinnera i bez okienka błędu - lista zostaje jak była)
     const fetchAllRequiredData = async (isRefreshAction = false) => {
+        const silent = isRefreshAction === 'silent';
         // Ustawienie odpowiedniego stanu ładowania
-        if (isRefreshAction) {
+        if (silent) {
+            // bez spinnera
+        } else if (isRefreshAction) {
             setIsRefreshing(true);
         } else {
             setIsLoading(true);
         }
         
-        setErrorMessage("");
-        setShowErrorModal(false);
-        
-        // Add a small delay to ensure the loading state renders before starting API calls
-        await new Promise(resolve => setTimeout(resolve, 50));
+        if (!silent) {
+            setErrorMessage("");
+            setShowErrorModal(false);
+            // Add a small delay to ensure the loading state renders before starting API calls
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
         
         // Set up a 10-second timeout for the entire operation
         const timeoutPromise = new Promise((_, reject) => {
@@ -186,15 +193,22 @@ const WriteOff = () => {
                 setErrorMessage("Nie można pobrać danych z backendu. Sprawdź połączenie internetowe i spróbuj ponownie.");
             }
             
-            setShowErrorModal(true);
+            if (!silent) setShowErrorModal(true);
         } finally {
-            if (isRefreshAction) {
+            if (silent) {
+                // bez spinnera
+            } else if (isRefreshAction) {
                 setIsRefreshing(false);
             } else {
                 setIsLoading(false);
             }
         }
     };
+
+    // Na żywo (28.10.2026): odpisanie, przepisanie, sprzedaż, przyjęcie albo przetworzenie w Dobieraniu - z tego telefonu,
+    // innego telefonu albo panelu - serwer zgłasza zmianę i lista odświeża się sama w tle, tylko gdy ekran Stan jest otwarty
+    const isFocused = useIsFocused();
+    useLiveRefresh(['states', 'sales', 'transfers'], () => fetchAllRequiredData('silent'), { enabled: Boolean(isFocused && user?.symbol) });
 
     useFocusEffect(
         React.useCallback(() => {

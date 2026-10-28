@@ -5,7 +5,9 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 // Brak kurtki w punkcie docelowym nie ma znaczenia przy przepisaniu - bez czerwonego napisu i bez pytania
 // (decyzja 26.10.2026; ostrzeżenie o braku na stanie zostaje tylko przy sprzedaży).
 
+jest.mock('../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() })); // odświeżanie na żywo (28.10.2026)
 jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => true,
   useFocusEffect: (effect) => {
     const React = require('react');
     React.useEffect(() => effect(), []);

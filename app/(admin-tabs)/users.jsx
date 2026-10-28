@@ -28,6 +28,8 @@ import { itemPictureVariantUrl, itemPictureUrl, variantToOriginalUrl } from '../
 import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
 import { productRefs, sameProductByRefs } from '../../utils/productPairing'; // krok 3: parowanie po ID towaru i rozmiaru
+import { buildLabelChoices, toggleChoice, setAllChoices, pickedItems, pickedCount } from '../../utils/labelPick'; // wybór etykiet do wydruku
+import { isDobieraniePoint } from '../../utils/cudzich'; // punkty do Dobierania jak w panelu (bez admina, domu, Cudzicha)
 import { warsawDay } from '../../utils/warsawDay'; // S16: dzień pozycji liczony po czasie polskim, nie UTC
 import { describeSkipped, skippedCountLabel, skippedFromBatchResult } from '../../utils/batchSkippedMessages'; // D7: pozycje pominięte przez serwer
 import { batchErrorToPolish } from '../../utils/batchErrorMessages'; // polskie komunikaty błędów zapisu (jak w panelu)
@@ -85,6 +87,9 @@ const Users = () => {
   // Print confirmation modal
   const [showPrintConfirmModal, setShowPrintConfirmModal] = useState(false);
   const [pendingProcessData, setPendingProcessData] = useState(null);
+  // Wybór etykiet przed drukiem (28.10.2026): { choices, date }; domyślnie wszystkie zaznaczone, odznaczone nie drukują się
+  const [labelPick, setLabelPick] = useState(null);
+  const labelPickBusyRef = useRef(false);
   const [pendingProcessingDate, setPendingProcessingDate] = useState(null);
   
   // Print error modal
@@ -109,7 +114,8 @@ const Users = () => {
   const [priceListCount, setPriceListCount] = useState(0);
   const [hasPriceList, setHasPriceList] = useState(false);
 
-  const filteredUsers = users.filter((u) => !u.isAdmin);
+  // Audyt 28.10.2026: ta sama reguła co w panelu (dawniej `!u.isAdmin` - takiego pola nie ma, pokazywało admina, dom i Cudzicha)
+  const filteredUsers = users.filter(isDobieraniePoint);
 
   const formatDateLocal = (date) => {
     const year = date.getFullYear();
@@ -580,7 +586,7 @@ const Users = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setLastTransaction(data.canUndo ? data : null);
+        setLastTransaction(data.canUndo && Number(data.itemCount || 0) > 0 ? data : null); // jak w panelu: bez pozycji nie ma co cofać
       } else if (response.status === 404) {
         setLastTransaction(null);
       } else {
@@ -636,7 +642,7 @@ const Users = () => {
       const yellowTransfers = allTransfers.filter(transfer => {
         const transferDate = warsawDay(transfer.date);
         const isCorrectDate = transferDate === dateStr;
-        const isIncoming = transfer.transfer_to === selectedUserData.symbol && transfer.transfer_from !== 'MAGAZYN';
+        const isIncoming = transfer.transfer_to === selectedUserData.symbol && !transfer.fromWarehouse; // jak w panelu (audyt 28.10.2026): po fladze, nie po napisie 'MAGAZYN'
         const notProcessed = !transfer.yellowProcessed;
         
         return isCorrectDate && isIncoming && notProcessed;
@@ -1166,6 +1172,37 @@ const Users = () => {
     ];
 
     if (itemsToPrint.length > 0) {
+      // Wybór etykiet (28.10.2026): domyślnie wszystkie dobrane kurtki; admin może odznaczyć metki, których nie trzeba
+      // drukować, albo przetworzyć bez drukowania. Druk i potwierdzenie - w printPickedLabels.
+      setLabelPick({ choices: buildLabelChoices(itemsToPrint), date: effectiveDate });
+      return;
+    }
+
+    // No items to print, proceed directly
+    executeProcessItems(effectiveDate);
+  };
+
+  const toggleLabelChoice = (key) => setLabelPick((prev) => (prev ? { ...prev, choices: toggleChoice(prev.choices, key) } : prev));
+  const setAllLabelChoices = (checked) => setLabelPick((prev) => (prev ? { ...prev, choices: setAllChoices(prev.choices, checked) } : prev));
+  const cancelLabelPick = () => {
+    setLabelPick(null);
+    setPendingProcessingDate(null);
+  };
+
+  // „Drukuj zaznaczone i przetwórz” / „Przetwórz bez drukowania”: drukuje tylko zaznaczone metki, potem
+  // potwierdzenie wydruku jak dotąd; bez zaznaczonych - zapis od razu (odznaczone kurtki i tak są przetwarzane)
+  const printPickedLabels = async () => {
+    const pick = labelPick;
+    if (!pick || labelPickBusyRef.current) return; // D9: drugie dotknięcie
+    labelPickBusyRef.current = true;
+    setLabelPick(null);
+    const itemsToPrint = pickedItems(pick.choices);
+    try {
+      if (itemsToPrint.length === 0) {
+        setPendingProcessingDate(null);
+        executeProcessItems(pick.date);
+        return;
+      }
       try {
         setProcessing(true);
 
@@ -1204,9 +1241,8 @@ const Users = () => {
         setPrintErrorMessage('Wystąpił błąd podczas drukowania etykiet. Sprawdź połączenie z drukarką.');
         setShowPrintErrorModal(true);
       }
-    } else {
-      // No items to print, proceed directly
-      executeProcessItems(effectiveDate);
+    } finally {
+      labelPickBusyRef.current = false;
     }
   };
 
@@ -1645,6 +1681,8 @@ const Users = () => {
         const restoredBlueCount = result.restoredBlueCount || 0;        // 🔵 Niebieskie
         const restoredYellowCount = result.restoredYellowCount || 0;    // 🟡 Żółte
         const restoredOrangeCount = result.restoredOrangeCount || 0;    // 🟠 Pomarańczowe
+        // korekty usunięte przy cofnięciu (jak w panelu, audyt 28.10.2026) - te pozycje wróciły na listę
+        const restoredCorrectionsCount = (result.restoredCorrectionsBlueCount || 0) + (result.restoredCorrectionsYellowCount || 0) + (result.restoredCorrectionsOrangeCount || 0);
         
         // Oblicz obliczenie na podstawie liczników
         let calculation;
@@ -1664,6 +1702,7 @@ const Users = () => {
           restoredBlueCount: restoredBlueCount,        // 🔵 Niebieskie
           restoredYellowCount: restoredYellowCount,    // 🟡 Żółte
           restoredOrangeCount: restoredOrangeCount,    // 🟠 Pomarańczowe
+          restoredCorrectionsCount,
           warehouseReturnedCount: warehouseReturned,
           expectedAfterCount: userStateAfter,
           actualAfterCount: userStateAfter,
@@ -2167,7 +2206,7 @@ const Users = () => {
       clearTimeout(timeoutId);
 
       if (error.name === 'AbortError') {
-        return true;
+        return true; // port 9100 nie odpowiada HTTP - po czasie uznajemy „wysłano” (bez potwierdzenia z drukarki)
       }
 
       return false;
@@ -2796,6 +2835,12 @@ const Users = () => {
                               <Text style={styles.statValueTextOrange}>-{controlModalData.warehouseReturnedCount}</Text>
                             </View>
                           )}
+                          {controlModalData.restoredCorrectionsCount > 0 && (
+                            <View style={styles.statRowGreen}>
+                              <Text style={styles.statLabelGreen}>📝 Usunięte z tabeli Korekty - wróciły na listę do przetworzenia</Text>
+                              <Text style={styles.statValueTextGreen}>{controlModalData.restoredCorrectionsCount}</Text>
+                            </View>
+                          )}
                         </>
                       )}
 
@@ -3116,6 +3161,61 @@ const Users = () => {
           </View>
         </View>
       </Modal>
+      {/* Wybór etykiet do wydruku (28.10.2026): domyślnie wszystkie; odznaczone nie drukują się */}
+      <Modal
+        visible={Boolean(labelPick)}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={cancelLabelPick}
+      >
+        <View style={styles.confirmModalOverlay}>
+          <View style={[styles.confirmModalContent, { maxHeight: '85%' }]} testID="label-pick">
+            <View style={styles.confirmModalHeader}>
+              <View style={styles.printIconContainer}>
+                <Ionicons name="print" size={40} color="#fff" />
+              </View>
+              <Text style={styles.confirmModalTitle}>
+                Etykiety do wydruku ({labelPick ? pickedCount(labelPick.choices) : 0} z {labelPick ? labelPick.choices.length : 0})
+              </Text>
+              <Text style={styles.confirmModalSubtext}>
+                Odznacz metki, których nie trzeba drukować (np. kurtka ma już dobrą metkę). Odznaczone kurtki i tak zostaną przetworzone.
+              </Text>
+            </View>
+            <View style={styles.labelPickTools}>
+              <TouchableOpacity onPress={() => setAllLabelChoices(true)} style={styles.labelPickTool}>
+                <Text style={styles.labelPickToolText}>Zaznacz wszystkie</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setAllLabelChoices(false)} style={styles.labelPickTool} testID="label-pick-none">
+                <Text style={styles.labelPickToolText}>Odznacz wszystkie</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.labelPickList}>
+              {(labelPick?.choices || []).map((choice, index) => (
+                <TouchableOpacity key={choice.key} style={styles.labelPickRow} onPress={() => toggleLabelChoice(choice.key)} testID={`label-pick-row-${index}`} accessibilityRole="checkbox" accessibilityState={{ checked: choice.checked }}>
+                  <Ionicons name={choice.checked ? 'checkbox' : 'square-outline'} size={24} color={choice.checked ? '#0D6EFD' : tc('muted', '#94A3B8')} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.labelPickTitle}>{choice.title}</Text>
+                    <Text style={styles.labelPickSub}>{choice.code}{choice.point ? ` → ${choice.point}` : ''}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.printModalButtons}>
+              <TouchableOpacity style={styles.printConfirmButton} onPress={printPickedLabels} testID="label-pick-confirm">
+                <Ionicons name={labelPick && pickedCount(labelPick.choices) > 0 ? 'print' : 'checkmark-circle'} size={24} color="#fff" />
+                <Text style={styles.printConfirmButtonText}>
+                  {labelPick && pickedCount(labelPick.choices) > 0 ? `Drukuj zaznaczone i przetwórz (${pickedCount(labelPick.choices)})` : 'Przetwórz bez drukowania'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.printCancelButton} onPress={cancelLabelPick} testID="label-pick-cancel">
+                <Ionicons name="close-circle" size={24} color={tc('muted', "#94A3B8")} />
+                <Text style={styles.printCancelButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Print Confirmation Modal */}
       <Modal
         visible={showPrintConfirmModal}
@@ -3133,7 +3233,7 @@ const Users = () => {
               {pendingProcessData && (
                 <View style={styles.printStatsContainer}>
                   <Text style={styles.printStatsText}>
-                    Wydrukowano {pendingProcessData.successCount} z {pendingProcessData.totalCount} etykiet
+                    Wysłano do drukarki {pendingProcessData.successCount} z {pendingProcessData.totalCount} etykiet
                   </Text>
                   {pendingProcessData.errorCount > 0 && (
                     <Text style={styles.printErrorText}>
@@ -4120,6 +4220,48 @@ const styles = createThemedStyles(() => StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
     marginTop: 4,
+  },
+  labelPickTools: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  labelPickTool: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+  },
+  labelPickToolText: {
+    color: tc('text', '#E2E8F0'),
+    fontSize: 13,
+  },
+  labelPickList: {
+    maxHeight: 320,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: tc('border', '#334155'),
+    borderRadius: 10,
+  },
+  labelPickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: tc('border', '#334155'),
+  },
+  labelPickTitle: {
+    color: tc('text', '#E2E8F0'),
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  labelPickSub: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 12,
+    marginTop: 2,
   },
   printModalButtons: {
     gap: 12,

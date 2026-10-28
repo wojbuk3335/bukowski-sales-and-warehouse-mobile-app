@@ -1,10 +1,12 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, waitFor, act } from '@testing-library/react-native';
 
 // Stan: dzisiejsze przepisanie odpisane już w Dobieraniu zostaje na liście wyszarzone z napisem „Przetworzone”;
 // nieprzetworzone pokazuje jak dotąd „Przepisano do: …” (25.10.2026).
 
+jest.mock('../services/useLiveRefresh', () => ({ __esModule: true, default: jest.fn() })); // odświeżanie na żywo (28.10.2026)
 jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => true,
   useFocusEffect: (effect) => {
     const React = require('react');
     React.useEffect(() => effect(), []);
@@ -19,6 +21,7 @@ jest.mock('../services/appAlert', () => ({ appAlert: jest.fn() }));
 jest.mock('../config/api', () => ({ getApiUrl: (endpoint) => `http://localhost:3000${endpoint}` }));
 
 import tokenService from '../services/tokenService';
+import useLiveRefresh from '../services/useLiveRefresh';
 import WriteOff from '../app/(tabs)/writeoff';
 import { GlobalStateContext } from '../context/GlobalState';
 import { warsawToday } from '../utils/warsawDay';
@@ -96,4 +99,26 @@ test('zwrot z wymiany: „czeka na dopisanie” do przyjęcia w MAGAZYNIE, potem
   await new Promise((resolve) => setTimeout(resolve, 200));
   expect(accepted.queryByTestId('writeoff-processed-tr-return')).toBeNull();
   expect(accepted.queryByText(/Alan SZARY/)).toBeNull();
+});
+
+// Na żywo (28.10.2026): przepisanie zrobione gdzie indziej (inny telefon, panel) - serwer zgłasza „transfers”
+// i lista odświeża się sama, bez przeciągania i bez pełnoekranowego spinnera
+test('zdarzenie z serwera odświeża listę w tle: nowe przepisanie pojawia się bez przeciągania', async () => {
+  let list = [];
+  tokenService.authenticatedFetch.mockImplementation((url) => {
+    if (url.endsWith('/transfer')) return json(list);
+    if (url.endsWith('/sales/get-all-sales')) return json([]);
+    if (url.endsWith('/exchange')) return json([]);
+    return json({});
+  });
+  const screen = renderWriteOff();
+  await waitFor(() => expect(screen.getByTestId('writeoff-item-p-ada')).toBeTruthy());
+  expect(screen.queryByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeNull();
+  expect(useLiveRefresh).toHaveBeenCalledWith(['states', 'sales', 'transfers'], expect.any(Function), { enabled: true });
+
+  list = transfers.filter((transfer) => transfer._id === 'tr-wait');
+  const onLive = useLiveRefresh.mock.calls[useLiveRefresh.mock.calls.length - 1][1];
+  await act(async () => { await onLive(); });
+  await waitFor(() => expect(screen.getByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeTruthy());
+  screen.unmount();
 });
