@@ -50,7 +50,8 @@ const transfers = [
   { _id: 't4', productId: 'item-4', transfer_from: 'P', transfer_to: 'T', blueProcessed: true, date: '2020-01-01T08:00:00.000Z', dateString: '2020-01-01' },
 ];
 
-const renderWriteOff = (items = stateData) => render(
+let servedState = stateData; // stan punktu serwowany przez atrapę GET /state?symbol=
+const renderWriteOff = (items = stateData) => { servedState = items; return render(
   <GlobalStateContext.Provider value={{
     user,
     stateData: items,
@@ -61,7 +62,7 @@ const renderWriteOff = (items = stateData) => render(
   }}>
     <WriteOff />
   </GlobalStateContext.Provider>
-);
+); };
 
 describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
   beforeEach(() => {
@@ -69,6 +70,7 @@ describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       if (url.split('?')[0].endsWith('/transfer') && !options.method) return json(transfers);
       if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+      if (url.split('?')[0].endsWith('/state')) return json(servedState); // stan punktu prosto z serwera (?symbol=)
       if (url.endsWith('/transfer/t1/cancel')) return json({ message: 'Transfer cancelled' });
       return json({});
     });
@@ -139,6 +141,7 @@ describe('Stan - sprzedane, a jeszcze nieodpisane sztuki', () => {
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       if (url.split('?')[0].endsWith('/transfer') && !options.method) return json([]);
       if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json(sales);
+      if (url.split('?')[0].endsWith('/state')) return json(servedState); // stan punktu prosto z serwera (?symbol=)
       return json({});
     });
   });

@@ -67,6 +67,7 @@ describe('Przepisz do - stan w punkcie docelowym', () => {
       if (url.split('?')[0].endsWith('/transfer') && options.method === 'POST') return json({ _id: 'tr-1' }, 201);
       if (url.split('?')[0].endsWith('/transfer')) return json([]);
       if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+      if (url.split('?')[0].endsWith('/state')) return json(stateData); // stan punktu prosto z serwera (?symbol=)
       return json({});
     });
   });

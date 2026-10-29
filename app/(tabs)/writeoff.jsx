@@ -18,6 +18,7 @@ import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'
 // Skaner (components/scanner/ScanCamera, kamera) wczytywany dopiero po otwarciu „Skanuj metkę” - ekran przepisywania
 // nie ładuje kamery, dopóki nikt jej nie użyje
 const loadScanCamera = () => require('../../components/scanner/ScanCamera').default;
+const STATE_PAGE_SIZE = 50; // lista stanu porcjami, jak Historia
 import useProductCatalog from '../../hooks/useProductCatalog'; // baza produktów i nazwy po kodzie z metki (Wymiana: oddana kurtka)
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { warsawDay, warsawToday } from '../../utils/warsawDay'; // S16: „dziś” i dzień pozycji po czasie polskim
@@ -27,14 +28,30 @@ import { searchWords, matchesSearch } from '../../utils/searchText'; // wyszukiw
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
-    const { 
-        user, 
-        stateData, 
+    const {
+        user,
+        stateData, // stan wszystkich punktów z kontekstu - tylko do podpowiedzi „Na stanie: N szt.” w punkcie docelowym
         users: globalUsers, // Dodaj globalną tablicę użytkowników
-        fetchState,
+        ensureData,
         fetchUsers: fetchUsersFromContext,
         getFilteredSellingPoints
     } = React.useContext(GlobalStateContext);
+
+    // Stan TEGO punktu prosto z serwera (GET /state?symbol=), trzymany tylko w tym ekranie. Dawniej fetchState()
+    // z kontekstu ściągał stan WSZYSTKICH punktów (i przerysowywał wszystkie zakładki), a ekran filtrował swój.
+    // Do pierwszego pobrania lista pokazuje to, co już jest w kontekście (jeśli inny ekran zdążył pobrać stan).
+    const [pointState, setPointState] = useState(null);
+    const fetchPointState = async () => {
+        if (!user?.symbol) return;
+        const response = await tokenService.authenticatedFetch(getApiUrl(`/state?symbol=${encodeURIComponent(user.symbol)}`));
+        if (!response.ok) {
+            throw new Error(`Failed to fetch state: ${response.status}`);
+        }
+        const data = await response.json();
+        const rows = Array.isArray(data) ? data : (Array.isArray(data?.state_data) ? data.state_data : []);
+        // te same dane = ta sama referencja (bez przeliczania listy i przerysowania po odświeżeniu na żywo)
+        setPointState((prev) => (prev && prev.length === rows.length && JSON.stringify(prev) === JSON.stringify(rows) ? prev : rows));
+    };
     
     const [modalVisible, setModalVisible] = useState(false);
     const [transferModalVisible, setTransferModalVisible] = useState(false);
@@ -78,8 +95,11 @@ const WriteOff = () => {
     const dot3Anim = useRef(new Animated.Value(0)).current;
     const spinnerAnim = useRef(new Animated.Value(0)).current;
 
-    // Ensure stateData and user are not null
-    const filteredData = stateData?.filter(item => item.symbol === user?.symbol) || []; // Fallback to empty array    
+    // Sztuki tego punktu (useMemo: nowa tablica przy każdym renderze unieważniała wszystkie wyliczenia listy poniżej)
+    const filteredData = useMemo(
+        () => (pointState ?? stateData ?? []).filter((item) => item.symbol === user?.symbol),
+        [pointState, stateData, user?.symbol]
+    );
     
     // Get today's date in YYYY-MM-DD format
     // FOR TESTING: Uncomment line below to simulate tomorrow
@@ -174,7 +194,7 @@ const WriteOff = () => {
         try {
             // Race between data fetching and timeout
             const dataPromise = Promise.all([
-                fetchState(),
+                fetchPointState(), // tylko stan tego punktu
                 fetchUsersFromContext(), // Użyj funkcji z Global State zamiast lokalnej
                 fetchTransfers(),
                 fetchSales(), // Add sales data fetching
@@ -364,11 +384,20 @@ const fetchSales = async () => {
     // Lista: sztuki na stanie + dzisiejsze przetworzone; wyszukiwarka zawęża po nazwie, rozmiarze i kodzie
     // (bez polskich znaków i wielkości liter), numeracja liczy się od widocznych wierszy
     const allRows = useMemo(() => [...filteredData, ...processedTodayRows], [filteredData, processedTodayRows]);
-    const searchTerms = searchWords(stateSearch);
+    const searchTerms = useMemo(() => searchWords(stateSearch), [stateSearch]);
     const searchActive = searchTerms.length > 0;
     const visibleRows = useMemo(() => (searchActive
         ? allRows.filter((row) => matchesSearch([row.fullName, row.size, row.barcode], searchTerms))
         : allRows), [allRows, searchTerms, searchActive]);
+
+    // Lista porcjami jak Historia (29.10.2026): najpierw 50 wierszy, kolejne dociągane przy przewijaniu.
+    // Cała lista naraz (setki sztuk, każdy wiersz z przyciskami i napisami) budowała się długo „do samego dołu”.
+    const [shownRows, setShownRows] = useState(STATE_PAGE_SIZE);
+    useEffect(() => { setShownRows(STATE_PAGE_SIZE); }, [stateSearch, pointState]);
+    const pagedRows = useMemo(() => visibleRows.slice(0, shownRows), [visibleRows, shownRows]);
+    const showMoreRows = () => {
+        if (shownRows < visibleRows.length) setShownRows((count) => count + STATE_PAGE_SIZE);
+    };
 
     const transferLabel = (transfer, { pending = false } = {}) => {
         if (!transfer) return '';
@@ -419,6 +448,9 @@ const fetchSales = async () => {
     const openModal = (item) => {
         setSelectedItem(item);
         setModalVisible(true);
+        // Podpowiedź „Na stanie: N szt.” w punkcie docelowym liczy się ze stanu wszystkich punktów - dociągamy go
+        // dopiero tu (tylko gdy nieświeży), a nie przy każdym wejściu na zakładkę
+        ensureData?.(['state']);
     };
 
     const closeModal = () => {
@@ -1044,7 +1076,15 @@ const fetchSales = async () => {
                             </View>
                         }
                         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
-                        data={visibleRows}
+                        data={pagedRows}
+                        onEndReached={showMoreRows}
+                        onEndReachedThreshold={0.8}
+                        initialNumToRender={12}
+                        maxToRenderPerBatch={12}
+                        windowSize={7}
+                        ListFooterComponent={visibleRows.length > pagedRows.length ? (
+                            <Text style={styles.searchCount} testID="writeoff-shown-count">Pokazano {pagedRows.length} z {visibleRows.length} - przewiń, aby zobaczyć więcej</Text>
+                        ) : null}
                         ListEmptyComponent={searchActive ? <Text style={styles.searchEmpty}>Nic nie znaleziono</Text> : null}
                         keyExtractor={(item) => item.id}
                         onRefresh={() => fetchAllRequiredData(true)} // true = to jest refresh action

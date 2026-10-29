@@ -54,6 +54,7 @@ beforeEach(() => {
   tokenService.authenticatedFetch.mockImplementation((url) => {
     if (url.split('?')[0].endsWith('/transfer')) return json(transfers);
     if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/state')) return json(stateData); // stan punktu prosto z serwera (?symbol=)
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });
@@ -82,6 +83,7 @@ test('zwrot z wymiany: „czeka na dopisanie” do przyjęcia w MAGAZYNIE, potem
   const withTransfers = (list) => tokenService.authenticatedFetch.mockImplementation((url) => {
     if (url.split('?')[0].endsWith('/transfer')) return json(list);
     if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/state')) return json(stateData); // stan punktu prosto z serwera (?symbol=)
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });
@@ -108,6 +110,7 @@ test('zdarzenie z serwera odświeża listę w tle: nowe przepisanie pojawia się
   tokenService.authenticatedFetch.mockImplementation((url) => {
     if (url.split('?')[0].endsWith('/transfer')) return json(list);
     if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/state')) return json(stateData); // stan punktu prosto z serwera (?symbol=)
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });

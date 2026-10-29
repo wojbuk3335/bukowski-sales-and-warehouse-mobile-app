@@ -62,6 +62,7 @@ beforeEach(() => {
   tokenService.authenticatedFetch.mockImplementation((url) => {
     if (url.split('?')[0].endsWith('/transfer')) return json(transfers);
     if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/state')) return json(stateData); // stan punktu prosto z serwera (?symbol=)
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });
