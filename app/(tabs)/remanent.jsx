@@ -27,6 +27,7 @@ import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'
 import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
 import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
 import { productNameFromBarcode } from '../../utils/productName';
+import { searchWords as toSearchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Szukaj
 const Remanent = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -308,19 +309,14 @@ const Remanent = () => {
   // Wyszukiwarka zeskanowanych sztuk: nazwa, rozmiar, kolor, model i kod; kilka słów = wszystkie muszą pasować;
   // bez polskich znaków i wielkości liter („czarny 44”, „amanda”, „0040408”). Tylko do znalezienia pozycji na liście -
   // postęp i porównanie ze stanem liczą się z całej przefiltrowanej listy, nie z wyniku szukania.
-  const searchText = (value) => String(value || '')
-    .toLowerCase()
-    .replace(/ł/g, 'l')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, ''); // znaki diakrytyczne po rozłożeniu NFD
-  const searchWords = searchText(scanSearch).split(/\s+/).filter(Boolean);
+  // Wspólna wyszukiwarka (utils/searchText): całe słowo wygrywa z początkiem słowa („Dominik” nie pokazuje „Dominika”)
+  const searchWords = toSearchWords(scanSearch);
   const visibleRemanentData = React.useMemo(() => {
     if (searchWords.length === 0) return filteredRemanentData;
-    return filteredRemanentData.filter((item) => {
+    return filterBySearch(filteredRemanentData, (item) => {
       const info = describeBarcode(item.code);
-      const haystack = searchText([item.name, item.code, info.item, info.model, info.color, info.size].filter(Boolean).join(' '));
-      return searchWords.every((word) => haystack.includes(word));
-    });
+      return [item.name, item.code, info.item, info.model, info.color, info.size];
+    }, searchWords);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredRemanentData, scanSearch, stockByKod, colorByKod, sizeByKod, goodsByCode]);
 

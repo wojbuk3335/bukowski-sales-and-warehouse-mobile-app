@@ -24,7 +24,7 @@ import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { warsawDay, warsawToday } from '../../utils/warsawDay'; // S16: „dziś” i dzień pozycji po czasie polskim
 import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 import { isExchangeReturn } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie
-import { searchWords, matchesSearch } from '../../utils/searchText'; // wyszukiwarka na liście Stanu (bez polskich znaków)
+import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka na liście Stanu (bez polskich znaków; całe słowo wygrywa z początkiem słowa)
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
@@ -387,7 +387,7 @@ const fetchSales = async () => {
     const searchTerms = useMemo(() => searchWords(stateSearch), [stateSearch]);
     const searchActive = searchTerms.length > 0;
     const visibleRows = useMemo(() => (searchActive
-        ? allRows.filter((row) => matchesSearch([row.fullName, row.size, row.barcode], searchTerms))
+        ? filterBySearch(allRows, (row) => [row.fullName, row.size, row.barcode], searchTerms)
         : allRows), [allRows, searchTerms, searchActive]);
 
     // Lista porcjami jak Historia (29.10.2026): najpierw 50 wierszy, kolejne dociągane przy przewijaniu.

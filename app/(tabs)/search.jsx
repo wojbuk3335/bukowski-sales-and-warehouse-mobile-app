@@ -10,6 +10,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { BackButton, MenuCard, PointPill, pointColorMap, ScreenHeader, look } from '../../components/AdminLook';
 import { KeyboardSafeScreen } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Remanencie
 const SearchScreen = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -43,34 +44,13 @@ const SearchScreen = () => {
     }
   };
 
-  const filteredData = stateData?.filter(item => {
-    const search = searchText.trim().toLowerCase();
-    if (!search) return true;
-    const searchWords = search.split(/\s+/);
-    const color = (item.color || '').toLowerCase();
-
-    // Polish color stemming: remove common endings for basic matching
-    const stemPolishColor = (str) =>
-      str
-        .replace(/(y|a|e|ego|ej|ą|ę|i|iego|iej|ym|im|ie|ich|ych|emu|emu|ący|ąca|ące|ami|ami|owi|owie|ów|om|ach|u|o|ą)$/g, '');
-
-    const itemString = (
-      (item.fullName || '') + ' ' +
-      (item.size || '') + ' ' +
-      (item.symbol || '') + ' ' +
-      (item.barcode || '') + ' ' +
-      color
-    ).toLowerCase();
-
-    return searchWords.every(word => {
-      // Try stemmed color matching for Polish endings
-      if (color && (stemPolishColor(color) === stemPolishColor(word))) return true;
-      if (itemString.includes(word)) return true;
-      // Also try stemmed word in itemString
-      if (itemString.includes(stemPolishColor(word))) return true;
-      return false;
-    });
-  })?.sort((a, b) => {
+  // Wspólna wyszukiwarka (utils/searchText): całe słowo wygrywa z początkiem słowa („Dominik” nie pokazuje „Dominika”),
+  // bez polskich znaków, końcówki kolorów bez znaczenia, fragment kodu kreskowego działa
+  const filteredData = [...filterBySearch(
+    stateData || [],
+    (item) => [item.fullName, item.size, item.symbol, item.barcode, item.color],
+    searchWords(searchText)
+  )].sort((a, b) => { // kopia: sortowanie nie może zmieniać tablicy z kontekstu
     // Sortowanie alfabetyczne według fullName
     const nameA = (a.fullName || '').toLowerCase();
     const nameB = (b.fullName || '').toLowerCase();
