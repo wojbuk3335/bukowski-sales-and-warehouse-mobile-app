@@ -62,11 +62,62 @@ describe('Magazyn (telefon) - jak w panelu', () => {
       if (url.endsWith('/state') && method === 'GET') return json(STATE);
       if (url.endsWith('/warehouse/batch-add')) return json({ success: true, count: 2 }, 201);
       if (url.includes('/state/') && method === 'DELETE') return json({ message: 'ok' });
+      if (url.endsWith('/contractors') && method === 'GET') return json({ contractors: [{ _id: 'c1', name: 'Hurtownia Kowalski', active: true }] });
+      if (url.endsWith('/contractors') && method === 'POST') return json({ contractor: { _id: 'c2', name: JSON.parse(options.body).name } }, 201);
+      if (url.endsWith('/warehouse/sales') && method === 'POST') return json({ message: 'Wydano 1 szt. do kontrahenta Hurtownia Kowalski', sale: { _id: 'ws1' } }, 201);
       return json({});
     });
   });
 
   afterEach(() => jest.useRealTimers());
+
+  // Sprzedaż z magazynu do kontrahenta (29.10.2026): sztuka opuszcza obieg MAGAZYN - punkty (jak w panelu)
+  test('menu ⋮ → „Sprzedaj kontrahentowi”: wybór kontrahenta z listy, zapis POST /warehouse/sales z dniem wydania', async () => {
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('warehouse-actions-m1')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('warehouse-actions-m1'));
+    fireEvent.press(screen.getByTestId('warehouse-action-sell'));
+    act(() => { jest.advanceTimersByTime(300); });
+
+    expect(screen.getByText('Sprzedaj kontrahentowi')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('sell-contractor-c1')).toBeTruthy());
+    expect(screen.getByTestId('sell-confirm').props.accessibilityState?.disabled ?? true).toBe(true); // bez kontrahenta nie ma wydania
+
+    fireEvent.press(screen.getByTestId('sell-contractor-c1'));
+    fireEvent.changeText(screen.getByTestId('sell-note'), 'gotówka');
+    fireEvent.press(screen.getByTestId('sell-confirm'));
+
+    await waitFor(() => expect(calls('POST', '/warehouse/sales')).toHaveLength(1));
+    const body = JSON.parse(calls('POST', '/warehouse/sales')[0][1].body);
+    expect(body).toEqual({ stateIds: ['m1'], contractorId: 'c1', eventDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), note: 'gotówka' });
+    await waitFor(() => expect(calls('GET', '/state').length).toBeGreaterThan(1)); // lista odświeżona po wydaniu
+  });
+
+  test('nowy kontrahent z okienka: POST /contractors, trafia na listę i jest od razu wybrany', async () => {
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('warehouse-actions-m1')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('warehouse-actions-m1'));
+    fireEvent.press(screen.getByTestId('warehouse-action-sell'));
+    act(() => { jest.advanceTimersByTime(300); });
+    await waitFor(() => expect(screen.getByTestId('sell-contractor-c1')).toBeTruthy());
+
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
+      const method = options.method || 'GET';
+      if (url.endsWith('/contractors') && method === 'POST') return json({ contractor: { _id: 'c2', name: 'Sklep Zosia' } }, 201);
+      if (url.endsWith('/contractors')) return json({ contractors: [{ _id: 'c1', name: 'Hurtownia Kowalski' }, { _id: 'c2', name: 'Sklep Zosia' }] });
+      if (url.endsWith('/warehouse/sales') && method === 'POST') return json({ message: 'ok', sale: {} }, 201);
+      if (url.endsWith('/state')) return json(STATE);
+      return json({});
+    });
+    fireEvent.changeText(screen.getByTestId('sell-new-contractor'), 'Sklep Zosia');
+    fireEvent.press(screen.getByTestId('sell-add-contractor'));
+    await waitFor(() => expect(screen.getByTestId('sell-contractor-c2')).toBeTruthy());
+    expect(JSON.parse(calls('POST', '/contractors')[0][1].body)).toEqual({ name: 'Sklep Zosia' });
+
+    fireEvent.press(screen.getByTestId('sell-confirm')); // nowy kontrahent już wybrany
+    await waitFor(() => expect(calls('POST', '/warehouse/sales')).toHaveLength(1));
+    expect(JSON.parse(calls('POST', '/warehouse/sales')[0][1].body).contractorId).toBe('c2');
+  });
 
   test('lista pokazuje tylko MAGAZYN; licznik = 1; brak starego pola „Tryb korekty”', async () => {
     const screen = renderScreen();

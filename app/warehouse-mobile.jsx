@@ -73,6 +73,12 @@ const WarehouseMobile = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionsItem, setActionsItem] = useState(null); // karta z otwartym menu ⋮
   const [deletePrompt, setDeletePrompt] = useState(null); // { item }
+  // Sprzedaż z magazynu do kontrahenta (29.10.2026): sztuka opuszcza obieg MAGAZYN - punkty (bez Dobierania); jak w panelu
+  const [sellPrompt, setSellPrompt] = useState(null); // { item }
+  const [contractors, setContractors] = useState([]);
+  const [sellContractorId, setSellContractorId] = useState("");
+  const [sellNote, setSellNote] = useState("");
+  const [newContractorName, setNewContractorName] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const magazynIdRef = useRef(null); // id konta MAGAZYN - pobierane raz
@@ -667,6 +673,72 @@ const WarehouseMobile = () => {
       throw new Error(errorData.message || errorData.error || "Nie udało się usunąć sztuki.");
     }
     await fetchTableData();
+  };
+
+  // --- Sprzedaż z magazynu do kontrahenta ---
+  const loadContractors = async () => {
+    const response = await tokenService.authenticatedFetch(getApiUrl("/contractors"));
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || "Nie udało się pobrać kontrahentów.");
+    setContractors(Array.isArray(data.contractors) ? data.contractors : []);
+  };
+
+  const openSellPrompt = async (item) => {
+    setSellContractorId("");
+    setSellNote("");
+    setNewContractorName("");
+    setSellPrompt({ item });
+    try {
+      await loadContractors();
+    } catch (error) {
+      showNotification({ title: "Kontrahenci", message: error.message, type: "error" });
+    }
+  };
+
+  // Nowy kontrahent prosto z okienka (bez wychodzenia do panelu)
+  const addContractorInline = async () => {
+    const name = newContractorName.trim();
+    if (!name || isSubmitting) return;
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/contractors"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Nie udało się dodać kontrahenta.");
+      await loadContractors();
+      if (data.contractor?._id) setSellContractorId(data.contractor._id);
+      setNewContractorName("");
+    } catch (error) {
+      showNotification({ title: "Kontrahenci", message: error.message, type: "error" });
+    }
+  };
+
+  const confirmSellToContractor = async () => {
+    if (!sellPrompt || !sellContractorId || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/warehouse/sales"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stateIds: [sellPrompt.item.id || sellPrompt.item._id],
+          contractorId: sellContractorId,
+          eventDate: toLocalDay(selectedDate || new Date()), // dzień wybrany nad listą, jak przy usuwaniu
+          note: sellNote.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || "Nie udało się zapisać sprzedaży z magazynu.");
+      setSellPrompt(null);
+      await fetchTableData();
+      showNotification({ title: "Sprzedaż z magazynu", message: data.message || "Wydano towar kontrahentowi.", type: "success" });
+    } catch (error) {
+      showNotification({ title: "Sprzedaż z magazynu", message: error.message, type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Magazyn: okienko „Usuń produkt z magazynu” z wyborem powodu (jak w panelu)
@@ -1332,6 +1404,9 @@ const WarehouseMobile = () => {
             />
             <ActionItem testID="warehouse-action-edit" icon="pencil" color="#F59E0B" label="Edytuj" onPress={() => runRowAction(handleEditClick)} />
             <ActionItem testID="warehouse-action-print" icon="print" label="Drukuj etykietę" onPress={() => runRowAction(handlePrintLabel)} />
+            {isMagazynMode && (
+              <ActionItem testID="warehouse-action-sell" icon="cart" color="#0D6EFD" label="Sprzedaj kontrahentowi" onPress={() => runRowAction(openSellPrompt)} />
+            )}
             <ActionItem testID="warehouse-action-delete" icon="trash" color="#DC3545" label="Usuń" onPress={() => runRowAction(deleteProduct)} />
             <TouchableOpacity style={[look.neutralButton, { flex: 0, alignSelf: "stretch", marginTop: 12 }]} onPress={() => setActionsItem(null)}>
               <Text style={look.neutralButtonText}>Anuluj</Text>
@@ -1406,6 +1481,67 @@ const WarehouseMobile = () => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      )}
+
+      {/* Sprzedaj kontrahentowi - wybór odbiorcy (albo szybkie dodanie), uwagi; sztuka opuszcza magazyn (jak w panelu) */}
+      {sellPrompt && (
+        <View style={styles.notificationOverlay}>
+          <KeyboardSafeOverlay>
+          <View style={styles.notificationModal}>
+            <ModalHeader icon="cart-outline" color="#0D6EFD" title="Sprzedaj kontrahentowi" />
+            <Text style={styles.reasonProduct}>
+              {`${typeof sellPrompt.item.fullName === "string" ? sellPrompt.item.fullName : (sellPrompt.item.fullName?.fullName || "")} (${safeString(sellPrompt.item.size) || "-"})`}
+            </Text>
+            <Text style={styles.label}>Kontrahent</Text>
+            <ScrollView style={{ maxHeight: 180, alignSelf: "stretch" }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+              {contractors.length === 0 ? (
+                <Text style={styles.reasonOptionText}>Brak kontrahentów - dodaj pierwszego poniżej.</Text>
+              ) : contractors.map((contractor) => (
+                <TouchableOpacity
+                  key={contractor._id}
+                  testID={`sell-contractor-${contractor._id}`}
+                  style={[styles.reasonOption, sellContractorId === contractor._id && styles.reasonOptionSelected]}
+                  onPress={() => setSellContractorId(contractor._id)}
+                >
+                  <Ionicons name={sellContractorId === contractor._id ? "radio-button-on" : "radio-button-off"} size={20} color={sellContractorId === contractor._id ? "#0D6EFD" : tc('muted', "#94A3B8")} />
+                  <Text style={styles.reasonOptionText}>{contractor.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={styles.label}>Nowy kontrahent (gdy nie ma go na liście)</Text>
+            <View style={{ flexDirection: "row", gap: 8, alignSelf: "stretch" }}>
+              <TextInput
+                testID="sell-new-contractor"
+                style={[styles.input, { flex: 1 }]}
+                value={newContractorName}
+                onChangeText={setNewContractorName}
+                placeholder="Nazwa firmy / osoby"
+                placeholderTextColor={tc('muted', "#64748B")}
+                onSubmitEditing={addContractorInline}
+              />
+              <TouchableOpacity testID="sell-add-contractor" style={[look.neutralButton, { flex: 0 }, !newContractorName.trim() && look.disabled]} onPress={addContractorInline} disabled={!newContractorName.trim()}>
+                <Text style={look.neutralButtonText}>Dodaj</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.label}>Uwagi (np. forma płatności)</Text>
+            <TextInput testID="sell-note" style={[styles.input, { alignSelf: "stretch" }]} value={sellNote} onChangeText={setSellNote} placeholder="opcjonalnie" placeholderTextColor={tc('muted', "#64748B")} />
+            <Text style={styles.reasonOptionText}>Data wydania: {toLocalDay(selectedDate || new Date())}</Text>
+            <View style={[look.buttonRow, { width: "100%", marginTop: 12 }]}>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setSellPrompt(null)} disabled={isSubmitting}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="sell-confirm"
+                style={[look.primaryButton, (!sellContractorId || isSubmitting) && look.disabled]}
+                onPress={confirmSellToContractor}
+                disabled={!sellContractorId || isSubmitting}
+              >
+                <Text style={look.buttonText}>{isSubmitting ? "Wydawanie..." : "Wydaj"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          </KeyboardSafeOverlay>
         </View>
       )}
 
