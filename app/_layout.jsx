@@ -64,20 +64,21 @@ const RootLayout = () => {
     applyNavigationBar();
   }, []);
 
-  // Patch global fetch to provide safer JSON parsing with better diagnostics
+  // Patch global fetch to provide safer JSON parsing with better diagnostics.
+  // Bez response.clone(): klon trzymał drugą kopię treści KAŻDEJ odpowiedzi (cała historia, cały stan,
+  // katalog) aż do zwolnienia pamięci - przy dużych odpowiedziach podwajał zużycie pamięci telefonu.
+  // Zamiast tego czytamy treść raz jako tekst i parsujemy ją sami.
   useEffect(() => {
     const originalFetch = global.fetch;
     global.fetch = async (...args) => {
       const response = await originalFetch(...args);
-      // Clone response so we can inspect raw body if JSON parsing fails
-      const clone = response.clone?.() ?? response;
-      const originalJson = response.json.bind(response);
+      if (!response || typeof response.text !== "function") return response;
       response.json = async () => {
+        const text = await response.text();
         try {
-          return await originalJson();
+          return JSON.parse(text);
         } catch (e) {
           try {
-            const text = await clone.text();
             // Log a short preview to help locate the issue
             console.warn("JSON parse failed. Preview:", text.slice(0, 200));
             // Minimal auto-fix: escape lone backslashes not part of valid JSON escapes

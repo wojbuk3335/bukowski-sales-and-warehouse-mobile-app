@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
@@ -16,242 +17,306 @@ import { Stack, router } from 'expo-router';
 import tokenService from '../services/tokenService';
 import { getApiUrl } from '../config/api';
 import { appAlert } from '../services/appAlert';
+import { readJson, serverErrorMessage } from '../utils/readJson';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, IconButton, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd (styl panelu admina)
 import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+
+// Historia ma dziesiątki tysięcy wpisów - pobieramy ją stronami z serwera (wyszukiwanie i filtry też liczy serwer),
+// a lista jest wirtualizowana. Wcześniej cała kolekcja szła na telefon i każdy wpis był montowany naraz,
+// co zawieszało ekran i zamykało aplikację z braku pamięci.
+const PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 350;
+
+const EMPTY_FILTERS = { collectionName: '', operation: '', from: '', to: '', user: '' };
+const EMPTY_OPTIONS = { collections: [], operations: [], from: [], to: [], users: [] };
+
+const formatDate = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleString('pl-PL', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const getOperationColor = (operation) => {
+  if (!operation) return '#64748B';
+  const op = operation.toLowerCase();
+  if (op.includes('create') || op.includes('add')) return '#22C55E';
+  if (op.includes('update') || op.includes('modify')) return '#F59E0B';
+  if (op.includes('delete') || op.includes('remove')) return '#EF4444';
+  return '#3B82F6';
+};
+
+// Kto wykonał operację: symbol punktu, a gdy go brak - e-mail (backend zwraca email, nie username)
+const userLabel = (user) => {
+  if (!user) return '';
+  if (typeof user === 'string') return '';
+  return user.symbol || user.email || '';
+};
+
+// Parametry zapytania do serwera dla bieżącej strony, wyszukiwania i filtrów
+const buildHistoryUrl = (page, query, filters) => {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(PAGE_SIZE));
+  if (query) params.set('q', query);
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return getApiUrl(`/history?${params.toString()}`);
+};
+
+// Jeden wpis historii - zmemoizowany, żeby wpisanie litery w wyszukiwarce nie przerysowywało całej listy
+const HistoryRow = React.memo(({ item, onPress }) => {
+  const operationColor = getOperationColor(item.operation);
+  const who = userLabel(item.userloggedinId);
+
+  return (
+    <TouchableOpacity
+      style={[styles.historyCard, { borderLeftColor: operationColor }]}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.cardHeader}>
+        <View style={[styles.operationBadge, { backgroundColor: `${operationColor}26`, borderColor: `${operationColor}80` }]}>
+          <Text style={[styles.operationText, { color: operationColor }]}>
+            {item.operation || 'N/A'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.infoRow}>
+          <Ionicons name="cube-outline" size={16} color={tc('muted', "#94A3B8")} />
+          <Text style={styles.infoLabel}>Kolekcja:</Text>
+          <Text style={styles.infoValue}>{item.collectionName || '-'}</Text>
+        </View>
+
+        {item.product ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
+            <Text style={styles.infoLabel}>Produkt:</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {item.product}
+            </Text>
+          </View>
+        ) : null}
+
+        {(item.from || item.to) ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="swap-horizontal-outline" size={16} color={tc('muted', "#94A3B8")} />
+            <Text style={styles.infoLabel}>Transfer:</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {item.from || '-'} → {item.to || '-'}
+            </Text>
+          </View>
+        ) : null}
+
+        {who ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="person-outline" size={16} color={tc('muted', "#94A3B8")} />
+            <Text style={styles.infoLabel}>Użytkownik:</Text>
+            <Text style={styles.infoValue}>{who}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.timestampRow}>
+          <Ionicons name="time-outline" size={14} color={tc('muted', "#64748B")} />
+          <Text style={styles.timestampText}>{formatDate(item.timestamp)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardFooter}>
+        <Ionicons name="chevron-forward" size={20} color={tc('muted', "#64748B")} />
+      </View>
+    </TouchableOpacity>
+  );
+});
+HistoryRow.displayName = 'HistoryRow';
+
+// Jedna grupa w okienku filtrów: „Wszystkie” + lista wartości
+const FilterGroup = ({ label, allLabel = 'Wszystkie', options, value, onChange }) => (
+  <View style={styles.filterGroup}>
+    <Text style={styles.filterLabel}>{label}</Text>
+    <ScrollView style={styles.optionsContainer} nestedScrollEnabled>
+      <TouchableOpacity
+        style={[styles.optionItem, !value && styles.optionItemSelected]}
+        onPress={() => onChange('')}
+      >
+        <Text style={[styles.optionText, !value && styles.optionTextSelected]}>{allLabel}</Text>
+      </TouchableOpacity>
+      {options.map((option) => (
+        <TouchableOpacity
+          key={option.value}
+          style={[styles.optionItem, value === option.value && styles.optionItemSelected]}
+          onPress={() => onChange(option.value)}
+        >
+          <Text style={[styles.optionText, value === option.value && styles.optionTextSelected]}>
+            {option.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  </View>
+);
+
 const History = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
-  const [historyData, setHistoryData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  
-  // Filters
-  const [filters, setFilters] = useState({
-    collectionName: '',
-    operation: '',
-    from: '',
-    to: '',
-    user: '',
-  });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filterOptions, setFilterOptions] = useState(EMPTY_OPTIONS);
 
-  // Available filter options
-  const [availableCollections, setAvailableCollections] = useState([]);
-  const [availableOperations, setAvailableOperations] = useState([]);
-  const [availableFromLocations, setAvailableFromLocations] = useState([]);
-  const [availableToLocations, setAvailableToLocations] = useState([]);
-  const [availableUsers, setAvailableUsers] = useState([]);
+  // Numer ostatniego żądania - odpowiedź starszego żądania (np. po szybkim wpisaniu kilku liter) jest ignorowana
+  const requestIdRef = useRef(0);
+  const loadingMoreRef = useRef(false);
 
+  const hasActiveFilters = Boolean(
+    filters.collectionName || filters.operation || filters.from || filters.to || filters.user
+  );
+
+  // Wyszukiwanie dopiero po chwili od ostatniej litery - inaczej każdy znak to osobne zapytanie do serwera
   useEffect(() => {
-    loadHistory();
-  }, []);
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [historyData, searchQuery, filters]);
-
-  useEffect(() => {
-    // Extract unique values for filters
-    if (historyData.length > 0) {
-      const collections = [...new Set(historyData.map(item => item.collectionName).filter(Boolean))];
-      const operations = [...new Set(historyData.map(item => item.operation).filter(Boolean))];
-      const fromLocs = [...new Set(historyData.map(item => item.from).filter(Boolean))];
-      const toLocs = [...new Set(historyData.map(item => item.to).filter(Boolean))];
-      const users = [...new Set(historyData.map(item => item.userloggedinId?.username).filter(Boolean))];
-      
-      setAvailableCollections(collections.sort());
-      setAvailableOperations(operations.sort());
-      setAvailableFromLocations(fromLocs.sort());
-      setAvailableToLocations(toLocs.sort());
-      setAvailableUsers(users.sort());
-    }
-  }, [historyData]);
-
-  const loadHistory = async () => {
-    setLoading(true);
+  const fetchPage = useCallback(async (pageToLoad, { replace = false, silent = false } = {}) => {
+    const requestId = ++requestIdRef.current;
+    if (replace && !silent) setLoading(true);
     try {
       const response = await tokenService.authenticatedFetch(
-        getApiUrl('/history')
+        buildHistoryUrl(pageToLoad, debouncedQuery, filters)
       );
-      const data = await response.json();
-      const historyArray = data.history || data || [];
-      setHistoryData(historyArray);
+      const data = await readJson(response);
+      if (requestId !== requestIdRef.current) return; // w międzyczasie poszło nowsze zapytanie
+      if (!response.ok) {
+        throw new Error(serverErrorMessage(response, data, 'Nie udało się pobrać historii'));
+      }
+      const rows = Array.isArray(data.history) ? data.history : [];
+      setItems((prev) => (replace ? rows : [...prev, ...rows]));
+      setTotal(Number(data.total) || 0);
+      setPage(pageToLoad);
+      setHasMore(Boolean(data.hasMore));
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error loading history:', error);
-      appAlert('Błąd', 'Nie udało się pobrać historii');
+      appAlert('Błąd', error?.message || 'Nie udało się pobrać historii');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  };
+  }, [debouncedQuery, filters]);
 
-  const onRefresh = async () => {
+  // Pierwsza strona od nowa przy każdej zmianie wyszukiwania lub filtrów
+  useEffect(() => {
+    fetchPage(1, { replace: true });
+  }, [fetchPage]);
+
+  // Wartości do list filtrów - raz, osobnym lekkim zapytaniem (bez pobierania całej historii)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await tokenService.authenticatedFetch(getApiUrl('/history/filters'));
+        const data = await readJson(response);
+        if (cancelled || !response.ok) return;
+        setFilterOptions({
+          collections: Array.isArray(data.collections) ? data.collections : [],
+          operations: Array.isArray(data.operations) ? data.operations : [],
+          from: Array.isArray(data.from) ? data.from : [],
+          to: Array.isArray(data.to) ? data.to : [],
+          users: Array.isArray(data.users) ? data.users : [],
+        });
+      } catch (error) {
+        console.error('Error loading history filters:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadHistory();
+    await fetchPage(1, { replace: true, silent: true });
     setRefreshing(false);
-  };
+  }, [fetchPage]);
 
-  const applyFilters = () => {
-    let filtered = [...historyData];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (item) =>
-          (item.collectionName && item.collectionName.toLowerCase().includes(query)) ||
-          (item.operation && item.operation.toLowerCase().includes(query)) ||
-          (item.product && item.product.toLowerCase().includes(query)) ||
-          (item.details && item.details.toLowerCase().includes(query)) ||
-          (item.from && item.from.toLowerCase().includes(query)) ||
-          (item.to && item.to.toLowerCase().includes(query))
-      );
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loading || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      await fetchPage(page + 1);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
+  }, [hasMore, loading, page, fetchPage]);
 
-    // Collection filter
-    if (filters.collectionName) {
-      filtered = filtered.filter(
-        (item) => item.collectionName === filters.collectionName
-      );
-    }
-
-    // Operation filter
-    if (filters.operation) {
-      filtered = filtered.filter(
-        (item) => item.operation === filters.operation
-      );
-    }
-
-    // From filter
-    if (filters.from) {
-      filtered = filtered.filter(
-        (item) => item.from === filters.from
-      );
-    }
-
-    // To filter
-    if (filters.to) {
-      filtered = filtered.filter(
-        (item) => item.to === filters.to
-      );
-    }
-
-    // User filter
-    if (filters.user) {
-      filtered = filtered.filter(
-        (item) => item.userloggedinId?.username === filters.user
-      );
-    }
-
-    setFilteredData(filtered);
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      collectionName: '',
-      operation: '',
-      from: '',
-      to: '',
-      user: '',
-    });
+  const clearFilters = useCallback(() => {
+    setFilters(EMPTY_FILTERS);
     setSearchQuery('');
-  };
+  }, []);
 
-  const openDetailsModal = (item) => {
+  const openDetailsModal = useCallback((item) => {
     setSelectedItem(item);
     setShowDetailsModal(true);
-  };
+  }, []);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('pl-PL', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const setFilter = (key) => (value) => setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const getOperationColor = (operation) => {
-    if (!operation) return '#64748B';
-    const op = operation.toLowerCase();
-    if (op.includes('create') || op.includes('add')) return '#22C55E';
-    if (op.includes('update') || op.includes('modify')) return '#F59E0B';
-    if (op.includes('delete') || op.includes('remove')) return '#EF4444';
-    return '#3B82F6';
-  };
+  const toOptions = (values) => values.map((value) => ({ value, label: value }));
+  const userOptions = useMemo(
+    () => filterOptions.users.map((user) => ({
+      value: String(user._id),
+      label: user.symbol ? `${user.symbol} (${user.email})` : user.email,
+    })),
+    [filterOptions.users]
+  );
 
-  const renderHistoryItem = (item, index) => {
-    const operationColor = getOperationColor(item.operation);
-    
-    return (
-      <TouchableOpacity
-        key={item._id || index}
-        style={[styles.historyCard, { borderLeftColor: operationColor }]}
-        onPress={() => openDetailsModal(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.cardHeader}>
-          <View style={[styles.operationBadge, { backgroundColor: `${operationColor}26`, borderColor: `${operationColor}80` }]}>
-            <Text style={[styles.operationText, { color: operationColor }]}>
-              {item.operation || 'N/A'}
-            </Text>
-          </View>
-        </View>
+  const renderItem = useCallback(
+    ({ item }) => <HistoryRow item={item} onPress={openDetailsModal} />,
+    [openDetailsModal]
+  );
+  const keyExtractor = useCallback((item, index) => item._id || String(index), []);
 
-        <View style={styles.cardBody}>
-          <View style={styles.infoRow}>
-            <Ionicons name="cube-outline" size={16} color={tc('muted', "#94A3B8")} />
-            <Text style={styles.infoLabel}>Kolekcja:</Text>
-            <Text style={styles.infoValue}>{item.collectionName || '-'}</Text>
-          </View>
+  const listFooter = loadingMore ? (
+    <View style={styles.footerLoader}>
+      <ActivityIndicator size="small" color="#0D6EFD" />
+    </View>
+  ) : null;
 
-          {item.product && (
-            <View style={styles.infoRow}>
-              <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Produkt:</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {item.product}
-              </Text>
-            </View>
-          )}
-
-          {(item.from || item.to) && (
-            <View style={styles.infoRow}>
-              <Ionicons name="swap-horizontal-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Transfer:</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {item.from || '-'} → {item.to || '-'}
-              </Text>
-            </View>
-          )}
-
-          {item.userloggedinId?.username && (
-            <View style={styles.infoRow}>
-              <Ionicons name="person-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Użytkownik:</Text>
-              <Text style={styles.infoValue}>{item.userloggedinId.username}</Text>
-            </View>
-          )}
-          
-          <View style={styles.timestampRow}>
-            <Ionicons name="time-outline" size={14} color={tc('muted', "#64748B")} />
-            <Text style={styles.timestampText}>{formatDate(item.timestamp)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.cardFooter}>
-          <Ionicons name="chevron-forward" size={20} color={tc('muted', "#64748B")} />
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const listEmpty = (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="document-outline" size={64} color={tc('muted', "#64748B")} />
+      <Text style={styles.emptyText}>Brak wyników</Text>
+      <Text style={styles.emptySubtext}>
+        {!debouncedQuery && !hasActiveFilters
+          ? 'Historia jest pusta'
+          : 'Zmień kryteria wyszukiwania'}
+      </Text>
+      {(debouncedQuery || hasActiveFilters) ? (
+        <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
+          <Text style={styles.clearButtonText}>Wyczyść filtry</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -263,16 +328,8 @@ const History = () => {
         onBack={() => router.back()}
         right={
           <IconButton
-            icon={
-              filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                ? 'funnel'
-                : 'funnel-outline'
-            }
-            color={
-              filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                ? '#0D6EFD'
-                : tc('muted', '#94A3B8')
-            }
+            icon={hasActiveFilters ? 'funnel' : 'funnel-outline'}
+            color={hasActiveFilters ? '#0D6EFD' : tc('muted', '#94A3B8')}
             onPress={() => setFilterModalVisible(true)}
             accessibilityLabel="Filtry"
           />
@@ -281,27 +338,20 @@ const History = () => {
 
       <View style={styles.statsBar}>
         <Text style={styles.subtitle}>
-          {filteredData.length} {filteredData.length === 1 ? 'rekord' : 'rekordów'}
+          {total} {total === 1 ? 'rekord' : 'rekordów'}
+          {items.length < total ? ` (pokazano ${items.length})` : ''}
         </Text>
         <TouchableOpacity
           onPress={() => setFilterModalVisible(true)}
           style={styles.filterTextButton}
         >
           <Ionicons
-            name={
-              filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                ? 'funnel'
-                : 'funnel-outline'
-            }
+            name={hasActiveFilters ? 'funnel' : 'funnel-outline'}
             size={16}
-            color={
-              filters.collectionName || filters.operation || filters.from || filters.to || filters.user
-                ? '#0D6EFD'
-                : tc('muted', '#94A3B8')
-            }
+            color={hasActiveFilters ? '#0D6EFD' : tc('muted', '#94A3B8')}
           />
           <Text style={styles.filterActiveText}>
-            Filtry aktywne
+            {hasActiveFilters ? 'Filtry aktywne' : 'Filtry'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -328,37 +378,25 @@ const History = () => {
           <Text style={styles.loadingText}>Ładowanie historii...</Text>
         </View>
       ) : (
-        <ScrollView alwaysBounceVertical
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
+        <FlatList
+          testID="history-list"
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
           style={styles.content}
+          contentContainerStyle={items.length === 0 ? styles.emptyList : null}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          {filteredData.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="document-outline" size={64} color={tc('muted', "#64748B")} />
-              <Text style={styles.emptyText}>Brak wyników</Text>
-              <Text style={styles.emptySubtext}>
-                {historyData.length === 0
-                  ? 'Historia jest pusta'
-                  : 'Zmień kryteria wyszukiwania'}
-              </Text>
-              {(searchQuery || filters.collectionName || filters.operation || filters.user) && (
-                <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={clearFilters}
-                >
-                  <Text style={styles.clearButtonText}>Wyczyść filtry</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            filteredData.map((item, index) => renderHistoryItem(item, index))
-          )}
-        </ScrollView>
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={listEmpty}
+          initialNumToRender={12}
+          maxToRenderPerBatch={16}
+          windowSize={7}
+          removeClippedSubviews
+        />
       )}
 
       {/* Details Modal */}
@@ -394,58 +432,56 @@ const History = () => {
                     <Text style={styles.detailValue}>{formatDate(selectedItem.timestamp)}</Text>
                   </View>
 
-                  {selectedItem.userloggedinId?.username && (
+                  {userLabel(selectedItem.userloggedinId) ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Użytkownik:</Text>
-                      <Text style={styles.detailValue}>
-                        {selectedItem.userloggedinId.username}
-                      </Text>
+                      <Text style={styles.detailValue}>{userLabel(selectedItem.userloggedinId)}</Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {selectedItem.product && (
+                  {selectedItem.product ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Produkt:</Text>
                       <Text style={styles.detailValue}>{selectedItem.product}</Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {selectedItem.size && (
+                  {selectedItem.size ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Rozmiar:</Text>
                       <Text style={styles.detailValue}>{selectedItem.size}</Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {selectedItem.from && (
+                  {selectedItem.from ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Skąd:</Text>
                       <Text style={styles.detailValue}>{selectedItem.from}</Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {selectedItem.to && (
+                  {selectedItem.to ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Dokąd:</Text>
                       <Text style={styles.detailValue}>{selectedItem.to}</Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {selectedItem.details && (
+                  {selectedItem.details ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Szczegóły:</Text>
                       <Text style={styles.detailValue}>{selectedItem.details}</Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {selectedItem.transactionId && (
+                  {selectedItem.transactionId ? (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>ID transakcji:</Text>
                       <Text style={[styles.detailValue, styles.monospace]}>
                         {selectedItem.transactionId}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
                 </>
               )}
             </ScrollView>
@@ -458,245 +494,73 @@ const History = () => {
         </View>
       </Modal>
 
-      {/* Filter Modal */}
-      <Modal
-        visible={filterModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setFilterModalVisible(false)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="funnel" color="#0D6EFD" title="Filtry" />
+      {/* Filter Modal - okienko montowane tylko gdy otwarte */}
+      {filterModalVisible && (
+        <Modal
+          visible
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setFilterModalVisible(false)}
+        >
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="funnel" color="#0D6EFD" title="Filtry" />
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Kolekcja:</Text>
-                <ScrollView style={styles.optionsContainer} nestedScrollEnabled>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      !filters.collectionName && styles.optionItemSelected,
-                    ]}
-                    onPress={() => setFilters({ ...filters, collectionName: '' })}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        !filters.collectionName && styles.optionTextSelected,
-                      ]}
-                    >
-                      Wszystkie
-                    </Text>
-                  </TouchableOpacity>
-                  {availableCollections.map((collection) => (
-                    <TouchableOpacity
-                      key={collection}
-                      style={[
-                        styles.optionItem,
-                        filters.collectionName === collection && styles.optionItemSelected,
-                      ]}
-                      onPress={() => setFilters({ ...filters, collectionName: collection })}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          filters.collectionName === collection && styles.optionTextSelected,
-                        ]}
-                      >
-                        {collection}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                <FilterGroup
+                  label="Kolekcja:"
+                  options={toOptions(filterOptions.collections)}
+                  value={filters.collectionName}
+                  onChange={setFilter('collectionName')}
+                />
+                <FilterGroup
+                  label="Operacja:"
+                  options={toOptions(filterOptions.operations)}
+                  value={filters.operation}
+                  onChange={setFilter('operation')}
+                />
+                <FilterGroup
+                  label="Skąd:"
+                  options={toOptions(filterOptions.from)}
+                  value={filters.from}
+                  onChange={setFilter('from')}
+                />
+                <FilterGroup
+                  label="Dokąd:"
+                  options={toOptions(filterOptions.to)}
+                  value={filters.to}
+                  onChange={setFilter('to')}
+                />
+                <FilterGroup
+                  label="Użytkownik:"
+                  allLabel="Wszyscy"
+                  options={userOptions}
+                  value={filters.user}
+                  onChange={setFilter('user')}
+                />
+              </ScrollView>
 
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Operacja:</Text>
-                <ScrollView style={styles.optionsContainer} nestedScrollEnabled>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      !filters.operation && styles.optionItemSelected,
-                    ]}
-                    onPress={() => setFilters({ ...filters, operation: '' })}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        !filters.operation && styles.optionTextSelected,
-                      ]}
-                    >
-                      Wszystkie
-                    </Text>
-                  </TouchableOpacity>
-                  {availableOperations.map((operation) => (
-                    <TouchableOpacity
-                      key={operation}
-                      style={[
-                        styles.optionItem,
-                        filters.operation === operation && styles.optionItemSelected,
-                      ]}
-                      onPress={() => setFilters({ ...filters, operation: operation })}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          filters.operation === operation && styles.optionTextSelected,
-                        ]}
-                      >
-                        {operation}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+              <TouchableOpacity
+                style={[look.neutralButton, styles.clearFiltersButton]}
+                onPress={() => {
+                  clearFilters();
+                  setFilterModalVisible(false);
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#DC3545" />
+                <Text style={styles.clearFiltersButtonText}>Wyczyść wszystkie filtry</Text>
+              </TouchableOpacity>
 
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Skąd:</Text>
-                <ScrollView style={styles.optionsContainer} nestedScrollEnabled>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      !filters.from && styles.optionItemSelected,
-                    ]}
-                    onPress={() => setFilters({ ...filters, from: '' })}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        !filters.from && styles.optionTextSelected,
-                      ]}
-                    >
-                      Wszystkie
-                    </Text>
-                  </TouchableOpacity>
-                  {availableFromLocations.map((location) => (
-                    <TouchableOpacity
-                      key={location}
-                      style={[
-                        styles.optionItem,
-                        filters.from === location && styles.optionItemSelected,
-                      ]}
-                      onPress={() => setFilters({ ...filters, from: location })}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          filters.from === location && styles.optionTextSelected,
-                        ]}
-                      >
-                        {location}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Dokąd:</Text>
-                <ScrollView style={styles.optionsContainer} nestedScrollEnabled>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      !filters.to && styles.optionItemSelected,
-                    ]}
-                    onPress={() => setFilters({ ...filters, to: '' })}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        !filters.to && styles.optionTextSelected,
-                      ]}
-                    >
-                      Wszystkie
-                    </Text>
-                  </TouchableOpacity>
-                  {availableToLocations.map((location) => (
-                    <TouchableOpacity
-                      key={location}
-                      style={[
-                        styles.optionItem,
-                        filters.to === location && styles.optionItemSelected,
-                      ]}
-                      onPress={() => setFilters({ ...filters, to: location })}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          filters.to === location && styles.optionTextSelected,
-                        ]}
-                      >
-                        {location}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Użytkownik:</Text>
-                <ScrollView style={styles.optionsContainer} nestedScrollEnabled>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionItem,
-                      !filters.user && styles.optionItemSelected,
-                    ]}
-                    onPress={() => setFilters({ ...filters, user: '' })}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        !filters.user && styles.optionTextSelected,
-                      ]}
-                    >
-                      Wszyscy
-                    </Text>
-                  </TouchableOpacity>
-                  {availableUsers.map((user) => (
-                    <TouchableOpacity
-                      key={user}
-                      style={[
-                        styles.optionItem,
-                        filters.user === user && styles.optionItemSelected,
-                      ]}
-                      onPress={() => setFilters({ ...filters, user: user })}
-                    >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          filters.user === user && styles.optionTextSelected,
-                        ]}
-                      >
-                        {user}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[look.neutralButton, styles.clearFiltersButton]}
-              onPress={() => {
-                clearFilters();
-                setFilterModalVisible(false);
-              }}
-            >
-              <Ionicons name="trash-outline" size={18} color="#DC3545" />
-              <Text style={styles.clearFiltersButtonText}>Wyczyść wszystkie filtry</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[look.primaryButton, styles.applyFiltersButton]}
-              onPress={() => setFilterModalVisible(false)}
-            >
-              <Text style={look.buttonText}>Zastosuj filtry</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[look.primaryButton, styles.applyFiltersButton]}
+                onPress={() => setFilterModalVisible(false)}
+              >
+                <Text style={look.buttonText}>Zastosuj filtry</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
       </KeyboardSafeScreen>
     </SafeAreaView>
   );
@@ -754,6 +618,13 @@ const styles = createThemedStyles(() => StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  emptyList: {
+    flexGrow: 1,
+  },
+  footerLoader: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -913,13 +784,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   optionTextSelected: {
     fontWeight: '700',
-  },
-  filterInput: {
-    backgroundColor: tc('surface2', '#334155'),
-    color: tc('text', '#fff'),
-    fontSize: 16,
-    padding: 12,
-    borderRadius: 8,
   },
   // przyciski okienka filtrów: na całą szerokość, jeden pod drugim
   clearFiltersButton: {
