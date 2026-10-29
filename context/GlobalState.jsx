@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router"; // Import router
-import React, { createContext, useState, useContext, useCallback, useMemo } from "react";
+import React, { createContext, useState, useContext, useCallback, useMemo, useRef } from "react";
 import { getApiUrl, API_CONFIG } from "../config/api"; // Import API config
 import tokenService from "../services/tokenService"; // Import token service
 import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfikator telefonu do blokady „jedna osoba na punkcie”
@@ -20,6 +20,13 @@ const sameList = (prev, next) =>
     && (prev.length === 0 || JSON.stringify(prev) === JSON.stringify(next));
 const keepIfSame = (next) => (prev) => (sameList(prev, next) ? prev : next);
 
+// Jak długo pobrane dane uznajemy za świeże w ensureData(): katalogi (rozmiary, kolory, towary, asortyment,
+// użytkownicy, torebki, portfele) zmieniają się rzadko - z panelu admina; stan punktów częściej (sprzedaże,
+// przesunięcia), więc krócej. Pobranie „na siłę” to nadal zwykłe fetchX() (pull-to-refresh, po zapisie).
+export const DICTIONARY_MAX_AGE_MS = 5 * 60 * 1000;
+export const STATE_MAX_AGE_MS = 30 * 1000;
+const defaultMaxAge = (key) => (key === 'state' ? STATE_MAX_AGE_MS : DICTIONARY_MAX_AGE_MS);
+
 export const GlobalStateProvider = ({ children }) => {
     const authContext = useContext(AuthContext);
     
@@ -36,6 +43,14 @@ export const GlobalStateProvider = ({ children }) => {
     const [wallets, setWallets] = useState([]); // Global state for wallets
     const [matchedItems, setMatchedItems] = useState([]); // Lista dopasowanych elementów
     const [transferredJackets, setTransferredJackets] = useState([]); // Initialize transferred jackets
+
+    // Kiedy ostatnio UDAŁO SIĘ pobrać dany zbiór (ref - bez przerysowań) i które pobrania właśnie trwają.
+    // Zakładki przy wejściu wołają ensureData([...]) zamiast salwy fetchX(): świeże dane nie są pobierane ponownie,
+    // a równoległe prośby o ten sam zbiór (np. dwie zakładki naraz) dzielą jedno zapytanie.
+    const fetchedAtRef = useRef({});
+    const inFlightRef = useRef({});
+    const markFetched = (key) => { fetchedAtRef.current[key] = Date.now(); };
+    const markStale = (key) => { fetchedAtRef.current[key] = 0; };
 
     // Funkcje kontekstu mają stałą tożsamość (useCallback), a wartość kontekstu jest zapamiętana (useMemo):
     // bez tego każdy render dostawcy tworzył nowy obiekt i nowe funkcje, więc wszyscy konsumenci przerysowywali się
@@ -105,6 +120,7 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/state"));
             
             if (!response || !response.ok) {
+                markStale('state');
                 setStateData([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
@@ -124,8 +140,10 @@ export const GlobalStateProvider = ({ children }) => {
             }
             
             setStateData(keepIfSame(stateArray)); // Set the array into state
+            markFetched('state');
             return stateArray; // Return fetched state as array
         } catch (error) {
+            markStale('state');
             setStateData([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -136,16 +154,19 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/excel/size/get-all-sizes"));
             
             if (!response || !response.ok) {
+                markStale('sizes');
                 setSizes([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
             const data = await response.json();
-            
+
             // Extract sizes array from the response object
             const sizesArray = Array.isArray(data?.sizes) ? data.sizes : [];
             setSizes(keepIfSame(sizesArray)); // Set the fetched sizes into state
+            markFetched('sizes');
             return sizesArray; // Return fetched sizes as array
         } catch (error) {
+            markStale('sizes');
             setSizes([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -156,16 +177,19 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/excel/color/get-all-colors"));
             
             if (!response || !response.ok) {
+                markStale('colors');
                 setColors([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
             const data = await response.json();
-            
+
             // Extract colors array from the response object
             const colorsArray = Array.isArray(data?.colors) ? data.colors : [];
             setColors(keepIfSame(colorsArray)); // Set the fetched colors into state
+            markFetched('colors');
             return colorsArray; // Return fetched colors as array
         } catch (error) {
+            markStale('colors');
             setColors([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -176,16 +200,19 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/excel/goods/get-all-goods"));
             
             if (!response || !response.ok) {
+                markStale('goods');
                 setGoods([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
             const data = await response.json();
-            
+
             // Extract goods array from the response object
             const goodsArray = Array.isArray(data?.goods) ? data.goods : [];
             setGoods(keepIfSame(goodsArray)); // Set the fetched goods into state
+            markFetched('goods');
             return goodsArray; // Return fetched goods as array
         } catch (error) {
+            markStale('goods');
             setGoods([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -196,6 +223,7 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/user"));
             
             if (!response || !response.ok) {
+                markStale('users');
                 setUsers([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
@@ -213,8 +241,10 @@ export const GlobalStateProvider = ({ children }) => {
             }
             
             setUsers(keepIfSame(usersArray)); // Set the fetched users into state
+            markFetched('users');
             return usersArray; // Return fetched users as array
         } catch (error) {
+            markStale('users');
             setUsers([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -225,16 +255,19 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/excel/bags/get-all-bags"));
             
             if (!response || !response.ok) {
+                markStale('bags');
                 setBags([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
             const data = await response.json();
-            
+
             // Extract bags array from the response object
             const bagsArray = Array.isArray(data?.bags) ? data.bags : [];
             setBags(keepIfSame(bagsArray)); // Set the fetched bags into state
+            markFetched('bags');
             return bagsArray; // Return fetched bags as array
         } catch (error) {
+            markStale('bags');
             setBags([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -245,16 +278,19 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/excel/wallets/get-all-wallets"));
             
             if (!response || !response.ok) {
+                markStale('wallets');
                 setWallets([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
             const data = await response.json();
-            
+
             // Extract wallets array from the response object
             const walletsArray = Array.isArray(data?.wallets) ? data.wallets : [];
             setWallets(keepIfSame(walletsArray)); // Set the fetched wallets into state
+            markFetched('wallets');
             return walletsArray; // Return fetched wallets as array
         } catch (error) {
+            markStale('wallets');
             setWallets([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
@@ -406,20 +442,51 @@ export const GlobalStateProvider = ({ children }) => {
             const response = await fetchWithTimeout(getApiUrl("/excel/stock/get-all-stocks"));
             
             if (!response || !response.ok) {
+                markStale('stocks');
                 setStocks([]); // Set fallback immediately
                 return []; // Return empty array instead of throwing
             }
             const data = await response.json();
-            
+
             // Extract stocks array from the response object
             const stocksArray = Array.isArray(data?.stocks) ? data.stocks : [];
             setStocks(keepIfSame(stocksArray)); // Update stocks state
+            markFetched('stocks');
             return stocksArray; // Return fetched stocks as array
         } catch (error) {
+            markStale('stocks');
             setStocks([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
     }, [fetchWithTimeout]);
+
+    // Pobieranie „na żądanie” zbiorów z kontekstu: klucze 'state' | 'sizes' | 'colors' | 'goods' | 'stocks' |
+    // 'users' | 'bags' | 'wallets'. Pobiera tylko te, które nie były jeszcze pobrane albo są starsze niż limit
+    // (maxAgeMs, domyślnie wg defaultMaxAge); trwające pobranie tego samego zbioru jest współdzielone.
+    // Zwraca listę kluczy, które faktycznie poszły do serwera.
+    const fetchers = useMemo(() => ({
+        state: fetchState, sizes: fetchSizes, colors: fetchColors, goods: fetchGoods,
+        stocks: fetchStock, users: fetchUsers, bags: fetchBags, wallets: fetchWallets,
+    }), [fetchState, fetchSizes, fetchColors, fetchGoods, fetchStock, fetchUsers, fetchBags, fetchWallets]);
+
+    const isDataFresh = useCallback((keys, maxAgeMs) => keys.every((key) => {
+        const fetchedAt = fetchedAtRef.current[key] || 0;
+        return fetchedAt > 0 && Date.now() - fetchedAt < (maxAgeMs ?? defaultMaxAge(key));
+    }), []);
+
+    const ensureData = useCallback(async (keys, { maxAgeMs } = {}) => {
+        const requested = [];
+        await Promise.all(keys.map(async (key) => {
+            const fetcher = fetchers[key];
+            if (!fetcher || isDataFresh([key], maxAgeMs)) return;
+            if (!inFlightRef.current[key]) {
+                inFlightRef.current[key] = fetcher().finally(() => { delete inFlightRef.current[key]; });
+            }
+            requested.push(key);
+            await inFlightRef.current[key];
+        }));
+        return requested;
+    }, [fetchers, isDataFresh]);
 
     const logout = useCallback(async () => {
         try { await flushActivity(); } catch (_error) { /* dziennik nie blokuje wylogowania */ }
@@ -432,6 +499,7 @@ export const GlobalStateProvider = ({ children }) => {
             // Clear tokens using tokenService
             await tokenService.logout({ suppressFlagReset: true });
             
+            fetchedAtRef.current = {}; // po ponownym logowaniu wszystko pobrać od nowa
             setUser(null); // Clear user state
             setIsLoggedIn(false); // Set login status to false
             setStateData(null); // Clear state data
@@ -505,6 +573,7 @@ export const GlobalStateProvider = ({ children }) => {
         // bez wywołania /user/logout i bez router.replace("/"), bo przekierowanie na logowanie
         // z powodem robi AuthErrorHandler.
         const handleSessionRevoked = async () => {
+            fetchedAtRef.current = {};
             setUser(null);
             setIsLoggedIn(false);
             setStateData(null);
@@ -582,13 +651,15 @@ export const GlobalStateProvider = ({ children }) => {
         fetchUsers, // Provide function to fetch users
         fetchBags, // Provide function to fetch bags
         fetchWallets, // Provide function to fetch wallets
+        ensureData, // pobierz tylko to, co nieświeże (wejście na zakładkę)
+        isDataFresh, // czy zbiory są już pobrane i świeże (np. czy pokazywać pełnoekranowe „Ładowanie”)
         getFilteredSellingPoints, // Provide function to get filtered selling points
     }), [
         user, isLoggedIn, isLoading, stateData, sizes, colors, goods, stocks, users, bags, wallets,
         matchedItems, transferredJackets,
         updateUser, bukowski_login, logout, quick_login, completeLogin, addMatchedItem,
         fetchState, fetchStock, fetchColors, fetchSizes, fetchGoods, fetchUsers, fetchBags, fetchWallets,
-        getFilteredSellingPoints,
+        ensureData, isDataFresh, getFilteredSellingPoints,
     ]);
 
     return (

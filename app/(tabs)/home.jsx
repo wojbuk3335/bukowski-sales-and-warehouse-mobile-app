@@ -32,7 +32,7 @@ const Home = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, logout } = React.useContext(GlobalStateContext); // Access global state and logout function
   const insets = useSafeAreaInsets(); // Get safe area insets
-  const { stateData, users, fetchUsers, goods, fetchGoods, fetchState, sizes, colors, stocks, fetchSizes, fetchColors, fetchStock, filteredData: contextFilteredData, transferredItems: contextTransferredItems, deductionsData: contextDeductionsData } = useContext(GlobalStateContext); // Access state data, users, goods, sizes, colors, stocks and their fetch functions from global context
+  const { stateData, users, fetchUsers, goods, fetchGoods, fetchState, sizes, colors, stocks, ensureData, filteredData: contextFilteredData, transferredItems: contextTransferredItems, deductionsData: contextDeductionsData } = useContext(GlobalStateContext); // Access state data, users, goods, sizes, colors, stocks and their fetch functions from global context
   const [salesData, setSalesData] = useState([]); // State to store API data
   const [filteredData, setFilteredData] = useState([]); // State to store filtered data
   const [totals, setTotals] = useState({ cash: {}, card: {} }); // State to store aggregated totals
@@ -2310,12 +2310,9 @@ const Home = () => {
       }
       
       fetchSalesData(); // Fetch sales data when the tab is focused
-      fetchUsers(); // Fetch users data for symbol selection
-      fetchState(); // Fetch state data for product selection with barcodes
-      fetchGoods(); // Fetch all goods for standard product selection
-      fetchSizes(); // Fetch sizes for custom products
-      fetchColors(); // Fetch colors for custom products
-      fetchStock(); // Fetch stock/assortment for custom products
+      // Użytkownicy, stan i słowniki tylko gdy nieświeże - wcześniej 6 pełnych pobrań (w tym cały /state i katalog)
+      // przy KAŻDYM wejściu na zakładkę, a dane prawie zawsze były te same
+      ensureData(['users', 'state', 'goods', 'sizes', 'colors', 'stocks']);
       fetchPanKazekItems(); // Fetch Pan Kazek items
       if (user?.symbol) { // Ensure user exists before fetching items
         fetchTransferredItems(); // Fetch transferred items when the tab is focused
@@ -2323,7 +2320,7 @@ const Home = () => {
         fetchAdvances(); // Fetch advances when the tab is focused
         fetchFinancialOperations(); // Fetch financial operations when the tab is focused
       }
-    }, [user?.symbol]) // Refetch when the user's symbol changes
+    }, [user?.symbol, ensureData]) // Refetch when the user's symbol changes
   );
 
   const onRefresh = async () => {

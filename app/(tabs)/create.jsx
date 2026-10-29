@@ -22,16 +22,13 @@ export default function Create() {
     users,
     bags,
     wallets,
-    fetchSizes,
-    fetchColors,
-    fetchGoods,
-    fetchStock,
-    fetchState,
-    fetchUsers,
-    fetchBags,
-    fetchWallets,
+    ensureData,
+    isDataFresh,
     getFilteredSellingPoints
   } = React.useContext(GlobalStateContext);
+
+  // Zbiory potrzebne do sprzedaży; przy kolejnych wejściach na zakładkę pobierane tylko, gdy nieświeże
+  const REQUIRED_DATA = ['sizes', 'colors', 'goods', 'stocks', 'state', 'users', 'bags', 'wallets'];
   
   const isFocused = useIsFocused();
   const [isLoading, setIsLoading] = useState(false);
@@ -97,21 +94,26 @@ export default function Create() {
   }, [isLoading]);
 
   const fetchAllRequiredData = async () => {
-    // Ensure loading state is set first and give it time to render
-    setIsLoading(true);
     setErrorMessage("");
     setShowErrorModal(false);
-    
-    // Add a small delay to ensure the loading state renders before starting API calls
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    // Set up a 10-second timeout for the entire operation
+
+    // Pełnoekranowe „Ładowanie” (które odmontowuje i montuje od nowa skaner) tylko, gdy czegoś naprawdę brakuje.
+    // Wcześniej każde wejście na zakładkę „+” to 9 pełnych pobrań i ekran ładowania, choć dane były te same.
+    const needsLoading = !isDataFresh(REQUIRED_DATA);
+    if (needsLoading) {
+      setIsLoading(true);
+      // Add a small delay to ensure the loading state renders before starting API calls
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    // Set up a 10-second timeout for the entire operation (sprzątany po zakończeniu - nie zostaje wiszący timer)
+    let timeoutId = null;
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         reject(new Error('Timeout - backend nie odpowiada po 10 sekundach'));
       }, 10000);
     });
-    
+
     try {
       // Fetch currency rates
       const fetchCurrencyRates = async () => {
@@ -130,31 +132,14 @@ export default function Create() {
 
       // Race between data fetching and timeout
       const dataPromise = Promise.all([
-        fetchSizes(),
-        fetchColors(), 
-        fetchGoods(),
-        fetchStock(),
-        fetchState(),
-        fetchUsers(),
-        fetchBags(),
-        fetchWallets(),
+        ensureData(REQUIRED_DATA),
         fetchCurrencyRates()
       ]);
-      
-      const result = await Promise.race([
+
+      await Promise.race([
         dataPromise,
         timeoutPromise
       ]);
-
-      // If we get here, dataPromise won, so result is the array of results
-      const [sizesResult, colorsResult, goodsResult, stocksResult, stateResult, usersResult, bagsResult, walletsResult] = result;
-
-      const stateArray = Array.isArray(stateResult) ? stateResult : [];
-      const usersArray = Array.isArray(usersResult) ? usersResult : [];
-      
-      // Sprawdź filtrowane punkty sprzedaży
-      const filteredPoints = getFilteredSellingPoints();
-      
     } catch (error) {
       
       if (error.message.includes('Timeout') || error.message.includes('timeout')) {
@@ -165,6 +150,7 @@ export default function Create() {
       
       setShowErrorModal(true);
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };

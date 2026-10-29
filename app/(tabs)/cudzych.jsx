@@ -31,23 +31,16 @@ const Cudzych = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const { 
-    user, 
-    goods, 
-    fetchGoods, 
-    sizes, 
-    fetchSizes, 
-    stocks, 
-    fetchStock,
-    colors, 
-    fetchColors,
-    bags, 
-    fetchBags,
-    wallets, 
-    fetchWallets,
+    user,
+    goods,
+    sizes,
+    stocks,
+    colors,
+    bags,
+    wallets,
     stateData,
-    fetchState,
     users,
-    fetchUsers
+    ensureData
   } = useContext(GlobalStateContext);
   
   // State management
@@ -160,14 +153,8 @@ const Cudzych = () => {
         fetchBalance(),
         fetchTransactions(),
         fetchCudzichPriceList(),
-        fetchGoods(),
-        fetchSizes(),
-        fetchStock(),
-        fetchColors(),
-        fetchBags(),
-        fetchWallets(),
-        fetchState(),
-        fetchUsers()
+        // Słowniki i stan tylko gdy nieświeże - wcześniej 8 pełnych pobrań przy każdym wejściu na zakładkę
+        ensureData(['goods', 'sizes', 'stocks', 'colors', 'bags', 'wallets', 'state', 'users']),
       ]);
     } catch (error) {
       Logger.error('Error loading initial data:', error);
@@ -178,13 +165,8 @@ const Cudzych = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load data when component mounts and every time tab is focused
-  useEffect(() => {
-    loadInitialData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Pobierz dane przy każdym wejściu w zakładkę
+  // Pobierz dane przy każdym wejściu w zakładkę (useFocusEffect uruchamia się też przy zamontowaniu -
+  // osobny useEffect na mount dublował wszystkie zapytania)
   useFocusEffect(
     React.useCallback(() => {
       loadInitialData();

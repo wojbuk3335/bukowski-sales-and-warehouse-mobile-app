@@ -59,6 +59,7 @@ const contextValue = {
   user: { _id: 'u1', email: 'p@test.pl', symbol: 'P', sellingPoint: 'Parzygnat', role: 'user' },
   users: [], stateData: [], goods: [], sizes: [], colors: [], stocks: [],
   fetchUsers: jest.fn(), fetchState: jest.fn(), fetchGoods: jest.fn(), fetchSizes: jest.fn(), fetchColors: jest.fn(), fetchStock: jest.fn(),
+  ensureData: jest.fn(() => Promise.resolve([])),
 };
 
 const renderHome = () => render(
@@ -71,6 +72,26 @@ beforeEach(() => {
   global.__screenHeaderMounts = 0;
   tokenService.authenticatedFetch.mockReset();
   tokenService.authenticatedFetch.mockImplementation(() => response([]));
+  Object.values(contextValue).forEach((value) => value?.mockClear?.());
+});
+
+describe('Sprzedaż: wejście na zakładkę', () => {
+  test('słowniki i stan przez ensureData (tylko gdy nieświeże), nie salwa 6 pełnych pobrań', async () => {
+    window.__TESTING_API_CALLS__ = true;
+    try {
+      const screen = renderHome();
+      await screen.findByText('Sprzedaż dzisiaj', {}, { timeout: 5000 });
+      await waitFor(() => expect(contextValue.ensureData).toHaveBeenCalled());
+
+      expect(contextValue.ensureData).toHaveBeenCalledTimes(1);
+      expect(contextValue.ensureData.mock.calls[0][0]).toEqual(['users', 'state', 'goods', 'sizes', 'colors', 'stocks']);
+      ['fetchUsers', 'fetchState', 'fetchGoods', 'fetchSizes', 'fetchColors', 'fetchStock'].forEach((name) => {
+        expect(contextValue[name]).not.toHaveBeenCalled();
+      });
+    } finally {
+      delete window.__TESTING_API_CALLS__;
+    }
+  });
 });
 
 describe('Sprzedaż: nagłówek i stopka listy nie są montowane od nowa', () => {
