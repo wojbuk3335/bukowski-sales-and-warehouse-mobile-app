@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router"; // Import router
-import React, { createContext, useState, useContext } from "react";
+import React, { createContext, useState, useContext, useCallback, useMemo } from "react";
 import { getApiUrl, API_CONFIG } from "../config/api"; // Import API config
 import tokenService from "../services/tokenService"; // Import token service
 import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfikator telefonu do blokady „jedna osoba na punkcie”
@@ -10,6 +10,15 @@ import AuthErrorHandler from "../utils/authErrorHandler"; // Import auth error h
 import { AuthContext } from './AuthContext'; // Import auth context
 
 export const GlobalStateContext = createContext();
+
+// Każda zmiana w tym kontekście przerysowuje WSZYSTKIE zamontowane ekrany (zakładki nie odmontowują się),
+// a przy wejściu na zakładkę słowniki (stan, towary, rozmiary, kolory, użytkownicy) zwykle przychodzą z serwera
+// identyczne. Nową listę zapisujemy więc tylko, gdy naprawdę różni się od poprzedniej - inaczej zostaje stara
+// referencja i React nie przerysowuje nikogo. Porównanie: długość, potem JSON (natywne, szybkie, nic nie zostaje w pamięci).
+const sameList = (prev, next) =>
+    Array.isArray(prev) && Array.isArray(next) && prev.length === next.length
+    && (prev.length === 0 || JSON.stringify(prev) === JSON.stringify(next));
+const keepIfSame = (next) => (prev) => (sameList(prev, next) ? prev : next);
 
 export const GlobalStateProvider = ({ children }) => {
     const authContext = useContext(AuthContext);
@@ -28,8 +37,12 @@ export const GlobalStateProvider = ({ children }) => {
     const [matchedItems, setMatchedItems] = useState([]); // Lista dopasowanych elementów
     const [transferredJackets, setTransferredJackets] = useState([]); // Initialize transferred jackets
 
+    // Funkcje kontekstu mają stałą tożsamość (useCallback), a wartość kontekstu jest zapamiętana (useMemo):
+    // bez tego każdy render dostawcy tworzył nowy obiekt i nowe funkcje, więc wszyscy konsumenci przerysowywali się
+    // nawet bez zmiany danych, a efekty zależne od fetchX uruchamiały się w kółko.
+
     // Helper function for fetch with timeout and authentication
-    const fetchWithTimeout = async (url, timeout = 10000) => {
+    const fetchWithTimeout = useCallback(async (url, timeout = 10000) => {
         // Skip fetch during logout
         if (tokenService.isLoggingOut) {
             throw new Error('Request cancelled: logout in progress');
@@ -71,23 +84,23 @@ export const GlobalStateProvider = ({ children }) => {
             
             throw error;
         }
-    };
+    }, []);
 
-    const addMatchedItem = (barcode) => {
+    const addMatchedItem = useCallback((barcode) => {
         if (stateData) {
             const matchedItem = stateData.find(item => item.barcode === barcode);
             if (matchedItem) {
                 setMatchedItems(prev => [...prev, matchedItem]);
             }
         }
-    };
+    }, [stateData]);
 
-    const updateUser = (userData) => {
+    const updateUser = useCallback((userData) => {
         setUser(userData);
         setIsLoggedIn(!!userData); // Update login status
-    };
+    }, []);
 
-    const fetchState = async () => {
+    const fetchState = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/state"));
             
@@ -110,15 +123,15 @@ export const GlobalStateProvider = ({ children }) => {
                 stateArray = [];
             }
             
-            setStateData(stateArray); // Set the array into state
+            setStateData(keepIfSame(stateArray)); // Set the array into state
             return stateArray; // Return fetched state as array
         } catch (error) {
             setStateData([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const fetchSizes = async () => {
+    const fetchSizes = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/excel/size/get-all-sizes"));
             
@@ -130,15 +143,15 @@ export const GlobalStateProvider = ({ children }) => {
             
             // Extract sizes array from the response object
             const sizesArray = Array.isArray(data?.sizes) ? data.sizes : [];
-            setSizes(sizesArray); // Set the fetched sizes into state
+            setSizes(keepIfSame(sizesArray)); // Set the fetched sizes into state
             return sizesArray; // Return fetched sizes as array
         } catch (error) {
             setSizes([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const fetchColors = async () => {
+    const fetchColors = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/excel/color/get-all-colors"));
             
@@ -150,15 +163,15 @@ export const GlobalStateProvider = ({ children }) => {
             
             // Extract colors array from the response object
             const colorsArray = Array.isArray(data?.colors) ? data.colors : [];
-            setColors(colorsArray); // Set the fetched colors into state
+            setColors(keepIfSame(colorsArray)); // Set the fetched colors into state
             return colorsArray; // Return fetched colors as array
         } catch (error) {
             setColors([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const fetchGoods = async () => {
+    const fetchGoods = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/excel/goods/get-all-goods"));
             
@@ -170,15 +183,15 @@ export const GlobalStateProvider = ({ children }) => {
             
             // Extract goods array from the response object
             const goodsArray = Array.isArray(data?.goods) ? data.goods : [];
-            setGoods(goodsArray); // Set the fetched goods into state
+            setGoods(keepIfSame(goodsArray)); // Set the fetched goods into state
             return goodsArray; // Return fetched goods as array
         } catch (error) {
             setGoods([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/user"));
             
@@ -199,15 +212,15 @@ export const GlobalStateProvider = ({ children }) => {
                 usersArray = []; // Fallback do pustej tablicy
             }
             
-            setUsers(usersArray); // Set the fetched users into state
+            setUsers(keepIfSame(usersArray)); // Set the fetched users into state
             return usersArray; // Return fetched users as array
         } catch (error) {
             setUsers([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const fetchBags = async () => {
+    const fetchBags = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/excel/bags/get-all-bags"));
             
@@ -219,15 +232,15 @@ export const GlobalStateProvider = ({ children }) => {
             
             // Extract bags array from the response object
             const bagsArray = Array.isArray(data?.bags) ? data.bags : [];
-            setBags(bagsArray); // Set the fetched bags into state
+            setBags(keepIfSame(bagsArray)); // Set the fetched bags into state
             return bagsArray; // Return fetched bags as array
         } catch (error) {
             setBags([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const fetchWallets = async () => {
+    const fetchWallets = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/excel/wallets/get-all-wallets"));
             
@@ -239,16 +252,16 @@ export const GlobalStateProvider = ({ children }) => {
             
             // Extract wallets array from the response object
             const walletsArray = Array.isArray(data?.wallets) ? data.wallets : [];
-            setWallets(walletsArray); // Set the fetched wallets into state
+            setWallets(keepIfSame(walletsArray)); // Set the fetched wallets into state
             return walletsArray; // Return fetched wallets as array
         } catch (error) {
             setWallets([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
     // Zapis sesji po udanym logowaniu (hasłem albo szybkim logowaniem): tokeny, użytkownik, AuthContext
-    const completeLogin = async (data) => {
+    const completeLogin = useCallback(async (data) => {
         if (data.token || data.accessToken) {
             await tokenService.setTokens(data.accessToken || data.token, data.refreshToken);
         }
@@ -261,11 +274,11 @@ export const GlobalStateProvider = ({ children }) => {
             authContext.login(data);
         }
         return data;
-    };
+    }, [authContext]);
 
     // Szybkie logowanie na zaufanym telefonie (wzór / PIN / odcisk) - błędy z kodem jak w services/quickLogin
     // userId - które z zapamiętanych kont (np. admin albo konto punktu); bez - ostatnio używane
-    const quick_login = async (userId) => {
+    const quick_login = useCallback(async (userId) => {
         setIsLoading(true);
         try {
             const data = await quickLogin.login(userId);
@@ -273,9 +286,9 @@ export const GlobalStateProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [completeLogin]);
 
-    const bukowski_login = async (email, password, navigation, isAdminPanel = false) => {
+    const bukowski_login = useCallback(async (email, password, navigation, isAdminPanel = false) => {
         setIsLoading(true); // Set loading to true
         const loginAttemptId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         try {
@@ -386,9 +399,9 @@ export const GlobalStateProvider = ({ children }) => {
         } finally {
             setIsLoading(false); // Set loading to false
         }
-    };
+    }, [completeLogin]);
 
-    const fetchStock = async () => {
+    const fetchStock = useCallback(async () => {
         try {
             const response = await fetchWithTimeout(getApiUrl("/excel/stock/get-all-stocks"));
             
@@ -400,15 +413,15 @@ export const GlobalStateProvider = ({ children }) => {
             
             // Extract stocks array from the response object
             const stocksArray = Array.isArray(data?.stocks) ? data.stocks : [];
-            setStocks(stocksArray); // Update stocks state
+            setStocks(keepIfSame(stocksArray)); // Update stocks state
             return stocksArray; // Return fetched stocks as array
         } catch (error) {
             setStocks([]); // Fallback to an empty array in case of error
             return []; // Return empty array instead of throwing
         }
-    };
+    }, [fetchWithTimeout]);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try { await flushActivity(); } catch (_error) { /* dziennik nie blokuje wylogowania */ }
         resetActivity();
         try {
@@ -447,10 +460,10 @@ export const GlobalStateProvider = ({ children }) => {
         } finally {
             setTimeout(() => { tokenService.isLoggingOut = false; }, 500);
         }
-    };
+    }, [authContext]);
 
     // Funkcja do filtrowania punktów sprzedaży na podstawie lokalizacji zalogowanego użytkownika
-    const getFilteredSellingPoints = () => {
+    const getFilteredSellingPoints = useCallback(() => {
         if (!user || !user.location || !users || users.length === 0) {
             return [];
         }
@@ -474,7 +487,7 @@ export const GlobalStateProvider = ({ children }) => {
         });
 
         return filteredUsers;
-    };
+    }, [user, users]);
 
     // 🧪 AUTO-LOGOUT: Setup automatic logout callback
     React.useEffect(() => {
@@ -538,39 +551,48 @@ export const GlobalStateProvider = ({ children }) => {
         // gdy użytkownik faktycznie ich potrzebuje
     }, []);
 
+    // Wartość kontekstu zmienia tożsamość tylko, gdy zmieni się któryś z jej elementów
+    const contextValue = useMemo(() => ({
+        user,
+        isLoggedIn,
+        setIsLoggedIn, // Provide setIsLoggedIn
+        isLoading,
+        stateData,
+        sizes, // Provide sizes in the global state
+        colors, // Provide colors in the global state
+        goods, // Provide goods in the global state
+        stocks, // Provide stocks in the global state
+        users, // Provide users in the global state
+        bags, // Provide bags in the global state
+        wallets, // Provide wallets in the global state
+        matchedItems, // Provide matched items in the global state
+        transferredJackets, // Provide transferred jackets in the global state
+        setUser: updateUser,
+        bukowski_login,
+        logout, // Ensure logout is included in the context value
+        quick_login, // szybkie logowanie na zaufanym telefonie
+        completeLogin, // zapis sesji po logowaniu (np. po 2FA)
+        addMatchedItem, // Provide function to add matched items
+        setTransferredJackets, // Provide function to update transferred jackets
+        fetchState, // Provide function to fetch state data
+        fetchStock, // Provide function to fetch stocks
+        fetchColors, // Provide function to fetch colors
+        fetchSizes, // Provide function to fetch sizes
+        fetchGoods, // Provide function to fetch goods
+        fetchUsers, // Provide function to fetch users
+        fetchBags, // Provide function to fetch bags
+        fetchWallets, // Provide function to fetch wallets
+        getFilteredSellingPoints, // Provide function to get filtered selling points
+    }), [
+        user, isLoggedIn, isLoading, stateData, sizes, colors, goods, stocks, users, bags, wallets,
+        matchedItems, transferredJackets,
+        updateUser, bukowski_login, logout, quick_login, completeLogin, addMatchedItem,
+        fetchState, fetchStock, fetchColors, fetchSizes, fetchGoods, fetchUsers, fetchBags, fetchWallets,
+        getFilteredSellingPoints,
+    ]);
+
     return (
-        <GlobalStateContext.Provider value={{
-            user,
-            isLoggedIn,
-            setIsLoggedIn, // Provide setIsLoggedIn
-            isLoading,
-            stateData,
-            sizes, // Provide sizes in the global state
-            colors, // Provide colors in the global state
-            goods, // Provide goods in the global state
-            stocks, // Provide stocks in the global state
-            users, // Provide users in the global state
-            bags, // Provide bags in the global state
-            wallets, // Provide wallets in the global state
-            matchedItems, // Provide matched items in the global state
-            transferredJackets, // Provide transferred jackets in the global state
-            setUser: updateUser,
-            bukowski_login,
-            logout, // Ensure logout is included in the context value
-            quick_login, // szybkie logowanie na zaufanym telefonie
-            completeLogin, // zapis sesji po logowaniu (np. po 2FA)
-            addMatchedItem, // Provide function to add matched items
-            setTransferredJackets, // Provide function to update transferred jackets
-            fetchState, // Provide function to fetch state data
-            fetchStock, // Provide function to fetch stocks
-            fetchColors, // Provide function to fetch colors
-            fetchSizes, // Provide function to fetch sizes
-            fetchGoods, // Provide function to fetch goods
-            fetchUsers, // Provide function to fetch users
-            fetchBags, // Provide function to fetch bags
-            fetchWallets, // Provide function to fetch wallets
-            getFilteredSellingPoints, // Provide function to get filtered selling points
-        }}>
+        <GlobalStateContext.Provider value={contextValue}>
             {children}
         </GlobalStateContext.Provider>
     );
