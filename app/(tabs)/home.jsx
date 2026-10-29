@@ -2704,7 +2704,9 @@ const Home = () => {
               </TouchableOpacity>
             </View>
           )}
-          ListHeaderComponent={() => {
+          /* Nagłówek i stopka jako gotowe ELEMENTY (IIFE), nie funkcje: FlatList traktuje przekazaną funkcję jak nowy typ
+             komponentu przy każdym renderze i montował nagłówek + stopkę od nowa po każdej literce w którymkolwiek okienku */
+          ListHeaderComponent={(() => {
             return (
               <View style={{ marginTop: 4, marginBottom: 16, paddingHorizontal: 8 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -2790,8 +2792,8 @@ const Home = () => {
                 <Text style={styles.sectionLabel}>Sprzedaż dzisiaj</Text>
               </View>
             );
-          }}
-          ListFooterComponent={() => {
+          })()}
+          ListFooterComponent={(() => {
             // Only show transfers with a valid date matching today
             // FOR TESTING: Uncomment line below to simulate tomorrow
             // const today = '2025-08-11'; // TEST: Simulate tomorrow (dzień później)
@@ -3312,7 +3314,7 @@ const Home = () => {
                 })()}
               </View>
             );
-          }}
+          })()}
           contentContainerStyle={{ paddingBottom: Math.max(120, insets.bottom + 120) }}
         />
         {/* Edit Modal - ten sam wygląd i wyliczenia co „Nowa sprzedaż” (QRScanner) */}
