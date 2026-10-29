@@ -24,6 +24,7 @@ import LogoutButton from "../../components/LogoutButton";
 import { ScreenHeader } from '../../components/AdminLook';
 import { KeyboardSafeScreen, useRevealInput } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { appAlert } from '../../services/appAlert';
+import useScreenFocused from '../../services/useScreenFocused'; // odpytywanie „ostatnia transakcja” tylko gdy ekran na wierzchu
 import { itemPictureVariantUrl, itemPictureUrl, variantToOriginalUrl } from '../../utils/productPicture';
 import ThumbImage from '../../components/ThumbImage'; // miniatura z powrotem do oryginału // miniatura zdjęcia kurtki na karcie przetwarzania
 import { pickDefaultOrangeDate, formatDayLabel } from '../../utils/orangeDateChoice'; // okienko „Potwierdzenie daty przetwarzania”
@@ -554,19 +555,32 @@ const Users = () => {
     }
   }, [selectedUserId, users, warehouseItems]);
 
-  // Auto-refresh last transaction every 5 seconds (for cross-app sync)
+  // Auto-refresh last transaction every 5 seconds (for cross-app sync) - tylko gdy ekran jest na wierzchu
+  // i aplikacja na pierwszym planie (zakładka zostaje zamontowana po zejściu z niej - dawniej odpytywała serwer
+  // co 5 s przez całą sesję, także pod Historią i w tle), bez nakładania się zapytań przy wolnej sieci
+  const isFocused = useScreenFocused();
   useEffect(() => {
-    // Initial check
-    checkLastTransaction();
-    
-    // Set up interval for periodic checks
-    const interval = setInterval(() => {
-      checkLastTransaction();
-    }, 5000); // Check every 5 seconds
-    
-    // Cleanup interval on unmount
-    return () => clearInterval(interval);
-  }, [selectedUserId, selectedDate]);
+    if (!isFocused) return undefined;
+    let inFlight = false;
+    let appActive = AppState.currentState !== 'background';
+    const tick = async () => {
+      if (inFlight || !appActive) return;
+      inFlight = true;
+      try { await checkLastTransaction(); } finally { inFlight = false; }
+    };
+    tick(); // Initial check
+    const interval = setInterval(tick, 5000); // Check every 5 seconds
+    const appStateSub = AppState.addEventListener('change', (nextState) => { appActive = nextState === 'active'; });
+    return () => {
+      clearInterval(interval);
+      appStateSub.remove();
+    };
+  }, [selectedUserId, selectedDate, isFocused]);
+
+  // Ten sam wynik co poprzednio nie zmienia stanu - ekran ma kilka tysięcy linii, nie przerysowujemy go co 5 s bez powodu
+  const applyLastTransaction = (next) => setLastTransaction((prev) => (
+    JSON.stringify(prev ?? null) === JSON.stringify(next ?? null) ? prev : next
+  ));
 
   const checkLastTransaction = async () => {
     try {
@@ -575,7 +589,7 @@ const Users = () => {
         console.log('No access token available for checkLastTransaction');
         return;
       }
-      
+
       const url = getApiUrl('/transfer/last-transaction');
       const response = await fetch(url, {
         headers: {
@@ -586,15 +600,13 @@ const Users = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setLastTransaction(data.canUndo && Number(data.itemCount || 0) > 0 ? data : null); // jak w panelu: bez pozycji nie ma co cofać
-      } else if (response.status === 404) {
-        setLastTransaction(null);
+        applyLastTransaction(data.canUndo && Number(data.itemCount || 0) > 0 ? data : null); // jak w panelu: bez pozycji nie ma co cofać
       } else {
-        setLastTransaction(null);
+        applyLastTransaction(null); // 404 = nic do cofnięcia; inne błędy też bez przycisku
       }
     } catch (error) {
       console.error('Error checking last transaction:', error);
-      setLastTransaction(null);
+      applyLastTransaction(null);
     }
   };
 

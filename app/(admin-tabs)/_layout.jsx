@@ -56,6 +56,8 @@ const AdminTabLayout = () => {
           },
         })}
         screenOptions={{
+          // Zakładka, która nie jest na wierzchu, nie renderuje się (react-freeze) - jak w zakładkach punktu
+          freezeOnBlur: true,
           tabBarActiveTintColor: "rgb(0, 123, 255)",
           tabBarInactiveTintColor: colors.muted,
           tabBarShowLabel: false,

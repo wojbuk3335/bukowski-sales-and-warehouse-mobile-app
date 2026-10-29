@@ -66,6 +66,9 @@ const TabLayout = () => {
           },
         })}
         screenOptions={{
+          // Zakładka, która nie jest na wierzchu, nie renderuje się (react-freeze): zmiany w stanie globalnym
+          // nie przerysowują już naraz wszystkich odwiedzonych zakładek (Sprzedaż ma ~7 tys. linii)
+          freezeOnBlur: true,
           tabBarActiveTintColor: "#0D6EFD",
           tabBarInactiveTintColor: colors.muted,
           tabBarShowLabel: false,
