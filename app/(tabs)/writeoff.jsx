@@ -228,8 +228,11 @@ const fetchTransfers = async () => {
     }
     
     try {
-        const response = await tokenService.authenticatedFetch(getApiUrl('/transfer'));
-        
+        // Z serwera tylko to, co ekran pokazuje: dzisiejsze przesunięcia od/do mnie oraz moje wychodzące
+        // nieprzetworzone z wcześniejszych dni (pending=1). Dawniej całe archiwum przesunięć przy każdym wejściu
+        // i każdym zdarzeniu na żywo - rosło z każdym dniem. Filtry poniżej zostają jako zabezpieczenie.
+        const response = await tokenService.authenticatedFetch(getApiUrl(`/transfer?day=${today}&pending=1`));
+
         if (!response.ok) {
             throw new Error(`Failed to fetch transfers: ${response.status}`);
         }
@@ -279,8 +282,9 @@ const fetchTransfers = async () => {
 
 const fetchSales = async () => {
     try {
-        const response = await tokenService.authenticatedFetch(getApiUrl('/sales/get-all-sales'));
-        
+        // Tylko sprzedane, a jeszcze nieodpisane sztuki z mojego stanu (pending=1) - dawniej całe archiwum sprzedaży
+        const response = await tokenService.authenticatedFetch(getApiUrl('/sales/get-all-sales?pending=1'));
+
         if (!response.ok) {
             throw new Error(`Failed to fetch sales: ${response.status}`);
         }

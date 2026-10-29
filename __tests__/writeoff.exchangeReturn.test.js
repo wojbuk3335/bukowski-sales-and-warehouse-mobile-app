@@ -87,13 +87,13 @@ describe('Wymiana: oddana kurtka do MAGAZYNU', () => {
     tokenService.authenticatedFetch.mockReset();
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       if (url.endsWith('/exchange') && options.method === 'POST') return json({ data: { _id: 'ex-1' } }, 201);
-      if (url.endsWith('/transfer') && options.method === 'POST') return json({ _id: 'tr-wymiana' }, 201);
+      if (url.split('?')[0].endsWith('/transfer') && options.method === 'POST') return json({ _id: 'tr-wymiana' }, 201);
       if (url.endsWith('/transfer/exchange-return/candidates')) return json({ days: 14, sales: candidates });
       if (url.endsWith('/transfer/exchange-return') && options.method === 'POST') return returnResponse();
       if (url.endsWith('/excel/goods/get-all-goods')) return json({ goods });
-      if (url.endsWith('/transfer')) return json([]);
+      if (url.split('?')[0].endsWith('/transfer')) return json([]);
       if (url.endsWith('/exchange')) return json([]);
-      if (url.endsWith('/sales/get-all-sales')) return json([]);
+      if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
       return json({});
     });
   });

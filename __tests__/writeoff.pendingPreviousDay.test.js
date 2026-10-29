@@ -60,8 +60,8 @@ const renderWriteOff = () => render(
 beforeEach(() => {
   tokenService.authenticatedFetch.mockReset();
   tokenService.authenticatedFetch.mockImplementation((url) => {
-    if (url.endsWith('/transfer')) return json(transfers);
-    if (url.endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/transfer')) return json(transfers);
+    if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });
@@ -82,4 +82,16 @@ test('przepisanie z 00:30 w nocy (UTC jeszcze wczoraj) jest dzisiejsze: bez daty
   await waitFor(() => expect(screen.getByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeTruthy());
   fireEvent.press(screen.getByTestId('writeoff-dots-night-1'));
   await waitFor(() => expect(screen.getByTestId('cancel-transfer')).toBeTruthy());
+});
+
+// Stan (29.10.2026): z serwera tylko dzisiejsze przesunięcia + czekające, nie całe archiwa (rosły z każdym dniem)
+test('Stan prosi serwer o /transfer?day=dziś&pending=1 i /sales/get-all-sales?pending=1, nie o całe archiwa', async () => {
+  const screen = renderWriteOff();
+  await waitFor(() => expect(screen.getByText('Przepisano do: Tata - czeka na uzupełnienie')).toBeTruthy());
+
+  const urls = tokenService.authenticatedFetch.mock.calls.map(([url]) => url);
+  const transferUrl = urls.find((url) => url.split('?')[0].endsWith('/transfer'));
+  const salesUrl = urls.find((url) => url.split('?')[0].endsWith('/sales/get-all-sales'));
+  expect(Object.fromEntries(new URL(transferUrl).searchParams)).toEqual({ day: today, pending: '1' });
+  expect(Object.fromEntries(new URL(salesUrl).searchParams)).toEqual({ pending: '1' });
 });

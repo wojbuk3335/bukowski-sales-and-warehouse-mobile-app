@@ -52,8 +52,8 @@ const renderWriteOff = () => render(
 beforeEach(() => {
   tokenService.authenticatedFetch.mockReset();
   tokenService.authenticatedFetch.mockImplementation((url) => {
-    if (url.endsWith('/transfer')) return json(transfers);
-    if (url.endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/transfer')) return json(transfers);
+    if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });
@@ -80,8 +80,8 @@ test('zwrot z wymiany: „czeka na dopisanie” do przyjęcia w MAGAZYNIE, potem
     transfer_from: 'P', transfer_to: 'MAGAZYN', reason: 'Zwrot z wymiany', blueProcessed: true, yellowProcessed, date: `${today}T10:00:00.000Z`, dateString: today,
   });
   const withTransfers = (list) => tokenService.authenticatedFetch.mockImplementation((url) => {
-    if (url.endsWith('/transfer')) return json(list);
-    if (url.endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/transfer')) return json(list);
+    if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });
@@ -106,8 +106,8 @@ test('zwrot z wymiany: „czeka na dopisanie” do przyjęcia w MAGAZYNIE, potem
 test('zdarzenie z serwera odświeża listę w tle: nowe przepisanie pojawia się bez przeciągania', async () => {
   let list = [];
   tokenService.authenticatedFetch.mockImplementation((url) => {
-    if (url.endsWith('/transfer')) return json(list);
-    if (url.endsWith('/sales/get-all-sales')) return json([]);
+    if (url.split('?')[0].endsWith('/transfer')) return json(list);
+    if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
     if (url.endsWith('/exchange')) return json([]);
     return json({});
   });

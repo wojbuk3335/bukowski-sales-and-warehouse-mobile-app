@@ -67,8 +67,8 @@ describe('Stan - blokada i anulowanie dzisiejszych przepisań', () => {
   beforeEach(() => {
     tokenService.authenticatedFetch.mockReset();
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
-      if (url.endsWith('/transfer') && !options.method) return json(transfers);
-      if (url.endsWith('/sales/get-all-sales')) return json([]);
+      if (url.split('?')[0].endsWith('/transfer') && !options.method) return json(transfers);
+      if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
       if (url.endsWith('/transfer/t1/cancel')) return json({ message: 'Transfer cancelled' });
       return json({});
     });
@@ -137,8 +137,8 @@ describe('Stan - sprzedane, a jeszcze nieodpisane sztuki', () => {
   beforeEach(() => {
     tokenService.authenticatedFetch.mockReset();
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
-      if (url.endsWith('/transfer') && !options.method) return json([]);
-      if (url.endsWith('/sales/get-all-sales')) return json(sales);
+      if (url.split('?')[0].endsWith('/transfer') && !options.method) return json([]);
+      if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json(sales);
       return json({});
     });
   });

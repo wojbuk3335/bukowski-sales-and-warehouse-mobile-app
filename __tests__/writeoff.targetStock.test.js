@@ -50,7 +50,7 @@ const renderWriteOff = () => render(
   </GlobalStateContext.Provider>
 );
 
-const transferPosts = () => tokenService.authenticatedFetch.mock.calls.filter(([url, o]) => url.endsWith('/transfer') && o?.method === 'POST');
+const transferPosts = () => tokenService.authenticatedFetch.mock.calls.filter(([url, o]) => url.split('?')[0].endsWith('/transfer') && o?.method === 'POST');
 
 const openTransferPicker = async (screen) => {
   await waitFor(() => expect(screen.getByTestId('writeoff-dots-p-ada')).toBeTruthy());
@@ -64,9 +64,9 @@ describe('Przepisz do - stan w punkcie docelowym', () => {
     appAlert.mockReset();
     tokenService.authenticatedFetch.mockReset();
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
-      if (url.endsWith('/transfer') && options.method === 'POST') return json({ _id: 'tr-1' }, 201);
-      if (url.endsWith('/transfer')) return json([]);
-      if (url.endsWith('/sales/get-all-sales')) return json([]);
+      if (url.split('?')[0].endsWith('/transfer') && options.method === 'POST') return json({ _id: 'tr-1' }, 201);
+      if (url.split('?')[0].endsWith('/transfer')) return json([]);
+      if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
       return json({});
     });
   });
