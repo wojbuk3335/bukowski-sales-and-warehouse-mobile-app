@@ -548,6 +548,36 @@ const Cudzych = () => {
   };
 
   // Create payment transaction (wpłata lub wypłata)
+  // „Rozlicz saldo” (30.10.2026) zamiast osobnych Wpłata / Wypłata: kierunek wynika z salda - Cudzich jest nam winien
+  // → wpłata od Cudzicha, należy zwrócić Cudzichowi → wypłata dla Cudzicha; kwota do rozliczenia od razu w polu
+  // (można wpisać mniej - rozliczenie częściowe, więcej niż saldo nie)
+  const settleSubtitle = () => {
+    const info = cudzichBalanceInfo(balance);
+    if (Number(balance) > 0.004) return `Cudzich płaci nam ${info.amount.toFixed(2)} zł`;
+    if (Number(balance) < -0.004) return `Oddajemy Cudzichowi ${info.amount.toFixed(2)} zł`;
+    return 'Saldo rozliczone';
+  };
+  const settleDue = Math.abs(Number(balance) || 0);
+  const openSettle = () => {
+    const value = Number(balance) || 0;
+    if (Math.abs(value) < 0.005) {
+      appAlert('Rozlicz saldo', 'Saldo jest rozliczone - nikt nikomu nic nie jest winien.');
+      return;
+    }
+    resetPaymentForm();
+    setPaymentAmount(String(Math.round(Math.abs(value) * 100) / 100));
+    if (value > 0) setWplataModalVisible(true);
+    else setWyplataModalVisible(true);
+  };
+  const confirmSettle = () => {
+    const amount = Number(String(paymentAmount || '').replace(',', '.'));
+    if (amount > settleDue + 0.004) {
+      appAlert('Rozlicz saldo', `Kwota nie może być większa niż saldo do rozliczenia (${settleDue.toFixed(2)} zł).`);
+      return;
+    }
+    createPaymentTransaction(wplataModalVisible ? 'wplata' : 'wyplata');
+  };
+
   const createPaymentTransaction = async (type) => {
     if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
       appAlert('Błąd', 'Proszę wpisać prawidłową kwotę');
@@ -576,7 +606,7 @@ const Cudzych = () => {
       if (response.ok) {
         const data = await response.json();
         setSuccessMessage(
-          `${type === 'wplata' ? 'Wpłata' : 'Wypłata'} została zapisana\n${balanceText(data.newBalance)}`
+          `${type === 'wplata' ? 'Cudzich zapłacił' : 'Oddano Cudzichowi'}: ${parseFloat(paymentAmount).toFixed(2)} zł\n${balanceText(data.newBalance)}`
         );
         setSuccessModalVisible(true);
         
@@ -839,20 +869,12 @@ const Cudzych = () => {
             onPress={openReturnList}
           />
           <MenuCard
-            testID="cudzich-action-wplata"
-            icon={CUDZICH_TYPES.wplata.icon}
-            color={CUDZICH_TYPES.wplata.color}
-            title="Wpłata"
-            subtitle="Cudzich płaci - zmniejsza saldo"
-            onPress={() => setWplataModalVisible(true)}
-          />
-          <MenuCard
-            testID="cudzich-action-wyplata"
-            icon={CUDZICH_TYPES.wyplata.icon}
-            color={CUDZICH_TYPES.wyplata.color}
-            title="Wypłata"
-            subtitle="Płacimy Cudzichowi - zwiększa saldo"
-            onPress={() => setWyplataModalVisible(true)}
+            testID="cudzich-action-settle"
+            icon="swap-horizontal"
+            color={cudzichBalanceInfo(balance).color}
+            title="Rozlicz saldo"
+            subtitle={settleSubtitle()}
+            onPress={openSettle}
           />
           <MenuCard
             testID="cudzich-action-manual"
@@ -1219,10 +1241,15 @@ const Cudzych = () => {
         <View style={look.modalOverlay}>
           <View style={[look.modalContent, { maxHeight: '90%' }]}>
             <ModalHeader
-              icon={wplataModalVisible ? 'wallet' : 'cash'}
-              color={wplataModalVisible ? '#F59E0B' : '#06B6D4'}
-              title={wplataModalVisible ? 'Wpłata od Tomka' : 'Wypłata dla Tomka'}
+              icon="swap-horizontal"
+              color={cudzichBalanceInfo(balance).color}
+              title="Rozlicz saldo"
             />
+            {/* Kto komu ile - słownie, jak na karcie salda */}
+            <View style={[styles.settleInfo, { borderColor: cudzichBalanceInfo(balance).color }]} testID="cudzich-settle-info">
+              <Text style={[styles.settleInfoLabel, { color: cudzichBalanceInfo(balance).color }]}>{cudzichBalanceInfo(balance).label}</Text>
+              <Text style={[styles.settleInfoAmount, { color: cudzichBalanceInfo(balance).color }]}>{settleDue.toFixed(2)} zł</Text>
+            </View>
 
             <ScrollView 
               style={{ width: '100%' }}
@@ -1233,15 +1260,19 @@ const Cudzych = () => {
 
             {/* Amount input */}
             <View style={styles.formField}>
-              <Text style={look.formLabel}>Kwota (zł):</Text>
+              <Text style={look.formLabel}>{wplataModalVisible ? 'Kwota, którą Cudzich płaci (zł):' : 'Kwota, którą oddajemy Cudzichowi (zł):'}</Text>
               <TextInput
+                testID="cudzich-settle-amount"
                 style={styles.input}
                 placeholder="Wpisz kwotę..."
                 value={paymentAmount}
-                onChangeText={setPaymentAmount}
-                keyboardType="numeric"
+                onChangeText={(value) => setPaymentAmount(sanitizeAmountInput(value))}
+                keyboardType="decimal-pad"
                 placeholderTextColor={tc('muted', "#666")}
               />
+              {Number(paymentAmount) > 0 && Number(paymentAmount) < settleDue - 0.004 ? (
+                <Text style={styles.settleHint}>Rozliczenie częściowe - zostanie {(settleDue - Number(paymentAmount)).toFixed(2)} zł</Text>
+              ) : null}
             </View>
 
             {/* Notes input */}
@@ -1261,28 +1292,26 @@ const Cudzych = () => {
             </ScrollView>
 
             {/* Modal buttons */}
-            <View style={look.buttonRow}>
+            <View style={styles.stackedButtons}>
               <TouchableOpacity
-                style={look.neutralButton}
+                testID="cudzich-settle-confirm"
+                style={[look.primaryButton, styles.stackedButton, { backgroundColor: cudzichBalanceInfo(balance).color }, loading && look.disabled]}
+                onPress={confirmSettle}
+                disabled={loading}
+              >
+                <Text style={look.buttonText} numberOfLines={1}>
+                  {wplataModalVisible ? 'Cudzich zapłacił - rozlicz' : 'Oddajemy Cudzichowi - rozlicz'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[look.neutralButton, styles.stackedButton]}
                 onPress={() => {
                   resetPaymentForm();
                   setWplataModalVisible(false);
                   setWyplataModalVisible(false);
                 }}
               >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  look.primaryButton,
-                  { backgroundColor: wplataModalVisible ? '#339af0' : '#fd7e14' }
-                ]}
-                onPress={() => createPaymentTransaction(wplataModalVisible ? 'wplata' : 'wyplata')}
-                disabled={loading}
-              >
-                <Text style={look.buttonText}>
-                  {wplataModalVisible ? 'Zapisz Wpłatę' : 'Zapisz Wypłatę'}
-                </Text>
+                <Text style={look.neutralButtonText} numberOfLines={1}>Anuluj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1754,6 +1783,29 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 10,
     marginTop: 8,
     marginBottom: 8,
+  },
+  // „Rozlicz saldo”: kto komu ile (słownie) i podpowiedź przy rozliczeniu częściowym
+  settleInfo: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    alignItems: 'center',
+  },
+  settleInfoLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  settleInfoAmount: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  settleHint: {
+    color: tc('muted', '#94A3B8'),
+    fontSize: 13,
+    marginTop: 6,
   },
   // lista zwrotu: link „Kurtka sprzed systemu” w jednej linii i przyciski jeden pod drugim
   historicalLink: {

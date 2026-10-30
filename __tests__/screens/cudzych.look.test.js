@@ -73,6 +73,7 @@ const context = {
 };
 
 let serveTransactions;
+let balanceValue;
 let candidates;
 const urls = () => tokenService.authenticatedFetch.mock.calls.map(([url]) => String(url));
 const posts = (part) => tokenService.authenticatedFetch.mock.calls
@@ -82,6 +83,7 @@ const posts = (part) => tokenService.authenticatedFetch.mock.calls
 beforeEach(() => {
   appAlert.mockReset();
   global.__scanCode = ADA_XL;
+  balanceValue = 400;
   candidates = [
     { saleId: 's-new', date: '2026-10-25T10:00:00.000Z', price: 800, fullName: 'Ada CZERWONY', size: 'XL', goodsId: 'g-ada', barcode: ADA_XL, processed: true },
     { saleId: 's-old', date: '2026-10-10T10:00:00.000Z', price: 750, fullName: 'Ada CZERWONY', size: 'XL', goodsId: 'g-ada', barcode: ADA_XL, processed: true },
@@ -94,7 +96,7 @@ beforeEach(() => {
   tokenService.authenticatedFetch.mockReset();
   tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
     const text = String(url);
-    if (text.includes('/cudzich/balance')) return response({ balance: 400 });
+    if (text.includes('/cudzich/balance')) return response({ balance: balanceValue });
     if (text.includes('/cudzich/returns/candidates')) return response({ candidates, count: candidates.length });
     if (text.includes('/cudzich/returns') && options.method === 'POST') return response({ transaction: { price: 750 }, newBalance: -350 }, 201);
     if (text.includes('/cudzich/transactions') && options.method === 'POST') return response({ newBalance: 1250 }, 201);
@@ -145,7 +147,7 @@ describe('Zakładka Cudzich (punkt P): lista', () => {
     const screen = renderTab();
     await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
     expect(screen.getByTestId('cudzich-balance-card')).toBeTruthy();
-    ['odbior', 'zwrot', 'wplata', 'wyplata', 'manual'].forEach((type) => expect(screen.getByTestId(`cudzich-action-${type}`)).toBeTruthy());
+    ['odbior', 'zwrot', 'settle', 'manual'].forEach((type) => expect(screen.getByTestId(`cudzich-action-${type}`)).toBeTruthy());
     const list = screen.getByTestId('cudzich-transactions-list');
     expect(list.props.contentContainerStyle.paddingBottom).toBeGreaterThanOrEqual(120);
   });
@@ -312,6 +314,50 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     fireEvent.press(screen.getByTestId('cudzich-scanned-confirm'));
     await waitFor(() => expect(appAlert).toHaveBeenCalledWith('Brak ceny', expect.stringContaining('Ada CZERWONY XL')));
     expect(posts('/cudzich/transactions')).toHaveLength(0);
+  });
+
+  test('„Rozlicz saldo” (zamiast Wpłata/Wypłata): Cudzich jest nam winien → kwota od razu w polu, zapis wpłaty', async () => {
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByText('Cudzich płaci nam 400.00 zł')).toBeTruthy());
+    expect(screen.queryByTestId('cudzich-action-wplata')).toBeNull();
+    expect(screen.queryByTestId('cudzich-action-wyplata')).toBeNull();
+    fireEvent.press(screen.getByTestId('cudzich-action-settle'));
+    expect((await screen.findByTestId('cudzich-settle-info'))).toBeTruthy();
+    expect(screen.getAllByText('Cudzich jest nam winien').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('cudzich-settle-amount').props.value).toBe('400');
+    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
+    expect(posts('/cudzich/transactions')[0]).toMatchObject({ type: 'wplata', price: 400 });
+  });
+
+  test('„Rozlicz saldo” na minusie: należy zwrócić Cudzichowi 590 zł → wypłata; częściowo można, więcej niż saldo nie', async () => {
+    balanceValue = -590;
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByText('Oddajemy Cudzichowi 590.00 zł')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-settle'));
+    await screen.findByTestId('cudzich-settle-info');
+    expect(screen.getAllByText('Należy zwrócić Cudzichowi').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('cudzich-settle-amount').props.value).toBe('590');
+
+    fireEvent.changeText(screen.getByTestId('cudzich-settle-amount'), '700');
+    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    expect(appAlert).toHaveBeenCalledWith('Rozlicz saldo', expect.stringContaining('590.00'));
+    expect(posts('/cudzich/transactions')).toHaveLength(0);
+
+    fireEvent.changeText(screen.getByTestId('cudzich-settle-amount'), '200');
+    expect(screen.getByText('Rozliczenie częściowe - zostanie 390.00 zł')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
+    expect(posts('/cudzich/transactions')[0]).toMatchObject({ type: 'wyplata', price: 200 });
+  });
+
+  test('„Rozlicz saldo” przy zerze: komunikat, bez okienka', async () => {
+    balanceValue = 0;
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByText('Saldo rozliczone')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-settle'));
+    expect(appAlert).toHaveBeenCalledWith('Rozlicz saldo', expect.stringContaining('rozliczone'));
+    expect(screen.queryByTestId('cudzich-settle-info')).toBeNull();
   });
 
   test('„Wpisz ręcznie” otwiera wybór odbioru / zwrotu', async () => {
