@@ -25,7 +25,8 @@ import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ModalHeader, ScreenHeader, look } from '../../components/AdminLook';
+import { IconButton, MenuCard, ModalHeader, ScreenHeader, look } from '../../components/AdminLook';
+import { CUDZICH_TYPES, CudzichBalanceCard, CudzichTransactionCard } from '../../components/CudzichLook'; // karty jak na ekranie admina
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Cudzych = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -987,38 +988,9 @@ const Cudzych = () => {
     setRefreshing(false);
   };
 
-  // Format date
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pl-PL') + ' ' + date.toLocaleTimeString('pl-PL', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  // Render transaction item
-  const TYPE_COLORS = { odbior: '#EF4444', zwrot: '#10B981', wplata: '#F59E0B', wyplata: '#06B6D4' };
-  const renderTransaction = ({ item }) => (
-    <View style={[styles.transactionItem, { borderLeftColor: TYPE_COLORS[item.type] || '#06B6D4' }]}>
-      <View style={styles.transactionHeader}>
-        <Text style={[
-          styles.transactionType,
-          { color: TYPE_COLORS[item.type] || '#06B6D4' }
-        ]}>
-          {item.type === 'odbior' ? 'ODBIÓR' : 
-           item.type === 'zwrot' ? 'ZWROT' :
-           item.type === 'wplata' ? 'WPŁATA' : 'WYPŁATA'}
-        </Text>
-        <Text style={styles.transactionPrice}>
-          {(item.type === 'odbior' || item.type === 'wyplata') ? '+' : '-'}{item.price}zł
-        </Text>
-      </View>
-      {item.productName && <Text style={styles.transactionProduct}>{item.productName}</Text>}
-      {item.size && <Text style={styles.transactionSize}>Rozmiar: {item.size}</Text>}
-      <Text style={styles.transactionDate}>{formatDate(item.date)}</Text>
-      {item.notes && <Text style={styles.transactionNotes}>Uwagi: {item.notes}</Text>}
-    </View>
-  );
+  // Lista transakcji: z filtrem dat - tylko wynik filtra (także pusty), bez filtra - cała historia
+  const dateFilterActive = Boolean(filterStartDate || filterEndDate);
+  const visibleTransactions = dateFilterActive ? filteredTransactions : transactions;
 
   // Access control check
   if (user?.symbol !== 'P') {
@@ -1047,105 +1019,86 @@ const Cudzych = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header with balance */}
+        {/* Wygląd jak w panelu admina (30.10.2026): nagłówek zakładki, karta salda, karty menu, karty transakcji */}
         <View style={{ paddingHorizontal: 12 }}>
-          <ScreenHeader
-            icon="person"
-            title="Cudzich"
-            subtitle="Saldo do zapłaty"
-            right={(
-              <View style={[styles.balancePill, { borderColor: balance >= 0 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)', backgroundColor: balance >= 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)' }]}>
-                <Text style={[styles.balancePillText, { color: balance >= 0 ? '#EF4444' : '#10B981' }]}>{balance} zł</Text>
-              </View>
-            )}
-          />
-        </View>
+          <ScreenHeader icon="people" title="Cudzich" subtitle="Odbiory, zwroty i rozliczenia" />
 
-        {/* Action buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.actionTile}
+          <CudzichBalanceCard balance={balance} />
+
+          <Text style={look.sectionLabel}>Operacje</Text>
+          <MenuCard
+            testID="cudzich-action-odbior"
+            icon={CUDZICH_TYPES.odbior.icon}
+            color={CUDZICH_TYPES.odbior.color}
+            title="Odbiór"
+            subtitle="Cudzich bierze kurtkę - skanuj metkę"
             onPress={() => {
               setScannerType('odbior');
               setScannerVisible(true);
             }}
-          >
-            <View style={[styles.actionTileIcon, { backgroundColor: '#EF444426' }]}>
-              <Ionicons name="arrow-down-circle" size={26} color="#EF4444" />
-            </View>
-            <Text style={styles.actionTileText}>Odbiór</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.actionTile}
+          />
+          <MenuCard
+            testID="cudzich-action-zwrot"
+            icon={CUDZICH_TYPES.zwrot.icon}
+            color={CUDZICH_TYPES.zwrot.color}
+            title="Zwrot"
+            subtitle="Cudzich oddaje kurtkę - skanuj metkę"
             onPress={() => {
               setScannerType('zwrot');
               setScannerVisible(true);
             }}
-          >
-            <View style={[styles.actionTileIcon, { backgroundColor: '#10B98126' }]}>
-              <Ionicons name="return-up-back" size={26} color="#10B981" />
-            </View>
-            <Text style={styles.actionTileText}>Zwrot</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.actionTile}
+          />
+          <MenuCard
+            testID="cudzich-action-wplata"
+            icon={CUDZICH_TYPES.wplata.icon}
+            color={CUDZICH_TYPES.wplata.color}
+            title="Wpłata"
+            subtitle="Cudzich płaci - zmniejsza saldo"
             onPress={() => setWplataModalVisible(true)}
-          >
-            <View style={[styles.actionTileIcon, { backgroundColor: '#F59E0B26' }]}>
-              <Ionicons name="wallet" size={26} color="#F59E0B" />
-            </View>
-            <Text style={styles.actionTileText}>Wpłata</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.actionTile}
+          />
+          <MenuCard
+            testID="cudzich-action-wyplata"
+            icon={CUDZICH_TYPES.wyplata.icon}
+            color={CUDZICH_TYPES.wyplata.color}
+            title="Wypłata"
+            subtitle="Płacimy Cudzichowi - zwiększa saldo"
             onPress={() => setWyplataModalVisible(true)}
-          >
-            <View style={[styles.actionTileIcon, { backgroundColor: '#06B6D426' }]}>
-              <Ionicons name="cash" size={26} color="#06B6D4" />
-            </View>
-            <Text style={styles.actionTileText}>Wypłata</Text>
-          </TouchableOpacity>
-        </View>
+          />
 
-        {/* Transactions list */}
-        <View style={styles.transactionsContainer}>
-          <View style={styles.transactionHeader}>
-            <Text style={styles.sectionTitle}>Historia transakcji</Text>
-            <TouchableOpacity
-              style={styles.filterButton}
+          {/* Historia transakcji: nagłówek sekcji z przyciskiem filtra jak w ekranach admina */}
+          <View style={styles.historyHeader}>
+            <Text style={[look.sectionLabel, { flex: 1, marginBottom: 0 }]}>Historia transakcji</Text>
+            <IconButton
+              icon={(filterStartDate || filterEndDate) ? 'calendar' : 'calendar-outline'}
+              color={(filterStartDate || filterEndDate) ? '#0D6EFD' : tc('muted', '#94A3B8')}
               onPress={() => setDateFilterVisible(true)}
-            >
-              <Ionicons name="calendar-outline" size={18} color={tc('text', '#fff')} />
-              <Text style={styles.filterButtonText}>Filtruj</Text>
-            </TouchableOpacity>
+              accessibilityLabel="Filtruj po dacie"
+              testID="cudzich-date-filter"
+            />
           </View>
 
-          {/* Date filter display */}
           {(filterStartDate || filterEndDate) && (
-            <View style={styles.dateFilterDisplay}>
-              <Text style={styles.dateFilterText}>
-                Okres: {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
+            <View style={[look.chip, styles.periodChip]}>
+              <Ionicons name="calendar-outline" size={14} color="#0D6EFD" />
+              <Text style={look.chipText}>
+                {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
               </Text>
-              <TouchableOpacity onPress={clearDateFilters} style={styles.clearFilterButton}>
-                <Ionicons name="close" size={16} color="#fff" />
+              <TouchableOpacity onPress={clearDateFilters} accessibilityLabel="Wyczyść filtr dat" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color={tc('muted', '#94A3B8')} />
               </TouchableOpacity>
             </View>
           )}
 
-          {(filteredTransactions.length > 0 || transactions.length > 0) ? (
-            <FlatList
-              data={filteredTransactions.length > 0 ? filteredTransactions : transactions}
-              keyExtractor={(item) => item._id}
-              renderItem={renderTransaction}
-              scrollEnabled={false}
-            />
+          {/* Z filtrem dat - tylko wynik filtra (dawniej pusty wynik pokazywał całą historię) */}
+          {visibleTransactions.length > 0 ? (
+            visibleTransactions.map((item) => <CudzichTransactionCard key={item._id} transaction={item} />)
           ) : (
-            <Text style={styles.noTransactions}>
-              {(filterStartDate || filterEndDate) ? 'Brak transakcji w wybranym okresie' : 'Brak transakcji'}
-            </Text>
+            <View style={look.emptyState}>
+              <Ionicons name="swap-horizontal-outline" size={48} color={tc('muted', '#64748B')} />
+              <Text style={look.emptyStateText}>
+                {(filterStartDate || filterEndDate) ? 'Brak transakcji w wybranym okresie' : 'Brak transakcji'}
+              </Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -1162,8 +1115,8 @@ const Cudzych = () => {
         }}
       >
         <KeyboardSafeOverlay>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, { maxHeight: '90%' }]}>
             <ModalHeader
               icon={odbiorModalVisible ? 'arrow-down-circle' : 'return-up-back'}
               color={odbiorModalVisible ? '#EF4444' : '#10B981'}
@@ -1180,7 +1133,7 @@ const Cudzych = () => {
             {/* Product search */}
             <View style={styles.formField}>
               <View style={styles.productHeaderContainer}>
-                <Text style={styles.fieldLabel}>Wybierz produkt:</Text>
+                <Text style={look.formLabel}>Wybierz produkt:</Text>
                 {odbiorModalVisible && (
                   <TouchableOpacity
                     style={styles.scanButton}
@@ -1281,7 +1234,7 @@ const Cudzych = () => {
 
             {/* Size dropdown */}
             <View style={styles.formField}>
-              <Text style={styles.fieldLabel}>Rozmiar:</Text>
+              <Text style={look.formLabel}>Rozmiar:</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Wpisz rozmiar..."
@@ -1379,7 +1332,7 @@ const Cudzych = () => {
 
             {/* Price input */}
             <View style={styles.formField}>
-              <Text style={styles.fieldLabel}>Cena (zł):</Text>
+              <Text style={look.formLabel}>Cena (zł):</Text>
               <TextInput
                 style={[styles.input, styles.readonlyInput]}
                 placeholder="Cena z cennika"
@@ -1391,7 +1344,7 @@ const Cudzych = () => {
 
             {/* Notes input */}
             <View style={styles.formField}>
-              <Text style={styles.fieldLabel}>Uwagi (opcjonalne):</Text>
+              <Text style={look.formLabel}>Uwagi (opcjonalne):</Text>
               <TextInput
                 style={[styles.input, styles.notesInput]}
                 placeholder="Dodatkowe informacje..."
@@ -1427,26 +1380,26 @@ const Cudzych = () => {
             </ScrollView>
 
             {/* Modal buttons */}
-            <View style={styles.modalButtons}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={look.neutralButton}
                 onPress={() => {
                   setOdbiorModalVisible(false);
                   setZwrotModalVisible(false);
                   resetForm();
                 }}
               >
-                <Text style={styles.cancelButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
-                  styles.saveButton,
+                  look.primaryButton,
                   { backgroundColor: odbiorModalVisible ? '#EF4444' : '#10B981' }
                 ]}
                 onPress={() => createTransaction(odbiorModalVisible ? 'odbior' : 'zwrot')}
                 disabled={loading}
               >
-                <Text style={styles.saveButtonText}>
+                <Text style={look.buttonText}>
                   {odbiorModalVisible ? 'Zapisz Odbiór' : 'Zapisz Zwrot'}
                 </Text>
               </TouchableOpacity>
@@ -1468,8 +1421,8 @@ const Cudzych = () => {
         }}
       >
         <KeyboardSafeOverlay>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, { maxHeight: '90%' }]}>
             <ModalHeader
               icon={wplataModalVisible ? 'wallet' : 'cash'}
               color={wplataModalVisible ? '#F59E0B' : '#06B6D4'}
@@ -1485,7 +1438,7 @@ const Cudzych = () => {
 
             {/* Amount input */}
             <View style={styles.formField}>
-              <Text style={styles.fieldLabel}>Kwota (zł):</Text>
+              <Text style={look.formLabel}>Kwota (zł):</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Wpisz kwotę..."
@@ -1498,7 +1451,7 @@ const Cudzych = () => {
 
             {/* Notes input */}
             <View style={styles.formField}>
-              <Text style={styles.fieldLabel}>Uwagi (opcjonalne):</Text>
+              <Text style={look.formLabel}>Uwagi (opcjonalne):</Text>
               <TextInput
                 style={[styles.input, styles.notesInput]}
                 placeholder="Dodatkowe informacje..."
@@ -1513,26 +1466,26 @@ const Cudzych = () => {
             </ScrollView>
 
             {/* Modal buttons */}
-            <View style={styles.modalButtons}>
+            <View style={look.buttonRow}>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={look.neutralButton}
                 onPress={() => {
                   resetPaymentForm();
                   setWplataModalVisible(false);
                   setWyplataModalVisible(false);
                 }}
               >
-                <Text style={styles.cancelButtonText}>Anuluj</Text>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
-                  styles.saveButton,
+                  look.primaryButton,
                   { backgroundColor: wplataModalVisible ? '#339af0' : '#fd7e14' }
                 ]}
                 onPress={() => createPaymentTransaction(wplataModalVisible ? 'wplata' : 'wyplata')}
                 disabled={loading}
               >
-                <Text style={styles.saveButtonText}>
+                <Text style={look.buttonText}>
                   {wplataModalVisible ? 'Zapisz Wpłatę' : 'Zapisz Wypłatę'}
                 </Text>
               </TouchableOpacity>
@@ -1549,8 +1502,8 @@ const Cudzych = () => {
         visible={dateFilterVisible}
         onRequestClose={() => setDateFilterVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { width: '90%', maxHeight: '80%' }]}>
+        <View style={look.modalOverlay}>
+          <View style={[look.modalContent, { width: '90%', maxHeight: '80%' }]}>
             <ModalHeader icon="calendar" color="#0D6EFD" title="Filtruj po dacie" subtitle="Wybierz przedział czasowy dla transakcji" />
 
             {/* Display selected date range */}
@@ -1573,7 +1526,7 @@ const Cudzych = () => {
             )}
 
             {/* Quick filters */}
-            <Text style={styles.fieldLabel}>Szybki wybór:</Text>
+            <Text style={look.formLabel}>Szybki wybór:</Text>
             <View style={styles.quickFilters}>
               <TouchableOpacity 
                 style={styles.quickChip}
@@ -1874,9 +1827,18 @@ const Cudzych = () => {
 };
 
 const styles = createThemedStyles(() => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: tc('bg', 'black'),
+  // nagłówek sekcji „Historia transakcji” z przyciskiem filtra (jak na ekranach admina)
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  periodChip: {
+    alignSelf: 'flex-start',
+    marginTop: 0,
+    marginBottom: 10,
   },
   scrollView: {
     flex: 1,
@@ -1894,63 +1856,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   
   // Header styles
-  header: {
-    padding: 20,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#333'),
-  },
-  title: {
-    color: tc('text', 'white'),
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  balanceContainer: {
-    alignItems: 'center',
-  },
-  balancePill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  balancePillText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  balanceCard: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    marginTop: 14,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    backgroundColor: tc('surface', '#161622'),
-  },
-  actionTile: {
-    width: '48%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: tc('surface', '#161622'),
-    borderWidth: 1,
-    borderColor: tc('border', '#1E293B'),
-    borderRadius: 12,
-    padding: 12,
-  },
-  actionTileIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  actionTileText: {
-    color: tc('text', '#fff'),
-    fontSize: 16,
-    fontWeight: '600',
-  },
   quickChip: {
     flex: 1,
     marginHorizontal: 4,
@@ -1966,239 +1871,17 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  balanceLabel: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  balanceAmount: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: tc('text', 'white'),
-  },
   
   // Action buttons
-  actionButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingTop: 4,
-    rowGap: 12,
-  },
-  smallButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'white',
-    flex: 1,
-  },
-  smallButtonText: {
-    color: tc('text', 'white'),
-    fontSize: 12,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 10,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: tc('surface2', '#2a2a3e'),
-    borderWidth: 1,
-    borderColor: tc('border', '#334155'),
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  confirmButton: {
-    backgroundColor: 'green',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    marginTop: 20,
-    width: '100%',
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   
   // Transactions
-  transactionsContainer: {
-    paddingHorizontal: 12,
-    paddingTop: 20,
-  },
-  transactionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: tc('surface', '#161622'),
-    borderWidth: 1,
-    borderColor: tc('border', '#1E293B'),
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  filterButtonText: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dateFilterDisplay: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(13, 110, 253, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(13, 110, 253, 0.4)',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  dateFilterText: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  clearFilterButton: {
-    backgroundColor: '#EF4444',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  clearFilterText: {
-    color: tc('text', 'white'),
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  transactionItem: {
-    backgroundColor: tc('surface', '#161622'),
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: tc('border', '#1E293B'),
-    borderLeftWidth: 4,
-  },
-  transactionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  transactionType: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: tc('text', 'white'),
-  },
-  transactionPrice: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  transactionProduct: {
-    color: tc('text', 'white'),
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  transactionSize: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  transactionDate: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 13,
-  },
-  transactionNotes: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 13,
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
-  noTransactions: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 15,
-    textAlign: 'center',
-    marginTop: 20,
-  },
   
   // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: tc('surface', '#161622'),
-    borderRadius: 20,
-    padding: 24,
-    width: '90%',
-    maxHeight: '85%',
-    alignItems: 'stretch',
-    borderWidth: 1,
-    borderColor: tc('border', '#232533'),
-  },
-  modalBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: tc('surface', 'black'),
-    borderRadius: 10,
-    padding: 16,
-    width: '70%',
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    color: tc('text', '#ffffff'),
-    textAlign: 'center',
-  },
   
   // Form styles
   formField: {
     width: '100%',
     marginBottom: 15,
-  },
-  fieldLabel: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 6,
   },
   input: {
     width: '100%',
@@ -2210,25 +1893,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', 'white'),
     borderWidth: 1,
     borderColor: tc('border', '#334155'),
-  },
-  inputText: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-  },
-  selectButton: {
-    width: '100%',
-    backgroundColor: '#0d6efd',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  selectButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   notesInput: {
     width: '100%',
@@ -2242,174 +1906,23 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   
   // Product container
-  productContainer: {
-    position: 'relative',
-    zIndex: 1,
-  },
   
   // Product dropdown
-  dropdown: {
-    backgroundColor: tc('surface', 'black'),
-    borderRadius: 8,
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: '#0d6efd',
-    maxHeight: 250,
-  },
   
   // Absolute dropdown to prevent layout shift
-  dropdownAbsolute: {
-    position: 'absolute',
-    top: 70, // Adjust based on label + input height
-    left: 0,
-    right: 0,
-    backgroundColor: tc('surface', 'black'),
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#0d6efd',
-    maxHeight: 250,
-    zIndex: 1000,
-    elevation: 1000, // For Android
-  },
-  dropdownItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#0d6efd',
-  },
-  dropdownItemText: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  closeDropdownButton: {
-    backgroundColor: '#0d6efd',
-    padding: 12,
-    alignItems: 'center',
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-  closeDropdownText: {
-    color: tc('text', 'white'),
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  noDataText: {
-    color: tc('text', 'white'),
-    fontSize: 14,
-    padding: 15,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
   
   // Modal buttons
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: tc('surface2', '#2a2a3e'),
-    borderWidth: 1,
-    borderColor: tc('border', '#334155'),
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: '#0D6EFD',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
   
   // Date picker styles
-  dateButton: {
-    backgroundColor: '#0d6efd',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  dateButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
   quickFilters: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  quickFilterButton: {
-    backgroundColor: '#0d6efd',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  quickFilterText: {
-    color: tc('text', 'white'),
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
   
   // Dropdown container styles
-  dropdownContainer: {
-    position: 'relative',
-  },
-  relativeDropdown: {
-    backgroundColor: tc('surface2', '#333'),
-    borderRadius: 8,
-    maxHeight: 200,
-    marginTop: 5, // Mały odstęp od inputa
-    zIndex: 1000, // Wysoki zIndex
-    elevation: 5, // Android shadow
-    shadowColor: '#000', // iOS shadow
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
 
   // Scanner styles
-  productHeaderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#0D6EFD',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  scanButtonText: {
-    color: 'white',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
 
   // Scanner styles (adapted from QRScanner.jsx)
   productHeaderContainer: {
@@ -2457,11 +1970,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     backgroundColor: '#0D6EFD',
     borderColor: '#0D6EFD',
   },
-  checkmark: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
   checkboxLabel: {
     color: tc('text', 'white'),
     fontSize: 14,
@@ -2475,78 +1983,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginLeft: 32,
   },
   
-  scannerContainer: {
-    flex: 1,
-    backgroundColor: tc('bg', 'black'),
-  },
-  camera: {
-    flex: 1,
-  },
-  scannerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    pointerEvents: 'none',
-  },
-  scanArea: {
-    width: 250,
-    height: 250,
-    borderWidth: 3,
-    borderColor: '#0D6EFD',
-    borderRadius: 20,
-  },
-  scannerControls: {
-    position: 'absolute',
-    bottom: 50,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-  },
-  scannerButton: {
-    backgroundColor: '#0d6efd',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  scannerButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  permissionContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: tc('bg', 'black'),
-    padding: 20,
-  },
-  permissionText: {
-    color: tc('text', 'white'),
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  permissionButton: {
-    backgroundColor: '#0d6efd',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  permissionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
 }));
 
 // QRScanner styles - identical to QRScanner component

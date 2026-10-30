@@ -20,6 +20,7 @@ import { appAlert } from '../services/appAlert';
 
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
+import { CudzichBalanceCard, CudzichTransactionCard, cudzichType } from '../components/CudzichLook'; // karty jak w zakładce Cudzich
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
 const CudzichList = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -105,7 +106,8 @@ const CudzichList = () => {
         t.productName?.toLowerCase().includes(query) ||
         t.size?.toLowerCase().includes(query) ||
         t.type?.toLowerCase().includes(query) ||
-        t.note?.toLowerCase().includes(query)
+        (t.notes || t.note)?.toLowerCase().includes(query) ||
+        cudzichType(t.type).label.toLowerCase().includes(query)
       );
     }
 
@@ -117,110 +119,6 @@ const CudzichList = () => {
     setSelectedProduct('');
     setSelectedSize('');
     setSearchQuery('');
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('pl-PL', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getTypeLabel = (type) => {
-    const labels = {
-      'odbior': 'Odbiór',
-      'zwrot': 'Zwrot',
-      'wplata': 'Wpłata',
-      'wyplata': 'Wypłata'
-    };
-    return labels[type] || type;
-  };
-
-  const getTypeColor = (type) => {
-    const colors = {
-      'odbior': '#22C55E',
-      'zwrot': '#EF4444',
-      'wplata': '#3B82F6',
-      'wyplata': '#F59E0B'
-    };
-    return colors[type] || '#64748B';
-  };
-
-  const getTypeIcon = (type) => {
-    const icons = {
-      'odbior': 'arrow-down-circle',
-      'zwrot': 'arrow-up-circle',
-      'wplata': 'wallet',
-      'wyplata': 'cash'
-    };
-    return icons[type] || 'swap-horizontal';
-  };
-
-  const renderTransactionCard = (transaction) => {
-    const typeColor = getTypeColor(transaction.type);
-    
-    return (
-      <View key={transaction._id} style={[styles.card, { borderLeftColor: typeColor }]}>
-        <View style={styles.cardHeader}>
-          <View style={styles.typeSection}>
-            <View style={[styles.typeIcon, { backgroundColor: `${typeColor}26` }]}>
-              <Ionicons name={getTypeIcon(transaction.type)} size={20} color={typeColor} />
-            </View>
-            <View style={[styles.typeBadge, { backgroundColor: `${typeColor}26`, borderColor: `${typeColor}80` }]}>
-              <Text style={[styles.typeText, { color: typeColor }]}>
-                {getTypeLabel(transaction.type)}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.dateText}>{formatDate(transaction.date)}</Text>
-        </View>
-
-        <View style={styles.cardBody}>
-          {transaction.productName && (
-            <View style={styles.infoRow}>
-              <Ionicons name="pricetag-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Produkt:</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {transaction.productName}
-              </Text>
-            </View>
-          )}
-
-          {transaction.size && (
-            <View style={styles.infoRow}>
-              <Ionicons name="resize-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Rozmiar:</Text>
-              <Text style={styles.infoValue}>{transaction.size}</Text>
-            </View>
-          )}
-
-          {transaction.amount && (
-            <View style={styles.infoRow}>
-              <Ionicons name="cash-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Kwota:</Text>
-              <Text style={[styles.infoValue, styles.amountValue]}>
-                {transaction.amount} {transaction.currency || 'PLN'}
-              </Text>
-            </View>
-          )}
-
-          {transaction.note && (
-            <View style={styles.infoRow}>
-              <Ionicons name="document-text-outline" size={16} color={tc('muted', "#94A3B8")} />
-              <Text style={styles.infoLabel}>Notatka:</Text>
-              <Text style={styles.infoValue} numberOfLines={2}>
-                {transaction.note}
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-    );
   };
 
   if (loading) {
@@ -243,15 +141,9 @@ const CudzichList = () => {
           onBack={() => router.back()}
         />
 
-        {/* Balance Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceHeader}>
-            <View style={styles.balanceIcon}>
-              <Ionicons name="wallet-outline" size={24} color="#10B981" />
-            </View>
-            <Text style={styles.balanceLabel}>Saldo aktualnie</Text>
-          </View>
-          <Text style={styles.balanceAmount}>{balance.toFixed(2)} PLN</Text>
+        {/* Karta salda - ta sama co w zakładce Cudzich punktu P */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+          <CudzichBalanceCard balance={balance} />
         </View>
 
         {/* Search and Filter Bar */}
@@ -313,7 +205,7 @@ const CudzichList = () => {
               </Text>
             </View>
           ) : (
-            filteredTransactions.map(renderTransactionCard)
+            filteredTransactions.map((transaction) => <CudzichTransactionCard key={transaction._id} transaction={transaction} />)
           )}
         </ScrollView>
       </KeyboardSafeScreen>
@@ -426,45 +318,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: tc('bg', '#000000'),
   },
-  backButton: {
-    marginLeft: 8,
-  },
-  balanceCard: {
-    backgroundColor: tc('surface', '#161622'),
-    marginHorizontal: 20,
-    marginVertical: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', '#1E293B'),
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
-  },
-  balanceIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#10B98126',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  balanceLabel: {
-    fontSize: 16,
-    color: tc('muted', '#94A3B8'),
-    fontWeight: '600',
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#10B981',
-    textAlign: 'center',
-  },
   topBar: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -525,105 +378,11 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('muted', '#64748B'),
     marginTop: 16,
   },
-  card: {
-    backgroundColor: tc('surface', '#161622'),
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: tc('border', '#1E293B'),
-    borderLeftWidth: 4,
-    borderLeftColor: tc('border', '#1E293B'),
-  },
-  cardHeader: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#1E293B'),
-  },
-  typeSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  typeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  typeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  typeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  dateText: {
-    fontSize: 12,
-    color: tc('muted', '#64748B'),
-  },
-  cardBody: {
-    padding: 12,
-    gap: 8,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: tc('muted', '#94A3B8'),
-  },
-  infoValue: {
-    fontSize: 14,
-    color: tc('text', '#fff'),
-    flex: 1,
-  },
-  amountValue: {
-    fontWeight: 'bold',
-    color: '#22C55E',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: tc('surface', '#1E293B'),
-    borderRadius: 16,
-    width: '90%',
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: tc('border', '#1E293B'),
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: tc('text', '#fff'),
-  },
   modalBody: {
     marginBottom: 16,
   },
   filterGroup: {
     marginBottom: 20,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: tc('text', '#fff'),
-    marginBottom: 8,
   },
   filterOptions: {
     flexDirection: 'row',
@@ -648,37 +407,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   filterOptionTextActive: {
     color: '#fff',
-    fontWeight: '600',
-  },
-  filterInput: {
-    backgroundColor: tc('surface2', '#334155'),
-    borderRadius: 8,
-    padding: 12,
-    color: tc('text', '#fff'),
-    fontSize: 14,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: tc('border', '#334155'),
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  resetButton: {
-    backgroundColor: '#64748B',
-  },
-  applyButton: {
-    backgroundColor: '#3B82F6',
-  },
-  modalButtonText: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
     fontWeight: '600',
   },
 }));
