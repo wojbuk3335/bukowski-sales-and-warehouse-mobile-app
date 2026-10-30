@@ -258,7 +258,7 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     await waitFor(() => expect(screen.getByText('Odbiór - Cudzich bierze kurtkę')).toBeTruthy());
     expect(screen.getByDisplayValue('Ada CZERWONY XL')).toBeTruthy();
     expect(screen.getByTestId('cudzich-scanned-price').props.value).toBe('850'); // cennik Cudzich, nie karta (1200)
-    expect(screen.getByText('Sprzedano od')).toBeTruthy();
+    expect(screen.getByText('Sprzedano od - bardzo ważne, wybierz uważnie')).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('cudzich-scanned-confirm'));
     // jeden zapis: wpis w saldzie i sprzedaż razem (serwer) - telefon nie wysyła już osobno sprzedaży
@@ -534,6 +534,30 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(urls().filter((url) => url.includes('/cudzich/transactions') && new URL(url).searchParams.get('page') === '2')).toHaveLength(0);
     await act(async () => { releaseFiltered(); });
     await waitFor(() => expect(screen.getByTestId('cudzich-transactions-list').props.data).toHaveLength(30));
+  });
+
+  test('„Sprzedano od” jak w „Dodaj”: stan w każdym punkcie; punkt bez kurtki - pytanie o korektę, potem ostrzeżenie', async () => {
+    const ctx = {
+      ...context,
+      users: [...context.users, { _id: 'u-t', symbol: 'T', location: 'Zakopane', sellingPoint: 'Tatry', role: 'user' }],
+      stateData: [{ symbol: 'P', barcode: ADA_XL }, { symbol: 'P', barcode: ADA_XL }],
+    };
+    const screen = renderTab(ctx);
+    await openScanner(screen, 'odbior');
+    fireEvent.press(screen.getByTestId('fake-scan'));
+    fireEvent.press(await screen.findByTestId('sale-point-select'));
+    expect(textOf(await screen.findByTestId('sale-point-P-note'))).toBe('Na stanie: 2 szt.');
+    expect(textOf(screen.getByTestId('sale-point-T-note'))).toBe('Brak na stanie - po przetworzeniu powstanie korekta');
+
+    fireEvent.press(screen.getByTestId('sale-point-T'));
+    expect(appAlert).toHaveBeenCalledWith('Brak na stanie w punkcie T', expect.stringContaining('korekta'), expect.any(Array));
+    const buttons = appAlert.mock.calls.find(([title]) => title === 'Brak na stanie w punkcie T')[2];
+    act(() => buttons.find((button) => button.text === 'Wybierz').onPress());
+    expect(textOf(await screen.findByTestId('sale-point-missing-warning'))).toContain('powstanie korekta');
+
+    fireEvent.press(screen.getByTestId('cudzich-scanned-confirm'));
+    await waitFor(() => expect(posts('/cudzich/odbior')).toHaveLength(1));
+    expect(posts('/cudzich/odbior')[0].from).toBe('T');
   });
 
   test('bez ceny: komunikat zamiast zapisu', async () => {

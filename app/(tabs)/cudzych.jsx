@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useCameraPermissions } from "expo-camera";
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
+import SalePointPicker from "../../components/scanner/SalePointPicker"; // „Sprzedano od” jak w „Dodaj”: stan w punktach i korekta
 import ProductBasePicker from "../../components/scanner/ProductBasePicker"; // „Z bazy” - wybór produktu zamiast skanu (jak w Remanencie)
 import CudzichFilterModal, { filterLabel } from "../../components/CudzichFilterModal"; // filtr historii: zakres dat, szybkie zakresy, rodzaje
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -103,7 +104,6 @@ const Cudzych = () => {
   const [scannedProductModalVisible, setScannedProductModalVisible] = useState(false);
   const [scannedProductData, setScannedProductData] = useState({ name: "", size: "", barcode: "", price: "" });
   const [selectedOption, setSelectedOption] = useState(""); // State for selling point selection
-  const [sellingPointMenuVisible, setSellingPointMenuVisible] = useState(false); // State for "Sprzedano od" popup
   
   // Modal states
   const [odbiorModalVisible, setOdbiorModalVisible] = useState(false);
@@ -826,16 +826,6 @@ const Cudzych = () => {
     return sameLocationUsers;
   };
 
-  // Open selling point modal
-  const openSellingPointModal = () => {
-    setSellingPointMenuVisible(true);
-  };
-
-  // Select selling point from modal
-  const selectSellingPointFromModal = (symbol) => {
-    setSelectedOption(symbol);
-    setSellingPointMenuVisible(false);
-  };
 
 
 
@@ -1496,18 +1486,18 @@ const Cudzych = () => {
                 editable={false}
                 placeholder="Barcode"
               />
-              {scannerType === 'odbior' && (<>
-              <Text style={look.formLabel}>Sprzedano od</Text>
-              <TouchableOpacity
-                style={[look.selectField, { marginBottom: 16, borderWidth: 2, borderColor: '#F59E0B' }]}
-                onPress={openSellingPointModal}
-              >
-                <Text style={[look.selectFieldText, !selectedOption && { color: tc('muted', '#94A3B8') }]}>
-                  {selectedOption || "Wybierz punkt sprzedaży"}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color="#F59E0B" />
-              </TouchableOpacity>
-              </>)}
+              {/* „Sprzedano od” jak w „Dodaj”: stan sztuki w każdym punkcie, punkt bez sztuki - korekta po Dobieraniu */}
+              {scannerType === 'odbior' && (
+                <SalePointPicker
+                  value={selectedOption}
+                  onChange={setSelectedOption}
+                  barcode={scannedProductData.barcode}
+                  points={getMatchingSymbols()}
+                  users={users}
+                  stateData={stateData}
+                  location={user?.location}
+                />
+              )}
               
 
               {/* Cena od razu w polu: cennik Cudzich, bez niego karta produktu; można poprawić.
@@ -1694,48 +1684,6 @@ const Cudzych = () => {
           }
         }}
       />
-
-      {/* Selling Point Selection Modal (copied from QRScanner) */}
-      {sellingPointMenuVisible && (
-        <Modal
-          transparent={true}
-          animationType="slide"
-          visible={sellingPointMenuVisible}
-          onRequestClose={() => setSellingPointMenuVisible(false)}
-        >
-          <View style={qrStyles.currencyModalContainer}>
-            <View style={qrStyles.currencyModalContent}>
-              <ModalHeader icon="storefront" color="#F59E0B" title="Wybierz punkt sprzedaży" />
-              {getMatchingSymbols().length > 0 ? (
-                <FlatList
-                  data={getMatchingSymbols()}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={qrStyles.currencyModalItem}
-                      onPress={() => selectSellingPointFromModal(item.symbol)}
-                    >
-                      <Text style={qrStyles.currencyModalItemText}>
-                        {item.symbol}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              ) : (
-                <Text style={qrStyles.currencyModalItemText}>
-                  Brak dostępnych punktów sprzedaży dla tego produktu
-                </Text>
-              )}
-              <TouchableOpacity
-                style={qrStyles.currencyModalCloseButton}
-                onPress={() => setSellingPointMenuVisible(false)}
-              >
-                <Text style={qrStyles.currencyModalCloseButtonText}>Zamknij</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
 
       {/* Success Modal */}
       <Modal

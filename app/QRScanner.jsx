@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { FlatList, Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardSafeScreen } from "../components/KeyboardSafe"; // klawiatura nie zaslania pola tekstowego
 import ScanCamera from "../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
+import SalePointPicker from "../components/scanner/SalePointPicker"; // „Sprzedano od” ze stanem w punktach i korektą (wspólne z Cudzichem)
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiUrl, API_CONFIG } from "../config/api";
 import tokenService from "../services/tokenService"; // Import tokenService
 import Logger from "../services/logger"; // Import logger service
 import { appAlert } from '../services/appAlert';
-import { pointDisplayName, pointNameBySymbol } from '../utils/pointName'; // pełna nazwa punktu zamiast symbolu
 import { warsawToday } from '../utils/warsawDay';
 import { applyChangeToCash, computePaymentBalance, formatMoney, formatMoneyExact, plnPerUnit, plnToCurrency, roundDownMoney, roundUpMoney } from "../utils/paymentBalance";
 import { sanitizeAmountInput } from "../utils/amountInput";
@@ -70,7 +70,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [currentProductName, setCurrentProductName] = useState(""); // Nazwa aktualnego produktu
   const [currentProductSize, setCurrentProductSize] = useState(""); // Rozmiar aktualnego produktu
   
-  const [sellingPointMenuVisible, setSellingPointMenuVisible] = useState(false); // State for "Sprzedano od" popup
   // Get available currencies from currencyRates
   const availableCurrencies = (() => {
     if (!currencyRates || currencyRates.length === 0) {
@@ -98,39 +97,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [successMessage, setSuccessMessage] = useState(""); // Message for success modal
   const [errorModalVisible, setErrorModalVisible] = useState(false); // State for error modal
   const [errorMessage, setErrorMessage] = useState(""); // Message for error modal
-
-  const openSellingPointMenu = () => {
-    setSellingPointMenuVisible(true);
-  };
-
-  const selectSellingPoint = (point) => {
-    setSelectedOption(point);
-    setSellingPointMenuVisible(false);
-  };
-
-  const openSellingPointModal = () => {
-    setSellingPointMenuVisible(true);
-  };
-
-  const selectSellingPointFromModal = (symbol) => {
-    // Punkt bez tej kurtki na stanie: można wybrać, ale najpierw pytanie - w Dobieraniu powstanie korekta (25.10.2026)
-    if (barcode && saleStockAt(symbol) === 0) {
-      appAlert(
-        `Brak na stanie w punkcie ${symbol}`,
-        `W punkcie ${symbol} nie ma tej kurtki na stanie. Jeśli sprzedaż zostanie zapisana z tego punktu, po przetworzeniu w Dobieraniu powstanie korekta (brak). Wybrać mimo to?`,
-        [
-          { text: "Anuluj", style: "cancel" },
-          { text: "Wybierz", onPress: () => { setSelectedOption(symbol); setSellingPointMenuVisible(false); } },
-        ]
-      );
-      return;
-    }
-    setSelectedOption(symbol);
-    setSellingPointMenuVisible(false);
-  };
-
-  // Ile sztuk z tym kodem leży w danym punkcie (telefon ma stan wszystkich punktów)
-  const saleStockAt = (symbol) => (stateData || []).filter((row) => row.symbol === symbol && row.barcode === barcode).length;
 
   const getMatchingSymbols = (currentBarcode = barcode) => {
     if (!users || !user) {
@@ -1387,81 +1353,15 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   value={modalMessage}
                   editable={false}
                 />
-                {/* „Sprzedano od” w ramce: mały wyśrodkowany podpis nad listą rozwijaną (zamiast dużego ostrzeżenia) */}
-                <View style={styles.sellerFrame}>
-                  <Text style={styles.sellerFrameCaption}>Sprzedano od - bardzo ważne, wybierz uważnie</Text>
-                  <TouchableOpacity
-                    style={[look.selectField, styles.importantSelect]}
-                    onPress={openSellingPointModal}
-                  >
-                    <Text style={[look.selectFieldText, !selectedOption && { color: tc('muted', '#94A3B8') }]}>
-                      {selectedOption ? pointNameBySymbol(users, selectedOption) : "Wybierz punkt sprzedaży"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#F59E0B" />
-                  </TouchableOpacity>
-                  {barcode && selectedOption && saleStockAt(selectedOption) === 0 ? (
-                    <Text testID="sale-point-missing-warning" style={[styles.salePointNote, styles.salePointNoteMissing, { textAlign: 'center', marginTop: 6 }]}>
-                      {`W punkcie ${selectedOption} nie ma tej kurtki na stanie - po przetworzeniu powstanie korekta.`}
-                    </Text>
-                  ) : null}
-                </View>
-                {sellingPointMenuVisible && (
-                  <Modal
-                    transparent={true}
-                    animationType="slide"
-                    visible={sellingPointMenuVisible}
-                    onRequestClose={() => setSellingPointMenuVisible(false)}
-                  >
-                    <View style={styles.currencyModalContainer}>
-                      <View style={styles.currencyModalContent}>
-                        <ModalHeader icon="storefront" color="#F59E0B" title="Wybierz punkt sprzedaży" subtitle="Skąd pochodzi sprzedany produkt" />
-                        
-                        <ScrollView style={{ maxHeight: 400, width: '100%', marginBottom: 8 }}>
-                          {getMatchingSymbols().length > 0 ? (
-                            getMatchingSymbols().map((item) => (
-                              <TouchableOpacity
-                                key={item._id}
-                                testID={`sale-point-${item.symbol}`}
-                                style={[styles.currencyModalItem, styles.pointItemCentered]}
-                                onPress={() => selectSellingPointFromModal(item.symbol)}
-                              >
-                                <Text style={[styles.currencyModalItemText, { textAlign: 'center' }]}>
-                                  {pointDisplayName(item)}
-                                </Text>
-                                {barcode ? (
-                                  <Text
-                                    testID={`sale-point-${item.symbol}-note`}
-                                    style={[styles.salePointNote, { textAlign: 'center' }, saleStockAt(item.symbol) === 0 && styles.salePointNoteMissing]}
-                                  >
-                                    {saleStockAt(item.symbol) > 0
-                                      ? `Na stanie: ${saleStockAt(item.symbol)} szt.`
-                                      : 'Brak na stanie - po przetworzeniu powstanie korekta'}
-                                  </Text>
-                                ) : null}
-                              </TouchableOpacity>
-                            ))
-                          ) : (
-                            <View style={{ padding: 20 }}>
-                              <Text style={{ color: tc('text', 'white'), textAlign: 'center', fontSize: 16 }}>
-                                {barcode ? 
-                                  `Brak tego produktu w punktach sprzedaży w lokalizacji "${user?.location || 'nieznana'}"` :
-                                  'Zeskanuj kod kreskowy aby zobaczyć dostępne punkty sprzedaży'
-                                }
-                              </Text>
-                            </View>
-                          )}
-                        </ScrollView>
-                        
-                        <TouchableOpacity
-                          style={styles.currencyModalCloseButton}
-                          onPress={() => setSellingPointMenuVisible(false)}
-                        >
-                          <Text style={styles.currencyModalCloseButtonText}>Zamknij</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                )}
+                <SalePointPicker
+                  value={selectedOption}
+                  onChange={setSelectedOption}
+                  barcode={barcode}
+                  points={getMatchingSymbols()}
+                  users={users}
+                  stateData={stateData}
+                  location={user?.location}
+                />
 
                 {/* Zamówienia do wydania w tym punkcie (odbiór / dostawa) - pasujące do zeskanowanej kurtki na górze */}
                 <Modal
@@ -2011,31 +1911,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  salePointNote: { // „Sprzedano od”: stan kurtki w punkcie
-    fontSize: 12,
-    marginTop: 2,
-    color: tc('muted', '#94A3B8'),
-  },
-  salePointNoteMissing: {
-    color: '#EF4444',
-  },
-  pointItemCentered: { // lista punktów: nazwa i stan wyśrodkowane
-    alignItems: 'center',
-  },
-  sellerFrame: { // „Sprzedano od”: ramka z podpisem nad listą rozwijaną
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.6)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    backgroundColor: 'rgba(245, 158, 11, 0.06)',
-  },
-  sellerFrameCaption: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 12,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
   salePriceRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2221,10 +2096,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: tc('text', '#fff'),
     fontSize: 13,
     lineHeight: 18,
-  },
-  importantSelect: {
-    borderWidth: 2,
-    borderColor: '#F59E0B',
   },
   paymentCard: {
     width: '100%',
