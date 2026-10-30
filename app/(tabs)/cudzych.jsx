@@ -59,6 +59,9 @@ const Cudzych = () => {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
+  // Blokada podwójnego zapisu (odbiór, zwrot, rozliczenie): ref zmienia się od razu, a `loading` dopiero po
+  // przerysowaniu - dwa szybkie stuknięcia przechodziły oba i zapisywały operację dwa razy
+  const savingRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   
   // QR Scanner states
@@ -433,6 +436,8 @@ const Cudzych = () => {
       appAlert('Zwrot', 'Zaznacz kurtki z listy albo dodaj kurtkę sprzed systemu.');
       return false;
     }
+    if (savingRef.current) return false;
+    savingRef.current = true;
     try {
       setLoading(true);
       const items = [
@@ -461,6 +466,7 @@ const Cudzych = () => {
       appAlert('Błąd', 'Nie udało się połączyć z serwerem');
       return false;
     } finally {
+      savingRef.current = false;
       setLoading(false);
     }
   };
@@ -474,6 +480,8 @@ const Cudzych = () => {
 
   // Save scanned product transaction
   const saveTransaction = async (type, productName, productSize, productPrice, productNotes, scannedBarcode = '', knownProductId = null) => {
+    if (savingRef.current) return false;
+    savingRef.current = true;
     try {
       setLoading(true);
       
@@ -579,6 +587,7 @@ const Cudzych = () => {
       appAlert('Błąd', 'Nie udało się połączyć z serwerem');
       return false;
     } finally {
+      savingRef.current = false;
       setLoading(false);
     }
   };
@@ -620,8 +629,8 @@ const Cudzych = () => {
       return;
     }
 
-    // Creating payment transaction
-
+    if (savingRef.current) return;
+    savingRef.current = true;
     try {
       setLoading(true);
       
@@ -661,6 +670,7 @@ const Cudzych = () => {
       Logger.error('❌ Error creating payment:', error);
       appAlert('Błąd', 'Nie udało się połączyć z serwerem');
     } finally {
+      savingRef.current = false;
       setLoading(false);
     }
   };
@@ -1333,7 +1343,7 @@ const Cudzych = () => {
                 disabled={loading}
               >
                 <Text style={look.buttonText} numberOfLines={1}>
-                  {wplataModalVisible ? 'Cudzich zapłacił - rozlicz' : 'Oddajemy Cudzichowi - rozlicz'}
+                  {loading ? 'Zapisywanie…' : (wplataModalVisible ? 'Cudzich zapłacił - rozlicz' : 'Oddajemy Cudzichowi - rozlicz')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1490,11 +1500,12 @@ const Cudzych = () => {
                   <Text style={look.neutralButtonText}>Anuluj</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[look.primaryButton, { backgroundColor: '#10B981' }]}
+                  style={[look.primaryButton, { backgroundColor: '#10B981' }, loading && look.disabled]}
                   testID="cudzich-scanned-confirm"
                   onPress={confirmScannedProduct}
+                  disabled={loading}
                 >
-                  <Text style={look.buttonText}>Potwierdź</Text>
+                  <Text style={look.buttonText} numberOfLines={1}>{loading ? 'Zapisywanie…' : 'Potwierdź'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1613,7 +1624,7 @@ const Cudzych = () => {
                 disabled={returnCount === 0 || loading}
               >
                 <Text style={look.buttonText} numberOfLines={1}>
-                  {returnCount > 0 ? `Zwróć ${returnCount} ${jacketsWord(returnCount)} do MAGAZYNU` : 'Zwróć do MAGAZYNU'}
+                  {loading ? 'Zapisywanie…' : (returnCount > 0 ? `Zwróć ${returnCount} ${jacketsWord(returnCount)} do MAGAZYNU` : 'Zwróć do MAGAZYNU')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={[look.neutralButton, styles.stackedButton]} onPress={() => setReturnListVisible(false)}>

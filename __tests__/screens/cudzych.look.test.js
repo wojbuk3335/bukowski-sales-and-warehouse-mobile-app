@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 
 // Cudzich (30.10.2026): wygląd jak na ekranach admina; historia porcjami z miejscem na dolny pasek zakładek;
 // kamera ta sama co w „Dodaj” na cały ekran; nazwa z karty produktu; cena od razu w polu - cennik Cudzich,
@@ -264,6 +264,36 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(posts('/sales/save-sales')[0]).toMatchObject({ fullName: 'Ada CZERWONY', size: 'XL', barcode: ADA_XL, source: 'Cudzich' });
   });
 
+  // Dwa stuknięcia, zanim ekran zdąży się przerysować (zablokowany przycisk jeszcze nie działa) - jak szybki palec na telefonie
+  const doubleTap = async (element) => {
+    await act(async () => {
+      fireEvent.press(element);
+      fireEvent.press(element);
+    });
+  };
+
+  test('podwójne stuknięcie „Potwierdź” w odbiorze: jeden odbiór i jedna sprzedaż; w trakcie „Zapisywanie…”', async () => {
+    let finishSave;
+    const baseFetch = tokenService.authenticatedFetch.getMockImplementation();
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
+      if (String(url).includes('/cudzich/transactions') && options.method === 'POST') {
+        baseFetch(url, options); // zapamiętaj wysłane body
+        return new Promise((resolve) => { finishSave = () => resolve({ ok: true, status: 201, json: () => Promise.resolve({ newBalance: 1250 }) }); });
+      }
+      return baseFetch(url, options);
+    });
+    const screen = renderTab();
+    await openScanner(screen, 'odbior');
+    fireEvent.press(screen.getByTestId('fake-scan'));
+    await waitFor(() => expect(screen.getByTestId('cudzich-scanned-price').props.value).toBe('850'));
+    await doubleTap(screen.getByTestId('cudzich-scanned-confirm'));
+    expect(screen.getByText('Zapisywanie…')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('cudzich-scanned-confirm')); // trzecie - przycisk już zablokowany
+    await act(async () => { finishSave(); });
+    await waitFor(() => expect(posts('/sales/save-sales')).toHaveLength(1));
+    expect(posts('/cudzich/transactions')).toHaveLength(1);
+  });
+
   test('produkt bez pozycji w cenniku Cudzich: cena z karty produktu; można ją poprawić przed zapisem', async () => {
     global.__scanCode = BELLA_M;
     const screen = renderTab();
@@ -315,7 +345,10 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(screen.getByTestId('cudzich-return-summary').props.children.join('')).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1550.00 zł');
     expect(screen.getByText('Zwróć 2 kurtki do MAGAZYNU')).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId('cudzich-return-confirm'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('cudzich-return-confirm'));
+      fireEvent.press(screen.getByTestId('cudzich-return-confirm')); // podwójne stuknięcie - jeden zwrot
+    });
     await waitFor(() => expect(posts('/cudzich/returns')).toHaveLength(1));
     expect(posts('/cudzich/returns')[0]).toEqual({ items: [{ saleId: 's-new' }, { saleId: 's-old' }], notes: '' });
     expect(posts('/cudzich/transactions')).toHaveLength(0);
@@ -411,7 +444,10 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect((await screen.findByTestId('cudzich-settle-info'))).toBeTruthy();
     expect(screen.getAllByText('Cudzich jest nam winien').length).toBeGreaterThan(0);
     expect(screen.getByTestId('cudzich-settle-amount').props.value).toBe('400');
-    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+      fireEvent.press(screen.getByTestId('cudzich-settle-confirm')); // podwójne stuknięcie - jedna wpłata
+    });
     await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
     expect(posts('/cudzich/transactions')[0]).toMatchObject({ type: 'wplata', price: 400 });
   });
