@@ -10,7 +10,7 @@ import CurrencyService from '../../services/currencyService';
 import Logger from '../../services/logger'; // Import currency service
 import LogoutButton from '../../components/LogoutButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
+import { ActionItem, CurrencyPickerModal, MessageModal, ModalHeader as SaleModalHeader, ScreenHeader, look } from '../../components/AdminLook'; // SaleModalHeader = nagłówek jak w „Nowa sprzedaż”
 import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycja sprzedaży wygląda jak modal „Nowa sprzedaż”
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, roundDownMoney } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput';
@@ -3711,52 +3711,58 @@ const Home = () => {
             </View>
           </View>
         </Modal>
-        {/* Options Modal */}
+        {/* Opcje sprzedaży (⋮) - wygląd jak w Stanie: nagłówek z ikoną, pozycje z ikonami, „Zamknij” */}
         <Modal
           transparent
           visible={modalVisible}
           animationType="slide"
           onRequestClose={() => setModalVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Opcje</Text>
-              <TouchableOpacity
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent} testID="sale-options-modal">
+              <SaleModalHeader
+                icon="ellipsis-horizontal-circle"
+                color="#0D6EFD"
+                title="Opcje"
+                subtitle={selectedItem ? `${selectedItem.fullName || ''} ${selectedItem.size || ''}`.trim() : undefined}
+              />
+              <ActionItem
+                testID="sale-option-edit"
+                icon="create-outline"
+                label="Edytuj"
                 onPress={() => {
                   if (selectedItem?._id) {
                     fetchItemData(selectedItem._id); // Fetch data and open edit modal
                     setModalVisible(false); // Close options modal
                   }
                 }}
-                style={styles.optionButton}
-              >
-                <Text style={styles.optionText}>Edytuj</Text>
-              </TouchableOpacity>
+              />
               {/* „Od Pana Kazka” - tylko punkt Most (jak sprawdza serwer), tylko niezwrócona sprzedaż */}
               {isMostAccount(user) && !selectedItem?.returned && (
-                <>
-                  {isItemInPanKazek(selectedItem) ? (
-                    <TouchableOpacity
-                      onPress={() => {
-                        handleRemoveFromPanKazek();
-                      }}
-                      style={[styles.optionButton, { backgroundColor: '#dc3545' }]}
-                    >
-                      <Text style={styles.optionText}>Usuń z listy Pan Kazek</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={() => {
-                        handlePanKazekTransfer();
-                      }}
-                      style={[styles.optionButton, { backgroundColor: '#28a745' }]}
-                    >
-                      <Text style={styles.optionText}>Od Pana Kazka</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
+                isItemInPanKazek(selectedItem) ? (
+                  <ActionItem
+                    testID="sale-option-pan-kazek-remove"
+                    icon="person-remove-outline"
+                    color="#F59E0B"
+                    label="Usuń z listy Pana Kazka"
+                    onPress={() => handleRemoveFromPanKazek()}
+                  />
+                ) : (
+                  <ActionItem
+                    testID="sale-option-pan-kazek"
+                    icon="person-add-outline"
+                    color="#10B981"
+                    label="Od Pana Kazka"
+                    note="Klient z polecenia"
+                    onPress={() => handlePanKazekTransfer()}
+                  />
+                )
               )}
-              <TouchableOpacity
+              <ActionItem
+                testID="sale-option-delete"
+                icon="trash-outline"
+                color="#EF4444"
+                label="Usuń"
                 onPress={() => {
                   if (selectedItem?._id) {
                     setDeleteConfirmMessage("Czy na pewno chcesz usunąć tę sprzedaż?");
@@ -3765,15 +3771,12 @@ const Home = () => {
                     Logger.error("No valid ID found for the selected item.");
                   }
                 }}
-                style={[styles.optionButton, styles.deleteButton]}
-              >
-                <Text style={styles.optionText}>Usuń</Text>
-              </TouchableOpacity>
+              />
               <TouchableOpacity
+                style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
                 onPress={() => setModalVisible(false)}
-                style={[styles.optionButton, styles.closeButton]}
               >
-                <Text style={styles.closeText}>Zamknij</Text>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3784,19 +3787,19 @@ const Home = () => {
           animationType="slide"
           onRequestClose={() => setTransferOptionsVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Opcje transferu</Text>
-              <Text testID="transfer-cancel-hint" style={[styles.modalText, { textAlign: 'center', marginBottom: 12 }]}>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <SaleModalHeader icon="swap-horizontal" color="#0D6EFD" title="Opcje przepisania" />
+              <Text testID="transfer-cancel-hint" style={look.modalMessage}>
                 {selectedTransferredItem?.transfer_to === 'Wymiana'
                   ? 'Anulowanie wymiany odbywa się w zakładce Stan.'
                   : 'Anulowanie przepisania odbywa się w zakładce Stan.'}
               </Text>
               <TouchableOpacity
                 onPress={() => setTransferOptionsVisible(false)}
-                style={[styles.optionButton, styles.closeButton]}
+                style={[look.neutralButton, { flex: 0 }]}
               >
-                <Text style={styles.closeText}>Zamknij</Text>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -5047,44 +5050,16 @@ const Home = () => {
           visible={confirmDeleteModalVisible}
           onRequestClose={() => setConfirmDeleteModalVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { width: '80%' }]}>
-              <Text style={styles.modalTitle}>Potwierdzenie usunięcia</Text>
-              <Text style={[styles.modalSubtitle, { marginBottom: 25, textAlign: 'center', lineHeight: 22 }]}>
-                {deleteConfirmMessage}
-              </Text>
-              
-              <View style={{ width: '100%', alignItems: 'center', gap: 12, flexDirection: 'row', justifyContent: 'space-between' }}>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: tc('surface2', '#2a2a3e'),
-                    borderWidth: 1,
-                    borderColor: tc('border', '#334155'),
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    flex: 1,
-                    marginRight: 8,
-                    alignItems: 'center'
-                  }}
-                  onPress={() => setConfirmDeleteModalVisible(false)}
-                >
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, fontWeight: 'bold' }}>Anuluj</Text>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <SaleModalHeader icon="trash" color="#EF4444" title="Usunąć sprzedaż?" />
+              <Text style={look.modalMessage}>{deleteConfirmMessage}</Text>
+              <View style={look.buttonRow}>
+                <TouchableOpacity style={look.neutralButton} onPress={() => setConfirmDeleteModalVisible(false)}>
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: '#dc3545',
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    flex: 1,
-                    marginLeft: 8,
-                    alignItems: 'center'
-                  }}
-                  onPress={handleDeleteConfirm}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✓ Usuń</Text>
+                <TouchableOpacity style={[look.primaryButton, { backgroundColor: '#EF4444' }]} onPress={handleDeleteConfirm}>
+                  <Text style={look.buttonText}>Usuń</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -5387,57 +5362,37 @@ const Home = () => {
           </View>
         </Modal>
 
-        {/* Pan Kazek Confirmation Modal */}
+        {/* „Od Pana Kazka” - potwierdzenie (wygląd jak pozostałe okienka) */}
         <Modal
           visible={panKazekModalVisible}
           transparent
           animationType="slide"
           onRequestClose={() => setPanKazekModalVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Potwierdzenie</Text>
-              <Text style={styles.modalText}>
-                Czy ta sprzedaż jest od Pana Kazka (klient z polecenia)?
-              </Text>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <SaleModalHeader icon="person-add" color="#10B981" title="Od Pana Kazka?" subtitle="Klient z polecenia" />
               {selectedItem && (
-                <View style={{ marginVertical: 15 }}>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 16, textAlign: 'center' }}>
-                    {selectedItem.fullName || selectedItem.name || "Nieznana nazwa"}
-                  </Text>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginTop: 5 }}>
-                    Rozmiar: {selectedItem.size || "Nieznany"}
-                  </Text>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginTop: 5 }}>
-                    Cena: {(() => {
-                      // Use the same logic as in the sales list
-                      const payments = [...(selectedItem.cash || []), ...(selectedItem.card || [])]
-                        .filter(({ price }) => price !== undefined && price !== null && price !== "" && price !== 0);
-                      
-                      if (payments.length > 0) {
-                        return payments.map(({ price, currency }) => `${price} ${currency}`).join(' + ');
-                      }
-                      
-                      // Fallback logic
-                      if (selectedItem.totalPrice) return selectedItem.totalPrice;
-                      if (selectedItem.price) return `${selectedItem.price} PLN`;
-                      return "0 PLN";
-                    })()}
-                  </Text>
-                </View>
+                <Text style={look.modalMessage}>
+                  {`${selectedItem.fullName || selectedItem.name || "Nieznana nazwa"} ${selectedItem.size || ""}\n`}
+                  {(() => {
+                    const payments = [...(selectedItem.cash || []), ...(selectedItem.card || [])]
+                      .filter(({ price }) => price !== undefined && price !== null && price !== "" && price !== 0);
+                    if (payments.length > 0) return payments.map(({ price, currency }) => `${price} ${currency}`).join(' + ');
+                    if (selectedItem.totalPrice) return `${selectedItem.totalPrice} PLN`;
+                    if (selectedItem.price) return `${selectedItem.price} PLN`;
+                    return "0 PLN";
+                  })()}
+                </Text>
               )}
-              <TouchableOpacity
-                style={[styles.optionButton, { backgroundColor: '#28a745' }]}
-                onPress={confirmPanKazekTransfer}
-              >
-                <Text style={styles.optionText}>Tak, dodaj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.optionButton, styles.closeButton]}
-                onPress={() => setPanKazekModalVisible(false)}
-              >
-                <Text style={styles.closeText}>Anuluj</Text>
-              </TouchableOpacity>
+              <View style={look.buttonRow}>
+                <TouchableOpacity style={look.neutralButton} onPress={() => setPanKazekModalVisible(false)}>
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[look.primaryButton, { backgroundColor: '#10B981' }]} onPress={confirmPanKazekTransfer} testID="pan-kazek-confirm-add">
+                  <Text style={look.buttonText}>Tak, dodaj</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>

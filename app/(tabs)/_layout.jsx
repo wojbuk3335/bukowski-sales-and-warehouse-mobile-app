@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../../context/ThemeContext';
 import { GlobalStateContext } from "../../context/GlobalState";
+import CenteredTabBar from "../../components/CenteredTabBar"; // „+” zawsze na środku paska (6 i 7 przycisków)
 
 // Ikona zakładki: te same ikony co w nagłówkach ekranów; aktywna - wypełniona, na niebieskiej plakietce
 const TabIcon = ({ iconName, color, name, focused }) => (
@@ -42,6 +43,18 @@ const TabLayout = () => {
   const isParzygnat = user?.symbol === 'P';
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme(); // motyw: tło, pasek zakładek, pasek stanu
+  const tabBarStyle = {
+    backgroundColor: colors.tabBar,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    height: Math.max(90, 70 + insets.bottom),
+    paddingBottom: Math.max(10, insets.bottom),
+    paddingTop: 15,
+    paddingHorizontal: 4,
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -49,6 +62,10 @@ const TabLayout = () => {
       <View style={{ height: 32, backgroundColor: colors.bg }} />
       <Tabs
         options={{ headerShown: false }}
+        // Własny pasek: „+” dokładnie na środku, reszta zakładek równo w lewej i prawej połowie
+        tabBar={(props) => (
+          <CenteredTabBar {...props} style={tabBarStyle} activeTintColor="#0D6EFD" inactiveTintColor={colors.muted} />
+        )}
         // Kliknięcie aktywnej zakładki otwiera ją od nowa (świeży ekran), jak po wejściu z innej zakładki
         screenListeners={({ navigation, route }) => ({
           tabPress: (event) => {
@@ -72,18 +89,7 @@ const TabLayout = () => {
           tabBarActiveTintColor: "#0D6EFD",
           tabBarInactiveTintColor: colors.muted,
           tabBarShowLabel: false,
-          tabBarStyle: {
-            backgroundColor: colors.tabBar,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            height: Math.max(90, 70 + insets.bottom),
-            paddingBottom: Math.max(10, insets.bottom),
-            paddingTop: 15,
-            paddingHorizontal: 4,
-            position: 'absolute',
-            bottom: 0,
-            width: '100%',
-          },
+          tabBarStyle,
         }}
       >
         <Tabs.Screen

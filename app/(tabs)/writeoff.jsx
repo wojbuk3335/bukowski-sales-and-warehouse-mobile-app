@@ -1041,8 +1041,8 @@ const fetchSales = async () => {
                             if (item.processedTransfer) {
                                 return (
                                     <View testID={`writeoff-processed-${item.processedTransfer._id}`} style={[look.itemCard, { opacity: 0.45 }]}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={look.itemCardText} numberOfLines={1}>
+                                        <View style={styles.tileBody}>
+                                            <Text style={[look.itemCardText, styles.tileText]} numberOfLines={1}>
                                                 {index + 1}. {item.fullName}  {item.size}
                                             </Text>
                                             <Text style={styles.transferStatusText} numberOfLines={1}>{item.awaitingWarehouse ? item.awaitingLabel : transferLabel(item.processedTransfer)}</Text>
@@ -1060,8 +1060,8 @@ const fetchSales = async () => {
                                     testID={`writeoff-item-${item.id}`}
                                     style={[look.itemCard, (transfer || sold) && { opacity: 0.45 }]}
                                 >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={look.itemCardText} numberOfLines={1}>
+                                    <View style={styles.tileBody}>
+                                        <Text style={[look.itemCardText, styles.tileText]} numberOfLines={1}>
                                             {index + 1}. {item.fullName}  {item.size}
                                         </Text>
                                         {transfer && (
@@ -1858,6 +1858,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
         color: tc('muted', '#94A3B8'),
         textAlign: 'center',
         paddingVertical: 24,
+    },
+    // Kafelek na liście: tekst wyśrodkowany w pionie względem całego kafelka i „⋮” (dawniej flex: 1 tekstu
+    // w kolumnie rozciągał go w pionie, a górny margines czcionki Androida podnosił napis)
+    tileBody: {
+        flex: 1,
+        justifyContent: 'center',
+        minHeight: 28,
+    },
+    tileText: {
+        flex: 0,
+        includeFontPadding: false,
+        textAlignVertical: 'center',
     },
     transferStatusText: {
         color: '#F59E0B',

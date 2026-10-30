@@ -437,12 +437,16 @@ export const look = createThemedStyles(() => StyleSheet.create({
   },
   dotsButton: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 2,
+    alignSelf: 'center',
+    justifyContent: 'center',
   },
   dotsText: {
     color: tc('muted', '#94A3B8'),
     fontSize: 22,
+    lineHeight: 24,
     textAlign: 'center',
+    includeFontPadding: false, // Android: bez górnego marginesu czcionki „⋮” stoi na środku kafelka
   },
   // okienka
   modalOverlay: {
