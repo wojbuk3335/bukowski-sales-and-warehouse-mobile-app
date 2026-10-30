@@ -28,19 +28,27 @@ const formatDate = (value) => {
   });
 };
 
-/** Karta salda: dodatnie = Cudzich ma do zapłaty (czerwone), zero lub ujemne = rozliczony / nadpłata (zielone). */
-export const CudzichBalanceCard = ({ balance, label = 'Saldo do zapłaty', itemsCount = null, style }) => {
-  const owes = (Number(balance) || 0) > 0;
-  const color = owes ? '#EF4444' : '#10B981';
+// Saldo słownie (30.10.2026): kto komu ile oddaje - zamiast samej liczby ze znakiem
+// dodatnie = Cudzich jest nam winien, ujemne = należy zwrócić Cudzichowi (kredyt ze zwrotów), zero = rozliczone
+export const cudzichBalanceInfo = (balance) => {
+  const value = Number(balance) || 0;
+  if (value > 0.004) return { label: 'Cudzich jest nam winien', color: '#EF4444', icon: 'arrow-down-circle-outline', amount: value };
+  if (value < -0.004) return { label: 'Należy zwrócić Cudzichowi', color: '#F59E0B', icon: 'arrow-up-circle-outline', amount: -value };
+  return { label: 'Rozliczone - nikt nikomu nic nie jest winien', color: '#10B981', icon: 'checkmark-circle-outline', amount: 0 };
+};
+
+/** Karta salda: słownie, kto komu ile oddaje (kwota zawsze dodatnia), licznik kurtek u Cudzicha. */
+export const CudzichBalanceCard = ({ balance, itemsCount = null, style }) => {
+  const { label, color, icon, amount } = cudzichBalanceInfo(balance);
   return (
     <View style={[styles.balanceCard, { borderLeftColor: color }, style]} testID="cudzich-balance-card">
       <View style={styles.balanceHeader}>
         <View style={[styles.balanceIcon, { backgroundColor: `${color}26` }]}>
-          <Ionicons name="wallet-outline" size={24} color={color} />
+          <Ionicons name={icon} size={24} color={color} />
         </View>
-        <Text style={styles.balanceLabel}>{label}</Text>
+        <Text style={[styles.balanceLabel, { color, flex: 1 }]} testID="cudzich-balance-label">{label}</Text>
       </View>
-      <Text style={[styles.balanceAmount, { color }]} testID="cudzich-balance-amount">{formatAmount(balance)} zł</Text>
+      <Text style={[styles.balanceAmount, { color }]} testID="cudzich-balance-amount">{formatAmount(amount)} zł</Text>
       {itemsCount !== null ? (
         <View style={styles.itemsRow} testID="cudzich-items-count">
           <Ionicons name="shirt-outline" size={16} color={tc('muted', '#94A3B8')} />

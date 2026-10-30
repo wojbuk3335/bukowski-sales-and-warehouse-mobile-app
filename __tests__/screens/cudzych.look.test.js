@@ -123,10 +123,18 @@ describe('Karty Cudzicha', () => {
     expect(payment.getByText('−500,00 zł')).toBeTruthy(); // wpłata zmniejsza saldo
   });
 
-  test('karta salda: dodatnie (do zapłaty) czerwone, zero zielone; kolory typów wspólne', () => {
+  test('karta salda słownie: na plusie „Cudzich jest nam winien”, na minusie „Należy zwrócić Cudzichowi” (kwota bez minusa), zero - rozliczone', () => {
     const owes = render(<CudzichBalanceCard balance={400} />);
+    expect(owes.getByTestId('cudzich-balance-label').props.children).toBe('Cudzich jest nam winien');
+    expect(owes.getByTestId('cudzich-balance-amount').props.children.join('')).toBe('400,00 zł');
     expect(owes.getByTestId('cudzich-balance-amount').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: '#EF4444' })]));
+
+    const weOwe = render(<CudzichBalanceCard balance={-590} />);
+    expect(weOwe.getByTestId('cudzich-balance-label').props.children).toBe('Należy zwrócić Cudzichowi');
+    expect(weOwe.getByTestId('cudzich-balance-amount').props.children.join('')).toBe('590,00 zł');
+
     const settled = render(<CudzichBalanceCard balance={0} />);
+    expect(settled.getByTestId('cudzich-balance-label').props.children).toBe('Rozliczone - nikt nikomu nic nie jest winien');
     expect(settled.getByTestId('cudzich-balance-amount').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: '#10B981' })]));
     expect(cudzichType('odbior').color).toBe('#22C55E');
   });

@@ -31,7 +31,13 @@ import { findGoodForBarcode, findSizeForBarcode, listPriceOf, resolveSalePrice }
 import { jacketCodeForSize, productNameFromBarcode } from '../../utils/productName'; // nazwa z kodu jak w całej aplikacji; kod metki z karty + rozmiaru
 import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polu kwoty
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka na liście kurtek u Cudzicha
-import { CUDZICH_TYPES, CudzichBalanceCard, CudzichTransactionCard } from '../../components/CudzichLook'; // karty jak na ekranie admina
+import { CUDZICH_TYPES, CudzichBalanceCard, CudzichTransactionCard, cudzichBalanceInfo } from '../../components/CudzichLook'; // karty jak na ekranie admina
+
+// Saldo słownie w komunikatach po zapisie: „Cudzich jest nam winien: 400 zł” / „Należy zwrócić Cudzichowi: 590 zł”
+const balanceText = (value) => {
+  const info = cudzichBalanceInfo(value);
+  return info.amount > 0 ? `${info.label}: ${info.amount.toFixed(2)} zł` : info.label;
+};
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Cudzych = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -410,7 +416,7 @@ const Cudzych = () => {
         appAlert('Błąd', data.error || 'Nie udało się zapisać zwrotu');
         return false;
       }
-      setSuccessMessage(`Zwrot zapisany\nKurtka czeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${data.transaction?.price} zł\nNowe saldo: ${data.newBalance} zł`);
+      setSuccessMessage(`Zwrot zapisany\nKurtka czeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${data.transaction?.price} zł\n${balanceText(data.newBalance)}`);
       setSuccessModalVisible(true);
       await Promise.all([fetchBalance(), fetchTransactions(1), fetchOpenOdbiory()]);
       return true;
@@ -521,7 +527,7 @@ const Cudzych = () => {
         }
         
         setSuccessMessage(
-          `${type === 'odbior' ? 'Odbiór' : 'Zwrot'} został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${productPrice}zł\nNowe saldo: ${data.newBalance}zł`
+          `${type === 'odbior' ? 'Odbiór' : 'Zwrot'} został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${productPrice} zł\n${balanceText(data.newBalance)}`
         );
         setSuccessModalVisible(true);
         
@@ -570,7 +576,7 @@ const Cudzych = () => {
       if (response.ok) {
         const data = await response.json();
         setSuccessMessage(
-          `${type === 'wplata' ? 'Wpłata' : 'Wypłata'} została zapisana\nNowe saldo: ${data.newBalance}zł`
+          `${type === 'wplata' ? 'Wpłata' : 'Wypłata'} została zapisana\n${balanceText(data.newBalance)}`
         );
         setSuccessModalVisible(true);
         
