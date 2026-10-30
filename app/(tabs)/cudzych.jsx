@@ -495,6 +495,8 @@ const Cudzych = () => {
 
   // Save scanned product transaction
   const saveTransaction = async (type, productName, productSize, productPrice, productNotes, scannedBarcode = '', knownProductId = null) => {
+    // Tylko odbiór - zwrot idzie przez listę kurtek (POST /cudzich/returns), nigdy tędy
+    if (type !== 'odbior') return false;
     if (savingRef.current) return false;
     savingRef.current = true;
     try {
@@ -523,83 +525,36 @@ const Cudzych = () => {
         return false;
       }
       
-      const clientRequestId = requestIdFor('odbior', [type, productId, productSize, parseFloat(productPrice), scannedBarcode, selectedOption]);
-      const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/transactions'), {
+      // Odbiór jednym zapisem (30.10.2026): serwer zapisuje wpis w saldzie i sprzedaż w kasie P razem albo wcale.
+      // Dawniej dwa osobne zapisy - gdy sprzedaż się nie udała, zostawał dług bez sprzedaży, a telefon pokazywał sukces.
+      const clientRequestId = requestIdFor('odbior', [productId, productSize, parseFloat(productPrice), scannedBarcode, selectedOption]);
+      const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/odbior'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientRequestId,
-          type: type,
-          productId: productId, // Now we include found productId
-          productName: productName,
+          productId,
+          productName,
           size: productSize,
           price: parseFloat(productPrice),
-          userSymbol: 'P',
-          recipientId: 'cudzich',
-          notes: productNotes || ''
-        })
+          barcode: scannedBarcode || '',
+          from: selectedOption || 'P', // „Sprzedano od”
+          notes: productNotes || '',
+        }),
       });
 
       if (response.ok) {
-        const data = await response.json();
-        
-        // Also save as regular sale (sprzedaż) if it's 'odbior' type
-        if (type === 'odbior') {
-          try {
-            Logger.debug('DEBUG: Saving as regular sale...');
-            
-            // Get current date and time for timestamp - use ISO format for consistent parsing
-            const now = new Date();
-            const formattedTimestamp = now.toISOString(); // Use ISO format instead of locale-dependent format
-            
-            const salesResponse = await tokenService.authenticatedFetch(getApiUrl('/sales/save-sales'), {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                clientRequestId: `${clientRequestId}-sale`, // ponowienie nie zapisze drugiej sprzedaży
-                fullName: `${productName}`, // Just product name
-                timestamp: formattedTimestamp,
-                barcode: scannedBarcode || '', // Use actual scanned barcode
-                size: productSize,
-                sellingPoint: user?.sellingPoint || 'Unknown', 
-                from: selectedOption || 'P', // Keep clean - just selling point symbol
-                cash: [{ price: parseFloat(productPrice), currency: 'PLN' }], // Price as cash payment
-                card: [], // Empty card array
-                symbol: selectedOption || 'P', // Use selected selling point symbol
-                source: 'Cudzich', // NEW FIELD: Add source information for Cudzich transactions
-                notes: 'Transakcja z systemu Cudzich', // Additional notes for identification
-                employeeId: user?.employeeId || null, // Use Employee ObjectId for WorkHours matching
-                employeeName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : null // Add employee name
-              })
-            });
-            
-            if (salesResponse.ok) {
-              Logger.debug('DEBUG: Sale saved successfully');
-            } else {
-              const salesError = await salesResponse.json();
-              Logger.warn('Warning: Could not save as regular sale:', salesError.error);
-            }
-          } catch (salesError) {
-            Logger.warn('Warning: Could not save as regular sale:', salesError);
-          }
-        }
-        
+        const data = await response.json().catch(() => ({}));
         requestDone('odbior');
         setSuccessMessage(
-          `${type === 'odbior' ? 'Odbiór' : 'Zwrot'} został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${productPrice} zł\n${balanceText(data.newBalance)}`
+          `Odbiór został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${Number(productPrice).toFixed(2)} zł\n${balanceText(data.newBalance)}`
         );
         setSuccessModalVisible(true);
-        
-        // Refresh data
-        await Promise.all([fetchBalance(), fetchTransactions(1)]);
+        await Promise.all([fetchBalance(), fetchTransactions(1), fetchOpenOdbiory()]);
         return true;
       }
       const errorData = await response.json().catch(() => ({}));
-      appAlert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
+      appAlert('Błąd', errorData.error || 'Nie udało się zapisać odbioru');
       return false;
     } catch (error) {
       Logger.error('Error saving scanned transaction:', error);

@@ -102,6 +102,7 @@ beforeEach(() => {
     if (text.includes('/cudzich/returns/candidates')) return response({ candidates, count: candidates.length });
     if (text.includes('/cudzich/returns') && options.method === 'POST') return response({ transaction: { price: 750 }, newBalance: -350 }, 201);
     if (text.includes('/cudzich/transactions') && options.method === 'POST') return response({ newBalance: 1250 }, 201);
+    if (text.includes('/cudzich/odbior') && options.method === 'POST') return response({ newBalance: 1250 }, 201);
     if (text.includes('/cudzich/transactions')) return response(serveTransactions(new URL(text).searchParams));
     if (text.includes('/cudzich/pricelist')) return response(PRICE_LIST);
     if (text.includes('/sales/')) return response({ ok: true });
@@ -259,11 +260,12 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(screen.getByText('Sprzedano od')).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('cudzich-scanned-confirm'));
-    await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
-    expect(posts('/cudzich/transactions')[0]).toMatchObject({ type: 'odbior', productId: 'g-ada', productName: 'Ada CZERWONY', size: 'XL', price: 850 });
-    expect(posts('/sales/save-sales')[0]).toMatchObject({ fullName: 'Ada CZERWONY', size: 'XL', barcode: ADA_XL, source: 'Cudzich' });
-    // numer zapisu: sprzedaż ma pochodny numer odbioru - ponowienie nie zapisze ani drugiego odbioru, ani drugiej sprzedaży
-    expect(posts('/sales/save-sales')[0].clientRequestId).toBe(`${posts('/cudzich/transactions')[0].clientRequestId}-sale`);
+    // jeden zapis: wpis w saldzie i sprzedaż razem (serwer) - telefon nie wysyła już osobno sprzedaży
+    await waitFor(() => expect(posts('/cudzich/odbior')).toHaveLength(1));
+    expect(posts('/cudzich/odbior')[0]).toMatchObject({ productId: 'g-ada', productName: 'Ada CZERWONY', size: 'XL', price: 850, barcode: ADA_XL, from: 'P' });
+    expect(posts('/cudzich/odbior')[0].clientRequestId).toMatch(/^cudz-/);
+    expect(posts('/cudzich/transactions')).toHaveLength(0);
+    expect(posts('/sales/save-sales')).toHaveLength(0);
   });
 
   // Dwa stuknięcia, zanim ekran zdąży się przerysować (zablokowany przycisk jeszcze nie działa) - jak szybki palec na telefonie
@@ -278,7 +280,7 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     let finishSave;
     const baseFetch = tokenService.authenticatedFetch.getMockImplementation();
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
-      if (String(url).includes('/cudzich/transactions') && options.method === 'POST') {
+      if (String(url).includes('/cudzich/odbior') && options.method === 'POST') {
         baseFetch(url, options); // zapamiętaj wysłane body
         return new Promise((resolve) => { finishSave = () => resolve({ ok: true, status: 201, json: () => Promise.resolve({ newBalance: 1250 }) }); });
       }
@@ -292,8 +294,25 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(screen.getByText('Zapisywanie…')).toBeTruthy();
     fireEvent.press(screen.getByTestId('cudzich-scanned-confirm')); // trzecie - przycisk już zablokowany
     await act(async () => { finishSave(); });
-    await waitFor(() => expect(posts('/sales/save-sales')).toHaveLength(1));
-    expect(posts('/cudzich/transactions')).toHaveLength(1);
+    await waitFor(() => expect(screen.getByText(/Odbiór został zapisany/)).toBeTruthy());
+    expect(posts('/cudzich/odbior')).toHaveLength(1);
+  });
+
+  test('serwer odrzucił odbiór: komunikat błędu zamiast „zapisano”, okienko zostaje do poprawki', async () => {
+    const baseFetch = tokenService.authenticatedFetch.getMockImplementation();
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => (
+      String(url).includes('/cudzich/odbior') && options.method === 'POST'
+        ? response({ error: 'Brak kodu kurtki - zeskanuj metkę albo wybierz z bazy.' }, 400)
+        : baseFetch(url, options)
+    ));
+    const screen = renderTab();
+    await openScanner(screen, 'odbior');
+    fireEvent.press(screen.getByTestId('fake-scan'));
+    await waitFor(() => expect(screen.getByTestId('cudzich-scanned-price').props.value).toBe('850'));
+    fireEvent.press(screen.getByTestId('cudzich-scanned-confirm'));
+    await waitFor(() => expect(appAlert).toHaveBeenCalledWith('Błąd', 'Brak kodu kurtki - zeskanuj metkę albo wybierz z bazy.'));
+    expect(screen.queryByText(/Odbiór został zapisany/)).toBeNull();
+    expect(screen.getByTestId('cudzich-scanned-confirm')).toBeTruthy();
   });
 
   test('produkt bez pozycji w cenniku Cudzich: cena z karty produktu; można ją poprawić przed zapisem', async () => {
@@ -305,8 +324,8 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(screen.getByDisplayValue('Bella CZARNY M')).toBeTruthy();
     fireEvent.changeText(screen.getByTestId('cudzich-scanned-price'), '950,50');
     fireEvent.press(screen.getByTestId('cudzich-scanned-confirm'));
-    await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
-    expect(posts('/cudzich/transactions')[0]).toMatchObject({ productId: 'g-bella', price: 950.5 });
+    await waitFor(() => expect(posts('/cudzich/odbior')).toHaveLength(1));
+    expect(posts('/cudzich/odbior')[0]).toMatchObject({ productId: 'g-bella', price: 950.5 });
   });
 
   test('bez cennika Cudzich (404) - cena z karty produktu', async () => {
