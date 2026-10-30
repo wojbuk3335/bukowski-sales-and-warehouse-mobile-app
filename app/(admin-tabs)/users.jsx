@@ -678,7 +678,8 @@ const Users = () => {
           const isCorrectDate = saleDate === dateStr;
           const isFromUser = sale.from === selectedUserData.symbol;
           const notProcessed = !sale.processed;
-          return isCorrectDate && isFromUser && notProcessed;
+          // bez dawnych „sprzedaży historycznych” Cudzicha - sztuczne, nie oznaczały wyjścia sztuki (30.10.2026)
+          return isCorrectDate && isFromUser && notProcessed && !sale.isHistorical;
         });
       }
       

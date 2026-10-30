@@ -26,9 +26,9 @@ import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActionItem, IconButton, MenuCard, ModalHeader, ScreenHeader, look } from '../../components/AdminLook';
+import { ActionItem, IconButton, MenuCard, ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
 import { findGoodForBarcode, findSizeForBarcode, listPriceOf, resolveSalePrice } from '../../utils/defaultSalePrice'; // cena: cennik Cudzich, bez niego karta produktu
-import { productNameFromBarcode } from '../../utils/productName'; // nazwa z kodu jak w całej aplikacji
+import { jacketCodeForSize, productNameFromBarcode } from '../../utils/productName'; // nazwa z kodu jak w całej aplikacji; kod metki z karty + rozmiaru
 import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polu kwoty
 import { CUDZICH_TYPES, CudzichBalanceCard, CudzichTransactionCard } from '../../components/CudzichLook'; // karty jak na ekranie admina
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
@@ -81,7 +81,10 @@ const Cudzych = () => {
   const [size, setSize] = useState('');
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
-  const [isHistoricalSale, setIsHistoricalSale] = useState(false);
+  // Zwrot (30.10.2026): wskazanie odbioru, którego dotyczy (cena z odbioru), albo „Kurtka sprzed systemu” (zapłacona)
+  const [returnCandidates, setReturnCandidates] = useState([]);
+  const [returnChoice, setReturnChoice] = useState(null); // _id sprzedaży z odbioru albo 'historical'
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   
   // Dropdown states
   const [productDropdownVisible, setProductDropdownVisible] = useState(false);
@@ -248,6 +251,14 @@ const Cudzych = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct, selectedSize, cudzichPriceList]);
 
+  // Zwrot z formularza ręcznego: po wyborze produktu i rozmiaru - odbiory tej kurtki do wskazania
+  useEffect(() => {
+    if (zwrotModalVisible && selectedProduct && selectedSize && size) {
+      fetchReturnCandidates(selectedProduct._id, size);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zwrotModalVisible, selectedProduct, selectedSize, size]);
+
   // Handle product selection
   const handleProductSelect = (product) => {
     setSelectedProduct(product);
@@ -261,161 +272,154 @@ const Cudzych = () => {
   // Handle size change (cena jest już ustawiona po wyborze produktu)
 
 
-  // Create transaction
+  // Formularz ręczny (produkt bez metki): odbiór jak ze skanu (transakcja + sprzedaż z kodem z karty i rozmiaru -
+  // kurtka wychodzi z punktu przez Dobieranie; dawniej ręczny odbiór nie tworzył sprzedaży), zwrot - jak ze skanu
   const createTransaction = async (type) => {
-    // Validate that a product is selected and text matches
     if (!selectedProduct) {
       appAlert('Błąd', 'Proszę wybrać produkt z listy');
       return;
     }
-
-    // Validate that the search text matches the selected product
     if (productSearchText !== selectedProduct.fullName) {
       appAlert('Błąd', 'Proszę wybrać produkt z listy wyszukiwania');
       return;
     }
-
-    // Validate that a size is selected from the list
     if (!selectedSize || !size) {
       appAlert('Błąd', 'Proszę wybrać rozmiar z listy');
       return;
     }
 
-    if (!price) {
-      appAlert('Błąd', 'Proszę wypełnić wszystkie wymagane pola');
+    if (type === 'zwrot') {
+      const saved = await saveReturn({ productId: selectedProduct._id, size, barcode: manualBarcode(), price, notes });
+      if (saved) {
+        resetForm();
+        setZwrotModalVisible(false);
+      }
       return;
     }
 
-    if (parseFloat(price) <= 0) {
-      appAlert('Błąd', 'Cena musi być większa od 0');
+    if (!(Number(price) > 0)) {
+      appAlert('Błąd', 'Wpisz cenę większą od 0');
       return;
     }
+    const saved = await saveTransaction('odbior', selectedProduct.fullName, size, Number(price), notes, manualBarcode(), selectedProduct._id);
+    if (saved) {
+      resetForm();
+      setOdbiorModalVisible(false);
+    }
+  };
 
-    // User validation
+  // Kod metki dla produktu z formularza ręcznego: kurtki - karta + rozmiar, reszta - kod karty
+  const manualBarcode = () => {
+    const code = String(selectedProduct?.code || '').trim();
+    if (!code) return '';
+    return /^\d{13}$/.test(code) && code.slice(0, 3) !== '000' && selectedSize?.Roz_Kod
+      ? jacketCodeForSize(code, selectedSize.Roz_Kod)
+      : code;
+  };
 
+  // --- Zwrot od Cudzicha: odbiory do wyboru i zapis (kurtka wraca do MAGAZYNU) ---
+  const fetchReturnCandidates = async (productId, sizeLabel) => {
+    setReturnCandidates([]);
+    setReturnChoice(null);
+    if (!productId) {
+      setReturnChoice('historical');
+      return;
+    }
+    setCandidatesLoading(true);
+    try {
+      const params = new URLSearchParams({ productId: String(productId), size: sizeLabel || '-' });
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/cudzich/returns/candidates?${params.toString()}`));
+      const data = response.ok ? await response.json() : {};
+      const list = Array.isArray(data.candidates) ? data.candidates : [];
+      setReturnCandidates(list);
+      // domyślnie najnowszy odbiór; bez odbiorów - kurtka sprzed systemu
+      setReturnChoice(list.length > 0 ? String(list[0].saleId) : 'historical');
+    } catch (error) {
+      Logger.error('Error fetching return candidates:', error);
+      setReturnChoice('historical');
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
+
+  const chosenCandidate = returnCandidates.find((candidate) => String(candidate.saleId) === returnChoice) || null;
+
+  // Zapis zwrotu: wskazany odbiór (cena z odbioru) albo kurtka sprzed systemu (cena wpisana = kredyt)
+  const saveReturn = async ({ productId, size: sizeLabel, barcode: code, price: enteredPrice, notes: returnNotes }) => {
+    if (!returnChoice) {
+      appAlert('Zwrot', 'Wybierz odbiór, którego dotyczy zwrot, albo „Kurtka sprzed systemu”.');
+      return false;
+    }
+    const historical = returnChoice === 'historical';
+    const amount = Number(String(enteredPrice || '').replace(',', '.'));
+    if (historical && !(amount > 0)) {
+      appAlert('Brak ceny', 'Wpisz cenę, za którą kurtka była rozliczona przed systemem.');
+      return false;
+    }
+    if (historical && !productId) {
+      appAlert('Zwrot', 'Nie rozpoznano produktu - wybierz go w „Wpisz ręcznie”.');
+      return false;
+    }
     try {
       setLoading(true);
-      
-      const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/transactions'), {
+      const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/returns'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: type,
-          productId: selectedProduct._id,
-          productName: selectedProduct.fullName,
-          size: size,
-          price: parseFloat(price),
-          userSymbol: 'P',
-          recipientId: 'cudzich',
-          notes: notes
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(historical
+          ? { historical: true, productId, size: sizeLabel || '-', barcode: code || '', price: amount, notes: returnNotes || '' }
+          : { saleId: returnChoice, notes: returnNotes || '' }),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Handle historical sale creation or return marking if it's 'zwrot' type
-        if (type === 'zwrot') {
-          if (isHistoricalSale) {
-            // Create historical sale first, then mark it as returned
-            try {
-              const historicalSaleResponse = await tokenService.authenticatedFetch(getApiUrl('/sales/create-historical-sale'), {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  fullName: selectedProduct.fullName,
-                  size: size,
-                  price: parseFloat(price),
-                  sellingPoint: user?.sellingPoint || 'Unknown',
-                  symbol: 'P',
-                  source: 'Cudzich',
-                  notes: 'Sprzedaż historyczna - dodana przy zwrocie',
-                  historicalDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days ago as default
-                })
-              });
-              
-              if (historicalSaleResponse.ok) {
-                
-                // Now mark it as returned
-                const returnResponse = await tokenService.authenticatedFetch(getApiUrl('/sales/mark-as-returned'), {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    fullName: selectedProduct.fullName,
-                    size: size,
-                    source: 'Cudzich',
-                    returnReason: 'Zwrot produktu sprzedanego przed systemem',
-                    returnDate: new Date().toISOString()
-                  })
-                });
-                
-                if (!returnResponse.ok) {
-                  const returnError = await returnResponse.json();
-                  Logger.warn('Warning: Could not mark historical sale as returned:', returnError.error);
-                }
-              } else {
-                const historicalError = await historicalSaleResponse.json();
-                Logger.warn('Warning: Could not create historical sale:', historicalError.error);
-              }
-            } catch (historicalError) {
-              Logger.warn('Warning: Could not create historical sale:', historicalError);
-            }
-          } else {
-            // Normal return - just mark existing sales as returned
-            try {
-              const returnResponse = await tokenService.authenticatedFetch(getApiUrl('/sales/mark-as-returned'), {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  fullName: selectedProduct.fullName,
-                  size: size,
-                  source: 'Cudzich',
-                  returnReason: 'Zwrot przez Cudzich (formularz)',
-                  returnDate: new Date().toISOString()
-                })
-              });
-              
-              if (!returnResponse.ok) {
-                const returnError = await returnResponse.json();
-                Logger.warn('Warning: Could not mark sales as returned (manual):', returnError.error);
-              }
-            } catch (returnError) {
-              Logger.warn('Warning: Could not mark sales as returned (manual):', returnError);
-            }
-          }
-        }
-        
-        setSuccessMessage(
-          `${type === 'odbior' ? 'Odbiór' : 'Zwrot'} został zapisany\nNowe saldo: ${data.newBalance}zł`
-        );
-        setSuccessModalVisible(true);
-        
-        // Refresh data
-        await Promise.all([fetchBalance(), fetchTransactions(1)]);
-        
-        // Reset form and close modal
-        resetForm();
-        setOdbiorModalVisible(false);
-        setZwrotModalVisible(false);
-      } else {
-        const errorData = await response.json();
-        appAlert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        appAlert('Błąd', data.error || 'Nie udało się zapisać zwrotu');
+        return false;
       }
+      setSuccessMessage(`Zwrot zapisany - kurtka wraca do MAGAZYNU\nKredyt: ${data.transaction?.price} zł\nNowe saldo: ${data.newBalance} zł`);
+      setSuccessModalVisible(true);
+      await Promise.all([fetchBalance(), fetchTransactions(1)]);
+      return true;
     } catch (error) {
-      Logger.error('Error creating transaction:', error);
+      Logger.error('Error saving Cudzich return:', error);
       appAlert('Błąd', 'Nie udało się połączyć z serwerem');
+      return false;
     } finally {
       setLoading(false);
     }
   };
+
+  const formatCandidateDate = (value) => new Date(value).toLocaleDateString('pl-PL', { timeZone: 'Europe/Warsaw' });
+
+  // Wybór przy zwrocie: odbiory tej kurtki (cena z odbioru) i „Kurtka sprzed systemu” (cena do wpisania)
+  const renderReturnPicker = () => (
+    <View style={{ width: '100%', marginBottom: 12 }}>
+      <Text style={look.formLabel}>Którego odbioru dotyczy zwrot?</Text>
+      {candidatesLoading ? <ActivityIndicator color="#0D6EFD" style={{ marginVertical: 8 }} /> : null}
+      {returnCandidates.map((candidate) => (
+        <OptionCard
+          key={String(candidate.saleId)}
+          testID={`cudzich-return-sale-${candidate.saleId}`}
+          selected={returnChoice === String(candidate.saleId)}
+          icon={CUDZICH_TYPES.odbior.icon}
+          color={CUDZICH_TYPES.odbior.color}
+          label={`Odbiór z ${formatCandidateDate(candidate.date)} · ${candidate.price} zł`}
+          onPress={() => setReturnChoice(String(candidate.saleId))}
+        />
+      ))}
+      <OptionCard
+        testID="cudzich-return-historical"
+        selected={returnChoice === 'historical'}
+        icon="time-outline"
+        color="#8B5CF6"
+        label="Kurtka sprzed systemu (już zapłacona)"
+        onPress={() => setReturnChoice('historical')}
+      />
+      {!candidatesLoading && returnCandidates.length === 0 ? (
+        <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 12, marginTop: 4 }}>
+          Brak niezwróconych odbiorów tej kurtki w systemie - to kurtka sprzed systemu.
+        </Text>
+      ) : null}
+    </View>
+  );
 
   // Save scanned product transaction
   const saveTransaction = async (type, productName, productSize, productPrice, productNotes, scannedBarcode = '', knownProductId = null) => {
@@ -507,37 +511,6 @@ const Cudzych = () => {
           }
         }
         
-        // Mark related sales as returned if it's 'zwrot' type
-        if (type === 'zwrot') {
-          try {
-            Logger.debug('DEBUG: Marking related sales as returned...');
-            
-            const returnResponse = await tokenService.authenticatedFetch(getApiUrl('/sales/mark-as-returned'), {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                fullName: productName,
-                size: productSize,
-                source: 'Cudzich', // Only mark Cudzich sales as returned
-                returnReason: 'Zwrot przez Cudzich',
-                returnDate: new Date().toISOString()
-              })
-            });
-            
-            if (returnResponse.ok) {
-              const returnData = await returnResponse.json();
-              Logger.debug('DEBUG: Sales marked as returned:', returnData.modifiedCount);
-            } else {
-              const returnError = await returnResponse.json();
-              Logger.warn('Warning: Could not mark sales as returned:', returnError.error);
-            }
-          } catch (returnError) {
-            Logger.warn('Warning: Could not mark sales as returned:', returnError);
-          }
-        }
-        
         setSuccessMessage(
           `${type === 'odbior' ? 'Odbiór' : 'Zwrot'} został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${productPrice}zł\nNowe saldo: ${data.newBalance}zł`
         );
@@ -619,7 +592,8 @@ const Cudzych = () => {
     setSize('');
     setPrice('');
     setNotes('');
-    setIsHistoricalSale(false);
+    setReturnCandidates([]);
+    setReturnChoice(null);
     setProductDropdownVisible(false);
     setSizeDropdownVisible(false);
   };
@@ -695,11 +669,28 @@ const Cudzych = () => {
       setSelectedOption(currentUserInLocation ? user.symbol : (availableOptions[0]?.symbol || ''));
     }
 
+    if (scannerType === 'zwrot') {
+      fetchReturnCandidates(info.productId, info.size);
+    }
+
     setScannerVisible(false);
     setScannedProductModalVisible(true);
   };
 
   const confirmScannedProduct = async () => {
+    if (scannerType === 'zwrot') {
+      const saved = await saveReturn({
+        productId: scannedProductData.productId,
+        size: scannedProductData.size,
+        barcode: scannedProductData.barcode,
+        price: scannedProductData.price,
+      });
+      if (saved) {
+        setScannedProductModalVisible(false);
+        setScanned(false);
+      }
+      return;
+    }
     const amount = Number(String(scannedProductData.price || '').replace(',', '.'));
     if (!(amount > 0)) {
       appAlert('Brak ceny', `Wpisz cenę dla „${displayName(scannedProductData)}” - nie ma jej w cenniku Cudzich ani na karcie produktu.`);
@@ -1142,13 +1133,15 @@ const Cudzych = () => {
 
             {/* Price input */}
             <View style={styles.formField}>
-              <Text style={look.formLabel}>Cena (zł):</Text>
-              {/* Cena od razu po wyborze produktu (i rozmiaru): cennik Cudzich, bez niego karta produktu; można poprawić */}
+              <Text style={look.formLabel}>{zwrotModalVisible ? (chosenCandidate ? 'Kredyt dla Cudzicha (cena z odbioru):' : 'Kredyt dla Cudzicha (cena rozliczenia):') : 'Cena (zł):'}</Text>
+              {/* Cena od razu po wyborze produktu (i rozmiaru): cennik Cudzich, bez niego karta produktu; można poprawić.
+                  Zwrot wskazanego odbioru - cena z odbioru (bez edycji) */}
               <TextInput
                 testID="cudzich-manual-price"
                 style={styles.input}
                 placeholder="Brak ceny w cenniku - wpisz cenę"
-                value={price}
+                editable={!(zwrotModalVisible && chosenCandidate)}
+                value={zwrotModalVisible && chosenCandidate ? String(chosenCandidate.price) : price}
                 onChangeText={(value) => setPrice(sanitizeAmountInput(value))}
                 keyboardType="decimal-pad"
                 placeholderTextColor={tc('muted', "#666")}
@@ -1168,27 +1161,8 @@ const Cudzych = () => {
               />
             </View>
 
-            {/* Historical sale checkbox - only for zwrot */}
-            {zwrotModalVisible && (
-              <View style={styles.checkboxContainer}>
-                <TouchableOpacity
-                  style={styles.checkbox}
-                  onPress={() => setIsHistoricalSale(!isHistoricalSale)}
-                >
-                  <View style={[styles.checkboxInner, isHistoricalSale && styles.checkboxChecked]}>
-                    {isHistoricalSale && <Ionicons name="checkmark" size={16} color="#fff" />}
-                  </View>
-                  <Text style={styles.checkboxLabel}>
-                    Sprzedaż historyczna (sprzed systemu)
-                  </Text>
-                </TouchableOpacity>
-                {isHistoricalSale && (
-                  <Text style={styles.checkboxHelp}>
-                    System automatycznie utworzy wpis sprzedażowy z datą wsteczną
-                  </Text>
-                )}
-              </View>
-            )}
+            {/* Zwrot: wybór odbioru (cena z odbioru) albo kurtka sprzed systemu (cena do wpisania) */}
+            {zwrotModalVisible && selectedProduct && selectedSize && renderReturnPicker()}
 
             </ScrollView>
 
@@ -1497,12 +1471,16 @@ const Cudzych = () => {
               </TouchableOpacity>
               </>)}
               
-              {/* Cena od razu w polu: cennik Cudzich, bez niego karta produktu; można poprawić */}
-              <Text style={look.formLabel}>Cena (PLN)</Text>
+              {scannerType === 'zwrot' && renderReturnPicker()}
+
+              {/* Cena od razu w polu: cennik Cudzich, bez niego karta produktu; można poprawić.
+                  Zwrot wskazanego odbioru - cena z odbioru (bez edycji), żeby saldo się nie przesunęło */}
+              <Text style={look.formLabel}>{scannerType === 'zwrot' ? (chosenCandidate ? 'Kredyt dla Cudzicha (cena z odbioru)' : 'Kredyt dla Cudzicha (cena rozliczenia)') : 'Cena (PLN)'}</Text>
               <TextInput
                 testID="cudzich-scanned-price"
                 style={qrStyles.inputField}
-                value={scannedProductData.price}
+                editable={!(scannerType === 'zwrot' && chosenCandidate)}
+                value={scannerType === 'zwrot' && chosenCandidate ? String(chosenCandidate.price) : scannedProductData.price}
                 onChangeText={(value) => setScannedProductData((prev) => ({ ...prev, price: sanitizeAmountInput(value) }))}
                 keyboardType="decimal-pad"
                 placeholder="Brak ceny w cenniku - wpisz cenę"
@@ -1679,9 +1657,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 0,
     marginBottom: 10,
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
     flex: 1,
     justifyContent: 'center',
@@ -1781,41 +1756,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   
   // Checkbox styles
-  checkboxContainer: {
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  checkbox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  checkboxInner: {
-    width: 22,
-    height: 22,
-    borderWidth: 2,
-    borderColor: tc('border', '#475569'),
-    borderRadius: 6,
-    marginRight: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#0D6EFD',
-    borderColor: '#0D6EFD',
-  },
-  checkboxLabel: {
-    color: tc('text', 'white'),
-    fontSize: 14,
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  checkboxHelp: {
-    color: tc('muted', '#94A3B8'),
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginLeft: 32,
-  },
   
 }));
 
