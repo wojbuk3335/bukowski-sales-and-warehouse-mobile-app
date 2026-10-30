@@ -92,3 +92,19 @@ test('otwarcie opcji sztuki dociąga stan wszystkich punktów (podpowiedź „Na
   fireEvent.press(screen.getByTestId('writeoff-dots-it-0'));
   expect(contextValue.ensureData).toHaveBeenCalledWith(['state']);
 });
+
+test('zwrot od Cudzicha w drodze do MAGAZYNU: wiersz „czeka na dopisanie”, nie „Przetworzone” (30.10.2026)', async () => {
+  const today = require('../utils/warsawDay').warsawToday();
+  tokenService.authenticatedFetch.mockImplementation((url) => {
+    if (url.split('?')[0].endsWith('/state')) return json(pointState.slice(0, 3));
+    if (url.split('?')[0].endsWith('/transfer')) return json([{
+      _id: 'tr-cz', productId: 'CUDZICH_RETURN_tx1', cudzichReturnFor: 'tx1', fullName: 'Ada CZERWONY', size: 'XL', barcode: '0010701300002',
+      transfer_from: 'P', transfer_to: 'MAGAZYN', blueProcessed: true, yellowProcessed: false, date: `${today}T10:00:00.000Z`, dateString: today,
+    }]);
+    if (url.split('?')[0].endsWith('/sales/get-all-sales')) return json([]);
+    return json({});
+  });
+  const screen = renderWriteOff();
+  await waitFor(() => expect(screen.getByText('Zwrot od Cudzicha do MAGAZYNU - czeka na dopisanie')).toBeTruthy());
+  expect(screen.queryByText('Przetworzone')).toBeNull();
+});

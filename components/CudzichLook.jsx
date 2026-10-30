@@ -29,7 +29,7 @@ const formatDate = (value) => {
 };
 
 /** Karta salda: dodatnie = Cudzich ma do zapłaty (czerwone), zero lub ujemne = rozliczony / nadpłata (zielone). */
-export const CudzichBalanceCard = ({ balance, label = 'Saldo do zapłaty', style }) => {
+export const CudzichBalanceCard = ({ balance, label = 'Saldo do zapłaty', itemsCount = null, style }) => {
   const owes = (Number(balance) || 0) > 0;
   const color = owes ? '#EF4444' : '#10B981';
   return (
@@ -41,6 +41,12 @@ export const CudzichBalanceCard = ({ balance, label = 'Saldo do zapłaty', style
         <Text style={styles.balanceLabel}>{label}</Text>
       </View>
       <Text style={[styles.balanceAmount, { color }]} testID="cudzich-balance-amount">{formatAmount(balance)} zł</Text>
+      {itemsCount !== null ? (
+        <View style={styles.itemsRow} testID="cudzich-items-count">
+          <Ionicons name="shirt-outline" size={16} color={tc('muted', '#94A3B8')} />
+          <Text style={styles.itemsText}>U Cudzicha: {itemsCount} {itemsCount === 1 ? 'kurtka' : (itemsCount % 10 >= 2 && itemsCount % 10 <= 4 && (itemsCount % 100 < 10 || itemsCount % 100 >= 20) ? 'kurtki' : 'kurtek')}</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -128,6 +134,18 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  itemsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  itemsText: {
+    fontSize: 14,
+    color: tc('muted', '#94A3B8'),
+    fontWeight: '600',
   },
   card: {
     backgroundColor: tc('surface', '#161622'),

@@ -23,7 +23,7 @@ import useProductCatalog from '../../hooks/useProductCatalog'; // baza produktó
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { warsawDay, warsawToday } from '../../utils/warsawDay'; // S16: „dziś” i dzień pozycji po czasie polskim
 import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
-import { isExchangeReturn } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie
+import { isCudzichReturn, isReturnToWarehouse } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie / od Cudzicha
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka na liście Stanu (bez polskich znaków; całe słowo wygrywa z początkiem słowa)
 const WriteOff = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -362,14 +362,15 @@ const fetchSales = async () => {
     const processedTodayRows = useMemo(() => transfers
         .filter((transfer) => transfer.transfer_from === user?.symbol && transfer.blueProcessed && transfer.transfer_to !== 'SOLD'
             && !filteredData.some((item) => item.id === transfer.productId))
-        .filter((transfer) => !(isExchangeReturn(transfer) && transfer.yellowProcessed))
+        .filter((transfer) => !(isReturnToWarehouse(transfer) && transfer.yellowProcessed))
         .map((transfer) => ({
             id: `processed-${transfer._id}`,
             fullName: transfer.fullName,
             size: transfer.size,
             barcode: transfer.barcode,
             processedTransfer: transfer,
-            awaitingWarehouse: isExchangeReturn(transfer),
+            awaitingWarehouse: isReturnToWarehouse(transfer),
+            awaitingLabel: isCudzichReturn(transfer) ? 'Zwrot od Cudzicha do MAGAZYNU - czeka na dopisanie' : 'Zwrot od klienta do MAGAZYNU - czeka na dopisanie',
         })), [transfers, filteredData, user]);
 
     // Przepisanie z dzisiaj (dzień polski) - tylko takie można anulować z telefonu
@@ -1097,7 +1098,7 @@ const fetchSales = async () => {
                                             <Text style={look.itemCardText} numberOfLines={1}>
                                                 {index + 1}. {item.fullName}  {item.size}
                                             </Text>
-                                            <Text style={styles.transferStatusText} numberOfLines={1}>{item.awaitingWarehouse ? 'Zwrot od klienta do MAGAZYNU - czeka na dopisanie' : transferLabel(item.processedTransfer)}</Text>
+                                            <Text style={styles.transferStatusText} numberOfLines={1}>{item.awaitingWarehouse ? item.awaitingLabel : transferLabel(item.processedTransfer)}</Text>
                                             {!item.awaitingWarehouse && (
                                                 <Text style={styles.processedLabel} numberOfLines={1}>Przetworzone</Text>
                                             )}
