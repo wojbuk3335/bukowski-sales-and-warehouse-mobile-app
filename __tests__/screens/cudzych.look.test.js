@@ -110,6 +110,7 @@ beforeEach(() => {
   });
 });
 
+const textOf = (element) => [].concat(element.props.children).join('');
 const renderTab = (ctx = context) => render(<GlobalStateContext.Provider value={ctx}><Cudzych /></GlobalStateContext.Provider>);
 const openScanner = async (screen, type) => {
   await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
@@ -130,16 +131,16 @@ describe('Karty Cudzicha', () => {
 
   test('karta salda słownie: na plusie „Cudzich jest nam winien”, na minusie „Należy zwrócić Cudzichowi” (kwota bez minusa), zero - rozliczone', () => {
     const owes = render(<CudzichBalanceCard balance={400} />);
-    expect(owes.getByTestId('cudzich-balance-label').props.children).toBe('Cudzich jest nam winien');
-    expect(owes.getByTestId('cudzich-balance-amount').props.children.join('')).toBe('400,00 zł');
+    expect(textOf(owes.getByTestId('cudzich-balance-label'))).toBe('Cudzich jest nam winien');
+    expect(textOf(owes.getByTestId('cudzich-balance-amount'))).toBe('400,00 zł');
     expect(owes.getByTestId('cudzich-balance-amount').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: '#EF4444' })]));
 
     const weOwe = render(<CudzichBalanceCard balance={-590} />);
-    expect(weOwe.getByTestId('cudzich-balance-label').props.children).toBe('Należy zwrócić Cudzichowi');
-    expect(weOwe.getByTestId('cudzich-balance-amount').props.children.join('')).toBe('590,00 zł');
+    expect(textOf(weOwe.getByTestId('cudzich-balance-label'))).toBe('Należy zwrócić Cudzichowi');
+    expect(textOf(weOwe.getByTestId('cudzich-balance-amount'))).toBe('590,00 zł');
 
     const settled = render(<CudzichBalanceCard balance={0} />);
-    expect(settled.getByTestId('cudzich-balance-label').props.children).toBe('Rozliczone - nikt nikomu nic nie jest winien');
+    expect(textOf(settled.getByTestId('cudzich-balance-label'))).toBe('Rozliczone - nikt nikomu nic nie jest winien');
     expect(settled.getByTestId('cudzich-balance-amount').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ color: '#10B981' })]));
     expect(cudzichType('odbior').color).toBe('#22C55E');
   });
@@ -209,8 +210,8 @@ describe('Zakładka Cudzich (punkt P): lista', () => {
     });
     expect(await screen.findByTestId('cudzich-filter-chip')).toBeTruthy();
     expect(screen.getByText(/Odbiory, Zwroty/)).toBeTruthy();
-    expect(screen.getByTestId('cudzich-summary-odbior').props.children.join('')).toBe('2400.00 zł');
-    expect(screen.getByTestId('cudzich-summary-zwrot').props.children.join('')).toBe('800.00 zł');
+    expect(textOf(screen.getByTestId('cudzich-summary-odbior'))).toBe('2400.00 zł');
+    expect(textOf(screen.getByTestId('cudzich-summary-zwrot'))).toBe('800.00 zł');
     expect(screen.queryByTestId('cudzich-summary-wplata')).toBeNull(); // pokazujemy tylko wybrane rodzaje
 
     // „Wyczyść filtry” wraca do pełnej historii
@@ -363,7 +364,7 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     fireEvent.press(screen.getByTestId('cudzich-return-sale-s-old'));
     fireEvent.press(screen.getByTestId('cudzich-return-sale-s-bella'));
     fireEvent.press(screen.getByTestId('cudzich-return-sale-s-bella')); // odznaczona
-    expect(screen.getByTestId('cudzich-return-summary').props.children.join('')).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1550.00 zł');
+    expect(textOf(screen.getByTestId('cudzich-return-summary'))).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1550.00 zł');
     expect(screen.getByText('Zwróć 2 kurtki do MAGAZYNU')).toBeTruthy();
 
     await act(async () => {
@@ -414,7 +415,7 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
 
     // z powrotem na liście: zaznaczona Bella + Ada sprzed systemu
     await waitFor(() => expect(screen.getByText('Ada CZERWONY XL · sprzed systemu · 600.00 zł')).toBeTruthy(), { timeout: 3000 });
-    expect(screen.getByTestId('cudzich-return-summary').props.children.join('')).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1500.00 zł');
+    expect(textOf(screen.getByTestId('cudzich-return-summary'))).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1500.00 zł');
     expect(posts('/cudzich/returns')).toHaveLength(0); // jeszcze nic nie zapisane
 
     fireEvent.press(screen.getByTestId('cudzich-return-confirm'));
@@ -439,6 +440,102 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     await waitFor(() => expect(screen.getByTestId('cudzich-return-sale-s-bella').props.accessibilityState.checked).toBe(true), { timeout: 3000 });
     expect(screen.queryByTestId('cudzich-return-sale-s-new')).toBeNull();
   });
+  test('kod spoza bazy przy zwrocie: nic nie zaznacza się samo (dawniej puste id pasowało do odbioru bez karty)', async () => {
+    candidates = [...candidates, { saleId: 's-nocard', date: '2026-10-01T10:00:00.000Z', price: 500, fullName: 'Stara kurtka', size: 'L', goodsId: null, barcode: '' }];
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-zwrot'));
+    await screen.findByTestId('cudzich-return-list');
+    global.__scanCode = '9999999999994';
+    fireEvent.press(screen.getByTestId('cudzich-return-scan'));
+    await waitFor(() => expect(screen.getByTestId('scan-camera')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('fake-scan'));
+    expect(await screen.findByTestId('cudzich-return-empty')).toBeTruthy();
+    expect(screen.queryByTestId('cudzich-return-sale-s-nocard')).toBeNull();
+    expect(screen.queryByTestId('cudzich-return-summary')).toBeNull();
+  });
+
+  test('kurtka z listy dodawana jako „sprzed systemu” - ostrzeżenie (kredyt dwa razy); „To inna kurtka” dodaje', async () => {
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-zwrot'));
+    await screen.findByTestId('cudzich-return-list');
+    global.__scanCode = ADA_XL; // dwie Ady XL na liście - żadna nie zaznacza się sama
+    fireEvent.press(screen.getByTestId('cudzich-return-scan'));
+    await waitFor(() => expect(screen.getByTestId('scan-camera')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('fake-scan'));
+    fireEvent.press(await screen.findByTestId('cudzich-return-historical'));
+    await waitFor(() => expect(screen.getByTestId('cudzich-manual-price').props.value).toBe('850'), { timeout: 3000 });
+    fireEvent.press(screen.getByText('Dodaj do zwrotu'));
+
+    expect(appAlert).toHaveBeenCalledWith('Kurtka jest na liście', expect.stringContaining('kredyt dwa razy'), expect.any(Array));
+    const buttons = appAlert.mock.calls.find(([title]) => title === 'Kurtka jest na liście')[2];
+    act(() => buttons.find((button) => button.text === 'To inna kurtka').onPress());
+    await waitFor(() => expect(screen.getByText('Ada CZERWONY XL · sprzed systemu · 850.00 zł')).toBeTruthy(), { timeout: 3000 });
+  });
+
+  test('formularz: wpisana cena zostaje po wyborze rozmiaru; inny produkt czyści rozmiar', async () => {
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-zwrot'));
+    fireEvent.press(await screen.findByTestId('cudzich-return-historical'));
+    const search = await screen.findByPlaceholderText('Wyszukaj kurtkę lub zeskanuj kod...', {}, { timeout: 3000 });
+    fireEvent.changeText(search, 'Ada');
+    fireEvent.press((await screen.findAllByText('Ada CZERWONY')).at(-1));
+    expect(screen.getByTestId('cudzich-manual-price').props.value).toBe('850');
+    fireEvent.changeText(screen.getByTestId('cudzich-manual-price'), '600');
+    fireEvent.changeText(screen.getByPlaceholderText('Wpisz rozmiar...'), 'X');
+    fireEvent.press((await screen.findAllByText('XL')).at(-1));
+    expect(screen.getByTestId('cudzich-manual-price').props.value).toBe('600');
+
+    fireEvent.changeText(search, 'Bella');
+    fireEvent.press((await screen.findAllByText('Bella CZARNY')).at(-1));
+    expect(screen.getByPlaceholderText('Wpisz rozmiar...').props.value).toBe('');
+    expect(screen.getByTestId('cudzich-manual-price').props.value).toBe('990');
+  });
+
+  test('historia się nie wczytała: komunikat i „Spróbuj ponownie” zamiast pustej listy', async () => {
+    let fail = true;
+    serveTransactions = () => (fail ? null : { transactions: TRANSACTIONS, page: 1, limit: 30, total: 2, hasMore: false });
+    const base = tokenService.authenticatedFetch.getMockImplementation();
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => (
+      fail && String(url).includes('/cudzich/transactions') && !options.method ? response({ error: 'x' }, 500) : base(url, options)
+    ));
+    const screen = renderTab();
+    expect(await screen.findByTestId('cudzich-transactions-error')).toBeTruthy();
+    expect(screen.queryByText('Brak transakcji')).toBeNull();
+    fail = false;
+    fireEvent.press(screen.getByTestId('cudzich-transactions-retry'));
+    await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
+    expect(screen.queryByTestId('cudzich-transactions-error')).toBeNull();
+  });
+
+  test('przewinięcie w trakcie wczytywania nowego filtra nie dokleja starej strony 2', async () => {
+    serveTransactions = (params) => {
+      const page = Number(params.get('page'));
+      return { transactions: Array.from({ length: 30 }, (_, i) => tx((page - 1) * 30 + i)), page, limit: 30, total: 60, hasMore: page === 1 };
+    };
+    let releaseFiltered;
+    const base = tokenService.authenticatedFetch.getMockImplementation();
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
+      const params = new URL(String(url)).searchParams;
+      if (String(url).includes('/cudzich/transactions') && params.get('types')) {
+        return new Promise((resolve) => { releaseFiltered = () => resolve(base(url, options)); });
+      }
+      return base(url, options);
+    });
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByTestId('cudzich-transactions-list').props.data).toHaveLength(30));
+    fireEvent.press(screen.getByTestId('cudzich-date-filter'));
+    fireEvent.press(await screen.findByTestId('cudzich-filter-type-wplata'));
+    fireEvent.press(screen.getByTestId('cudzich-filter-apply'));
+    await waitFor(() => expect(releaseFiltered).toBeDefined());
+    fireEvent(screen.getByTestId('cudzich-transactions-list'), 'onEndReached');
+    expect(urls().filter((url) => url.includes('/cudzich/transactions') && new URL(url).searchParams.get('page') === '2')).toHaveLength(0);
+    await act(async () => { releaseFiltered(); });
+    await waitFor(() => expect(screen.getByTestId('cudzich-transactions-list').props.data).toHaveLength(30));
+  });
+
   test('bez ceny: komunikat zamiast zapisu', async () => {
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       const text = String(url);

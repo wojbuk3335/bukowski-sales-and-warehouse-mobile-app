@@ -10,7 +10,6 @@ import {
   ScrollView,
   RefreshControl,
   Platform,
-  KeyboardAvoidingView,
   ActivityIndicator,
 } from 'react-native';
 import { useCameraPermissions } from "expo-camera";
@@ -25,7 +24,6 @@ import { GlobalStateContext } from '../../context/GlobalState';
 import { getApiUrl } from '../../config/api';
 import tokenService from '../../services/tokenService';
 import Logger from '../../services/logger'; // Import logger service
-import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { IconButton, MenuCard, ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
@@ -35,12 +33,30 @@ import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kr
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka na liście kurtek u Cudzicha
 import { CUDZICH_TYPES, CudzichBalanceCard, CudzichTransactionCard, cudzichBalanceInfo } from '../../components/CudzichLook'; // karty jak na ekranie admina
 
+import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+
 // Saldo słownie w komunikatach po zapisie: „Cudzich jest nam winien: 400 zł” / „Należy zwrócić Cudzichowi: 590 zł”
 const balanceText = (value) => {
   const info = cudzichBalanceInfo(value);
   return info.amount > 0 ? `${info.label}: ${info.amount.toFixed(2)} zł` : info.label;
 };
-import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
+
+const formatPln = (value) => `${(Number(value) || 0).toFixed(2)} zł`;
+// „1 kurtka / 2 kurtki / 5 kurtek” (mianownik) i „1 kurtkę / 2 kurtki / 5 kurtek” (biernik)
+const pluralKurtka = (count, one) => (count === 1 ? one
+  : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'kurtki' : 'kurtek'));
+// Ten sam produkt: po id karty, a bez id - po pełnej nazwie; puste wartości nigdy nie pasują
+// (dawniej '' === '' przy kodzie spoza bazy dopasowywało każdy odbiór i zaznaczało przypadkową kurtkę)
+const sameProduct = (candidate, info) => {
+  const candidateId = String(candidate?.goodsId || '');
+  const infoId = String(info?.productId || '');
+  if (candidateId && infoId) return candidateId === infoId;
+  return Boolean(info?.name) && candidate?.fullName === info.name;
+};
+const sameSize = (candidate, info) => !info?.size || info.size === '-' || candidate?.size === info.size;
+// Drugie okienko dopiero po zamknięciu pierwszego - iOS nie pokaże nowego Modal, dopóki stary się chowa
+const afterModalClose = (fn) => setTimeout(fn, Platform.OS === 'ios' ? 450 : 250);
+
 const Cudzych = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -78,7 +94,7 @@ const Cudzych = () => {
   const [refreshing, setRefreshing] = useState(false);
   
   // QR Scanner states
-  const [facing, setFacing] = useState("back");
+  const facing = "back";
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
@@ -96,8 +112,6 @@ const Cudzych = () => {
   const [wyplataModalVisible, setWyplataModalVisible] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [errorModalVisible, setErrorModalVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
   
   // Form states
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -143,6 +157,10 @@ const Cudzych = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const transactionsRequestRef = useRef(0);
   const loadingMoreRef = useRef(false);
+  const firstPageLoadingRef = useRef(false);
+  const [transactionsError, setTransactionsError] = useState(false); // historia się nie wczytała - komunikat i „Spróbuj ponownie”
+  const priceTouchedRef = useRef(false); // cena wpisana ręcznie - cennik jej już nie nadpisuje
+  const historicalConfirmedRef = useRef(false); // „To inna kurtka” - dodanie sprzed systemu mimo podobnej na liście
 
   
   // Price list state
@@ -169,8 +187,12 @@ const Cudzych = () => {
     : '');
   const filterDatesRef = useRef({ start: null, end: null, types: [] });
   filterDatesRef.current = { start: filterStartDate, end: filterEndDate, types: filterTypes };
+  // Strona 1 (nowy filtr, odświeżenie) unieważnia wszystko w drodze; kolejne strony nie unieważniają strony 1
+  // i nie ruszają, dopóki strona 1 się wczytuje (dawniej przewinięcie w trakcie zmiany filtra doklejało
+  // stronę 2 do starej listy, a odpowiedź z nowym filtrem przepadała)
   const fetchTransactions = React.useCallback(async (page = 1) => {
-    const requestId = ++transactionsRequestRef.current;
+    const requestId = page === 1 ? ++transactionsRequestRef.current : transactionsRequestRef.current;
+    if (page === 1) firstPageLoadingRef.current = true;
     try {
       const params = new URLSearchParams({ userSymbol: 'P', recipientId: 'cudzich', page: String(page), limit: String(TRANSACTIONS_PAGE_SIZE) });
       const { start, end, types } = filterDatesRef.current;
@@ -187,15 +209,20 @@ const Cudzych = () => {
         setTransactionsPage(page);
         setTransactionsHasMore(Boolean(data?.hasMore));
         if (page === 1) setPeriodSummary(data?.summary || null);
+        setTransactionsError(false);
+      } else {
+        setTransactionsError(true);
       }
     } catch (error) {
       Logger.error('Error fetching transactions:', error);
+      if (requestId === transactionsRequestRef.current) setTransactionsError(true);
+    } finally {
+      if (page === 1 && requestId === transactionsRequestRef.current) firstPageLoadingRef.current = false;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadMoreTransactions = async () => {
-    if (!transactionsHasMore || loadingMoreRef.current) return;
+    if (!transactionsHasMore || loadingMoreRef.current || firstPageLoadingRef.current) return;
     loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
@@ -252,11 +279,6 @@ const Cudzych = () => {
     }, [])
   );
 
-  // Debug goods changes
-  useEffect(() => {
-    // Goods are ready for use
-  }, [goods]);
-
   // Filter products based on search text
   useEffect(() => {
     if (productSearchText.length > 0) {
@@ -279,9 +301,9 @@ const Cudzych = () => {
     fetchTransactions(1);
   }, [filterStartDate, filterEndDate, filterTypes, fetchTransactions]);
 
-  // Auto-fetch price when product is selected (bez czekania na rozmiar)
+  // Cena z cennika po wyborze produktu/rozmiaru - dopóki użytkownik nie wpisał własnej
   useEffect(() => {
-    if (selectedProduct) {
+    if (selectedProduct && !priceTouchedRef.current) {
       setPrice(getPriceFromProduct(selectedProduct, selectedSize));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,16 +311,19 @@ const Cudzych = () => {
 
   // Handle product selection
   const handleProductSelect = (product) => {
+    // inny produkt = rozmiar i cena od nowa (dawniej zostawał rozmiar poprzedniego produktu)
+    if (String(product?._id) !== String(selectedProduct?._id)) {
+      setSelectedSize(null);
+      setSize('');
+    }
+    priceTouchedRef.current = false;
     setSelectedProduct(product);
     setProductSearchText(product.fullName); // Set search text to selected product name
     setProductDropdownVisible(false);
     
     // Cena od razu w polu: cennik Cudzich, a gdy go nie ma (albo nie ma w nim produktu) - karta produktu
-    setPrice(getPriceFromProduct(product, selectedSize));
+    setPrice(getPriceFromProduct(product, null));
   };
-
-  // Handle size change (cena jest już ustawiona po wyborze produktu)
-
 
   // Formularz ręczny (produkt bez metki): odbiór jak ze skanu (transakcja + sprzedaż z kodem z karty i rozmiaru -
   // kurtka wychodzi z punktu przez Dobieranie; dawniej ręczny odbiór nie tworzył sprzedaży), zwrot - jak ze skanu
@@ -311,7 +336,7 @@ const Cudzych = () => {
       appAlert('Błąd', 'Proszę wybrać produkt z listy wyszukiwania');
       return;
     }
-    if (!selectedSize || !size) {
+    if (!selectedSize || !size || size !== (selectedSize.Roz_Opis || selectedSize.nazwa || selectedSize.name)) {
       appAlert('Błąd', 'Proszę wybrać rozmiar z listy');
       return;
     }
@@ -322,6 +347,21 @@ const Cudzych = () => {
         appAlert('Brak ceny', 'Wpisz cenę, za którą kurtka była rozliczona przed systemem.');
         return;
       }
+      // Ta kurtka jest na liście odbiorów - dodana jeszcze raz jako „sprzed systemu” dostałaby kredyt drugi raz
+      const info = { productId: selectedProduct._id, name: selectedProduct.fullName, size };
+      const onList = returnCandidates.filter((candidate) => sameProduct(candidate, info) && sameSize(candidate, info));
+      if (onList.length > 0 && !historicalConfirmedRef.current) {
+        appAlert(
+          'Kurtka jest na liście',
+          `${selectedProduct.fullName} ${size} jest na liście kurtek u Cudzicha (${onList.length} z odbioru). Jeśli to ta sama kurtka - zaznacz ją na liście, inaczej Cudzich dostanie kredyt dwa razy.`,
+          [
+            { text: 'Wróć do listy', onPress: () => { resetForm(); setZwrotModalVisible(false); setReturnFilter({ ...info, barcode: '' }); afterModalClose(() => setReturnListVisible(true)); } },
+            { text: 'To inna kurtka', style: 'destructive', onPress: () => { historicalConfirmedRef.current = true; createTransaction('zwrot'); } },
+          ]
+        );
+        return;
+      }
+      historicalConfirmedRef.current = false;
       setHistoricalItems((prev) => [...prev, {
         key: `h-${Date.now()}-${prev.length}`,
         productId: selectedProduct._id,
@@ -332,7 +372,7 @@ const Cudzych = () => {
       }]);
       resetForm();
       setZwrotModalVisible(false);
-      setTimeout(() => setReturnListVisible(true), 250); // z powrotem do listy zwrotu
+      afterModalClose(() => setReturnListVisible(true)); // z powrotem do listy zwrotu
       return;
     }
 
@@ -347,11 +387,15 @@ const Cudzych = () => {
     }
   };
 
-  // Kod metki dla produktu z formularza ręcznego: kurtki - karta + rozmiar, reszta - kod karty
+  // Kod metki dla produktu z formularza ręcznego: kurtki - karta + rozmiar, reszta - kod karty.
+  // Kurtka po kategorii karty; karta bez kategorii - po kodzie (kurtki nie zaczynają się od 000)
   const manualBarcode = () => {
     const code = String(selectedProduct?.code || '').trim();
     if (!code) return '';
-    return /^\d{13}$/.test(code) && code.slice(0, 3) !== '000' && selectedSize?.Roz_Kod
+    const isJacket = selectedProduct?.category
+      ? selectedProduct.category === 'Kurtki kożuchy futra'
+      : code.slice(0, 3) !== '000';
+    return isJacket && /^\d{13}$/.test(code) && selectedSize?.Roz_Kod
       ? jacketCodeForSize(code, selectedSize.Roz_Kod)
       : code;
   };
@@ -376,16 +420,13 @@ const Cudzych = () => {
   const returnCount = selectedCandidates.length + historicalItems.length;
   const returnCredit = selectedCandidates.reduce((sum, candidate) => sum + (Number(candidate.price) || 0), 0)
     + historicalItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
-  const jacketsWord = (count) => (count === 1 ? 'kurtkę' : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'kurtki' : 'kurtek'));
+  const jacketsWord = (count) => pluralKurtka(count, 'kurtkę');
   const toggleSale = (saleId) => setSelectedSaleIds((prev) => (
     prev.includes(saleId) ? prev.filter((id) => id !== saleId) : [...prev, saleId]
   ));
 
   // Lista zwrotu: po skanie tylko ta kurtka (produkt + rozmiar), do tego wyszukiwarka (nazwa, rozmiar, kod)
-  const matchesFilter = (candidate) => !returnFilter || (
-    (String(candidate.goodsId || '') === String(returnFilter.productId || '') || candidate.fullName === returnFilter.name)
-    && (!returnFilter.size || returnFilter.size === '-' || candidate.size === returnFilter.size)
-  );
+  const matchesFilter = (candidate) => !returnFilter || (sameProduct(candidate, returnFilter) && sameSize(candidate, returnFilter));
   const visibleCandidates = filterBySearch(
     returnCandidates.filter(matchesFilter),
     (candidate) => [candidate.fullName, candidate.size, candidate.barcode],
@@ -404,10 +445,10 @@ const Cudzych = () => {
   // Kod ze skanu albo z „Z bazy” przy zwrocie: zawęża listę do tej kurtki; jedna niezaznaczona pasująca - zaznacza ją
   const applyReturnCode = (code) => {
     const info = describeScannedCode(code);
-    const matching = returnCandidates.filter((candidate) => (
-      (String(candidate.goodsId || '') === String(info.productId || '') || candidate.fullName === info.name)
-      && (!info.size || info.size === '-' || candidate.size === info.size)
-    ));
+    // kod spoza bazy: tylko napis filtra, nic nie zaznaczamy automatycznie
+    const matching = info.known
+      ? returnCandidates.filter((candidate) => sameProduct(candidate, info) && sameSize(candidate, info))
+      : [];
     const notSelected = matching.filter((candidate) => !selectedSaleIds.includes(String(candidate.saleId)));
     setReturnFilter({ productId: info.productId, name: info.name, size: info.size, barcode: code, price: info.price });
     setReturnSearch('');
@@ -438,9 +479,12 @@ const Cudzych = () => {
         setSize(sizeItem.Roz_Opis);
       }
     }
-    if (prefill?.price) setPrice(String(prefill.price));
+    if (prefill?.price) {
+      setPrice(String(prefill.price));
+      priceTouchedRef.current = true;
+    }
     setScannerType('zwrot');
-    setTimeout(() => setZwrotModalVisible(true), 250); // drugie okienko po zamknięciu pierwszego (iOS)
+    afterModalClose(() => setZwrotModalVisible(true));
   };
 
   // Zapis zwrotu: zaznaczone odbiory (cena z odbioru) i kurtki sprzed systemu (cena wpisana) - jednym zapisem
@@ -470,7 +514,7 @@ const Cudzych = () => {
       }
       requestDone('zwrot');
       const count = data.count || items.length;
-      setSuccessMessage(`Zwrot zapisany: ${count} ${jacketsWord(count)}\nCzeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${Number(data.credit ?? returnCredit).toFixed(2)} zł\n${balanceText(data.newBalance)}`);
+      setSuccessMessage(`Zwrot zapisany: ${count} ${jacketsWord(count)}\nCzeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${formatPln(data.credit ?? returnCredit)}\n${balanceText(data.newBalance)}`);
       setSuccessModalVisible(true);
       setSelectedSaleIds([]);
       setHistoricalItems([]);
@@ -547,7 +591,7 @@ const Cudzych = () => {
         const data = await response.json().catch(() => ({}));
         requestDone('odbior');
         setSuccessMessage(
-          `Odbiór został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${Number(productPrice).toFixed(2)} zł\n${balanceText(data.newBalance)}`
+          `Odbiór został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${formatPln(productPrice)}\n${balanceText(data.newBalance)}`
         );
         setSuccessModalVisible(true);
         await Promise.all([fetchBalance(), fetchTransactions(1), fetchOpenOdbiory()]);
@@ -653,6 +697,8 @@ const Cudzych = () => {
 
   // Reset form
   const resetForm = () => {
+    priceTouchedRef.current = false;
+    historicalConfirmedRef.current = false;
     setSelectedProduct(null);
     setProductSearchText('');
     setSelectedSize(null);
@@ -760,10 +806,6 @@ const Cudzych = () => {
     }
   };
 
-  // Toggle camera facing
-  const toggleCameraFacing = () => {
-    setFacing((prev) => (prev === "back" ? "front" : "back"));
-  };
 
   // Get matching symbols for selling point selection (copied from QRScanner)
   const getMatchingSymbols = (currentBarcode = barcode) => {
@@ -919,7 +961,7 @@ const Cudzych = () => {
                       {{ odbior: 'Odbiory', zwrot: 'Zwroty', wplata: 'Wpłaty', wyplata: 'Wypłaty' }[type]} ({periodSummary[type]?.count || 0})
                     </Text>
                     <Text style={styles.summaryTileValue} numberOfLines={1} testID={`cudzich-summary-${type}`}>
-                      {(Number(periodSummary[type]?.sum) || 0).toFixed(2)} zł
+                      {formatPln(periodSummary[type]?.sum)}
                     </Text>
                   </View>
                 ))}
@@ -928,7 +970,7 @@ const Cudzych = () => {
         </View>
             </View>
           )}
-          ListEmptyComponent={(
+          ListEmptyComponent={transactionsError ? null : (
             <View style={look.emptyState}>
               <Ionicons name="swap-horizontal-outline" size={48} color={tc('muted', '#64748B')} />
               <Text style={look.emptyStateText}>
@@ -938,7 +980,20 @@ const Cudzych = () => {
           )}
           ListFooterComponent={loadingMore ? (
             <View style={{ paddingVertical: 16 }}><ActivityIndicator color="#0D6EFD" /></View>
-          ) : null}
+          ) : (transactionsError ? (
+            // historia się nie wczytała (brak sieci, błąd serwera) - nie udajemy pustej listy
+            <View style={look.emptyState} testID="cudzich-transactions-error">
+              <Ionicons name="cloud-offline-outline" size={40} color="#EF4444" />
+              <Text style={look.emptyStateText}>Nie udało się wczytać historii.</Text>
+              <TouchableOpacity
+                style={[look.neutralButton, { flex: 0, paddingHorizontal: 20, marginTop: 10 }]}
+                onPress={() => fetchTransactions(transactions.length > 0 && transactionsHasMore ? transactionsPage + 1 : 1)}
+                testID="cudzich-transactions-retry"
+              >
+                <Text style={look.neutralButtonText}>Spróbuj ponownie</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null)}
           onEndReached={loadMoreTransactions}
           onEndReachedThreshold={0.6}
           initialNumToRender={10}
@@ -961,7 +1016,7 @@ const Cudzych = () => {
           setOdbiorModalVisible(false);
           setZwrotModalVisible(false);
           resetForm();
-          if (backToReturn) setTimeout(() => setReturnListVisible(true), 250);
+          if (backToReturn) afterModalClose(() => setReturnListVisible(true));
         }}
       >
         <KeyboardSafeOverlay>
@@ -1015,6 +1070,7 @@ const Cudzych = () => {
                   // Clear selected product if text doesn't match
                   if (selectedProduct && !selectedProduct.fullName.toLowerCase().includes(text.toLowerCase())) {
                     setSelectedProduct(null);
+                    priceTouchedRef.current = false;
                     setPrice('');
                   }
                 }}
@@ -1093,6 +1149,8 @@ const Cudzych = () => {
                 value={size}
                 onChangeText={(text) => {
                   setSize(text);
+                  // wpisany ręcznie rozmiar różny od wybranego - wybór z listy od nowa (inaczej kod metki z poprzedniego rozmiaru)
+                  if (selectedSize && text !== (selectedSize.Roz_Opis || selectedSize.nazwa || selectedSize.name)) setSelectedSize(null);
                   setSizeDropdownVisible(text.length > 0);
                 }}
                 onFocus={() => {
@@ -1190,7 +1248,7 @@ const Cudzych = () => {
                 style={styles.input}
                 placeholder="Brak ceny w cenniku - wpisz cenę"
                 value={price}
-                onChangeText={(value) => setPrice(sanitizeAmountInput(value))}
+                onChangeText={(value) => { priceTouchedRef.current = true; setPrice(sanitizeAmountInput(value)); }}
                 keyboardType="decimal-pad"
                 placeholderTextColor={tc('muted', "#666")}
               />
@@ -1222,7 +1280,7 @@ const Cudzych = () => {
                   setOdbiorModalVisible(false);
                   setZwrotModalVisible(false);
                   resetForm();
-                  if (backToReturn) setTimeout(() => setReturnListVisible(true), 250);
+                  if (backToReturn) afterModalClose(() => setReturnListVisible(true));
                 }}
               >
                 <Text style={look.neutralButtonText}>Anuluj</Text>
@@ -1505,7 +1563,7 @@ const Cudzych = () => {
               icon={CUDZICH_TYPES.zwrot.icon}
               color={CUDZICH_TYPES.zwrot.color}
               title="Zwrot - zaznacz kurtki"
-              subtitle={`U Cudzicha: ${returnCandidates.length} ${returnCandidates.length === 1 ? 'kurtka' : 'kurtek'}`}
+              subtitle={`U Cudzicha: ${returnCandidates.length} ${pluralKurtka(returnCandidates.length, 'kurtka')}`}
             />
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               <TextInput
@@ -1520,7 +1578,7 @@ const Cudzych = () => {
               <IconButton icon="scan" onPress={startReturnScan} accessibilityLabel="Skanuj metkę" testID="cudzich-return-scan" />
               <IconButton
                 icon="list-outline"
-                onPress={() => { setReturnListVisible(false); setTimeout(() => setBasePickerFor('zwrot'), 250); }}
+                onPress={() => { setReturnListVisible(false); afterModalClose(() => setBasePickerFor('zwrot')); }}
                 accessibilityLabel="Z bazy"
                 testID="cudzich-return-base"
               />
@@ -1544,7 +1602,7 @@ const Cudzych = () => {
                   selected={selectedSaleIds.includes(String(candidate.saleId))}
                   icon={CUDZICH_TYPES.odbior.icon}
                   color={CUDZICH_TYPES.zwrot.color}
-                  label={`${candidate.fullName} ${candidate.size && candidate.size !== '-' ? candidate.size : ''}\nodbiór ${formatCandidateDate(candidate.date)} · ${candidate.price} zł`}
+                  label={`${candidate.fullName} ${candidate.size && candidate.size !== '-' ? candidate.size : ''}\nodbiór ${formatCandidateDate(candidate.date)} · ${formatPln(candidate.price)}`}
                   onPress={() => toggleSale(String(candidate.saleId))}
                 />
               ))}
@@ -1560,7 +1618,7 @@ const Cudzych = () => {
                 <View key={item.key} style={styles.historicalRow} testID={`cudzich-return-historical-item-${item.key}`}>
                   <Ionicons name="time-outline" size={18} color="#8B5CF6" />
                   <Text style={styles.historicalRowText} numberOfLines={1}>
-                    {item.name}{item.size && item.size !== '-' ? ` ${item.size}` : ''} · sprzed systemu · {Number(item.price).toFixed(2)} zł
+                    {item.name}{item.size && item.size !== '-' ? ` ${item.size}` : ''} · sprzed systemu · {formatPln(item.price)}
                   </Text>
                   <TouchableOpacity
                     onPress={() => setHistoricalItems((prev) => prev.filter((entry) => entry.key !== item.key))}
@@ -1587,7 +1645,7 @@ const Cudzych = () => {
 
             {returnCount > 0 ? (
               <Text style={[look.modalMessage, { marginTop: 8 }]} testID="cudzich-return-summary">
-                Zwracasz {returnCount} {jacketsWord(returnCount)} · kredyt dla Cudzicha {returnCredit.toFixed(2)} zł
+                Zwracasz {returnCount} {jacketsWord(returnCount)} · kredyt dla Cudzicha {formatPln(returnCredit)}
               </Text>
             ) : null}
 
@@ -1621,13 +1679,16 @@ const Cudzych = () => {
         onClose={() => {
           const target = basePickerFor;
           setBasePickerFor(null);
-          if (target === 'zwrot') setTimeout(() => setReturnListVisible(true), 250);
+          if (target === 'zwrot' && !scannerVisible) afterModalClose(() => setReturnListVisible(true));
         }}
         onPick={(code) => {
           const target = basePickerFor;
           setBasePickerFor(null);
           if (target === 'zwrot') {
-            setTimeout(() => applyReturnCode(code), 250);
+            // „Z bazy” w kamerze zwrotu: kamera się zamyka, wracamy do listy (dawniej kamera zostawała otwarta pod listą)
+            setScannerVisible(false);
+            setScanned(false);
+            afterModalClose(() => applyReturnCode(code));
           } else {
             handleScan({ data: code });
           }
@@ -1693,30 +1754,6 @@ const Cudzych = () => {
             <TouchableOpacity
               style={[look.primaryButton, { flex: 0, alignSelf: 'stretch' }]}
               onPress={() => setSuccessModalVisible(false)}
-            >
-              <Text style={look.buttonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Error Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={errorModalVisible}
-        onRequestClose={() => setErrorModalVisible(false)}
-      >
-        <View style={qrStyles.errorModalOverlay}>
-          <View style={qrStyles.errorModalContent}>
-            <ModalHeader icon="alert-circle" color="#DC3545" title="Błąd" />
-            <Text style={qrStyles.errorModalMessage}>
-              {errorMessage}
-            </Text>
-            
-            <TouchableOpacity
-              style={[look.primaryButton, { flex: 0, alignSelf: 'stretch' }]}
-              onPress={() => setErrorModalVisible(false)}
             >
               <Text style={look.buttonText}>OK</Text>
             </TouchableOpacity>
