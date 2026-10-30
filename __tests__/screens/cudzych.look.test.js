@@ -25,6 +25,8 @@ jest.mock('../../components/scanner/ScanCamera', () => {
     return React.createElement(View, { testID: 'scan-camera' },
       React.createElement(TouchableOpacity, { testID: 'fake-scan', onPress: () => props.onScanned({ data: global.__scanCode, type: 'code128' }) },
         React.createElement(Text, null, 'scan')),
+      ...(props.extraActions || []).map((action) => React.createElement(TouchableOpacity, { key: action.testID, testID: action.testID, onPress: action.onPress },
+        React.createElement(Text, null, action.label))),
       props.children);
   };
 });
@@ -147,7 +149,7 @@ describe('Zakładka Cudzich (punkt P): lista', () => {
     const screen = renderTab();
     await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
     expect(screen.getByTestId('cudzich-balance-card')).toBeTruthy();
-    ['odbior', 'zwrot', 'settle', 'manual'].forEach((type) => expect(screen.getByTestId(`cudzich-action-${type}`)).toBeTruthy());
+    ['odbior', 'zwrot', 'settle'].forEach((type) => expect(screen.getByTestId(`cudzich-action-${type}`)).toBeTruthy());
     const list = screen.getByTestId('cudzich-transactions-list');
     expect(list.props.contentContainerStyle.paddingBottom).toBeGreaterThanOrEqual(120);
   });
@@ -181,16 +183,32 @@ describe('Zakładka Cudzich (punkt P): lista', () => {
 });
 
 describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
-  test('kamera jak w „Dodaj”: te same ustawienia (bez dodatkowych przycisków), na cały ekran zamiast listy', async () => {
+  test('kamera jak w „Dodaj” (+ „Z bazy”), na cały ekran zamiast listy; „Wpisz ręcznie” usunięte', async () => {
     const screen = renderTab();
+    expect(await screen.findByTestId('cudzich-action-odbior')).toBeTruthy();
+    expect(screen.queryByTestId('cudzich-action-manual')).toBeNull();
+    expect(screen.queryByText('Wpisz ręcznie')).toBeNull();
     await openScanner(screen, 'odbior');
-    expect(Object.keys(global.__scanCameraProps).filter((key) => key !== 'children').sort()).toEqual(['enabled', 'facing', 'onScanned', 'resolveName']);
-    expect(global.__scanCameraProps.extraActions).toBeUndefined();
+    expect(Object.keys(global.__scanCameraProps).filter((key) => key !== 'children').sort()).toEqual(['enabled', 'extraActions', 'facing', 'onScanned', 'resolveName']);
+    expect(global.__scanCameraProps.extraActions.map((action) => action.label)).toEqual(['Z bazy']);
     expect(screen.queryByTestId('cudzich-transactions-list')).toBeNull();
     expect(await global.__scanCameraProps.resolveName(ADA_XL)).toBe('Ada CZERWONY XL'); // pełna nazwa z karty produktu
     expect(await global.__scanCameraProps.resolveName('9999999999999')).toBeNull();
   });
 
+  test('odbiór „Z bazy”: produkt i rozmiar z kart produktów - jak skan metki (nazwa, cena z cennika Cudzich)', async () => {
+    const screen = renderTab();
+    await openScanner(screen, 'odbior');
+    fireEvent.press(screen.getByTestId('cudzich-scan-base'));
+    expect(await screen.findByTestId('product-base-picker')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('product-base-search'), 'ada');
+    fireEvent.press(screen.getByTestId('product-base-good-g-ada'));
+    fireEvent.press(await screen.findByTestId('product-base-size-XL'));
+    await waitFor(() => expect(screen.getByText('Odbiór - Cudzich bierze kurtkę')).toBeTruthy());
+    expect(screen.getByDisplayValue('Ada CZERWONY XL')).toBeTruthy();
+    expect(screen.getByDisplayValue(ADA_XL)).toBeTruthy(); // kod metki z karty + rozmiaru
+    expect(screen.getByTestId('cudzich-scanned-price').props.value).toBe('850');
+  });
   test('odbiór: pełna nazwa z karty produktu, cena od razu w polu z cennika Cudzich, zapis odbioru z produktem', async () => {
     const screen = renderTab();
     await openScanner(screen, 'odbior');
@@ -246,19 +264,23 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(screen.getByTestId('cudzich-return-confirm').props.accessibilityState?.disabled ?? true).toBe(true);
   });
 
-  test('wybór kurtki z listy: kredyt = cena z odbioru, zapis POST /cudzich/returns, do przyjęcia w MAGAZYNIE', async () => {
+  test('kilka kurtek naraz: zaznaczanie i odznaczanie, podsumowanie z kredytem, jeden zapis z wieloma pozycjami', async () => {
     const screen = renderTab();
     await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
     fireEvent.press(screen.getByTestId('cudzich-action-zwrot'));
-    fireEvent.press(await screen.findByTestId('cudzich-return-sale-s-old'));
-    expect(screen.getByTestId('cudzich-return-summary').props.children.join('')).toContain('750 zł');
+    fireEvent.press(await screen.findByTestId('cudzich-return-sale-s-new'));
+    fireEvent.press(screen.getByTestId('cudzich-return-sale-s-old'));
+    fireEvent.press(screen.getByTestId('cudzich-return-sale-s-bella'));
+    fireEvent.press(screen.getByTestId('cudzich-return-sale-s-bella')); // odznaczona
+    expect(screen.getByTestId('cudzich-return-summary').props.children.join('')).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1550.00 zł');
+    expect(screen.getByText('Zwróć 2 kurtki do MAGAZYNU')).toBeTruthy();
+
     fireEvent.press(screen.getByTestId('cudzich-return-confirm'));
     await waitFor(() => expect(posts('/cudzich/returns')).toHaveLength(1));
-    expect(posts('/cudzich/returns')[0]).toEqual({ saleId: 's-old', notes: '' });
+    expect(posts('/cudzich/returns')[0]).toEqual({ items: [{ saleId: 's-new' }, { saleId: 's-old' }], notes: '' });
     expect(posts('/cudzich/transactions')).toHaveLength(0);
     expect(posts('/sales/')).toHaveLength(0);
   });
-
   test('wyszukiwarka i skan zawężają listę; jedna pasująca kurtka po skanie - od razu zaznaczona', async () => {
     const screen = renderTab();
     await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
@@ -278,12 +300,13 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(screen.getByText('Bella CZARNY M')).toBeTruthy(); // plakietka skanu
   });
 
-  test('skan kurtki spoza listy: komunikat i „Kurtka sprzed systemu” z produktem i ceną z cennika do zatwierdzenia', async () => {
+  test('zwrot mieszany: kurtka z listy + kurtka sprzed systemu (skan spoza listy → formularz z ceną) w jednym zapisie', async () => {
     candidates = candidates.filter((c) => c.saleId === 's-bella');
     const screen = renderTab();
     await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
     fireEvent.press(screen.getByTestId('cudzich-action-zwrot'));
-    await screen.findByTestId('cudzich-return-list');
+    fireEvent.press(await screen.findByTestId('cudzich-return-sale-s-bella'));
+
     global.__scanCode = ADA_XL;
     fireEvent.press(screen.getByTestId('cudzich-return-scan'));
     await waitFor(() => expect(screen.getByTestId('scan-camera')).toBeTruthy());
@@ -293,11 +316,34 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     fireEvent.press(screen.getByTestId('cudzich-return-historical'));
     await waitFor(() => expect(screen.getByTestId('cudzich-manual-price').props.value).toBe('850'), { timeout: 3000 });
     fireEvent.changeText(screen.getByTestId('cudzich-manual-price'), '600');
-    fireEvent.press(screen.getByText('Zapisz Zwrot'));
+    fireEvent.press(screen.getByText('Dodaj do zwrotu'));
+
+    // z powrotem na liście: zaznaczona Bella + Ada sprzed systemu
+    await waitFor(() => expect(screen.getByText('Ada CZERWONY XL · sprzed systemu · 600.00 zł')).toBeTruthy(), { timeout: 3000 });
+    expect(screen.getByTestId('cudzich-return-summary').props.children.join('')).toBe('Zwracasz 2 kurtki · kredyt dla Cudzicha 1500.00 zł');
+    expect(posts('/cudzich/returns')).toHaveLength(0); // jeszcze nic nie zapisane
+
+    fireEvent.press(screen.getByTestId('cudzich-return-confirm'));
     await waitFor(() => expect(posts('/cudzich/returns')).toHaveLength(1));
-    expect(posts('/cudzich/returns')[0]).toMatchObject({ historical: true, productId: 'g-ada', size: 'XL', barcode: ADA_XL, price: 600 });
+    expect(posts('/cudzich/returns')[0]).toEqual({
+      items: [{ saleId: 's-bella' }, { historical: true, productId: 'g-ada', size: 'XL', barcode: ADA_XL, price: 600 }],
+      notes: '',
+    });
   });
 
+  test('zwrot „Z bazy”: wybór z kart produktów zawęża listę jak skan', async () => {
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByTestId('cudzich-items-count')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-zwrot'));
+    await screen.findByTestId('cudzich-return-list');
+    fireEvent.press(screen.getByTestId('cudzich-return-base'));
+    expect(await screen.findByTestId('product-base-picker', {}, { timeout: 3000 })).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('product-base-search'), 'bella');
+    fireEvent.press(screen.getByTestId('product-base-good-g-bella'));
+    fireEvent.press(await screen.findByTestId('product-base-size-M'));
+    await waitFor(() => expect(screen.getByTestId('cudzich-return-sale-s-bella').props.accessibilityState.checked).toBe(true), { timeout: 3000 });
+    expect(screen.queryByTestId('cudzich-return-sale-s-new')).toBeNull();
+  });
   test('bez ceny: komunikat zamiast zapisu', async () => {
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       const text = String(url);
@@ -358,14 +404,6 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     fireEvent.press(screen.getByTestId('cudzich-action-settle'));
     expect(appAlert).toHaveBeenCalledWith('Rozlicz saldo', expect.stringContaining('rozliczone'));
     expect(screen.queryByTestId('cudzich-settle-info')).toBeNull();
-  });
-
-  test('„Wpisz ręcznie” otwiera wybór odbioru / zwrotu', async () => {
-    const screen = renderTab();
-    await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('cudzich-action-manual'));
-    expect(await screen.findByTestId('cudzich-manual-odbior')).toBeTruthy();
-    expect(screen.getByTestId('cudzich-manual-zwrot')).toBeTruthy();
   });
 
   test('inny punkt niż P - brak dostępu', () => {

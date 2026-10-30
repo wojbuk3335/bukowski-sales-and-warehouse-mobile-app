@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useCameraPermissions } from "expo-camera";
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
+import ProductBasePicker from "../../components/scanner/ProductBasePicker"; // „Z bazy” - wybór produktu zamiast skanu (jak w Remanencie)
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useFocusEffect } from "@react-navigation/native";
@@ -26,7 +27,7 @@ import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActionItem, IconButton, MenuCard, ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
+import { IconButton, MenuCard, ModalHeader, OptionCard, ScreenHeader, look } from '../../components/AdminLook';
 import { findGoodForBarcode, findSizeForBarcode, listPriceOf, resolveSalePrice } from '../../utils/defaultSalePrice'; // cena: cennik Cudzich, bez niego karta produktu
 import { jacketCodeForSize, productNameFromBarcode } from '../../utils/productName'; // nazwa z kodu jak w całej aplikacji; kod metki z karty + rozmiaru
 import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polu kwoty
@@ -90,7 +91,11 @@ const Cudzych = () => {
   const [notes, setNotes] = useState('');
   // Zwrot (30.10.2026): wskazanie odbioru, którego dotyczy (cena z odbioru), albo „Kurtka sprzed systemu” (zapłacona)
   const [returnCandidates, setReturnCandidates] = useState([]);
-  const [returnChoice, setReturnChoice] = useState(null); // _id sprzedaży z odbioru albo 'historical'
+  // Zwrot wielu kurtek naraz (30.10.2026): zaznaczone odbiory + kurtki sprzed systemu dodane do tego samego zwrotu
+  const [selectedSaleIds, setSelectedSaleIds] = useState([]);
+  const [historicalItems, setHistoricalItems] = useState([]); // { key, productId, name, size, barcode, price }
+  // „Z bazy”: dla odbioru (zamiast skanu) albo zwrotu (zawęża listę jak skan)
+  const [basePickerFor, setBasePickerFor] = useState(null); // 'odbior' | 'zwrot' | null
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   // Zwrot (30.10.2026): od razu lista kurtek u Cudzicha (niezwrócone odbiory) z wyszukiwarką i skanem metki
   const [returnListVisible, setReturnListVisible] = useState(false);
@@ -119,8 +124,6 @@ const Cudzych = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const transactionsRequestRef = useRef(0);
   const loadingMoreRef = useRef(false);
-  // „Wpisz ręcznie” (bez metki): wybór Odbiór / Zwrot - kamera jest taka sama jak w „Dodaj”, bez dodatkowych przycisków
-  const [manualChooserVisible, setManualChooserVisible] = useState(false);
 
   
   // Price list state
@@ -293,11 +296,22 @@ const Cudzych = () => {
     }
 
     if (type === 'zwrot') {
-      const saved = await saveReturn({ choice: 'historical', productId: selectedProduct._id, size, barcode: manualBarcode(), price, notes });
-      if (saved) {
-        resetForm();
-        setZwrotModalVisible(false);
+      const amount = Number(String(price || '').replace(',', '.'));
+      if (!(amount > 0)) {
+        appAlert('Brak ceny', 'Wpisz cenę, za którą kurtka była rozliczona przed systemem.');
+        return;
       }
+      setHistoricalItems((prev) => [...prev, {
+        key: `h-${Date.now()}-${prev.length}`,
+        productId: selectedProduct._id,
+        name: selectedProduct.fullName,
+        size,
+        barcode: manualBarcode(),
+        price: amount,
+      }]);
+      resetForm();
+      setZwrotModalVisible(false);
+      setTimeout(() => setReturnListVisible(true), 250); // z powrotem do listy zwrotu
       return;
     }
 
@@ -337,7 +351,14 @@ const Cudzych = () => {
     }
   }, []);
 
-  const chosenCandidate = returnCandidates.find((candidate) => String(candidate.saleId) === returnChoice) || null;
+  const selectedCandidates = returnCandidates.filter((candidate) => selectedSaleIds.includes(String(candidate.saleId)));
+  const returnCount = selectedCandidates.length + historicalItems.length;
+  const returnCredit = selectedCandidates.reduce((sum, candidate) => sum + (Number(candidate.price) || 0), 0)
+    + historicalItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const jacketsWord = (count) => (count === 1 ? 'kurtkę' : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'kurtki' : 'kurtek'));
+  const toggleSale = (saleId) => setSelectedSaleIds((prev) => (
+    prev.includes(saleId) ? prev.filter((id) => id !== saleId) : [...prev, saleId]
+  ));
 
   // Lista zwrotu: po skanie tylko ta kurtka (produkt + rozmiar), do tego wyszukiwarka (nazwa, rozmiar, kod)
   const matchesFilter = (candidate) => !returnFilter || (
@@ -353,8 +374,23 @@ const Cudzych = () => {
   const openReturnList = () => {
     setReturnFilter(null);
     setReturnSearch('');
-    setReturnChoice(null);
+    setSelectedSaleIds([]);
+    setHistoricalItems([]);
     fetchOpenOdbiory();
+    setReturnListVisible(true);
+  };
+
+  // Kod ze skanu albo z „Z bazy” przy zwrocie: zawęża listę do tej kurtki; jedna niezaznaczona pasująca - zaznacza ją
+  const applyReturnCode = (code) => {
+    const info = describeScannedCode(code);
+    const matching = returnCandidates.filter((candidate) => (
+      (String(candidate.goodsId || '') === String(info.productId || '') || candidate.fullName === info.name)
+      && (!info.size || info.size === '-' || candidate.size === info.size)
+    ));
+    const notSelected = matching.filter((candidate) => !selectedSaleIds.includes(String(candidate.saleId)));
+    setReturnFilter({ productId: info.productId, name: info.name, size: info.size, barcode: code, price: info.price });
+    setReturnSearch('');
+    if (notSelected.length === 1) setSelectedSaleIds((prev) => [...prev, String(notSelected[0].saleId)]);
     setReturnListVisible(true);
   };
 
@@ -381,43 +417,38 @@ const Cudzych = () => {
         setSize(sizeItem.Roz_Opis);
       }
     }
-    setReturnChoice('historical');
+    if (prefill?.price) setPrice(String(prefill.price));
     setScannerType('zwrot');
     setTimeout(() => setZwrotModalVisible(true), 250); // drugie okienko po zamknięciu pierwszego (iOS)
   };
 
-  // Zapis zwrotu: wskazany odbiór (cena z odbioru) albo kurtka sprzed systemu (cena wpisana = kredyt)
-  const saveReturn = async ({ choice = returnChoice, productId, size: sizeLabel, barcode: code, price: enteredPrice, notes: returnNotes }) => {
-    if (!choice) {
-      appAlert('Zwrot', 'Wybierz kurtkę z listy albo „Kurtka sprzed systemu”.');
-      return false;
-    }
-    const historical = choice === 'historical';
-    const amount = Number(String(enteredPrice || '').replace(',', '.'));
-    if (historical && !(amount > 0)) {
-      appAlert('Brak ceny', 'Wpisz cenę, za którą kurtka była rozliczona przed systemem.');
-      return false;
-    }
-    if (historical && !productId) {
-      appAlert('Zwrot', 'Wybierz produkt.');
+  // Zapis zwrotu: zaznaczone odbiory (cena z odbioru) i kurtki sprzed systemu (cena wpisana) - jednym zapisem
+  const submitReturn = async () => {
+    if (returnCount === 0) {
+      appAlert('Zwrot', 'Zaznacz kurtki z listy albo dodaj kurtkę sprzed systemu.');
       return false;
     }
     try {
       setLoading(true);
+      const items = [
+        ...selectedSaleIds.map((saleId) => ({ saleId })),
+        ...historicalItems.map((item) => ({ historical: true, productId: item.productId, size: item.size || '-', barcode: item.barcode || '', price: item.price })),
+      ];
       const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/returns'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(historical
-          ? { historical: true, productId, size: sizeLabel || '-', barcode: code || '', price: amount, notes: returnNotes || '' }
-          : { saleId: choice, notes: returnNotes || '' }),
+        body: JSON.stringify({ items, notes: '' }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         appAlert('Błąd', data.error || 'Nie udało się zapisać zwrotu');
         return false;
       }
-      setSuccessMessage(`Zwrot zapisany\nKurtka czeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${data.transaction?.price} zł\n${balanceText(data.newBalance)}`);
+      const count = data.count || items.length;
+      setSuccessMessage(`Zwrot zapisany: ${count} ${jacketsWord(count)}\nCzeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${Number(data.credit ?? returnCredit).toFixed(2)} zł\n${balanceText(data.newBalance)}`);
       setSuccessModalVisible(true);
+      setSelectedSaleIds([]);
+      setHistoricalItems([]);
       await Promise.all([fetchBalance(), fetchTransactions(1), fetchOpenOdbiory()]);
       return true;
     } catch (error) {
@@ -430,7 +461,7 @@ const Cudzych = () => {
   };
 
   const confirmReturnFromList = async () => {
-    const saved = await saveReturn({ choice: returnChoice });
+    const saved = await submitReturn();
     if (saved) setReturnListVisible(false);
   };
 
@@ -637,8 +668,6 @@ const Cudzych = () => {
     setSize('');
     setPrice('');
     setNotes('');
-    setReturnCandidates([]);
-    setReturnChoice(null);
     setProductDropdownVisible(false);
     setSizeDropdownVisible(false);
   };
@@ -715,17 +744,9 @@ const Cudzych = () => {
     }
 
     if (scannerType === 'zwrot') {
-      const filter = { productId: info.productId, name: info.name, size: info.size, barcode: data, price: info.price };
-      const matching = returnCandidates.filter((candidate) => (
-        (String(candidate.goodsId || '') === String(info.productId || '') || candidate.fullName === info.name)
-        && (!info.size || info.size === '-' || candidate.size === info.size)
-      ));
-      setReturnFilter(filter);
-      setReturnSearch('');
-      setReturnChoice(matching.length === 1 ? String(matching[0].saleId) : null);
       setScannerVisible(false);
       setScanned(false);
-      setReturnListVisible(true);
+      applyReturnCode(data);
       return;
     }
 
@@ -876,14 +897,6 @@ const Cudzych = () => {
             subtitle={settleSubtitle()}
             onPress={openSettle}
           />
-          <MenuCard
-            testID="cudzich-action-manual"
-            icon="create-outline"
-            color="#8B5CF6"
-            title="Wpisz ręcznie"
-            subtitle="Odbiór lub zwrot bez metki (także sprzedaż sprzed systemu)"
-            onPress={() => setManualChooserVisible(true)}
-          />
 
           {/* Historia transakcji: nagłówek sekcji z przyciskiem filtra jak w ekranach admina */}
           <View style={styles.historyHeader}>
@@ -942,9 +955,11 @@ const Cudzych = () => {
         transparent={true}
         visible={odbiorModalVisible || zwrotModalVisible}
         onRequestClose={() => {
+          const backToReturn = zwrotModalVisible;
           setOdbiorModalVisible(false);
           setZwrotModalVisible(false);
           resetForm();
+          if (backToReturn) setTimeout(() => setReturnListVisible(true), 250);
         }}
       >
         <KeyboardSafeOverlay>
@@ -953,7 +968,7 @@ const Cudzych = () => {
             <ModalHeader
               icon={odbiorModalVisible ? 'arrow-down-circle' : 'return-up-back'}
               color={odbiorModalVisible ? '#EF4444' : '#10B981'}
-              title={odbiorModalVisible ? 'Odbiór kurtki' : 'Zwrot kurtki'}
+              title={odbiorModalVisible ? 'Odbiór kurtki' : 'Kurtka sprzed systemu (zapłacona)'}
             />
 
             <ScrollView 
@@ -1201,9 +1216,11 @@ const Cudzych = () => {
               <TouchableOpacity
                 style={look.neutralButton}
                 onPress={() => {
+                  const backToReturn = zwrotModalVisible;
                   setOdbiorModalVisible(false);
                   setZwrotModalVisible(false);
                   resetForm();
+                  if (backToReturn) setTimeout(() => setReturnListVisible(true), 250);
                 }}
               >
                 <Text style={look.neutralButtonText}>Anuluj</Text>
@@ -1217,7 +1234,7 @@ const Cudzych = () => {
                 disabled={loading}
               >
                 <Text style={look.buttonText}>
-                  {odbiorModalVisible ? 'Zapisz Odbiór' : 'Zapisz Zwrot'}
+                  {odbiorModalVisible ? 'Zapisz Odbiór' : 'Dodaj do zwrotu'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1413,12 +1430,13 @@ const Cudzych = () => {
       {scannerVisible && (
         <View style={qrStyles.container} testID="cudzich-scanner">
           {/* Ta sama kamera co w zakładce „Dodaj” (QRScanner): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod”, czytnik;
-              na cały ekran zakładki. Produkt bez metki: karta „Wpisz ręcznie” na ekranie Cudzicha. */}
+              na cały ekran zakładki. Produkt bez metki: „Z bazy” (jak w Remanencie). */}
           <ScanCamera
-            enabled={!scanned}
+            enabled={!scanned && basePickerFor === null}
             onScanned={handleScan}
             resolveName={resolveScannedName}
             facing={facing}
+            extraActions={[{ label: 'Z bazy', icon: 'list-outline', testID: 'cudzich-scan-base', onPress: () => setBasePickerFor(scannerType === 'zwrot' ? 'zwrot' : 'odbior') }]}
           >
             
             {/* Close button in top right corner */}
@@ -1560,7 +1578,7 @@ const Cudzych = () => {
             <ModalHeader
               icon={CUDZICH_TYPES.zwrot.icon}
               color={CUDZICH_TYPES.zwrot.color}
-              title="Zwrot - wybierz kurtkę"
+              title="Zwrot - zaznacz kurtki"
               subtitle={`U Cudzicha: ${returnCandidates.length} ${returnCandidates.length === 1 ? 'kurtka' : 'kurtek'}`}
             />
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
@@ -1574,12 +1592,18 @@ const Cudzych = () => {
                 autoCorrect={false}
               />
               <IconButton icon="scan" onPress={startReturnScan} accessibilityLabel="Skanuj metkę" testID="cudzich-return-scan" />
+              <IconButton
+                icon="list-outline"
+                onPress={() => { setReturnListVisible(false); setTimeout(() => setBasePickerFor('zwrot'), 250); }}
+                accessibilityLabel="Z bazy"
+                testID="cudzich-return-base"
+              />
             </View>
             {returnFilter ? (
               <View style={[look.chip, { alignSelf: 'flex-start', marginTop: 0, marginBottom: 8 }]}>
                 <Ionicons name="scan-outline" size={14} color="#0D6EFD" />
                 <Text style={look.chipText}>{displayName(returnFilter)}</Text>
-                <TouchableOpacity onPress={() => { setReturnFilter(null); setReturnChoice(null); }} accessibilityLabel="Pokaż wszystkie kurtki" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => setReturnFilter(null)} accessibilityLabel="Pokaż wszystkie kurtki" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="close-circle" size={18} color={tc('muted', '#94A3B8')} />
                 </TouchableOpacity>
               </View>
@@ -1591,20 +1615,36 @@ const Cudzych = () => {
                 <OptionCard
                   key={String(candidate.saleId)}
                   testID={`cudzich-return-sale-${candidate.saleId}`}
-                  selected={returnChoice === String(candidate.saleId)}
+                  selected={selectedSaleIds.includes(String(candidate.saleId))}
                   icon={CUDZICH_TYPES.odbior.icon}
                   color={CUDZICH_TYPES.zwrot.color}
                   label={`${candidate.fullName} ${candidate.size && candidate.size !== '-' ? candidate.size : ''}\nodbiór ${formatCandidateDate(candidate.date)} · ${candidate.price} zł`}
-                  onPress={() => setReturnChoice(String(candidate.saleId))}
+                  onPress={() => toggleSale(String(candidate.saleId))}
                 />
               ))}
               {!candidatesLoading && visibleCandidates.length === 0 ? (
                 <Text style={[look.emptyStateText, { textAlign: 'center', marginVertical: 12 }]} testID="cudzich-return-empty">
                   {returnFilter
-                    ? 'Tej kurtki nie ma na liście odbiorów - jeśli Cudzich wziął ją przed systemem, wybierz niżej „Kurtka sprzed systemu”.'
+                    ? 'Tej kurtki nie ma na liście odbiorów - jeśli Cudzich wziął ją przed systemem, dodaj ją niżej jako „Kurtka sprzed systemu”.'
                     : (returnCandidates.length === 0 ? 'Cudzich nie ma żadnych kurtek z odbiorów w systemie.' : 'Nic nie znaleziono.')}
                 </Text>
               ) : null}
+              {/* Kurtki sprzed systemu dodane do tego zwrotu (cena wpisana = kredyt) - można usunąć */}
+              {historicalItems.map((item) => (
+                <View key={item.key} style={styles.historicalRow} testID={`cudzich-return-historical-item-${item.key}`}>
+                  <Ionicons name="time-outline" size={18} color="#8B5CF6" />
+                  <Text style={styles.historicalRowText} numberOfLines={1}>
+                    {item.name}{item.size && item.size !== '-' ? ` ${item.size}` : ''} · sprzed systemu · {Number(item.price).toFixed(2)} zł
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setHistoricalItems((prev) => prev.filter((entry) => entry.key !== item.key))}
+                    accessibilityLabel="Usuń z tego zwrotu"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+                </View>
+              ))}
             </ScrollView>
 
             {/* Kurtka sprzed systemu - mały link w jednej linii (dawniej duża karta z opisem) */}
@@ -1615,13 +1655,13 @@ const Cudzych = () => {
               accessibilityRole="button"
             >
               <Ionicons name="time-outline" size={18} color="#8B5CF6" />
-              <Text style={styles.historicalLinkText} numberOfLines={1}>Kurtka sprzed systemu (zapłacona)</Text>
+              <Text style={styles.historicalLinkText} numberOfLines={1}>+ Kurtka sprzed systemu (zapłacona)</Text>
               <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
             </TouchableOpacity>
 
-            {chosenCandidate ? (
+            {returnCount > 0 ? (
               <Text style={[look.modalMessage, { marginTop: 8 }]} testID="cudzich-return-summary">
-                Kredyt dla Cudzicha: {chosenCandidate.price} zł (cena z odbioru). Kurtka trafi do przyjęcia w MAGAZYNIE (Dobieranie).
+                Zwracasz {returnCount} {jacketsWord(returnCount)} · kredyt dla Cudzicha {returnCredit.toFixed(2)} zł
               </Text>
             ) : null}
 
@@ -1629,11 +1669,13 @@ const Cudzych = () => {
             <View style={styles.stackedButtons}>
               <TouchableOpacity
                 testID="cudzich-return-confirm"
-                style={[look.primaryButton, styles.stackedButton, { backgroundColor: CUDZICH_TYPES.zwrot.color }, (!chosenCandidate || loading) && look.disabled]}
+                style={[look.primaryButton, styles.stackedButton, { backgroundColor: CUDZICH_TYPES.zwrot.color }, (returnCount === 0 || loading) && look.disabled]}
                 onPress={confirmReturnFromList}
-                disabled={!chosenCandidate || loading}
+                disabled={returnCount === 0 || loading}
               >
-                <Text style={look.buttonText} numberOfLines={1}>Zwróć do MAGAZYNU</Text>
+                <Text style={look.buttonText} numberOfLines={1}>
+                  {returnCount > 0 ? `Zwróć ${returnCount} ${jacketsWord(returnCount)} do MAGAZYNU` : 'Zwróć do MAGAZYNU'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={[look.neutralButton, styles.stackedButton]} onPress={() => setReturnListVisible(false)}>
                 <Text style={look.neutralButtonText} numberOfLines={1}>Anuluj</Text>
@@ -1644,43 +1686,27 @@ const Cudzych = () => {
         </KeyboardSafeOverlay>
       </Modal>
 
-      {/* „Wpisz ręcznie” - produkt bez metki: wybór odbioru albo zwrotu (formularz z wyszukiwaniem produktu) */}
-      <Modal
-        transparent
-        animationType="fade"
-        visible={manualChooserVisible}
-        onRequestClose={() => setManualChooserVisible(false)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="create-outline" color="#8B5CF6" title="Wpisz ręcznie" subtitle="Produkt bez metki" />
-            <ActionItem
-              testID="cudzich-manual-odbior"
-              icon={CUDZICH_TYPES.odbior.icon}
-              color={CUDZICH_TYPES.odbior.color}
-              label="Odbiór - Cudzich bierze kurtkę"
-              onPress={() => {
-                setManualChooserVisible(false);
-                setScannerType('odbior');
-                setTimeout(() => setOdbiorModalVisible(true), 250); // drugie okienko po zamknięciu pierwszego (iOS)
-              }}
-            />
-            <ActionItem
-              testID="cudzich-manual-zwrot"
-              icon={CUDZICH_TYPES.zwrot.icon}
-              color={CUDZICH_TYPES.zwrot.color}
-              label="Zwrot kurtki sprzed systemu (już zapłaconej)"
-              onPress={() => {
-                setManualChooserVisible(false);
-                openHistoricalReturn();
-              }}
-            />
-            <TouchableOpacity style={[look.neutralButton, { flex: 0, marginTop: 12 }]} onPress={() => setManualChooserVisible(false)}>
-              <Text style={look.neutralButtonText}>Anuluj</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* „Z bazy” - wybór produktu z kart produktów zamiast skanu (odbiór i zwrot) */}
+      <ProductBasePicker
+        visible={basePickerFor !== null}
+        goods={goods}
+        sizes={sizes}
+        title={basePickerFor === 'zwrot' ? 'Zwrot - wybierz z bazy' : 'Odbiór - wybierz z bazy'}
+        onClose={() => {
+          const target = basePickerFor;
+          setBasePickerFor(null);
+          if (target === 'zwrot') setTimeout(() => setReturnListVisible(true), 250);
+        }}
+        onPick={(code) => {
+          const target = basePickerFor;
+          setBasePickerFor(null);
+          if (target === 'zwrot') {
+            setTimeout(() => applyReturnCode(code), 250);
+          } else {
+            handleScan({ data: code });
+          }
+        }}
+      />
 
       {/* Selling Point Selection Modal (copied from QRScanner) */}
       {sellingPointMenuVisible && (
@@ -1808,6 +1834,24 @@ const styles = createThemedStyles(() => StyleSheet.create({
     marginTop: 6,
   },
   // lista zwrotu: link „Kurtka sprzed systemu” w jednej linii i przyciski jeden pod drugim
+  historicalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#8B5CF680',
+    backgroundColor: '#8B5CF61F',
+    marginBottom: 8,
+  },
+  historicalRowText: {
+    flex: 1,
+    color: tc('text', '#fff'),
+    fontSize: 14,
+    fontWeight: '600',
+  },
   historicalLink: {
     flexDirection: 'row',
     alignItems: 'center',

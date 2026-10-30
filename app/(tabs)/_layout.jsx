@@ -134,7 +134,10 @@ const TabLayout = () => {
           options={{
             title: "Cudzich",
             headerShown: false,
-            href: isParzygnat ? "/cudzych" : null,
+            // Trasa istnieje zawsze; innym punktom chowamy tylko przycisk (ekran i tak blokuje dostęp).
+            // Dawniej href: null usuwał trasę, gdy użytkownik jeszcze się nie wczytał (np. po przeładowaniu aplikacji),
+            // i powrót na „cudzych” kończył się błędem „NAVIGATE … was not handled by any navigator”.
+            ...(isParzygnat ? {} : { tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }),
             tabBarIcon: ({ color, focused }) => (
               <TabIcon iconName="person" color={color} name="Cudzich" focused={focused} />
             ),
