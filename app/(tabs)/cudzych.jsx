@@ -1578,14 +1578,17 @@ const Cudzych = () => {
               ) : null}
             </ScrollView>
 
-            <ActionItem
+            {/* Kurtka sprzed systemu - mały link w jednej linii (dawniej duża karta z opisem) */}
+            <TouchableOpacity
               testID="cudzich-return-historical"
-              icon="time-outline"
-              color="#8B5CF6"
-              label="Kurtka sprzed systemu (już zapłacona)"
-              note="Cenę rozliczenia wpiszesz w następnym kroku"
+              style={styles.historicalLink}
               onPress={() => openHistoricalReturn(returnFilter)}
-            />
+              accessibilityRole="button"
+            >
+              <Ionicons name="time-outline" size={18} color="#8B5CF6" />
+              <Text style={styles.historicalLinkText} numberOfLines={1}>Kurtka sprzed systemu (zapłacona)</Text>
+              <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+            </TouchableOpacity>
 
             {chosenCandidate ? (
               <Text style={[look.modalMessage, { marginTop: 8 }]} testID="cudzich-return-summary">
@@ -1593,17 +1596,18 @@ const Cudzych = () => {
               </Text>
             ) : null}
 
-            <View style={[look.buttonRow, { marginTop: 12 }]}>
-              <TouchableOpacity style={look.neutralButton} onPress={() => setReturnListVisible(false)}>
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
+            {/* Przyciski jeden pod drugim, napisy w jednej linii */}
+            <View style={styles.stackedButtons}>
               <TouchableOpacity
                 testID="cudzich-return-confirm"
-                style={[look.primaryButton, { backgroundColor: CUDZICH_TYPES.zwrot.color }, (!chosenCandidate || loading) && look.disabled]}
+                style={[look.primaryButton, styles.stackedButton, { backgroundColor: CUDZICH_TYPES.zwrot.color }, (!chosenCandidate || loading) && look.disabled]}
                 onPress={confirmReturnFromList}
                 disabled={!chosenCandidate || loading}
               >
-                <Text style={look.buttonText}>Zwróć do MAGAZYNU</Text>
+                <Text style={look.buttonText} numberOfLines={1}>Zwróć do MAGAZYNU</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[look.neutralButton, styles.stackedButton]} onPress={() => setReturnListVisible(false)}>
+                <Text style={look.neutralButtonText} numberOfLines={1}>Anuluj</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1750,6 +1754,30 @@ const styles = createThemedStyles(() => StyleSheet.create({
     gap: 10,
     marginTop: 8,
     marginBottom: 8,
+  },
+  // lista zwrotu: link „Kurtka sprzed systemu” w jednej linii i przyciski jeden pod drugim
+  historicalLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  historicalLinkText: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  stackedButtons: {
+    marginTop: 12,
+    gap: 10,
+  },
+  stackedButton: {
+    flex: 0,
+    alignSelf: 'stretch',
+    paddingVertical: 12,
   },
   periodChip: {
     alignSelf: 'flex-start',
