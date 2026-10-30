@@ -75,7 +75,6 @@ const WriteOff = () => {
     const [showCurrencyModal, setShowCurrencyModal] = useState(false); // Modal wyboru waluty
     const [successModalVisible, setSuccessModalVisible] = useState(false); // State for success modal
     const [successMessage, setSuccessMessage] = useState(""); // Message for success modal
-    const [panKazekModalVisible, setPanKazekModalVisible] = useState(false); // Modal for Pan Kazek confirmation
     const [exchangeModalVisible, setExchangeModalVisible] = useState(false); // Modal for exchange location selection
     // Wymiana, krok 2: kurtka oddana przez klienta (jedzie do MAGAZYNU)
     const [returnPrompt, setReturnPrompt] = useState(null); // { exchangeTransferId, givenLabel }
@@ -709,10 +708,6 @@ const fetchSales = async () => {
         initiateTransfer('MAGAZYN', finalReason, null);
     };
 
-    const handlePanKazekTransfer = () => {
-        setPanKazekModalVisible(true);
-    };
-
     // Wymiana, krok 2 (25.10.2026): kurtka oddana przez klienta. Lista sprzedaży z tego punktu z 14 dni albo kod z metki;
     // serwer zapisuje ją jako przepisanie do MAGAZYNU (tylko żółta noga) - po Dobieraniu MAGAZYNU jest na jego stanie.
     // „Pomiń” = jak dawniej: oddaną kurtkę admin dopisuje do magazynu ręcznie.
@@ -909,54 +904,6 @@ const fetchSales = async () => {
         } catch (error) {
             Logger.error('Unexpected error during exchange:', error);
             appAlert("Error", "Wystąpił nieoczekiwany błąd podczas zapisywania wymiany.");
-        }
-    };
-
-    const confirmPanKazekTransfer = async () => {
-        if (!selectedItem) {
-            appAlert("Error", "No item selected for transfer.");
-            return;
-        }
-
-        if (!user || !user.symbol) {
-            appAlert("Błąd", "Brak danych zalogowanego użytkownika");
-            return;
-        }
-
-        const panKazekData = {
-            productId: selectedItem.id,
-            fullName: selectedItem.fullName,
-            size: selectedItem.size,
-            price: selectedItem.price,
-            barcode: selectedItem.barcode,
-            date: today + 'T' + new Date().toISOString().split('T')[1],
-            dateString: today,
-            addedBy: user.symbol,
-            symbol: user.symbol
-        };
-
-        try {
-            const response = await tokenService.authenticatedFetch(getApiUrl('/pan-kazek'), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(panKazekData),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                appAlert("Błąd", errorData.message || "Nie udało się dodać produktu do Pana Kazka");
-                return;
-            }
-
-            // Show success message
-            setSuccessMessage("Produkt został dodany do listy Pana Kazka!");
-            setSuccessModalVisible(true);
-
-            fetchAllRequiredData(false);
-            setModalVisible(false);
-            setPanKazekModalVisible(false);
-        } catch (error) {
-            appAlert("Error", "Wystąpił nieoczekiwany błąd podczas dodawania produktu do Pana Kazka.");
         }
     };
 
@@ -1179,14 +1126,6 @@ const fetchSales = async () => {
                                         setTransferModalVisible(true);
                                     }}
                                 />
-                                {(user?.symbol === 'most' || user?.email === 'most@wp.pl') && (
-                                    <ActionItem
-                                        icon="person"
-                                        color="#10B981"
-                                        label="Od Pana Kazka"
-                                        onPress={() => handlePanKazekTransfer()}
-                                    />
-                                )}
                                 <ActionItem
                                     icon="repeat"
                                     color="#FF9800"
@@ -1561,44 +1500,6 @@ const fetchSales = async () => {
                 </View>
             </Modal>
 
-            {/* Pan Kazek Confirmation Modal */}
-            <Modal
-                visible={panKazekModalVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setPanKazekModalVisible(false)}
-            >
-                <View style={look.modalOverlay}>
-                    <View style={look.modalContent}>
-                        <ModalHeader icon="help-circle" color="#10B981" title="Potwierdzenie" />
-                        <Text style={look.modalMessage}>
-                            Czy chcesz dodać tę kurtkę do listy "Od Pana Kazka"?
-                        </Text>
-                        {selectedItem && (
-                            <View style={{ marginVertical: 15 }}>
-                                <Text style={{ color: tc('text', '#fff'), fontSize: 16, textAlign: 'center' }}>
-                                    {selectedItem.fullName} {selectedItem.size}
-                                </Text>
-                                <Text style={{ color: tc('text', '#fff'), fontSize: 14, textAlign: 'center', marginTop: 5 }}>
-                                    Cena: {selectedItem.price} PLN
-                                </Text>
-                            </View>
-                        )}
-                        <TouchableOpacity
-                            style={[look.primaryButton, { flex: 0, backgroundColor: '#10B981' }]}
-                            onPress={confirmPanKazekTransfer}
-                        >
-                            <Text style={look.buttonText}>Tak, dodaj</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[look.neutralButton, { flex: 0, marginTop: 8 }]}
-                            onPress={() => setPanKazekModalVisible(false)}
-                        >
-                            <Text style={look.neutralButtonText}>Anuluj</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
 
             {/* Exchange Modal - wybór stanowiska */}
             <Modal
