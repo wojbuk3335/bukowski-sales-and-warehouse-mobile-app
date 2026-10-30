@@ -175,10 +175,50 @@ describe('Zakładka Cudzich (punkt P): lista', () => {
     const screen = renderTab();
     await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
     fireEvent.press(screen.getByTestId('cudzich-date-filter'));
-    fireEvent.press(await screen.findByText('Dziś'));
+    fireEvent.press(await screen.findByTestId('cudzich-filter-range-today'));
+    fireEvent.press(screen.getByTestId('cudzich-filter-apply'));
     expect(await screen.findByText('Brak transakcji w wybranym okresie', {}, { timeout: 3000 })).toBeTruthy();
     expect(screen.queryByTestId('cudzich-transaction-t1')).toBeNull();
     expect(urls().some((url) => url.includes('/cudzich/transactions') && new URL(url).searchParams.get('startDate'))).toBe(true);
+  });
+
+  test('filtr: szybkie zakresy (nie tylko Dziś/7/30), rodzaje operacji, plakietka i podsumowanie okresu', async () => {
+    serveTransactions = (params) => ({
+      transactions: TRANSACTIONS, page: 1, limit: 30, total: TRANSACTIONS.length, hasMore: false,
+      summary: { odbior: { count: 3, sum: 2400 }, zwrot: { count: 1, sum: 800 }, wplata: { count: 0, sum: 0 }, wyplata: { count: 0, sum: 0 } },
+    });
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByTestId('cudzich-transaction-t1')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-date-filter'));
+    for (const key of ['today', 'yesterday', 'week', 'month', 'prevMonth', 'last30', 'year', 'all']) {
+      expect(await screen.findByTestId(`cudzich-filter-range-${key}`)).toBeTruthy();
+    }
+    expect(screen.getByTestId('cudzich-filter-start')).toBeTruthy();
+    expect(screen.getByTestId('cudzich-filter-end')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('cudzich-filter-range-prevMonth'));
+    fireEvent.press(screen.getByTestId('cudzich-filter-type-odbior'));
+    fireEvent.press(screen.getByTestId('cudzich-filter-type-zwrot'));
+    fireEvent.press(screen.getByTestId('cudzich-filter-apply'));
+
+    await waitFor(() => {
+      const last = urls().filter((url) => url.includes('/cudzich/transactions')).map((url) => new URL(url).searchParams).pop();
+      expect(last.get('types')).toBe('odbior,zwrot');
+      expect(last.get('startDate')).toBeTruthy();
+      expect(last.get('endDate')).toBeTruthy();
+    });
+    expect(await screen.findByTestId('cudzich-filter-chip')).toBeTruthy();
+    expect(screen.getByText(/Odbiory, Zwroty/)).toBeTruthy();
+    expect(screen.getByTestId('cudzich-summary-odbior').props.children.join('')).toBe('2400.00 zł');
+    expect(screen.getByTestId('cudzich-summary-zwrot').props.children.join('')).toBe('800.00 zł');
+    expect(screen.queryByTestId('cudzich-summary-wplata')).toBeNull(); // pokazujemy tylko wybrane rodzaje
+
+    // „Wyczyść filtry” wraca do pełnej historii
+    fireEvent.press(screen.getByTestId('cudzich-date-filter'));
+    fireEvent.press(await screen.findByTestId('cudzich-filter-clear'));
+    await waitFor(() => expect(screen.queryByTestId('cudzich-filter-chip')).toBeNull());
+    const last = urls().filter((url) => url.includes('/cudzich/transactions')).map((url) => new URL(url).searchParams).pop();
+    expect(last.get('types')).toBeNull();
+    expect(last.get('startDate')).toBeNull();
   });
 });
 

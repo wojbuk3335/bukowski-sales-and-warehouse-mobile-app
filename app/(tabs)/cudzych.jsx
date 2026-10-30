@@ -16,6 +16,7 @@ import {
 import { useCameraPermissions } from "expo-camera";
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import ProductBasePicker from "../../components/scanner/ProductBasePicker"; // „Z bazy” - wybór produktu zamiast skanu (jak w Remanencie)
+import CudzichFilterModal, { filterLabel } from "../../components/CudzichFilterModal"; // filtr historii: zakres dat, szybkie zakresy, rodzaje
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useFocusEffect } from "@react-navigation/native";
@@ -117,6 +118,8 @@ const Cudzych = () => {
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
   const [filterStartDate, setFilterStartDate] = useState(null);
   const [filterEndDate, setFilterEndDate] = useState(null);
+  const [filterTypes, setFilterTypes] = useState([]); // rodzaje operacji (puste = wszystkie)
+  const [periodSummary, setPeriodSummary] = useState(null); // liczba i suma każdego rodzaju w wybranym okresie (serwer)
   // Historia porcjami (30.10.2026), jak Historia i Stan: 30 wpisów, kolejne przy przewijaniu; filtr dat liczy serwer
   const [transactionsTotal, setTransactionsTotal] = useState(0);
   const [transactionsPage, setTransactionsPage] = useState(1);
@@ -148,15 +151,16 @@ const Cudzych = () => {
   const dayParam = (date) => (date
     ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     : '');
-  const filterDatesRef = useRef({ start: null, end: null });
-  filterDatesRef.current = { start: filterStartDate, end: filterEndDate };
+  const filterDatesRef = useRef({ start: null, end: null, types: [] });
+  filterDatesRef.current = { start: filterStartDate, end: filterEndDate, types: filterTypes };
   const fetchTransactions = React.useCallback(async (page = 1) => {
     const requestId = ++transactionsRequestRef.current;
     try {
       const params = new URLSearchParams({ userSymbol: 'P', recipientId: 'cudzich', page: String(page), limit: String(TRANSACTIONS_PAGE_SIZE) });
-      const { start, end } = filterDatesRef.current;
+      const { start, end, types } = filterDatesRef.current;
       if (start) params.set('startDate', dayParam(start));
       if (end) params.set('endDate', dayParam(end));
+      if (types && types.length > 0) params.set('types', types.join(','));
       const response = await tokenService.authenticatedFetch(getApiUrl(`/cudzich/transactions?${params.toString()}`));
       if (requestId !== transactionsRequestRef.current) return;
       if (response.ok) {
@@ -166,6 +170,7 @@ const Cudzych = () => {
         setTransactionsTotal(Number(data?.total) || rows.length);
         setTransactionsPage(page);
         setTransactionsHasMore(Boolean(data?.hasMore));
+        if (page === 1) setPeriodSummary(data?.summary || null);
       }
     } catch (error) {
       Logger.error('Error fetching transactions:', error);
@@ -256,7 +261,7 @@ const Cudzych = () => {
       return;
     }
     fetchTransactions(1);
-  }, [filterStartDate, filterEndDate, fetchTransactions]);
+  }, [filterStartDate, filterEndDate, filterTypes, fetchTransactions]);
 
   // Auto-fetch price when product is selected (bez czekania na rozmiar)
   useEffect(() => {
@@ -810,16 +815,9 @@ const Cudzych = () => {
   const clearDateFilters = () => {
     setFilterStartDate(null);
     setFilterEndDate(null);
+    setFilterTypes([]);
   };
 
-  const formatDateForDisplay = (date) => {
-    if (!date) return '';
-    return date.toLocaleDateString('pl-PL', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  };
 
 
 
@@ -831,7 +829,7 @@ const Cudzych = () => {
   };
 
   // Lista transakcji: z filtrem dat - tylko wynik filtra (także pusty), bez filtra - cała historia
-  const dateFilterActive = Boolean(filterStartDate || filterEndDate);
+  const dateFilterActive = Boolean(filterStartDate || filterEndDate || filterTypes.length > 0);
 
   // Access control check
   if (user?.symbol !== 'P') {
@@ -904,25 +902,43 @@ const Cudzych = () => {
               Historia transakcji{transactionsTotal > 0 ? ` (${transactionsTotal})` : ''}
             </Text>
             <IconButton
-              icon={(filterStartDate || filterEndDate) ? 'calendar' : 'calendar-outline'}
-              color={(filterStartDate || filterEndDate) ? '#0D6EFD' : tc('muted', '#94A3B8')}
+              icon={dateFilterActive ? 'funnel' : 'funnel-outline'}
+              color={dateFilterActive ? '#0D6EFD' : tc('muted', '#94A3B8')}
               onPress={() => setDateFilterVisible(true)}
-              accessibilityLabel="Filtruj po dacie"
+              accessibilityLabel="Filtruj historię"
               testID="cudzich-date-filter"
             />
           </View>
 
-          {(filterStartDate || filterEndDate) && (
-            <View style={[look.chip, styles.periodChip]}>
-              <Ionicons name="calendar-outline" size={14} color="#0D6EFD" />
-              <Text style={look.chipText}>
-                {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
+          {dateFilterActive && (
+            <View style={[look.chip, styles.periodChip]} testID="cudzich-filter-chip">
+              <Ionicons name="funnel-outline" size={14} color="#0D6EFD" />
+              <Text style={[look.chipText, { flexShrink: 1 }]} numberOfLines={2}>
+                {filterLabel({ start: filterStartDate, end: filterEndDate, types: filterTypes })}
               </Text>
-              <TouchableOpacity onPress={clearDateFilters} accessibilityLabel="Wyczyść filtr dat" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={clearDateFilters} accessibilityLabel="Wyczyść filtry" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close-circle" size={18} color={tc('muted', '#94A3B8')} />
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Podsumowanie wybranego okresu (serwer): ile i za ile każdego rodzaju - pomocne przy rozliczeniu miesiąca */}
+          {dateFilterActive && periodSummary ? (
+            <View style={styles.summaryGrid} testID="cudzich-period-summary">
+              {['odbior', 'zwrot', 'wplata', 'wyplata']
+                .filter((type) => filterTypes.length === 0 || filterTypes.includes(type))
+                .map((type) => (
+                  <View key={type} style={[styles.summaryTile, { borderColor: `${CUDZICH_TYPES[type].color}80` }]}>
+                    <Text style={[styles.summaryTileLabel, { color: CUDZICH_TYPES[type].color }]} numberOfLines={1}>
+                      {{ odbior: 'Odbiory', zwrot: 'Zwroty', wplata: 'Wpłaty', wyplata: 'Wypłaty' }[type]} ({periodSummary[type]?.count || 0})
+                    </Text>
+                    <Text style={styles.summaryTileValue} numberOfLines={1} testID={`cudzich-summary-${type}`}>
+                      {(Number(periodSummary[type]?.sum) || 0).toFixed(2)} zł
+                    </Text>
+                  </View>
+                ))}
+            </View>
+          ) : null}
         </View>
             </View>
           )}
@@ -1336,95 +1352,18 @@ const Cudzych = () => {
         </KeyboardSafeOverlay>
       </Modal>
 
-      {/* Date Filter Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      {/* Filtr historii: zakres „Od – Do” z kalendarzem, szybkie zakresy, rodzaje operacji */}
+      <CudzichFilterModal
         visible={dateFilterVisible}
-        onRequestClose={() => setDateFilterVisible(false)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={[look.modalContent, { width: '90%', maxHeight: '80%' }]}>
-            <ModalHeader icon="calendar" color="#0D6EFD" title="Filtruj po dacie" subtitle="Wybierz przedział czasowy dla transakcji" />
-
-            {/* Display selected date range */}
-            {(filterStartDate || filterEndDate) && (
-              <View style={{
-                backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                padding: 12,
-                borderRadius: 12,
-                marginBottom: 15,
-                borderWidth: 1,
-                borderColor: 'rgba(16, 185, 129, 0.5)'
-              }}>
-                <Text style={{ color: '#10B981', fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>
-                  Wybrany okres
-                </Text>
-                <Text style={{ color: tc('text', '#ffffff'), fontSize: 13, textAlign: 'center', marginTop: 4 }}>
-                  {formatDateForDisplay(filterStartDate) || 'Od początku'} - {formatDateForDisplay(filterEndDate) || 'Do teraz'}
-                </Text>
-              </View>
-            )}
-
-            {/* Quick filters */}
-            <Text style={look.formLabel}>Szybki wybór:</Text>
-            <View style={styles.quickFilters}>
-              <TouchableOpacity 
-                style={styles.quickChip}
-                onPress={() => {
-                  const today = new Date();
-                  setFilterStartDate(today);
-                  setFilterEndDate(today);
-                }}
-              >
-                <Text style={styles.quickChipText}>Dziś</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.quickChip}
-                onPress={() => {
-                  const today = new Date();
-                  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-                  setFilterStartDate(weekAgo);
-                  setFilterEndDate(today);
-                }}
-              >
-                <Text style={styles.quickChipText}>7 dni</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.quickChip}
-                onPress={() => {
-                  const today = new Date();
-                  const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-                  setFilterStartDate(monthAgo);
-                  setFilterEndDate(today);
-                }}
-              >
-                <Text style={styles.quickChipText}>30 dni</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Modal buttons */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, width: '100%' }}>
-              <TouchableOpacity
-                style={[look.neutralButton, { marginRight: 6 }]}
-                onPress={() => {
-                  clearDateFilters();
-                  setDateFilterVisible(false);
-                }}
-              >
-                <Text style={look.neutralButtonText}>Wyczyść</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[look.primaryButton, { marginLeft: 6, backgroundColor: '#10B981' }]}
-                onPress={() => setDateFilterVisible(false)}
-              >
-                <Text style={look.buttonText}>Zastosuj</Text>
-              </TouchableOpacity>
-            </View>
-
-          </View>
-        </View>
-      </Modal>
+        value={{ start: filterStartDate, end: filterEndDate, types: filterTypes }}
+        onClose={() => setDateFilterVisible(false)}
+        onApply={({ start, end, types }) => {
+          setFilterStartDate(start);
+          setFilterEndDate(end);
+          setFilterTypes(types);
+          setDateFilterVisible(false);
+        }}
+      />
 
       {/* QR Scanner Modal - identical to QRScanner component */}
       {scannerVisible && (
@@ -1875,6 +1814,31 @@ const styles = createThemedStyles(() => StyleSheet.create({
     alignSelf: 'stretch',
     paddingVertical: 12,
   },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  summaryTile: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: tc('surface', '#161622'),
+  },
+  summaryTileLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  summaryTileValue: {
+    color: tc('text', '#fff'),
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
   periodChip: {
     alignSelf: 'flex-start',
     marginTop: 0,
@@ -1893,21 +1857,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   },
   
   // Header styles
-  quickChip: {
-    flex: 1,
-    marginHorizontal: 4,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: 'rgba(13, 110, 253, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(13, 110, 253, 0.4)',
-  },
-  quickChipText: {
-    color: tc('text', '#fff'),
-    fontSize: 14,
-    fontWeight: '600',
-  },
   
   // Action buttons
   
@@ -1946,11 +1895,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
   // Modal buttons
   
   // Date picker styles
-  quickFilters: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
   
   // Dropdown container styles
 
