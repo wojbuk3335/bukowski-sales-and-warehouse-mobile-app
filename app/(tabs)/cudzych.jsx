@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { useCameraPermissions } from "expo-camera";
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
@@ -25,7 +26,10 @@ import Logger from '../../services/logger'; // Import logger service
 import LogoutButton from '../../components/LogoutButton';
 import { appAlert } from '../../services/appAlert';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { IconButton, MenuCard, ModalHeader, ScreenHeader, look } from '../../components/AdminLook';
+import { ActionItem, IconButton, MenuCard, ModalHeader, ScreenHeader, look } from '../../components/AdminLook';
+import { findGoodForBarcode, findSizeForBarcode, listPriceOf, resolveSalePrice } from '../../utils/defaultSalePrice'; // cena: cennik Cudzich, bez niego karta produktu
+import { productNameFromBarcode } from '../../utils/productName'; // nazwa z kodu jak w całej aplikacji
+import { sanitizeAmountInput } from '../../utils/amountInput'; // przecinek = kropka w polu kwoty
 import { CUDZICH_TYPES, CudzichBalanceCard, CudzichTransactionCard } from '../../components/CudzichLook'; // karty jak na ekranie admina
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Cudzych = () => {
@@ -37,8 +41,6 @@ const Cudzych = () => {
     sizes,
     stocks,
     colors,
-    bags,
-    wallets,
     stateData,
     users,
     ensureData
@@ -96,7 +98,15 @@ const Cudzych = () => {
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
   const [filterStartDate, setFilterStartDate] = useState(null);
   const [filterEndDate, setFilterEndDate] = useState(null);
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  // Historia porcjami (30.10.2026), jak Historia i Stan: 30 wpisów, kolejne przy przewijaniu; filtr dat liczy serwer
+  const [transactionsTotal, setTransactionsTotal] = useState(0);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [transactionsHasMore, setTransactionsHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const transactionsRequestRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  // „Wpisz ręcznie” (bez metki): wybór Odbiór / Zwrot - kamera jest taka sama jak w „Dodaj”, bez dodatkowych przycisków
+  const [manualChooserVisible, setManualChooserVisible] = useState(false);
 
   
   // Price list state
@@ -116,19 +126,47 @@ const Cudzych = () => {
     }
   }, []);
 
-  // Fetch transactions
-  const fetchTransactions = React.useCallback(async () => {
+  // Historia transakcji porcjami: strona 1 zastępuje listę, kolejne doklejają; starsze odpowiedzi są pomijane
+  const TRANSACTIONS_PAGE_SIZE = 30;
+  const dayParam = (date) => (date
+    ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    : '');
+  const filterDatesRef = useRef({ start: null, end: null });
+  filterDatesRef.current = { start: filterStartDate, end: filterEndDate };
+  const fetchTransactions = React.useCallback(async (page = 1) => {
+    const requestId = ++transactionsRequestRef.current;
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/transactions?userSymbol=P&recipientId=cudzich'));
-      
+      const params = new URLSearchParams({ userSymbol: 'P', recipientId: 'cudzich', page: String(page), limit: String(TRANSACTIONS_PAGE_SIZE) });
+      const { start, end } = filterDatesRef.current;
+      if (start) params.set('startDate', dayParam(start));
+      if (end) params.set('endDate', dayParam(end));
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/cudzich/transactions?${params.toString()}`));
+      if (requestId !== transactionsRequestRef.current) return;
       if (response.ok) {
         const data = await response.json();
-        setTransactions(data || []);
+        const rows = Array.isArray(data?.transactions) ? data.transactions : (Array.isArray(data) ? data : []);
+        setTransactions((prev) => (page === 1 ? rows : [...prev, ...rows]));
+        setTransactionsTotal(Number(data?.total) || rows.length);
+        setTransactionsPage(page);
+        setTransactionsHasMore(Boolean(data?.hasMore));
       }
     } catch (error) {
       Logger.error('Error fetching transactions:', error);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadMoreTransactions = async () => {
+    if (!transactionsHasMore || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      await fetchTransactions(transactionsPage + 1);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  };
 
   // Fetch Cudzich price list
   const fetchCudzichPriceList = React.useCallback(async () => {
@@ -152,10 +190,10 @@ const Cudzych = () => {
     try {
       await Promise.all([
         fetchBalance(),
-        fetchTransactions(),
+        fetchTransactions(1),
         fetchCudzichPriceList(),
         // Słowniki i stan tylko gdy nieświeże - wcześniej 8 pełnych pobrań przy każdym wejściu na zakładkę
-        ensureData(['goods', 'sizes', 'stocks', 'colors', 'bags', 'wallets', 'state', 'users']),
+        ensureData(['goods', 'sizes', 'stocks', 'colors', 'state', 'users']),
       ]);
     } catch (error) {
       Logger.error('Error loading initial data:', error);
@@ -192,43 +230,23 @@ const Cudzych = () => {
     }
   }, [productSearchText, goods]);
 
-  // Filter transactions by date
+  // Zmiana filtra dat - pierwsza strona od nowa z serwera (pierwsze pobranie robi wejście na zakładkę)
+  const filterMountedRef = useRef(false);
   useEffect(() => {
-    if (!transactions || transactions.length === 0) {
-      setFilteredTransactions([]);
+    if (!filterMountedRef.current) {
+      filterMountedRef.current = true;
       return;
     }
-
-    let filtered = Array.isArray(transactions) ? transactions : [];
-
-    if (filterStartDate || filterEndDate) {
-      filtered = filtered.filter(transaction => {
-        const transactionDate = new Date(transaction.date);
-        const startDate = filterStartDate ? new Date(filterStartDate.setHours(0, 0, 0, 0)) : null;
-        const endDate = filterEndDate ? new Date(filterEndDate.setHours(23, 59, 59, 999)) : null;
-
-        if (startDate && endDate) {
-          return transactionDate >= startDate && transactionDate <= endDate;
-        } else if (startDate) {
-          return transactionDate >= startDate;
-        } else if (endDate) {
-          return transactionDate <= endDate;
-        }
-        return true;
-      });
-    }
-
-    setFilteredTransactions(filtered);
-    // Filtered transactions updated
-  }, [transactions, filterStartDate, filterEndDate]);
+    fetchTransactions(1);
+  }, [filterStartDate, filterEndDate, fetchTransactions]);
 
   // Auto-fetch price when product is selected (bez czekania na rozmiar)
   useEffect(() => {
-    if (selectedProduct && cudzichPriceList) {
-      const fetchedPrice = getPriceFromProduct(selectedProduct);
-      setPrice(fetchedPrice.toString());
+    if (selectedProduct) {
+      setPrice(getPriceFromProduct(selectedProduct, selectedSize));
     }
-  }, [selectedProduct, cudzichPriceList]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct, selectedSize, cudzichPriceList]);
 
   // Handle product selection
   const handleProductSelect = (product) => {
@@ -236,9 +254,8 @@ const Cudzych = () => {
     setProductSearchText(product.fullName); // Set search text to selected product name
     setProductDropdownVisible(false);
     
-    // Auto-fetch price
-    const fetchedPrice = getPriceFromProduct(product);
-    setPrice(fetchedPrice.toString());
+    // Cena od razu w polu: cennik Cudzich, a gdy go nie ma (albo nie ma w nim produktu) - karta produktu
+    setPrice(getPriceFromProduct(product, selectedSize));
   };
 
   // Handle size change (cena jest już ustawiona po wyborze produktu)
@@ -382,7 +399,7 @@ const Cudzych = () => {
         setSuccessModalVisible(true);
         
         // Refresh data
-        await Promise.all([fetchBalance(), fetchTransactions()]);
+        await Promise.all([fetchBalance(), fetchTransactions(1)]);
         
         // Reset form and close modal
         resetForm();
@@ -401,14 +418,14 @@ const Cudzych = () => {
   };
 
   // Save scanned product transaction
-  const saveTransaction = async (type, productName, productSize, productPrice, productNotes, scannedBarcode = '') => {
+  const saveTransaction = async (type, productName, productSize, productPrice, productNotes, scannedBarcode = '', knownProductId = null) => {
     try {
       setLoading(true);
       
-      // Try to find productId based on productName from goods
-      let productId = null;
+      // Produkt: z odczytu kodu (karta produktu), a w ręcznym formularzu - po nazwie
+      let productId = knownProductId;
       
-      if (goods && Array.isArray(goods)) {
+      if (!productId && goods && Array.isArray(goods)) {
         const matchedProduct = goods.find(good => 
           good.fullName === productName
         );
@@ -425,7 +442,7 @@ const Cudzych = () => {
       // If no productId found, alert user
       if (!productId) {
         appAlert('Błąd', `Nie znaleziono produktu "${productName}" w bazie danych. Sprawdź czy produkt istnieje w systemie.`);
-        return;
+        return false;
       }
       
       const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/transactions'), {
@@ -527,15 +544,16 @@ const Cudzych = () => {
         setSuccessModalVisible(true);
         
         // Refresh data
-        await Promise.all([fetchBalance(), fetchTransactions()]);
-        
-      } else {
-        const errorData = await response.json();
-        appAlert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
+        await Promise.all([fetchBalance(), fetchTransactions(1)]);
+        return true;
       }
+      const errorData = await response.json().catch(() => ({}));
+      appAlert('Błąd', errorData.error || 'Nie udało się zapisać transakcji');
+      return false;
     } catch (error) {
       Logger.error('Error saving scanned transaction:', error);
       appAlert('Błąd', 'Nie udało się połączyć z serwerem');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -575,7 +593,7 @@ const Cudzych = () => {
         setSuccessModalVisible(true);
         
         // Refresh data
-        await Promise.all([fetchBalance(), fetchTransactions()]);
+        await Promise.all([fetchBalance(), fetchTransactions(1)]);
         
         // Reset form and close modal
         resetPaymentForm();
@@ -612,319 +630,88 @@ const Cudzych = () => {
     setPaymentNotes('');
   };
 
-  // QR Scanner functions (adapted from QRScanner.jsx)
-  
-  // Helper function to build jacket name from barcode segments
-  const buildJacketNameFromBarcode = (barcodeData) => {
-    try {
-      // Check if barcode has four zeros before the last digit (e.g., 0020600100009)
-      // But exclude bag patterns (starting with 000)
-      const regex = /^(\d{3})(\d{2})(\d{3})0000(\d)$/;
-      const match = barcodeData.match(regex);
-      
-      if (!match) {
-        return null; // Not the expected pattern
-      }
+  // --- Odczyt kodu z metki (30.10.2026): jak w „Dodaj” i w całej aplikacji ---
+  // Nazwa: karta produktu (kurtki po modelu + kolorze z kodu, reszta po pełnym kodzie), potem sztuka na stanie,
+  // na końcu słowniki (model + kolor). Dawniej nazwa była składana tylko ze słowników - nie zgadzała się z kartą
+  // produktu, więc nie było pełnej nazwy, ceny ani produktu do zapisu.
+  // Cena: cennik Cudzich (z wyjątkiem rozmiaru), a gdy go nie ma albo nie ma w nim produktu - karta produktu.
+  const priceListItems = Array.isArray(cudzichPriceList?.items) ? cudzichPriceList.items : null;
+  const priceText = (value) => (Number(value) > 0 ? String(Number(value)) : '');
 
-      const [, stockCode, colorCode, sizeCode] = match;
-      
-      // Exclude bag patterns (stockCode starting with 000)
-      if (stockCode === "000") {
-        return null; // This is a bag, not a jacket
-      }
-      
-      // Try to extract arrays from the objects
-      const stocksArray = Array.isArray(stocks) ? stocks : (stocks?.data || stocks?.stocks || []);
-      const colorsArray = Array.isArray(colors) ? colors : (colors?.data || colors?.colors || []);
-      const sizesArray = Array.isArray(sizes) ? sizes : (sizes?.data || sizes?.sizes || []);
-      
-      // Ensure we have arrays before proceeding
-      if (!Array.isArray(stocksArray) || !Array.isArray(colorsArray) || !Array.isArray(sizesArray)) {
-        return null;
-      }
-      
-      // Look up stock (Tow_Opis) from first 3 digits
-      const stockItem = stocksArray.find(stock => stock.Tow_Kod === stockCode);
-      const stockName = stockItem?.Tow_Opis || `Kod_${stockCode}`;
-      
-      // Look up color (Kol_Opis) from next 2 digits  
-      const colorItem = colorsArray.find(color => color.Kol_Kod === colorCode);
-      const colorName = colorItem?.Kol_Opis || `Kolor_${colorCode}`;
-      
-      // Look up size name from next 3 digits
-      const sizeItem = sizesArray.find(size => size.Roz_Kod === sizeCode);
-      const sizeName = sizeItem?.Roz_Opis || `Rozmiar_${sizeCode}`;
-      
-      // Build the jacket name without size (for price lookup)
-      const jacketNameWithoutSize = `${stockName || 'Nieznany'} ${colorName || 'Nieznany'}`;
-      // Build the full jacket name with size (for display if needed)
-      const jacketNameWithSize = `${stockName || 'Nieznany'} ${colorName || 'Nieznany'} ${sizeName || 'Nieznany'}`;
-      
-      return { 
-        fullName: jacketNameWithoutSize, // Name without size for price lookup
-        fullNameWithSize: jacketNameWithSize, // Full name with size
-        sizeName: sizeName,
-        sizeObj: sizeItem
+  const getPriceFromProduct = (product, sizeItem = null) => {
+    if (!product) return '';
+    const { price: listPrice, discount_price } = resolveSalePrice({ good: product, size: sizeItem, priceList: priceListItems });
+    return priceText(listPriceOf(listPrice, discount_price));
+  };
+
+  const describeScannedCode = (code) => {
+    const goodsList = Array.isArray(goods) ? goods : [];
+    const sizesList = Array.isArray(sizes) ? sizes : [];
+    const good = findGoodForBarcode(code, goodsList);
+    if (good) {
+      const sizeItem = findSizeForBarcode(code, sizesList);
+      const sizeLabel = sizeItem?.Roz_Opis && !/NIEOKRE/i.test(sizeItem.Roz_Opis) ? sizeItem.Roz_Opis : '-';
+      return { name: good.fullName, size: sizeLabel, productId: good._id, price: getPriceFromProduct(good, sizeItem), known: true };
+    }
+    const stateItem = (Array.isArray(stateData) ? stateData : []).find((item) => item.barcode === code);
+    if (stateItem?.fullName) {
+      const stateGood = goodsList.find((item) => item.fullName === stateItem.fullName) || null;
+      const sizeItem = sizesList.find((item) => item.Roz_Opis === stateItem.size) || null;
+      return {
+        name: stateItem.fullName,
+        size: stateItem.size || '-',
+        productId: stateGood?._id || null,
+        price: stateGood ? getPriceFromProduct(stateGood, sizeItem) : '',
+        known: true,
       };
-    } catch (error) {
-      Logger.error("Error building jacket name from barcode:", error);
-      return null;
     }
+    const toMap = (list, key, value) => Object.fromEntries((Array.isArray(list) ? list : []).map((item) => [item[key], item[value]]));
+    const fallbackName = productNameFromBarcode(code, {
+      sizeByKod: toMap(sizes, 'Roz_Kod', 'Roz_Opis'),
+      stockByKod: toMap(stocks, 'Tow_Kod', 'Tow_Opis'),
+      colorByKod: toMap(colors, 'Kol_Kod', 'Kol_Opis'),
+    });
+    return { name: fallbackName, size: '-', productId: null, price: '', known: false };
   };
 
-  // Helper function to build bag name from barcode segments
-  const buildBagNameFromBarcode = (barcodeData) => {
-    try {
-      if (barcodeData.length < 13) {
-        return null;
-      }
-
-      const first3 = barcodeData.substring(0, 3);
-      const colorCode = barcodeData.substring(3, 5);
-      const rowNumber = barcodeData.substring(5, 9);
-      const position6 = barcodeData.substring(5, 6);
-      
-      if (first3 !== "000" || position6 === "0") {
-        return null;
-      }
-
-      const rowNumberInt = parseInt(rowNumber, 10);
-      
-      if (rowNumberInt === 0 || isNaN(rowNumberInt)) {
-        return null;
-      }
-
-      const colorsArray = Array.isArray(colors) ? colors : (colors?.data || colors?.colors || []);
-      const bagsArray = Array.isArray(bags) ? bags : (bags?.data || bags?.bags || []);
-      
-      if (!Array.isArray(colorsArray) || !Array.isArray(bagsArray)) {
-        return null;
-      }
-      
-      const colorItem = colorsArray.find(color => color.Kol_Kod === colorCode);
-      const colorName = colorItem?.Kol_Opis || `Kolor_${colorCode}`;
-      
-      const bagItem = bagsArray.find(bag => parseInt(bag.Torebki_Nr, 10) === rowNumberInt);
-      const bagName = bagItem?.Torebki_Kod || `Torebka_${rowNumberInt}`;
-      
-      const fullBagName = `${bagName} ${colorName}`;
-      
-      return fullBagName;
-    } catch (error) {
-      Logger.error("Error building bag name from barcode:", error);
-      return null;
-    }
+  // Pełna nazwa do okienka „Wpisz kod” i napisu w ramce skanera (null = kod spoza bazy)
+  const displayName = (info) => (info.size && info.size !== '-' ? `${info.name} ${info.size}` : info.name);
+  const resolveScannedName = (code) => {
+    const info = describeScannedCode(code);
+    return info.known ? displayName(info) : null;
   };
 
-  // Helper function to build wallet name from barcode segments
-  const buildWalletNameFromBarcode = (barcodeData) => {
-    try {
-      if (barcodeData.length !== 13) {
-        return null;
-      }
+  const handleScan = async ({ data }) => {
+    if (scanned) return;
+    setScanned(true);
+    setBarcode(data);
+    const info = describeScannedCode(data);
+    setScannedProductData({ name: info.name, size: info.size, barcode: data, price: info.price, productId: info.productId });
 
-      const first3 = barcodeData.substring(0, 3);
-      const colorCode = barcodeData.substring(3, 5);
-      const position6 = barcodeData.substring(5, 6);
-      const position7 = barcodeData.substring(6, 7);
-      const walletNumber = barcodeData.substring(6, 9);
-      
-      if (first3 !== "000" || position6 !== "0" || position7 === "0") {
-        return null;
-      }
-
-      const walletNumberInt = parseInt(walletNumber, 10);
-      
-      if (walletNumberInt === 0 || isNaN(walletNumberInt)) {
-        return null;
-      }
-
-      const colorsArray = Array.isArray(colors) ? colors : (colors?.data || colors?.colors || []);
-      const walletsArray = Array.isArray(wallets) ? wallets : (wallets?.data || wallets?.wallets || []);
-      
-      if (!Array.isArray(colorsArray) || !Array.isArray(walletsArray)) {
-        return null;
-      }
-      
-      const colorItem = colorsArray.find(color => color.Kol_Kod === colorCode);
-      const colorName = colorItem?.Kol_Opis || `Kolor_${colorCode}`;
-      
-      const walletItem = walletsArray.find(wallet => parseInt(wallet.Portfele_Nr, 10) === walletNumberInt);
-      const walletName = walletItem?.Portfele_Kod || `Portfel_${walletNumberInt}`;
-      
-      const fullWalletName = `${walletName} ${colorName}`;
-      
-      return fullWalletName;
-    } catch (error) {
-      Logger.error("Error building wallet name from barcode:", error);
-      return null;
-    }
-  };
-
-  // Helper function to build remaining products name from barcode segments
-  const buildRemainingProductNameFromBarcode = async (barcodeData) => {
-    try {
-      if (barcodeData.length < 9) {
-        return null;
-      }
-
-      const first3 = barcodeData.substring(0, 3);
-      const colorCode = barcodeData.substring(3, 5);
-      const positions6and7 = barcodeData.substring(5, 7);
-      const productCode = barcodeData.substring(7, 9);
-      
-      if (first3 !== "000" || positions6and7 !== "00") {
-        return null;
-      }
-
-      const colorsArray = Array.isArray(colors) ? colors : (colors?.data || colors?.colors || []);
-      
-      if (!Array.isArray(colorsArray)) {
-        return null;
-      }
-      
-      const colorItem = colorsArray.find(color => color.Kol_Kod === colorCode);
-      const colorName = colorItem?.Kol_Opis || `Kolor_${colorCode}`;
-      
-      try {
-        const response = await tokenService.authenticatedFetch(getApiUrl("/excel/remaining-products/get-all-remaining-products"));
-        const responseData = await response.json();
-        
-        const remainingProducts = responseData.remainingProducts;
-        const productCodeNumber = parseInt(productCode, 10);
-        
-        const productItem = remainingProducts.find(product => 
-          product.Poz_Nr && parseInt(product.Poz_Nr, 10) === productCodeNumber
-        );
-        
-        const productName = productItem?.Poz_Kod || `Produkt_${productCode}`;
-        const fullRemainingProductName = `${productName} ${colorName}`;
-        
-        return fullRemainingProductName;
-      } catch (error) {
-        Logger.error("Error fetching remaining products:", error);
-        return `Produkt_${productCode} ${colorName}`;
-      }
-    } catch (error) {
-      Logger.error("Error building remaining product name from barcode:", error);
-      return null;
-    }
-  };
-
-  // Helper function to get price from Cudzich price list
-  const getPriceFromCudzichList = (productName) => {
-    if (cudzichPriceList && cudzichPriceList.items && Array.isArray(cudzichPriceList.items)) {
-      const priceItem = cudzichPriceList.items.find(item => 
-        item.fullName === productName
-      );
-      
-      if (priceItem) {
-        return priceItem.price.toString();
-      }
-    }
-    return "Brak ceny";
-  };
-
-  // Helper function to get price from product object (wrapper for getPriceFromCudzichList)
-  const getPriceFromProduct = (product) => {
-    if (!product || !product.fullName) {
-      return "0";
-    }
-    return getPriceFromCudzichList(product.fullName);
-  };
-
-  // Handle barcode scan - identical to QRScanner logic
-  const handleScan = async ({ data, type }) => {
-    if (!scanned) {
-      setScanned(true);
-      setBarcode(data); // Set the scanned barcode
-
-      let productName = "";
-      let productSize = "-";
-
-      // First, try to build remaining products name from barcode pattern (000 + XX + 00 + XX)
-      const builtRemainingProductName = await buildRemainingProductNameFromBarcode(data);
-      
-      if (builtRemainingProductName) {
-        productName = builtRemainingProductName;
-        productSize = "-";
-      } else {
-        // Second, try to build bag name from barcode pattern (000 + non-zero at position 6)
-        const builtBagName = buildBagNameFromBarcode(data);
-        
-        if (builtBagName) {
-          productName = builtBagName;
-          productSize = "-";
-        } else {
-          // Third, try to build wallet name from barcode pattern (000 + 0 at position 6 + non-zero at position 7)
-          const builtWalletName = buildWalletNameFromBarcode(data);
-          
-          if (builtWalletName) {
-            productName = builtWalletName;
-            productSize = "-";
-          } else {
-            // Fourth, try to build jacket name from barcode pattern (four zeros before last digit)
-            const builtJacketData = buildJacketNameFromBarcode(data);
-            
-            if (builtJacketData) {
-              productName = builtJacketData.fullName; // This is now without size for price lookup
-              productSize = builtJacketData.sizeName || "-";
-            } else {
-              // Fall back to original logic - match the scanned barcode with the stateData
-              const matchedItem = stateData?.find(item => item.barcode === data);
-
-              if (matchedItem) {
-                productName = `${matchedItem.fullName} ${matchedItem.size}`;
-                productSize = matchedItem.size;
-              } else {
-                productName = "Nie znaleziono produktu";
-                productSize = "-";
-              }
-            }
-          }
-        }
-      }
-
-      // Get price from Cudzich price list
-      const productPrice = getPriceFromCudzichList(productName);
-
-      // Set all product data including price
-      setScannedProductData({
-        name: productName,
-        size: productSize,
-        barcode: data,
-        price: productPrice
-      });
-
-      // Set default selling point (copied from QRScanner logic)
+    // „Sprzedano od” - tylko przy odbiorze (zalogowany punkt, gdy jest w tej lokalizacji)
+    if (scannerType === 'odbior') {
       const availableOptions = getMatchingSymbols(data);
-      if (availableOptions.length > 0) {
-        // Sprawdź czy zalogowany użytkownik jest w tej lokalizacji
-        const currentUserInLocation = availableOptions.find(option => option.symbol === user?.symbol);
-        if (currentUserInLocation) {
-          setSelectedOption(user.symbol); // Zalogowany użytkownik jest w lokalizacji - ustaw jako domyślny
-        } else {
-          setSelectedOption(availableOptions[0].symbol); // Fallback - pierwszy z listy
-        }
-      } else {
-        setSelectedOption(""); // Brak dostępnych opcji
-      }
-
-      setScannerVisible(false);
-      setScannedProductModalVisible(true); // Show product modal instead of closing
+      const currentUserInLocation = availableOptions.find((option) => option.symbol === user?.symbol);
+      setSelectedOption(currentUserInLocation ? user.symbol : (availableOptions[0]?.symbol || ''));
     }
+
+    setScannerVisible(false);
+    setScannedProductModalVisible(true);
   };
 
-  // Nazwa produktu dla „Wpisz kod” w skanerze - te same źródła co handleScan; null = kod spoza bazy
-  const resolveScannedName = async (code) => {
-    const remaining = await buildRemainingProductNameFromBarcode(code);
-    if (remaining) return remaining;
-    const bagOrWallet = buildBagNameFromBarcode(code) || buildWalletNameFromBarcode(code);
-    if (bagOrWallet) return bagOrWallet;
-    const jacket = buildJacketNameFromBarcode(code);
-    if (jacket) return [jacket.fullName, jacket.sizeName].filter(Boolean).join(' ');
-    const matchedItem = stateData?.find((item) => item.barcode === code);
-    return matchedItem ? `${matchedItem.fullName} ${matchedItem.size}` : null;
+  const confirmScannedProduct = async () => {
+    const amount = Number(String(scannedProductData.price || '').replace(',', '.'));
+    if (!(amount > 0)) {
+      appAlert('Brak ceny', `Wpisz cenę dla „${displayName(scannedProductData)}” - nie ma jej w cenniku Cudzich ani na karcie produktu.`);
+      return;
+    }
+    const saved = await saveTransaction(
+      scannerType, scannedProductData.name, scannedProductData.size, amount, '', scannedProductData.barcode, scannedProductData.productId
+    );
+    if (saved) {
+      setScannedProductModalVisible(false);
+      setScanned(false);
+    }
   };
 
   // Toggle camera facing
@@ -990,7 +777,6 @@ const Cudzych = () => {
 
   // Lista transakcji: z filtrem dat - tylko wynik filtra (także pusty), bez filtra - cała historia
   const dateFilterActive = Boolean(filterStartDate || filterEndDate);
-  const visibleTransactions = dateFilterActive ? filteredTransactions : transactions;
 
   // Access control check
   if (user?.symbol !== 'P') {
@@ -1013,14 +799,17 @@ const Cudzych = () => {
       backgroundColor: tc('bg', "#000000"),
       paddingBottom: Math.max(20, insets.bottom + 20)
     }}>
-      <ScrollView alwaysBounceVertical 
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+      {/* Kamera i formularz po skanie zajmują cały ekran (jak w „Dodaj”) - lista schowana, nie dzieli z nimi ekranu */}
+      {!scannerVisible && !scannedProductModalVisible && (
+        <FlatList
+          testID="cudzich-transactions-list"
+          data={transactions}
+          keyExtractor={(item) => String(item._id)}
+          renderItem={({ item }) => <CudzichTransactionCard transaction={item} />}
+          ListHeaderComponent={(
+            <View>
         {/* Wygląd jak w panelu admina (30.10.2026): nagłówek zakładki, karta salda, karty menu, karty transakcji */}
-        <View style={{ paddingHorizontal: 12 }}>
+        <View>
           <ScreenHeader icon="people" title="Cudzich" subtitle="Odbiory, zwroty i rozliczenia" />
 
           <CudzichBalanceCard balance={balance} />
@@ -1064,10 +853,20 @@ const Cudzych = () => {
             subtitle="Płacimy Cudzichowi - zwiększa saldo"
             onPress={() => setWyplataModalVisible(true)}
           />
+          <MenuCard
+            testID="cudzich-action-manual"
+            icon="create-outline"
+            color="#8B5CF6"
+            title="Wpisz ręcznie"
+            subtitle="Odbiór lub zwrot bez metki (także sprzedaż sprzed systemu)"
+            onPress={() => setManualChooserVisible(true)}
+          />
 
           {/* Historia transakcji: nagłówek sekcji z przyciskiem filtra jak w ekranach admina */}
           <View style={styles.historyHeader}>
-            <Text style={[look.sectionLabel, { flex: 1, marginBottom: 0 }]}>Historia transakcji</Text>
+            <Text style={[look.sectionLabel, { flex: 1, marginBottom: 0 }]}>
+              Historia transakcji{transactionsTotal > 0 ? ` (${transactionsTotal})` : ''}
+            </Text>
             <IconButton
               icon={(filterStartDate || filterEndDate) ? 'calendar' : 'calendar-outline'}
               color={(filterStartDate || filterEndDate) ? '#0D6EFD' : tc('muted', '#94A3B8')}
@@ -1088,20 +887,31 @@ const Cudzych = () => {
               </TouchableOpacity>
             </View>
           )}
-
-          {/* Z filtrem dat - tylko wynik filtra (dawniej pusty wynik pokazywał całą historię) */}
-          {visibleTransactions.length > 0 ? (
-            visibleTransactions.map((item) => <CudzichTransactionCard key={item._id} transaction={item} />)
-          ) : (
+        </View>
+            </View>
+          )}
+          ListEmptyComponent={(
             <View style={look.emptyState}>
               <Ionicons name="swap-horizontal-outline" size={48} color={tc('muted', '#64748B')} />
               <Text style={look.emptyStateText}>
-                {(filterStartDate || filterEndDate) ? 'Brak transakcji w wybranym okresie' : 'Brak transakcji'}
+                {dateFilterActive ? 'Brak transakcji w wybranym okresie' : 'Brak transakcji'}
               </Text>
             </View>
           )}
-        </View>
-      </ScrollView>
+          ListFooterComponent={loadingMore ? (
+            <View style={{ paddingVertical: 16 }}><ActivityIndicator color="#0D6EFD" /></View>
+          ) : null}
+          onEndReached={loadMoreTransactions}
+          onEndReachedThreshold={0.6}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          // miejsce na dolny pasek zakładek - ostatnia transakcja nie chowa się pod nim (jak na innych ekranach)
+          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: Math.max(120, insets.bottom + 120) }}
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
 
       {/* Transaction Modal (shared for odbior and zwrot) */}
       <Modal
@@ -1333,11 +1143,14 @@ const Cudzych = () => {
             {/* Price input */}
             <View style={styles.formField}>
               <Text style={look.formLabel}>Cena (zł):</Text>
+              {/* Cena od razu po wyborze produktu (i rozmiaru): cennik Cudzich, bez niego karta produktu; można poprawić */}
               <TextInput
-                style={[styles.input, styles.readonlyInput]}
-                placeholder="Cena z cennika"
+                testID="cudzich-manual-price"
+                style={styles.input}
+                placeholder="Brak ceny w cenniku - wpisz cenę"
                 value={price}
-                editable={false}
+                onChangeText={(value) => setPrice(sanitizeAmountInput(value))}
+                keyboardType="decimal-pad"
                 placeholderTextColor={tc('muted', "#666")}
               />
             </View>
@@ -1587,27 +1400,14 @@ const Cudzych = () => {
 
       {/* QR Scanner Modal - identical to QRScanner component */}
       {scannerVisible && (
-        <View style={qrStyles.container}>
-          {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
+        <View style={qrStyles.container} testID="cudzich-scanner">
+          {/* Ta sama kamera co w zakładce „Dodaj” (QRScanner): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod”, czytnik;
+              na cały ekran zakładki. Produkt bez metki: karta „Wpisz ręcznie” na ekranie Cudzicha. */}
           <ScanCamera
             enabled={!scanned}
             onScanned={handleScan}
             resolveName={resolveScannedName}
             facing={facing}
-            extraActions={[{
-              label: "Wpisz ręcznie",
-              icon: "create-outline",
-              testID: "enter-manually",
-              onPress: () => {
-                setScannerVisible(false);
-                setScanned(false);
-                if (scannerType === 'odbior') {
-                  setOdbiorModalVisible(true);
-                } else {
-                  setZwrotModalVisible(true);
-                }
-              },
-            }]}
           >
             
             {/* Close button in top right corner */}
@@ -1654,7 +1454,12 @@ const Cudzych = () => {
               >
                 <Ionicons name="close" size={24} color={tc('text', '#fff')} />
               </TouchableOpacity>
-              <Text style={look.formLabel}>Sprzedano produkt</Text>
+              <ModalHeader
+                icon={scannerType === 'odbior' ? CUDZICH_TYPES.odbior.icon : CUDZICH_TYPES.zwrot.icon}
+                color={scannerType === 'odbior' ? CUDZICH_TYPES.odbior.color : CUDZICH_TYPES.zwrot.color}
+                title={scannerType === 'odbior' ? 'Odbiór - Cudzich bierze kurtkę' : 'Zwrot - Cudzich oddaje kurtkę'}
+              />
+              <Text style={look.formLabel}>Produkt</Text>
               <TextInput
                 style={qrStyles.inputField}
                 value={
@@ -1679,6 +1484,7 @@ const Cudzych = () => {
                 editable={false}
                 placeholder="Barcode"
               />
+              {scannerType === 'odbior' && (<>
               <Text style={look.formLabel}>Sprzedano od</Text>
               <TouchableOpacity
                 style={[look.selectField, { marginBottom: 16, borderWidth: 2, borderColor: '#F59E0B' }]}
@@ -1689,12 +1495,18 @@ const Cudzych = () => {
                 </Text>
                 <Ionicons name="chevron-down" size={20} color="#F59E0B" />
               </TouchableOpacity>
+              </>)}
               
+              {/* Cena od razu w polu: cennik Cudzich, bez niego karta produktu; można poprawić */}
               <Text style={look.formLabel}>Cena (PLN)</Text>
               <TextInput
+                testID="cudzich-scanned-price"
                 style={qrStyles.inputField}
                 value={scannedProductData.price}
-                editable={false}
+                onChangeText={(value) => setScannedProductData((prev) => ({ ...prev, price: sanitizeAmountInput(value) }))}
+                keyboardType="decimal-pad"
+                placeholder="Brak ceny w cenniku - wpisz cenę"
+                placeholderTextColor={tc('muted', '#64748B')}
               />
               
               <View style={look.buttonRow}>
@@ -1709,20 +1521,8 @@ const Cudzych = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[look.primaryButton, { backgroundColor: '#10B981' }]}
-                  onPress={async () => {
-                    // Use price from scannedProductData
-                    Logger.debug('DEBUG: Scanned product data:', scannedProductData);
-                    
-                    if (scannedProductData.price && scannedProductData.price !== "Brak ceny") {
-                      Logger.debug('DEBUG: Using price:', scannedProductData.price);
-                      await saveTransaction('odbior', scannedProductData.name, scannedProductData.size, scannedProductData.price, '', scannedProductData.barcode);
-                      setScannedProductModalVisible(false);
-                      setScanned(false);
-                    } else {
-                      Logger.debug('DEBUG: No price available for product:', scannedProductData.name);
-                      appAlert("Błąd", `Brak ceny dla produktu ${scannedProductData.name} w cenniku Cudzich`);
-                    }
-                  }}
+                  testID="cudzich-scanned-confirm"
+                  onPress={confirmScannedProduct}
                 >
                   <Text style={look.buttonText}>Potwierdź</Text>
                 </TouchableOpacity>
@@ -1732,6 +1532,45 @@ const Cudzych = () => {
         </View>
         </KeyboardSafeScreen>
       )}
+
+      {/* „Wpisz ręcznie” - produkt bez metki: wybór odbioru albo zwrotu (formularz z wyszukiwaniem produktu) */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={manualChooserVisible}
+        onRequestClose={() => setManualChooserVisible(false)}
+      >
+        <View style={look.modalOverlay}>
+          <View style={look.modalContent}>
+            <ModalHeader icon="create-outline" color="#8B5CF6" title="Wpisz ręcznie" subtitle="Produkt bez metki" />
+            <ActionItem
+              testID="cudzich-manual-odbior"
+              icon={CUDZICH_TYPES.odbior.icon}
+              color={CUDZICH_TYPES.odbior.color}
+              label="Odbiór - Cudzich bierze kurtkę"
+              onPress={() => {
+                setManualChooserVisible(false);
+                setScannerType('odbior');
+                setTimeout(() => setOdbiorModalVisible(true), 250); // drugie okienko po zamknięciu pierwszego (iOS)
+              }}
+            />
+            <ActionItem
+              testID="cudzich-manual-zwrot"
+              icon={CUDZICH_TYPES.zwrot.icon}
+              color={CUDZICH_TYPES.zwrot.color}
+              label="Zwrot - Cudzich oddaje kurtkę"
+              onPress={() => {
+                setManualChooserVisible(false);
+                setScannerType('zwrot');
+                setTimeout(() => setZwrotModalVisible(true), 250);
+              }}
+            />
+            <TouchableOpacity style={[look.neutralButton, { flex: 0, marginTop: 12 }]} onPress={() => setManualChooserVisible(false)}>
+              <Text style={look.neutralButtonText}>Anuluj</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Selling Point Selection Modal (copied from QRScanner) */}
       {sellingPointMenuVisible && (
@@ -1898,11 +1737,6 @@ const styles = createThemedStyles(() => StyleSheet.create({
     width: '100%',
     height: 80,
     textAlignVertical: 'top',
-  },
-  readonlyInput: {
-    backgroundColor: tc('surface', '#161622'),
-    borderColor: tc('border', '#1E293B'),
-    color: tc('muted', '#94A3B8'),
   },
   
   // Product container
