@@ -21,6 +21,24 @@ import { appAlert } from '../services/appAlert';
 import { tc, createThemedStyles, useAppTheme, statusBarStyle } from '../context/ThemeContext'; // kolory zależne od motywu
 import { PageHeader, ModalHeader, OptionCard, look } from '../components/AdminLook'; // wspólny wygląd panelu admina
 import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pól tekstowych
+import { sanitizeAmountInput } from "../utils/amountInput"; // przecinek = kropka
+
+// Statusy (30.10.2026): zwrot przed rozliczeniem - nie płacimy; po rozliczeniu - do odliczenia przy następnym
+export const PAN_KAZEK_STATUS = {
+  pending: { label: "Do rozliczenia", color: "#F97316" },
+  paid: { label: "Rozliczone", color: "#10B981" },
+  cancelled: { label: "Zwrot - nie płacimy", color: "#94A3B8" },
+  deduct: { label: "Zwrot - do odliczenia", color: "#EF4444" },
+  deducted: { label: "Zwrot - odliczone", color: "#64748B" },
+};
+const formatPln = (value) => `${(Number(value) || 0).toFixed(2)} zł`;
+// Podgląd rozliczenia: stawka × wszystkie oczekujące − odliczenia
+export const settlementTotal = (rate, toSettle) => {
+  const r = Number(String(rate || "").replace(",", "."));
+  if (!(r > 0) || !toSettle) return null;
+  const gross = Math.round(r * toSettle.pendingCount * 100) / 100;
+  return { gross, total: Math.round((gross - (Number(toSettle.deductAmount) || 0)) * 100) / 100 };
+};
 const monthNames = [
   "",
   "Styczeń",
@@ -57,8 +75,8 @@ const PanKazek = () => {
   const [showMonthModal, setShowMonthModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
 
-  const [paidBy, setPaidBy] = useState("");
-  const [paidAmount, setPaidAmount] = useState("");
+  const [ratePerItem, setRatePerItem] = useState(""); // stawka za kurtkę - decyduje admin
+  const [toSettle, setToSettle] = useState(null); // wszystkie oczekujące + odliczenia (niezależnie od filtra)
   const [processing, setProcessing] = useState(false);
 
   const years = useMemo(() => {
@@ -106,6 +124,7 @@ const PanKazek = () => {
         allTimeStats: data.allTimeStats || { total: 0, pending: 0, paid: 0 },
         filteredStats: data.filteredStats || { total: 0, pending: 0, paid: 0 },
       });
+      setToSettle(data.toSettle || null);
     } catch (error) {
       appAlert("Błąd", "Nie udało się pobrać listy Pana Kazka");
     } finally {
@@ -143,34 +162,36 @@ const PanKazek = () => {
               { method: "DELETE" }
             );
             if (!response.ok) {
-              throw new Error("delete failed");
+              const data = await response.json().catch(() => ({}));
+              throw new Error(data?.message || "Nie udało się usunąć produktu");
             }
             await loadProducts();
           } catch (error) {
-            appAlert("Błąd", "Nie udało się usunąć produktu");
+            appAlert("Błąd", error.message || "Nie udało się usunąć produktu");
           }
         },
       },
     ]);
   };
 
+  const preview = settlementTotal(ratePerItem, toSettle);
   const handlePayAll = async () => {
-    if (!paidBy.trim()) {
-      appAlert("Błąd", "Podaj kto rozlicza");
+    if (!preview) {
+      appAlert("Błąd", "Podaj stawkę za kurtkę większą od 0");
       return;
     }
-    const amount = parseFloat(paidAmount);
-    if (!amount || amount <= 0) {
-      appAlert("Błąd", "Podaj poprawną kwotę");
+    if (preview.total < 0) {
+      appAlert("Błąd", "Odliczenia są większe niż wypłata - podnieś stawkę albo poczekaj na więcej kurtek");
       return;
     }
+    if (processing) return;
 
     try {
       setProcessing(true);
       const response = await tokenService.authenticatedFetch(getApiUrl("/pan-kazek/pay-all"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paidBy: paidBy.trim(), paidAmount: amount }),
+        body: JSON.stringify({ ratePerItem: Number(String(ratePerItem).replace(",", ".")) }),
       });
 
       const data = await response.json();
@@ -179,8 +200,7 @@ const PanKazek = () => {
       }
 
       setShowPayModal(false);
-      setPaidBy("");
-      setPaidAmount("");
+      setRatePerItem("");
       appAlert("Sukces", data.message || "Rozliczono");
       await loadProducts();
     } catch (error) {
@@ -203,14 +223,15 @@ const PanKazek = () => {
   };
 
   const renderItem = (item) => {
-    const isPaid = item.status === "paid";
-    const statusColor = isPaid ? "#10B981" : "#F97316"; // rozliczone - zielony, do rozliczenia - pomarańczowy
+    const status = PAN_KAZEK_STATUS[item.status] || PAN_KAZEK_STATUS.pending;
+    const statusColor = status.color;
+    const removable = ["pending", "cancelled"].includes(item.status); // rozliczonej kurtki nie usuwa się z listy
     return (
       <View key={item._id} style={[styles.card, { borderLeftColor: statusColor }]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.fullName}</Text>
           <View style={[styles.badge, { backgroundColor: `${statusColor}26`, borderColor: `${statusColor}80` }]}>
-            <Text style={[styles.badgeText, { color: statusColor }]}>{isPaid ? "Rozliczone" : "Do rozliczenia"}</Text>
+            <Text style={[styles.badgeText, { color: statusColor }]} testID={`pan-kazek-status-${item.productId}`}>{status.label}</Text>
           </View>
         </View>
 
@@ -235,14 +256,29 @@ const PanKazek = () => {
           <Text style={styles.value}>{item.addedBy || item.symbol || "-"}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => handleDelete(item.productId)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="trash-outline" size={18} color="#DC3545" />
-          <Text style={styles.deleteText}>Usuń</Text>
-        </TouchableOpacity>
+        {item.returnedAt ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>Zwrot:</Text>
+            <Text style={styles.value}>{item.returnReason || "Zwrot"} · {formatDate(item.returnedAt)}</Text>
+          </View>
+        ) : null}
+        {item.paidAt ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>Rozliczono:</Text>
+            <Text style={styles.value}>{formatDate(item.paidAt)}{item.paidRate != null ? ` · ${formatPln(item.paidRate)}` : ""}</Text>
+          </View>
+        ) : null}
+
+        {removable ? (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDelete(item.productId)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={18} color="#DC3545" />
+            <Text style={styles.deleteText}>Usuń</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   };
@@ -292,8 +328,7 @@ const PanKazek = () => {
           <View style={styles.filterRow}>
             {[
               { id: "all", label: "Wszystkie" },
-              { id: "pending", label: "Do rozliczenia" },
-              { id: "paid", label: "Rozliczone" },
+              ...Object.entries(PAN_KAZEK_STATUS).map(([id, meta]) => ({ id, label: meta.label })),
             ].map((option) => (
               <TouchableOpacity
                 key={option.id}
@@ -347,11 +382,12 @@ const PanKazek = () => {
           </View>
         </View>
 
-        {stats.filteredStats.pending > 0 && (
-          <TouchableOpacity style={styles.payAllButton} onPress={() => setShowPayModal(true)}>
+        {/* Rozliczenie obejmuje WSZYSTKIE oczekujące (niezależnie od filtra) - tak też liczy przycisk */}
+        {toSettle && toSettle.pendingCount > 0 && (
+          <TouchableOpacity style={styles.payAllButton} onPress={() => setShowPayModal(true)} testID="pan-kazek-settle">
             <Ionicons name="cash-outline" size={20} color="#fff" />
             <Text style={styles.payAllText}>
-              Rozlicz wszystkie ({stats.filteredStats.pending})
+              Rozlicz wszystkie oczekujące ({toSettle.pendingCount})
             </Text>
           </TouchableOpacity>
         )}
@@ -448,25 +484,26 @@ const PanKazek = () => {
         <KeyboardSafeOverlay>
           <View style={look.modalOverlay}>
             <View style={look.modalContent}>
-              <ModalHeader icon="cash-outline" color="#10B981" title="Rozlicz wszystkie" subtitle="Podaj dane rozliczenia" />
+              <ModalHeader icon="cash-outline" color="#10B981" title="Rozlicz wszystkie" subtitle={`Do rozliczenia: ${toSettle?.pendingCount || 0} kurtek`} />
+              {toSettle?.deductCount > 0 ? (
+                <Text style={look.modalMessage}>Do odliczenia: {toSettle.deductCount} zwr. · −{formatPln(toSettle.deductAmount)}</Text>
+              ) : null}
 
-              <Text style={look.formLabel}>Kto rozlicza</Text>
+              <Text style={look.formLabel}>Stawka za kurtkę (zł)</Text>
               <TextInput
+                testID="pan-kazek-rate"
                 style={[look.formInput, styles.input]}
-                placeholder="Kto rozlicza"
+                placeholder="np. 15"
                 placeholderTextColor={tc('muted', "#64748B")}
-                value={paidBy}
-                onChangeText={setPaidBy}
+                value={ratePerItem}
+                keyboardType="decimal-pad"
+                onChangeText={(value) => setRatePerItem(sanitizeAmountInput(value))}
               />
-              <Text style={look.formLabel}>Kwota (PLN)</Text>
-              <TextInput
-                style={[look.formInput, styles.input]}
-                placeholder="Kwota (PLN)"
-                placeholderTextColor={tc('muted', "#64748B")}
-                value={paidAmount}
-                keyboardType="numeric"
-                onChangeText={setPaidAmount}
-              />
+              {preview ? (
+                <Text style={[look.modalMessage, preview.total < 0 && { color: "#EF4444" }]} testID="pan-kazek-preview">
+                  {`${toSettle.pendingCount} × ${formatPln(ratePerItem)} = ${formatPln(preview.gross)}${toSettle.deductAmount > 0 ? ` − ${formatPln(toSettle.deductAmount)}` : ""}\nDo wypłaty: ${formatPln(preview.total)}`}
+                </Text>
+              ) : null}
 
               <View style={look.buttonRow}>
                 <TouchableOpacity style={look.neutralButton} onPress={() => setShowPayModal(false)}>
@@ -476,6 +513,7 @@ const PanKazek = () => {
                   style={[look.primaryButton, styles.payConfirmButton, processing && styles.payConfirmButtonDisabled]}
                   onPress={handlePayAll}
                   disabled={processing}
+                  testID="pan-kazek-confirm"
                 >
                   <Text style={look.buttonText}>
                     {processing ? "Rozliczam..." : "Potwierdź"}

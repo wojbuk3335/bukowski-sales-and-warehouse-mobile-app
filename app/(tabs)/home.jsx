@@ -1381,11 +1381,22 @@ const Home = () => {
     setPanKazekModalVisible(true);
   };
 
+  const panKazekSavingRef = useRef(false); // dwa szybkie stuknięcia „Tak, dodaj” - jeden zapis
   const confirmPanKazekTransfer = async () => {
     if (!selectedItem) {
       appAlert("Error", "No item selected for transfer.");
       return;
     }
+    if (panKazekSavingRef.current) return;
+    panKazekSavingRef.current = true;
+    try {
+      await savePanKazek();
+    } finally {
+      panKazekSavingRef.current = false;
+    }
+  };
+
+  const savePanKazek = async () => {
 
     if (!user || !user.symbol) {
       appAlert("Błąd", "Brak danych zalogowanego użytkownika");
@@ -2275,6 +2286,13 @@ const Home = () => {
       setScanned(false);
     }
   };
+
+  // Punkt Most (jedyny, który oznacza „Od Pana Kazka”): po nazwie punktu; e-mail i symbol - jak dawniej
+  const isMostAccount = (account) => (
+    /^\s*most\s*$/i.test(String(account?.sellingPoint || ''))
+    || String(account?.email || '').toLowerCase() === 'most@wp.pl'
+    || String(account?.symbol || '').toLowerCase() === 'most'
+  );
 
   // Check if sales item is in Pan Kazek list
   const isItemInPanKazek = (salesItem) => {
@@ -3714,7 +3732,8 @@ const Home = () => {
               >
                 <Text style={styles.optionText}>Edytuj</Text>
               </TouchableOpacity>
-              {(user?.symbol === 'most' || user?.email === 'most@wp.pl') && (
+              {/* „Od Pana Kazka” - tylko punkt Most (jak sprawdza serwer), tylko niezwrócona sprzedaż */}
+              {isMostAccount(user) && !selectedItem?.returned && (
                 <>
                   {isItemInPanKazek(selectedItem) ? (
                     <TouchableOpacity
@@ -5379,7 +5398,7 @@ const Home = () => {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Potwierdzenie</Text>
               <Text style={styles.modalText}>
-                Czy chcesz dodać ten produkt do listy "Od Pana Kazka"?
+                Czy ta sprzedaż jest od Pana Kazka (klient z polecenia)?
               </Text>
               {selectedItem && (
                 <View style={{ marginVertical: 15 }}>
@@ -5401,9 +5420,9 @@ const Home = () => {
                       
                       // Fallback logic
                       if (selectedItem.totalPrice) return selectedItem.totalPrice;
-                      if (selectedItem.price) return selectedItem.price;
-                      return "0";
-                    })()} PLN
+                      if (selectedItem.price) return `${selectedItem.price} PLN`;
+                      return "0 PLN";
+                    })()}
                   </Text>
                 </View>
               )}
