@@ -262,6 +262,8 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
     expect(posts('/cudzich/transactions')[0]).toMatchObject({ type: 'odbior', productId: 'g-ada', productName: 'Ada CZERWONY', size: 'XL', price: 850 });
     expect(posts('/sales/save-sales')[0]).toMatchObject({ fullName: 'Ada CZERWONY', size: 'XL', barcode: ADA_XL, source: 'Cudzich' });
+    // numer zapisu: sprzedaż ma pochodny numer odbioru - ponowienie nie zapisze ani drugiego odbioru, ani drugiej sprzedaży
+    expect(posts('/sales/save-sales')[0].clientRequestId).toBe(`${posts('/cudzich/transactions')[0].clientRequestId}-sale`);
   });
 
   // Dwa stuknięcia, zanim ekran zdąży się przerysować (zablokowany przycisk jeszcze nie działa) - jak szybki palec na telefonie
@@ -350,7 +352,7 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
       fireEvent.press(screen.getByTestId('cudzich-return-confirm')); // podwójne stuknięcie - jeden zwrot
     });
     await waitFor(() => expect(posts('/cudzich/returns')).toHaveLength(1));
-    expect(posts('/cudzich/returns')[0]).toEqual({ items: [{ saleId: 's-new' }, { saleId: 's-old' }], notes: '' });
+    expect(posts('/cudzich/returns')[0]).toEqual({ items: [{ saleId: 's-new' }, { saleId: 's-old' }], notes: '', clientRequestId: expect.stringMatching(/^cudz-/) });
     expect(posts('/cudzich/transactions')).toHaveLength(0);
     expect(posts('/sales/')).toHaveLength(0);
   });
@@ -401,6 +403,7 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     expect(posts('/cudzich/returns')[0]).toEqual({
       items: [{ saleId: 's-bella' }, { historical: true, productId: 'g-ada', size: 'XL', barcode: ADA_XL, price: 600 }],
       notes: '',
+      clientRequestId: expect.stringMatching(/^cudz-/),
     });
   });
 
@@ -450,6 +453,42 @@ describe('Zakładka Cudzich: skaner, nazwa i cena', () => {
     });
     await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(1));
     expect(posts('/cudzich/transactions')[0]).toMatchObject({ type: 'wplata', price: 400 });
+  });
+
+  test('zerwane połączenie: ponowienie wysyła ten sam numer zapisu (serwer nie zapisze drugi raz); kolejna operacja - nowy numer', async () => {
+    const baseFetch = tokenService.authenticatedFetch.getMockImplementation();
+    let failNext = true;
+    tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
+      if (String(url).includes('/cudzich/transactions') && options.method === 'POST' && failNext) {
+        failNext = false;
+        baseFetch(url, options);
+        return Promise.reject(new Error('Network request failed')); // serwer mógł zapisać, odpowiedź nie dotarła
+      }
+      return baseFetch(url, options);
+    });
+    const screen = renderTab();
+    await waitFor(() => expect(screen.getByText('Cudzich płaci nam 400.00 zł')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('cudzich-action-settle'));
+    await screen.findByTestId('cudzich-settle-info');
+    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    await waitFor(() => expect(appAlert).toHaveBeenCalledWith('Błąd', 'Nie udało się połączyć z serwerem'));
+
+    // zamknięcie i ponowne otwarcie okienka - ta sama kwota, ten sam numer
+    fireEvent.press(screen.getByText('Anuluj'));
+    fireEvent.press(screen.getByTestId('cudzich-action-settle'));
+    await screen.findByTestId('cudzich-settle-info');
+    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(2));
+    const [first, retry] = posts('/cudzich/transactions');
+    expect(first.clientRequestId).toMatch(/^[A-Za-z0-9_-]{8,100}$/);
+    expect(retry.clientRequestId).toBe(first.clientRequestId);
+
+    // po udanym zapisie następne rozliczenie to nowa operacja
+    fireEvent.press(screen.getByTestId('cudzich-action-settle'));
+    await screen.findByTestId('cudzich-settle-info');
+    fireEvent.press(screen.getByTestId('cudzich-settle-confirm'));
+    await waitFor(() => expect(posts('/cudzich/transactions')).toHaveLength(3));
+    expect(posts('/cudzich/transactions')[2].clientRequestId).not.toBe(first.clientRequestId);
   });
 
   test('„Rozlicz saldo” na minusie: należy zwrócić Cudzichowi 590 zł → wypłata; częściowo można, więcej niż saldo nie', async () => {

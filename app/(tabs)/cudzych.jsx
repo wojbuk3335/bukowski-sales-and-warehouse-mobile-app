@@ -62,6 +62,19 @@ const Cudzych = () => {
   // Blokada podwójnego zapisu (odbiór, zwrot, rozliczenie): ref zmienia się od razu, a `loading` dopiero po
   // przerysowaniu - dwa szybkie stuknięcia przechodziły oba i zapisywały operację dwa razy
   const savingRef = useRef(false);
+  // Numer zapisu dla serwera (clientRequestId): ta sama operacja (ten sam odbiór / kwota / kurtki) ponowiona po
+  // błędzie połączenia - także po zamknięciu i ponownym otwarciu okienka - wysyła ten sam numer, więc serwer odsyła
+  // zapisaną transakcję zamiast tworzyć drugą. Po udanym zapisie numer przepada - kolejna operacja dostaje nowy.
+  const pendingRequestsRef = useRef({});
+  const requestIdFor = (kind, payload) => {
+    const key = JSON.stringify(payload);
+    const pending = pendingRequestsRef.current[kind];
+    if (pending && pending.key === key) return pending.id;
+    const id = `cudz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    pendingRequestsRef.current[kind] = { key, id };
+    return id;
+  };
+  const requestDone = (kind) => { delete pendingRequestsRef.current[kind]; };
   const [refreshing, setRefreshing] = useState(false);
   
   // QR Scanner states
@@ -444,16 +457,18 @@ const Cudzych = () => {
         ...selectedSaleIds.map((saleId) => ({ saleId })),
         ...historicalItems.map((item) => ({ historical: true, productId: item.productId, size: item.size || '-', barcode: item.barcode || '', price: item.price })),
       ];
+      const clientRequestId = requestIdFor('zwrot', items);
       const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/returns'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, notes: '' }),
+        body: JSON.stringify({ items, notes: '', clientRequestId }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         appAlert('Błąd', data.error || 'Nie udało się zapisać zwrotu');
         return false;
       }
+      requestDone('zwrot');
       const count = data.count || items.length;
       setSuccessMessage(`Zwrot zapisany: ${count} ${jacketsWord(count)}\nCzeka na przyjęcie w MAGAZYNIE (Dobieranie)\nKredyt: ${Number(data.credit ?? returnCredit).toFixed(2)} zł\n${balanceText(data.newBalance)}`);
       setSuccessModalVisible(true);
@@ -508,12 +523,14 @@ const Cudzych = () => {
         return false;
       }
       
+      const clientRequestId = requestIdFor('odbior', [type, productId, productSize, parseFloat(productPrice), scannedBarcode, selectedOption]);
       const response = await tokenService.authenticatedFetch(getApiUrl('/cudzich/transactions'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          clientRequestId,
           type: type,
           productId: productId, // Now we include found productId
           productName: productName,
@@ -543,6 +560,7 @@ const Cudzych = () => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
+                clientRequestId: `${clientRequestId}-sale`, // ponowienie nie zapisze drugiej sprzedaży
                 fullName: `${productName}`, // Just product name
                 timestamp: formattedTimestamp,
                 barcode: scannedBarcode || '', // Use actual scanned barcode
@@ -570,6 +588,7 @@ const Cudzych = () => {
           }
         }
         
+        requestDone('odbior');
         setSuccessMessage(
           `${type === 'odbior' ? 'Odbiór' : 'Zwrot'} został zapisany\nProdukt: ${productName} ${productSize}\nCena: ${productPrice} zł\n${balanceText(data.newBalance)}`
         );
@@ -640,6 +659,7 @@ const Cudzych = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          clientRequestId: requestIdFor('rozliczenie', [type, parseFloat(paymentAmount)]),
           type: type,
           price: parseFloat(paymentAmount),
           userSymbol: 'P',
@@ -650,6 +670,7 @@ const Cudzych = () => {
 
       if (response.ok) {
         const data = await response.json();
+        requestDone('rozliczenie');
         setSuccessMessage(
           `${type === 'wplata' ? 'Cudzich zapłacił' : 'Oddano Cudzichowi'}: ${parseFloat(paymentAmount).toFixed(2)} zł\n${balanceText(data.newBalance)}`
         );
