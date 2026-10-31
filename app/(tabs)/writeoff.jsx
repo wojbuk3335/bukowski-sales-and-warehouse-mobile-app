@@ -80,6 +80,7 @@ const WriteOff = () => {
     // Wymiana, krok 2: kurtka oddana przez klienta (jedzie do MAGAZYNU)
     const [returnPrompt, setReturnPrompt] = useState(null); // { exchangeTransferId, givenLabel }
     const [returnCandidates, setReturnCandidates] = useState([]);
+    const [returnAmbiguous, setReturnAmbiguous] = useState(null); // skan pasuje do kilku sprzedaży: { message, sales } - wybór zamiast zgadywania
     const [returnLoading, setReturnLoading] = useState(false);
     const [returnSaving, setReturnSaving] = useState(false);
     const [returnCode, setReturnCode] = useState('');
@@ -726,6 +727,7 @@ const fetchSales = async () => {
         setReturnPickerSearch('');
         setReturnPickerGood(null);
         setReturnCandidates([]);
+        setReturnAmbiguous(null);
         setReturnPrompt({ exchangeTransferId, givenLabel });
         setReturnLoading(true);
         try {
@@ -740,11 +742,16 @@ const fetchSales = async () => {
         }
     };
 
-    const finishExchange = (returnedLabel) => {
+    const finishExchange = (returnedLabel, panKazek = null) => {
         setReturnPrompt(null);
-        setSuccessMessage(returnedLabel
+        setReturnAmbiguous(null);
+        // kurtka od Pana Kazka: przed rozliczeniem - nie płacimy; po rozliczeniu - odliczymy przy następnym
+        const kazekLine = panKazek?.status === 'deduct'
+            ? `\nKurtka od Pana Kazka była już rozliczona - przy następnym rozliczeniu odliczymy ${Number(panKazek.paidRate || 0).toFixed(2)} zł.`
+            : (panKazek?.status === 'cancelled' ? '\nKurtka od Pana Kazka - nie zapłacimy za nią.' : '');
+        setSuccessMessage((returnedLabel
             ? `Wymiana została zapisana.\nOddana kurtka ${returnedLabel} pojedzie do MAGAZYNU - pojawi się w Dobieraniu dla MAGAZYNU.`
-            : 'Wymiana została zapisana.\nOddanej kurtki nie wskazano - trzeba ją dopisać do magazynu ręcznie.');
+            : 'Wymiana została zapisana.\nOddanej kurtki nie wskazano - trzeba ją dopisać do magazynu ręcznie.') + kazekLine);
         setSuccessModalVisible(true);
     };
 
@@ -758,11 +765,17 @@ const fetchSales = async () => {
                 body: JSON.stringify({ exchangeTransferId: returnPrompt.exchangeTransferId, ...payload }),
             });
             const data = await response.json().catch(() => ({}));
+            // ten sam kod ma kilka sprzedaży (identyczne kurtki) - sprzedawca wybiera właściwą
+            if (response.status === 409 && data?.code === 'SALE_AMBIGUOUS' && Array.isArray(data.sales)) {
+                setReturnView('main');
+                setReturnAmbiguous({ message: data.message, sales: data.sales });
+                return;
+            }
             if (!response.ok) {
                 appAlert('Nie zapisano oddanej kurtki', data?.message || 'Spróbuj ponownie albo pomiń.');
                 return;
             }
-            finishExchange(label || `${data.fullName} ${data.size}`);
+            finishExchange(label || `${data.fullName} ${data.size}`, data.panKazek || null);
         } catch (error) {
             Logger.error('Exchange return save failed:', error);
             appAlert('Nie zapisano oddanej kurtki', 'Brak połączenia z serwerem. Spróbuj ponownie albo pomiń.');
@@ -815,6 +828,33 @@ const fetchSales = async () => {
             return;
         }
         saveReturnedItem({ barcode: String(good.code) }, good.fullName);
+    };
+
+    // Etykieta Pana Kazka przy sprzedaży do wskazania (oznaczona w Sprzedaży przez Most)
+    const kazekNote = (panKazek) => {
+        if (!panKazek) return '';
+        if (panKazek.status === 'paid') return `Pan Kazek - rozliczona (${Number(panKazek.paidRate || 0).toFixed(2)} zł)`;
+        if (panKazek.status === 'pending') return 'Pan Kazek - do rozliczenia';
+        return 'Pan Kazek';
+    };
+    // Wybór sprzedaży: przy kurtce od Pana Kazka najpierw potwierdzenie, co stanie się z jego rozliczeniem
+    const pickReturnSale = (sale) => {
+        const label = `${sale.fullName} ${sale.size}`;
+        const status = sale.panKazek?.status;
+        if (status === 'paid' || status === 'pending') {
+            appAlert(
+                'Kurtka od Pana Kazka',
+                status === 'paid'
+                    ? `${label} była od Pana Kazka i jest już rozliczona. Przy następnym rozliczeniu odliczymy mu ${Number(sale.panKazek.paidRate || 0).toFixed(2)} zł.\nTo na pewno ta sprzedaż (sprawdź paragon / datę)?`
+                    : `${label} była od Pana Kazka (jeszcze nierozliczona) - nie zapłacimy mu za nią.\nTo na pewno ta sprzedaż (sprawdź paragon / datę)?`,
+                [
+                    { text: 'Anuluj', style: 'cancel' },
+                    { text: 'Tak, ta', onPress: () => saveReturnedItem({ saleId: sale._id }, label) },
+                ]
+            );
+            return;
+        }
+        saveReturnedItem({ saleId: sale._id }, label);
     };
 
     const formatSaleDay = (value) => {
@@ -1650,6 +1690,33 @@ const fetchSales = async () => {
 
                                 {/* Przy wpisywaniu kodu lista i przyciski się chowają - okienko jest niższe i mieści się nad klawiaturą */}
                                 {!returnCodeFocused && (<>
+                                {returnAmbiguous ? (
+                                    <>
+                                        <Text style={[styles.returnSectionTitle, { color: '#F59E0B' }]} testID="return-ambiguous-message">{returnAmbiguous.message}</Text>
+                                        <View style={styles.returnList}>
+                                            <FlatList
+                                                data={returnAmbiguous.sales}
+                                                keyExtractor={(sale) => String(sale._id)}
+                                                style={{ maxHeight: 240 }}
+                                                renderItem={({ item: sale }) => (
+                                                    <ActionItem
+                                                        testID={`return-ambiguous-${sale._id}`}
+                                                        icon={sale.panKazek ? 'person' : 'return-down-back-outline'}
+                                                        color={sale.panKazek ? '#10B981' : '#FF9800'}
+                                                        label={`${sale.fullName} ${sale.size}`}
+                                                        note={[kazekNote(sale.panKazek), formatSaleDay(sale.timestamp), sale.sellingPoint, sale.priceLabel].filter(Boolean).join(' · ')}
+                                                        noteColor={sale.panKazek ? '#10B981' : null}
+                                                        disabled={returnSaving}
+                                                        onPress={() => pickReturnSale(sale)}
+                                                    />
+                                                )}
+                                            />
+                                        </View>
+                                        <TouchableOpacity testID="return-ambiguous-back" style={[look.neutralButton, { flex: 0, marginTop: 8 }]} onPress={() => setReturnAmbiguous(null)}>
+                                            <Text style={look.neutralButtonText}>Wróć</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : (<>
                                 <Text style={styles.returnSectionTitle}>Sprzedaże w tym punkcie z 14 dni:</Text>
                                 <View style={styles.returnList}>
                                     {returnLoading ? (
@@ -1664,12 +1731,13 @@ const fetchSales = async () => {
                                             renderItem={({ item: sale }) => (
                                                 <ActionItem
                                                     testID={`return-sale-${sale._id}`}
-                                                    icon="return-down-back-outline"
-                                                    color="#FF9800"
+                                                    icon={sale.panKazek ? 'person' : 'return-down-back-outline'}
+                                                    color={sale.panKazek ? '#10B981' : '#FF9800'}
                                                     label={`${sale.fullName} ${sale.size}`}
-                                                    note={[formatSaleDay(sale.timestamp), sale.priceLabel, sale.from ? `od ${sale.from}` : ''].filter(Boolean).join(' · ')}
+                                                    note={[kazekNote(sale.panKazek), formatSaleDay(sale.timestamp), sale.priceLabel, sale.from ? `od ${sale.from}` : ''].filter(Boolean).join(' · ')}
+                                                    noteColor={sale.panKazek ? '#10B981' : null}
                                                     disabled={returnSaving}
-                                                    onPress={() => saveReturnedItem({ saleId: sale._id }, `${sale.fullName} ${sale.size}`)}
+                                                    onPress={() => pickReturnSale(sale)}
                                                 />
                                             )}
                                         />
@@ -1686,6 +1754,7 @@ const fetchSales = async () => {
                                         <Text style={look.buttonText}>Z bazy</Text>
                                     </TouchableOpacity>
                                 </View>
+                                </>)}
                                 </>)}
 
                                 <Text style={styles.returnSectionTitle}>albo wpisz kod z metki:</Text>

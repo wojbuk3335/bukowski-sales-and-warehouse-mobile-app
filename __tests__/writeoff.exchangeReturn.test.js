@@ -109,6 +109,52 @@ describe('Wymiana: oddana kurtka do MAGAZYNU', () => {
     await waitFor(() => expect(screen.getByText(/Oddana kurtka Ada BORDO L pojedzie do MAGAZYNU/)).toBeTruthy());
   });
 
+  test('Pan Kazek: etykieta na liście, przy wyborze potwierdzenie z odliczeniem; po zapisie informacja o odliczeniu', async () => {
+    candidates.push({ _id: 'sale-kazek', fullName: 'Ada CZERWONY', size: 'XL', barcode: '0010701300002', timestamp: '2026-10-20T10:00:00.000Z', from: 'M', priceLabel: '900 PLN', panKazek: { status: 'paid', paidRate: 15 } });
+    returnResponse = () => json({ _id: 'ret-1', fullName: 'Ada CZERWONY', size: 'XL', panKazek: { status: 'deduct', paidRate: 15 } }, 201);
+    try {
+      const screen = renderWriteOff();
+      await doExchange(screen);
+      await waitFor(() => expect(screen.getByTestId('return-sale-sale-kazek-note').props.children).toContain('Pan Kazek - rozliczona (15.00 zł)'));
+      fireEvent.press(screen.getByTestId('return-sale-sale-kazek'));
+      expect(returnPosts()).toEqual([]); // najpierw pytanie
+      const [title, message, buttons] = appAlert.mock.calls.find(([t]) => t === 'Kurtka od Pana Kazka');
+      expect(title).toBe('Kurtka od Pana Kazka');
+      expect(message).toContain('odliczymy mu 15.00 zł');
+      buttons.find((button) => button.text === 'Tak, ta').onPress();
+      await waitFor(() => expect(returnPosts()).toEqual([{ exchangeTransferId: 'tr-wymiana', saleId: 'sale-kazek' }]));
+      await waitFor(() => expect(screen.getByText(/przy następnym rozliczeniu odliczymy 15.00 zł/)).toBeTruthy());
+    } finally {
+      candidates.pop();
+    }
+  });
+
+  test('skan pasuje do kilku sprzedaży (identyczne kurtki) - lista do wyboru zamiast zgadywania', async () => {
+    let calls = 0;
+    returnResponse = () => (++calls === 1
+      ? json({ code: 'SALE_AMBIGUOUS', message: 'Ten kod ma 2 sprzedaże - wybierz, którą kurtkę klient oddaje (paragon, data, cena).', sales: [
+        { _id: 's-a', fullName: 'Ada CZERWONY', size: 'XL', timestamp: '2026-10-28T10:00:00.000Z', sellingPoint: 'Tata', priceLabel: '850 PLN', panKazek: null },
+        { _id: 's-b', fullName: 'Ada CZERWONY', size: 'XL', timestamp: '2026-10-20T10:00:00.000Z', sellingPoint: 'Most', priceLabel: '900 PLN', panKazek: { status: 'pending', paidRate: null } },
+      ] }, 409)
+      : json({ _id: 'ret-1', fullName: 'Ada CZERWONY', size: 'XL' }, 201));
+    const screen = renderWriteOff();
+    await doExchange(screen);
+    await waitFor(() => expect(screen.getByTestId('return-sale-sale-1')).toBeTruthy());
+    fireEvent.changeText(screen.getByTestId('return-code-input'), '0010701300002');
+    await waitFor(() => expect(screen.getByTestId('return-code-check').props.children).toBe('✓ Ada CZERWONY XL'));
+    fireEvent.press(screen.getByTestId('return-code-save'));
+
+    expect(await screen.findByTestId('return-ambiguous-message')).toBeTruthy();
+    expect(appAlert).not.toHaveBeenCalledWith('Nie zapisano oddanej kurtki', expect.anything());
+    expect(screen.getByTestId('return-ambiguous-s-b-note').props.children).toContain('Pan Kazek - do rozliczenia');
+    fireEvent.press(screen.getByTestId('return-ambiguous-s-a'));
+    await waitFor(() => expect(returnPosts()).toEqual([
+      { exchangeTransferId: 'tr-wymiana', barcode: '0010701300002' },
+      { exchangeTransferId: 'tr-wymiana', saleId: 's-a' },
+    ]));
+    await waitFor(() => expect(screen.getByText(/pojedzie do MAGAZYNU/)).toBeTruthy());
+  });
+
   test('wpisany kod: za krótki, zła cyfra kontrolna, spoza bazy → czerwony komunikat i „Zapisz” wyłączone', async () => {
     const screen = renderWriteOff();
     await doExchange(screen);
