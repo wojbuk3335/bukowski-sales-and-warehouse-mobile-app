@@ -745,10 +745,8 @@ const fetchSales = async () => {
     const finishExchange = (returnedLabel, panKazek = null) => {
         setReturnPrompt(null);
         setReturnAmbiguous(null);
-        // kurtka od Pana Kazka: przed rozliczeniem - nie płacimy; po rozliczeniu - odliczymy przy następnym
-        const kazekLine = panKazek?.status === 'deduct'
-            ? `\nKurtka od Pana Kazka była już rozliczona - przy następnym rozliczeniu odliczymy ${Number(panKazek.paidRate || 0).toFixed(2)} zł.`
-            : (panKazek?.status === 'cancelled' ? '\nKurtka od Pana Kazka - nie zapłacimy za nią.' : '');
+        // kurtka od Pana Kazka - serwer sam odejmuje ją z jego rozliczenia (bez szczegółów dla sprzedawcy)
+        const kazekLine = panKazek ? '\nKurtka od Pana Kazka - odjęta z jego rozliczenia.' : '';
         setSuccessMessage((returnedLabel
             ? `Wymiana została zapisana.\nOddana kurtka ${returnedLabel} pojedzie do MAGAZYNU - pojawi się w Dobieraniu dla MAGAZYNU.`
             : 'Wymiana została zapisana.\nOddanej kurtki nie wskazano - trzeba ją dopisać do magazynu ręcznie.') + kazekLine);
@@ -831,12 +829,7 @@ const fetchSales = async () => {
     };
 
     // Etykieta Pana Kazka przy sprzedaży do wskazania (oznaczona w Sprzedaży przez Most)
-    const kazekNote = (panKazek) => {
-        if (!panKazek) return '';
-        if (panKazek.status === 'paid') return `Pan Kazek - rozliczona (${Number(panKazek.paidRate || 0).toFixed(2)} zł)`;
-        if (panKazek.status === 'pending') return 'Pan Kazek - do rozliczenia';
-        return 'Pan Kazek';
-    };
+    const kazekNote = (panKazek) => (panKazek ? 'Pan Kazek' : '');
     // Wybór sprzedaży: przy kurtce od Pana Kazka najpierw potwierdzenie, co stanie się z jego rozliczeniem
     const pickReturnSale = (sale) => {
         const label = `${sale.fullName} ${sale.size}`;
@@ -844,9 +837,7 @@ const fetchSales = async () => {
         if (status === 'paid' || status === 'pending') {
             appAlert(
                 'Kurtka od Pana Kazka',
-                status === 'paid'
-                    ? `${label} była od Pana Kazka i jest już rozliczona. Przy następnym rozliczeniu odliczymy mu ${Number(sale.panKazek.paidRate || 0).toFixed(2)} zł.\nTo na pewno ta sprzedaż (sprawdź paragon / datę)?`
-                    : `${label} była od Pana Kazka (jeszcze nierozliczona) - nie zapłacimy mu za nią.\nTo na pewno ta sprzedaż (sprawdź paragon / datę)?`,
+                `${label} była od Pana Kazka - zostanie odjęta z jego rozliczenia.\nTo na pewno ta sprzedaż (sprawdź paragon / datę)?`,
                 [
                     { text: 'Anuluj', style: 'cancel' },
                     { text: 'Tak, ta', onPress: () => saveReturnedItem({ saleId: sale._id }, label) },

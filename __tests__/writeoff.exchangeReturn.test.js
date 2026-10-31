@@ -115,15 +115,16 @@ describe('Wymiana: oddana kurtka do MAGAZYNU', () => {
     try {
       const screen = renderWriteOff();
       await doExchange(screen);
-      await waitFor(() => expect(screen.getByTestId('return-sale-sale-kazek-note').props.children).toContain('Pan Kazek - rozliczona (15.00 zł)'));
+      await waitFor(() => expect(screen.getByTestId('return-sale-sale-kazek-note').props.children).toContain('Pan Kazek'));
       fireEvent.press(screen.getByTestId('return-sale-sale-kazek'));
       expect(returnPosts()).toEqual([]); // najpierw pytanie
       const [title, message, buttons] = appAlert.mock.calls.find(([t]) => t === 'Kurtka od Pana Kazka');
       expect(title).toBe('Kurtka od Pana Kazka');
-      expect(message).toContain('odliczymy mu 15.00 zł');
+      expect(message).toContain('odjęta z jego rozliczenia');
+      expect(message).not.toMatch(/rozliczona|zapłacimy|odliczymy/);
       buttons.find((button) => button.text === 'Tak, ta').onPress();
       await waitFor(() => expect(returnPosts()).toEqual([{ exchangeTransferId: 'tr-wymiana', saleId: 'sale-kazek' }]));
-      await waitFor(() => expect(screen.getByText(/przy następnym rozliczeniu odliczymy 15.00 zł/)).toBeTruthy());
+      await waitFor(() => expect(screen.getByText(/Kurtka od Pana Kazka - odjęta z jego rozliczenia/)).toBeTruthy());
     } finally {
       candidates.pop();
     }
@@ -146,7 +147,7 @@ describe('Wymiana: oddana kurtka do MAGAZYNU', () => {
 
     expect(await screen.findByTestId('return-ambiguous-message')).toBeTruthy();
     expect(appAlert).not.toHaveBeenCalledWith('Nie zapisano oddanej kurtki', expect.anything());
-    expect(screen.getByTestId('return-ambiguous-s-b-note').props.children).toContain('Pan Kazek - do rozliczenia');
+    expect(screen.getByTestId('return-ambiguous-s-b-note').props.children).toContain('Pan Kazek');
     fireEvent.press(screen.getByTestId('return-ambiguous-s-a'));
     await waitFor(() => expect(returnPosts()).toEqual([
       { exchangeTransferId: 'tr-wymiana', barcode: '0010701300002' },

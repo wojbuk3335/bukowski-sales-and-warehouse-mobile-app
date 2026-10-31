@@ -5394,13 +5394,12 @@ const Home = () => {
           onClose={() => setCustomerReturnVisible(false)}
           goods={goods}
           sizes={sizes}
+          currencies={availableCurrencies}
           availableFunds={customerReturnVisible ? calculateAvailableFunds() : {}}
-          onSaved={async ({ label, amount, currency, panKazek }) => {
+          onSaved={async ({ label, payments }) => {
             setCustomerReturnVisible(false);
-            const kazekLine = panKazek?.status === 'deduct'
-              ? `\nKurtka od Pana Kazka była rozliczona - przy następnym rozliczeniu odliczymy ${Number(panKazek.paidRate || 0).toFixed(2)} zł.`
-              : (panKazek?.status === 'cancelled' ? '\nKurtka od Pana Kazka - nie zapłacimy za nią.' : '');
-            setSuccessMessage(`Zwrot zapisany: ${label}\nOddano klientowi ${amount.toFixed(2)} ${currency} z dzisiejszej kasy.\nKurtka pojedzie do MAGAZYNU - pojawi się w Dobieraniu dla MAGAZYNU.${kazekLine}`);
+            const paid = payments.map((row) => `${row.amount.toFixed(2)} ${row.currency}`).join(' + ');
+            setSuccessMessage(`Zwrot zapisany: ${label}\nOddano klientowi ${paid} z dzisiejszej kasy.\nKurtka pojedzie do MAGAZYNU - pojawi się w Dobieraniu dla MAGAZYNU.`);
             setSuccessModalVisible(true);
             await Promise.all([fetchFinancialOperations(), fetchTransferredItems()]);
           }}
