@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { CommonActions } from "@react-navigation/native";
+import { markTabFocus, markTabPress } from "../../services/tabTiming"; // pomiar czasu przejść między zakładkami (31.10.2026)
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View } from "react-native";
 import { useContext } from "react";
@@ -68,7 +69,9 @@ const TabLayout = () => {
         )}
         // Kliknięcie aktywnej zakładki otwiera ją od nowa (świeży ekran), jak po wejściu z innej zakładki
         screenListeners={({ navigation, route }) => ({
+          focus: () => markTabFocus(route.name), // pomiar: zakładka na wierzchu
           tabPress: (event) => {
+            markTabPress(route.name); // pomiar: od dotknięcia ikony
             if (!navigation.isFocused()) return;
             event.preventDefault();
             const state = navigation.getState();
