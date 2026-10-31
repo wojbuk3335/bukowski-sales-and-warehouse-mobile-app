@@ -1,5 +1,4 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import { useCallback, useContext, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +13,6 @@ import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Remanencie
 import { comparePlBase } from '../../utils/plSort'; // szybkie sortowanie po polsku (localeCompare blokował ekran)
 const SearchScreen = () => {
-  useRenderTiming('search'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const [showQR, setShowQR] = useState(false);

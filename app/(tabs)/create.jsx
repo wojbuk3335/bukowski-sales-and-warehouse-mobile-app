@@ -1,5 +1,4 @@
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
-import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { GlobalStateContext } from "../../context/GlobalState";
@@ -12,7 +11,6 @@ import Logger from "../../services/logger";
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 export default function Create() {
-  useRenderTiming('create'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { 
     stateData, 

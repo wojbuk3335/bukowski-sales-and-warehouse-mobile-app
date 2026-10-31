@@ -1,5 +1,4 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
-import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import {
   View,
   Text,
@@ -60,7 +59,6 @@ const sameSize = (candidate, info) => !info?.size || info.size === '-' || candid
 const afterModalClose = (fn) => setTimeout(fn, Platform.OS === 'ios' ? 450 : 250);
 
 const Cudzych = () => {
-  useRenderTiming('cudzych'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   const { 

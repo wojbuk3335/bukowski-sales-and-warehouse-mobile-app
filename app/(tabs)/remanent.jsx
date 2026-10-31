@@ -1,6 +1,5 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { comparePl } from '../../utils/plSort'; // szybkie sortowanie po polsku
-import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import {
   View,
   Text,
@@ -31,7 +30,6 @@ import ScanCompareResultModal from '../../components/scanner/ScanCompareResultMo
 import { productNameFromBarcode } from '../../utils/productName';
 import { searchWords as toSearchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Szukaj
 const Remanent = () => {
-  useRenderTiming('remanent'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
   // Dolny pasek zakładek jest nałożony na ekran (position: absolute, wysokość jak w (tabs)/_layout.jsx) -

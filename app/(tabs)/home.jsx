@@ -1,5 +1,4 @@
 import { useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
-import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import { FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'; // Import SafeAreaView for safe area handling
@@ -30,7 +29,6 @@ import { appAlert } from '../../services/appAlert';
 import { router } from 'expo-router'; // „Dopisz kwotę” → zaliczka przez zamówienie (zakładka „Zamów”)
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 const Home = () => {
-  useRenderTiming('home'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const { user, logout } = React.useContext(GlobalStateContext); // Access global state and logout function
   const insets = useSafeAreaInsets(); // Get safe area insets

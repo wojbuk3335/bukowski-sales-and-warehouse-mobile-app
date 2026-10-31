@@ -1,5 +1,4 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, TextInput, FlatList, Platform, Modal } from 'react-native';
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,7 +27,6 @@ import usePullToRefresh from '../../hooks/usePullToRefresh'; // odświeżanie pr
 const RETRY_SAFE_HINT = 'Zamówienie mogło zostać zapisane - naciśnij „Zatwierdź zamówienie” ponownie; nie powstanie duplikat.';
 
 const Profile = () => {
-  useRenderTiming('profile'); // pomiar przerysowania (31.10.2026)
   const insets = useSafeAreaInsets(); // Get safe area insets
   const { colors: themeColors } = useAppTheme(); // 'colors' to już słownik kolorów produktów
   const { logout, user } = useContext(GlobalStateContext); // Access logout function
