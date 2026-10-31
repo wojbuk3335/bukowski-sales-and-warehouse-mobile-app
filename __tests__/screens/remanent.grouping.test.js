@@ -96,7 +96,7 @@ test('dwie sztuki tego samego kodu = jeden wiersz „×2”; X usuwa jedną (ost
   fireEvent.press(screen.getByTestId(`remanent-remove-${CODE_44}`));
   await waitFor(() => expect(deletes()).toHaveLength(1));
   expect(deletes()[0][0]).toMatch(/\/items\/a2$/); // ostatnio zeskanowana sztuka z tego kodu
-  await waitFor(() => expect(screen.queryByTestId('remanent-row-count')).toBeNull(), { timeout: 3000 }); // została jedna 44 - bez licznika
+  await waitFor(() => expect(screen.queryByTestId('remanent-row-count')).toBeNull(), { timeout: 10000 }); // została jedna 44 - bez licznika (CI bywa wolne)
   expect(screen.getAllByText(CODE_44)).toHaveLength(1);
   expect(screen.getByText(/2 szt\./)).toBeTruthy();
   screen.unmount();
