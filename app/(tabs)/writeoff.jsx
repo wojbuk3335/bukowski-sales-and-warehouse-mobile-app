@@ -1,4 +1,5 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardSafeScreen, KeyboardSafeOverlay } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
@@ -26,6 +27,7 @@ import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // 
 import { isCudzichReturn, isReturnToWarehouse } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie / od Cudzicha
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka na liście Stanu (bez polskich znaków; całe słowo wygrywa z początkiem słowa)
 const WriteOff = () => {
+    useRenderTiming('writeoff'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
     const insets = useSafeAreaInsets(); // Get safe area insets
     const {

@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { CommonActions } from "@react-navigation/native";
-import { markTabFocus, markTabPress } from "../../services/tabTiming"; // pomiar czasu przejść między zakładkami (31.10.2026)
+import { markTabFocus, markTabPress, startStallWatchdog, useRenderTiming } from "../../services/tabTiming"; // pomiar czasu przejść między zakładkami (31.10.2026)
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View } from "react-native";
 import { useContext } from "react";
@@ -40,6 +40,8 @@ const AddTabIcon = ({ focused }) => (
 );
 
 const TabLayout = () => {
+  useRenderTiming('tabs-layout'); // pomiar: przerysowanie samego układu zakładek
+  startStallWatchdog(); // pomiar: przestoje aplikacji
   const { user } = useContext(GlobalStateContext);
   const isParzygnat = user?.symbol === 'P';
   const insets = useSafeAreaInsets();
