@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
+import { comparePl } from '../utils/plSort'; // szybkie sortowanie po polsku
 import { GlobalStateContext } from '../context/GlobalState';
 import tokenService from '../services/tokenService';
 import { getApiUrl } from '../config/api';
@@ -22,7 +23,7 @@ export const compareSizes = (a, b) => {
   const [groupB, valueB] = sizeRank(b);
   if (groupA !== groupB) return groupA - groupB;
   if (valueA !== valueB) return valueA - valueB;
-  return String(a).localeCompare(String(b), 'pl');
+  return comparePl(a, b);
 };
 
 const toList = (value, key) => (Array.isArray(value) ? value : (value?.data || value?.[key] || []));

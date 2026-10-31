@@ -1,4 +1,5 @@
 import React from 'react';
+import { comparePl } from '../utils/plSort'; // szybkie sortowanie po polsku
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createThemedStyles, tc } from '../context/ThemeContext';
@@ -82,7 +83,7 @@ export const pointColor = (symbol) => {
 export const pointColorMap = (symbols) => {
   const unique = [...new Set((symbols || []).map((sym) => String(sym || '').trim()).filter(Boolean))]
     .filter((sym) => !sym.toLowerCase().includes('magazyn'))
-    .sort((x, y) => x.localeCompare(y, 'pl'));
+    .sort(comparePl);
   const map = new Map(unique.map((sym, index) => [sym, POINT_COLORS[index % POINT_COLORS.length]]));
   return (symbol) => {
     const key = String(symbol || '').trim();

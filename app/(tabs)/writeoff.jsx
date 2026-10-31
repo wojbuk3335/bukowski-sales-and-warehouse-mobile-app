@@ -1,4 +1,5 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { comparePl } from '../../utils/plSort'; // szybkie sortowanie po polsku
 import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -167,6 +168,8 @@ const WriteOff = () => {
 
     // isRefreshAction: true = przeciągnięcie listy (mały spinner u góry), false = pełny ekran ładowania,
     // 'silent' = odświeżenie w tle po zdarzeniu z serwera (bez spinnera i bez okienka błędu - lista zostaje jak była)
+    // Czy lista była już raz wczytana - kolejne wejścia na zakładkę odświeżają ją w tle (bez zasłaniania ekranu)
+    const loadedOnceRef = useRef(false);
     const fetchAllRequiredData = async (isRefreshAction = false) => {
         const silent = isRefreshAction === 'silent';
         // Ustawienie odpowiedniego stanu ładowania
@@ -185,9 +188,10 @@ const WriteOff = () => {
             await new Promise(resolve => setTimeout(resolve, 50));
         }
         
-        // Set up a 10-second timeout for the entire operation
+        // Set up a 10-second timeout for the entire operation (sprzątany po zakończeniu - bez wiszącego zegara)
+        let timeoutId = null;
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
                 reject(new Error('Timeout - backend nie odpowiada po 10 sekundach'));
             }, 10000);
         });
@@ -206,6 +210,7 @@ const WriteOff = () => {
                 dataPromise,
                 timeoutPromise
             ]);
+            loadedOnceRef.current = true;
             
             // fetchUsersData() będzie wywoływane automatycznie przez useEffect gdy globalUsers się zaktualizuje
             
@@ -218,6 +223,7 @@ const WriteOff = () => {
             
             if (!silent) setShowErrorModal(true);
         } finally {
+            clearTimeout(timeoutId);
             if (silent) {
                 // bez spinnera
             } else if (isRefreshAction) {
@@ -235,7 +241,10 @@ const WriteOff = () => {
 
     useFocusEffect(
         React.useCallback(() => {
-            fetchAllRequiredData(false); // false = nie jest to refresh action
+            // 31.10.2026 (pomiar: „Przejście na Stan: gotowa po 4472 ms”): dawniej KAŻDE wejście zasłaniało listę ekranem
+            // ładowania na czas 5 zapytań do serwera. Teraz ładowanie tylko przy pierwszym wejściu; potem od razu poprzednia
+            // lista, a świeże dane dochodzą w tle (jak przy odświeżaniu na żywo)
+            fetchAllRequiredData(loadedOnceRef.current ? 'silent' : false);
             
             return () => {
                 // Cleanup when tab unfocused
@@ -799,7 +808,7 @@ const fetchSales = async () => {
         return (goodsList || [])
             .filter((good) => good?.fullName && good?.code)
             .filter((good) => words.every((word) => `${good.fullName} ${good.category || ''}`.toLowerCase().includes(word)))
-            .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), 'pl'))
+            .sort((a, b) => comparePl(a.fullName, b.fullName))
             .slice(0, 60);
     }, [goodsList, returnPickerSearch]);
     const chooseReturnPickerGood = (good) => {

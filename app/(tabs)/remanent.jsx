@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
+import { comparePl } from '../../utils/plSort'; // szybkie sortowanie po polsku
 import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
 import {
   View,
@@ -136,7 +137,7 @@ const Remanent = () => {
     const [groupB, valueB] = sizeRank(b);
     if (groupA !== groupB) return groupA - groupB;
     if (valueA !== valueB) return valueA - valueB;
-    return String(a).localeCompare(String(b), "pl");
+    return comparePl(a, b);
   };
 
   const FILTER_CATEGORIES = ["Kurtki kożuchy futra", "Torebki", "Portfele", "Pozostały asortyment"];
@@ -247,7 +248,7 @@ const Remanent = () => {
     if (!category) return [];
     if (category === "Pozostały asortyment") return REMAINING_CATEGORY_LABELS;
     const items = new Set(goodsList.filter((good) => good.category === category).map(filterItemOfGood).filter(Boolean));
-    return [...items].sort((a, b) => a.localeCompare(b, "pl"));
+    return [...items].sort(comparePl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [advancedFilters.category, goodsList, stockByKod]);
 
@@ -261,7 +262,7 @@ const Remanent = () => {
         .map((good) => good.bagProduct)
         .filter(Boolean)
     );
-    return [...models].sort((a, b) => a.localeCompare(b, "pl"));
+    return [...models].sort(comparePl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [advancedFilters.category, advancedFilters.items, goodsList]);
 
@@ -276,7 +277,7 @@ const Remanent = () => {
     });
     const colorNames = [...new Set(
       relevantGoods.map((good) => good.color?.Kol_Opis || colorByKod[String(good.code || "").slice(3, 5)] || "").filter(Boolean)
-    )].sort((a, b) => a.localeCompare(b, "pl"));
+    )].sort(comparePl);
     setAvailableColors(colorNames);
     // wybrany kolor, którego nie ma w zawężonej liście, przestaje obowiązywać
     if (advancedFilters.colors.some((color) => !colorNames.includes(color))) {

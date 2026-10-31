@@ -1,6 +1,6 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRenderTiming } from '../../services/tabTiming'; // pomiar przerysowania zakładki
-import { useCallback, useContext, useState } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlobalStateContext } from '../../context/GlobalState';
@@ -12,6 +12,7 @@ import { BackButton, MenuCard, PointPill, pointColorMap, ScreenHeader, look } fr
 import { KeyboardSafeScreen } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Remanencie
+import { comparePlBase } from '../../utils/plSort'; // szybkie sortowanie po polsku (localeCompare blokował ekran)
 const SearchScreen = () => {
   useRenderTiming('search'); // pomiar przerysowania (31.10.2026)
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
@@ -48,19 +49,20 @@ const SearchScreen = () => {
 
   // Wspólna wyszukiwarka (utils/searchText): całe słowo wygrywa z początkiem słowa („Dominik” nie pokazuje „Dominika”),
   // bez polskich znaków, końcówki kolorów bez znaczenia, fragment kodu kreskowego działa
-  const filteredData = [...filterBySearch(
-    stateData || [],
-    (item) => [item.fullName, item.size, item.symbol, item.barcode, item.color],
-    searchWords(searchText)
-  )].sort((a, b) => { // kopia: sortowanie nie może zmieniać tablicy z kontekstu
-    // Sortowanie alfabetyczne według fullName
-    const nameA = (a.fullName || '').toLowerCase();
-    const nameB = (b.fullName || '').toLowerCase();
-    return nameA.localeCompare(nameB, 'pl', { sensitivity: 'base' });
-  }) || [];
+  // 31.10.2026 (wydajność): dawniej przy KAŻDYM przerysowaniu - także samego menu, bez szukania - cały stan wszystkich
+  // punktów był przeszukiwany i sortowany localeCompare('pl'), co na Androidzie blokowało aplikację ponad 4 s przy wejściu
+  // na zakładkę. Teraz: sortowanie raz na zmianę stanu (wspólny Intl.Collator), filtrowanie tylko przy otwartej
+  // wyszukiwarce i tylko przy zmianie wpisanego tekstu (filterBySearch zachowuje kolejność).
+  const sortedState = useMemo(
+    () => [...(stateData || [])].sort((a, b) => comparePlBase(a.fullName || '', b.fullName || '')), // kopia: nie zmieniamy tablicy z kontekstu
+    [stateData]
+  );
+  const filteredData = useMemo(() => (showSearchBar
+    ? filterBySearch(sortedState, (item) => [item.fullName, item.size, item.symbol, item.barcode, item.color], searchWords(searchText))
+    : []), [sortedState, searchText, showSearchBar]);
 
   // Kolor plakietki dla każdego punktu (różne kolory, magazyn pomarańczowy)
-  const colorOf = pointColorMap((stateData || []).map((entry) => entry.symbol));
+  const colorOf = useMemo(() => pointColorMap((stateData || []).map((entry) => entry.symbol)), [stateData]);
 
   if (showQR) {
     return (
