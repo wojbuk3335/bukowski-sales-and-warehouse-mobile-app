@@ -18,6 +18,7 @@ jest.mock('../../services/appAlert', () => ({ appAlert: jest.fn() }));
 
 import PanKazek, { settlementTotal } from '../../app/pan-kazek';
 import tokenService from '../../services/tokenService';
+import { appAlert } from '../../services/appAlert';
 
 const response = (data, status = 200) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(data) });
 const ITEMS = [
@@ -31,6 +32,11 @@ beforeEach(() => {
     const text = String(url);
     if (text.includes('/pan-kazek/pay-all')) return response({ message: 'Rozliczono' });
     if (text.includes('/pan-kazek/months')) return response({ data: [] });
+    if (text.includes('/undo')) return response({ message: 'Cofnięto rozliczenie: 3 kurtek wróciło do rozliczenia.' });
+    if (text.includes('/pan-kazek/settlements')) return response({ data: [
+      { _id: 'st1', createdAt: '2026-10-31T09:00:00Z', itemsCount: 3, ratePerItem: 150, deductCount: 0, deductAmount: 0, totalAmount: 450, paidBy: 'admin@x.pl', canUndo: true },
+      { _id: 'st0', createdAt: '2026-10-01T09:00:00Z', itemsCount: 2, ratePerItem: 10, deductCount: 0, deductAmount: 0, totalAmount: 20, paidBy: 'admin@x.pl' },
+    ] });
     return response({ data: ITEMS, allTimeStats: { total: 2, pending: 1, paid: 0 }, filteredStats: { total: 2, pending: 1, paid: 0 }, toSettle: { pendingCount: 200, deductCount: 1, deductAmount: 15 } });
   });
 });
@@ -55,4 +61,16 @@ test('rozliczenie wszystkich oczekujących stawką admina; statusy zwrotu; rozli
     const call = tokenService.authenticatedFetch.mock.calls.find(([url]) => String(url).includes('/pay-all'));
     expect(JSON.parse(call[1].body)).toEqual({ ratePerItem: 15 });
   });
+});
+
+test('cofnięcie ostatniego rozliczenia: „Cofnij” tylko przy nim, potwierdzenie, zapytanie do serwera', async () => {
+  const screen = render(<PanKazek />);
+  const buttons = await screen.findAllByTestId('pan-kazek-undo');
+  expect(buttons).toHaveLength(1);
+  fireEvent.press(buttons[0]);
+  const [, , confirmButtons] = appAlert.mock.calls.find(([title]) => title === 'Cofnij rozliczenie');
+  await confirmButtons.find((button) => button.text === 'Cofnij').onPress();
+  const call = tokenService.authenticatedFetch.mock.calls.find(([url]) => String(url).includes('/undo'));
+  expect(String(call[0])).toContain('/pan-kazek/settlements/st1/undo');
+  expect(call[1]).toEqual({ method: 'POST' });
 });

@@ -77,6 +77,7 @@ const PanKazek = () => {
 
   const [ratePerItem, setRatePerItem] = useState(""); // stawka za kurtkę - decyduje admin
   const [toSettle, setToSettle] = useState(null); // wszystkie oczekujące + odliczenia (niezależnie od filtra)
+  const [settlements, setSettlements] = useState([]); // historia rozliczeń (ostatnie z „Cofnij” przy pomyłce)
   const [processing, setProcessing] = useState(false);
 
   const years = useMemo(() => {
@@ -125,11 +126,39 @@ const PanKazek = () => {
         filteredStats: data.filteredStats || { total: 0, pending: 0, paid: 0 },
       });
       setToSettle(data.toSettle || null);
+      const history = await tokenService.authenticatedFetch(getApiUrl("/pan-kazek/settlements")).catch(() => null);
+      if (history?.ok) setSettlements(((await history.json()).data || []).slice(0, 5));
     } catch (error) {
       appAlert("Błąd", "Nie udało się pobrać listy Pana Kazka");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Cofnięcie ostatniego rozliczenia (pomyłka przy stawce) - tylko w dniu rozliczenia, warunki pilnuje serwer
+  const handleUndo = (settlement) => {
+    appAlert(
+      "Cofnij rozliczenie",
+      `${settlement.itemsCount} kurtek × ${formatPln(settlement.ratePerItem)} = ${formatPln(settlement.totalAmount)}\nKurtki wrócą do „Do rozliczenia”.`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Cofnij",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const response = await tokenService.authenticatedFetch(getApiUrl(`/pan-kazek/settlements/${settlement._id}/undo`), { method: "POST" });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(data?.message || "Nie udało się cofnąć rozliczenia");
+              appAlert("Cofnięto", data.message || "Rozliczenie cofnięte");
+              await loadProducts();
+            } catch (error) {
+              appAlert("Błąd", error.message || "Nie udało się cofnąć rozliczenia");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const loadMonths = async () => {
@@ -405,6 +434,31 @@ const PanKazek = () => {
         ) : (
           items.map(renderItem)
         )}
+
+        {/* Ostatnie rozliczenia: stawka, kurtki, odliczenia, kwota; „Cofnij” tylko przy ostatnim z dzisiaj */}
+        {settlements.length > 0 && (
+          <View style={styles.filterCard} testID="pan-kazek-settlements">
+            <Text style={styles.sectionTitle}>Ostatnie rozliczenia</Text>
+            {settlements.map((item) => (
+              <View key={item._id} style={[styles.settlementRow, item.undoneAt && { opacity: 0.5 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.value}>
+                    {`${formatDate(item.createdAt)} · ${item.itemsCount} × ${formatPln(item.ratePerItem)}${item.deductCount > 0 ? ` − ${formatPln(item.deductAmount)}` : ""}`}
+                  </Text>
+                  <Text style={styles.label}>
+                    {item.undoneAt ? `Cofnięte ${formatDate(item.undoneAt)}` : `Wypłacono ${formatPln(item.totalAmount)} · ${item.paidBy}`}
+                  </Text>
+                </View>
+                {item.canUndo && !item.undoneAt ? (
+                  <TouchableOpacity style={styles.undoButton} onPress={() => handleUndo(item)} testID="pan-kazek-undo">
+                    <Ionicons name="arrow-undo" size={16} color="#EF4444" />
+                    <Text style={styles.undoText}>Cofnij</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <Modal visible={showYearModal} transparent animationType="fade">
@@ -670,6 +724,29 @@ const styles = createThemedStyles(() => StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
     justifyContent: "center",
+  },
+  settlementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: tc('border', "#1E293B"),
+  },
+  undoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.5)",
+  },
+  undoText: {
+    color: "#EF4444",
+    fontSize: 13,
+    fontWeight: "700",
   },
   payAllText: {
     color: "#fff",
