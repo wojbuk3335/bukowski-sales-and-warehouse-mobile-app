@@ -15,7 +15,8 @@ import { saleFormStyles as sf } from '../../components/SaleFormStyles'; // edycj
 import { applyChangeToCash, computePaymentBalance, formatMoney, inferPaymentMode, plnPerUnit, plnToCurrency, roundDownMoney } from '../../utils/paymentBalance'; // „Do dopłaty” / reszta jak przy sprzedaży
 import { sanitizeAmountInput } from '../../utils/amountInput';
 import { pointDisplayName, pointNameBySymbol } from '../../utils/pointName'; // pełna nazwa punktu zamiast symbolu
-import { isExchangeReturn } from '../../utils/exchangeReturn'; // zwrot od klienta przy wymianie
+import { isClientReturn } from '../../utils/exchangeReturn'; // zwrot od klienta (przy wymianie albo „Zwrot kurtki”)
+import CustomerReturnModal from '../../components/CustomerReturnModal'; // „Zwrot kurtki”: pieniądze z kasy, kurtka do MAGAZYNU
 import { warsawToday } from '../../utils/warsawDay'; // dzień polski, nie UTC (S16)
 import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
@@ -197,6 +198,7 @@ const Home = () => {
   const [tempCurrencyRate, setTempCurrencyRate] = useState(""); // Temporary rate input value
   const [currencyRateModalVisible, setCurrencyRateModalVisible] = useState(false); // Modal for editing currency rate
   const [panKazekModalVisible, setPanKazekModalVisible] = useState(false); // Modal for Pan Kazek confirmation
+  const [customerReturnVisible, setCustomerReturnVisible] = useState(false); // „Zwrot kurtki” (klient oddaje kurtkę, pieniądze z kasy)
   const [panKazekItems, setPanKazekItems] = useState([]); // Items added to Pan Kazek list
   
   // States for add amount currency rate input
@@ -2233,6 +2235,14 @@ const Home = () => {
       });
       
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        // np. zwrot kurtki przyjętej już w MAGAZYNIE - komunikat serwera
+        if (data?.message || data?.error) {
+          setCancelDeductionModalVisible(false);
+          setErrorMessage(data.message || data.error);
+          setErrorModalVisible(true);
+          return;
+        }
         throw new Error("Failed to cancel deduction");
       }
       
@@ -2240,6 +2250,7 @@ const Home = () => {
       setCancelDeductionModalVisible(false);
       setSelectedDeductionItem(null);
       await fetchFinancialOperations();
+      if (selectedDeductionItem.type === 'refund') await fetchTransferredItems(); // anulowany zwrot kurtki - kurtka nie jedzie do MAGAZYNU
       
       setSuccessMessage("Operacja została anulowana.");
       setSuccessModalVisible(true);
@@ -2816,10 +2827,10 @@ const Home = () => {
             // Kurtka oddana przez klienta przy wymianie (26.10.2026): osobna sekcja „Zwrot od klienta” - serwer od razu
             // oznacza ją jako odpisaną z punktu, ale „Przetworzone” dopiero po dopisaniu w MAGAZYNIE (yellowProcessed)
             const transferredToday = transferredItems.filter(
-              item => item.date && item.date.startsWith(today) && item.transfer_to !== 'SOLD' && !isExchangeReturn(item)
+              item => item.date && item.date.startsWith(today) && item.transfer_to !== 'SOLD' && !isClientReturn(item)
             );
             const returnsToday = transferredItems.filter(
-              item => item.date && item.date.startsWith(today) && isExchangeReturn(item)
+              item => item.date && item.date.startsWith(today) && isClientReturn(item)
             );
             const receivedToday = receivedItems.filter(
               item => item.date && item.date.startsWith(today)
@@ -3122,6 +3133,21 @@ const Home = () => {
                     <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
                   </TouchableOpacity>
                   
+                  <TouchableOpacity
+                    testID="customer-return-button"
+                    style={styles.menuCard}
+                    onPress={() => setCustomerReturnVisible(true)}
+                  >
+                    <View style={[styles.menuCardIcon, { backgroundColor: '#F59E0B26' }]}>
+                      <Ionicons name="return-down-back" size={26} color="#F59E0B" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuCardTitle}>Zwrot kurtki</Text>
+                      <Text style={styles.menuCardSubtitle}>Klient oddaje kurtkę - pieniądze z kasy, kurtka do MAGAZYNU</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={tc('muted', '#94A3B8')} />
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     testID="add-amount-button"
                     style={styles.menuCard}
@@ -5361,6 +5387,24 @@ const Home = () => {
             </View>
           </View>
         </Modal>
+
+        {/* Zwrot kurtki od klienta: skaner / z bazy, Pan Kazek, kwota, powód */}
+        <CustomerReturnModal
+          visible={customerReturnVisible}
+          onClose={() => setCustomerReturnVisible(false)}
+          goods={goods}
+          sizes={sizes}
+          availableFunds={customerReturnVisible ? calculateAvailableFunds() : {}}
+          onSaved={async ({ label, amount, currency, panKazek }) => {
+            setCustomerReturnVisible(false);
+            const kazekLine = panKazek?.status === 'deduct'
+              ? `\nKurtka od Pana Kazka była rozliczona - przy następnym rozliczeniu odliczymy ${Number(panKazek.paidRate || 0).toFixed(2)} zł.`
+              : (panKazek?.status === 'cancelled' ? '\nKurtka od Pana Kazka - nie zapłacimy za nią.' : '');
+            setSuccessMessage(`Zwrot zapisany: ${label}\nOddano klientowi ${amount.toFixed(2)} ${currency} z dzisiejszej kasy.\nKurtka pojedzie do MAGAZYNU - pojawi się w Dobieraniu dla MAGAZYNU.${kazekLine}`);
+            setSuccessModalVisible(true);
+            await Promise.all([fetchFinancialOperations(), fetchTransferredItems()]);
+          }}
+        />
 
         {/* „Od Pana Kazka” - potwierdzenie (wygląd jak pozostałe okienka) */}
         <Modal

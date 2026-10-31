@@ -9,8 +9,15 @@ export const isExchangeReturn = (transfer) => !!transfer?.exchangeReturnFor
 export const isCudzichReturn = (transfer) => !!transfer?.cudzichReturnFor
   || String(transfer?.productId || '').startsWith('CUDZICH_RETURN_');
 
-// Kurtka w drodze do MAGAZYNU, która nigdy nie była na stanie punktu (zwrot z wymiany albo od Cudzicha)
-export const isReturnToWarehouse = (transfer) => isExchangeReturn(transfer) || isCudzichReturn(transfer);
+// Zwrot kurtki od klienta (31.10.2026): klient oddał kurtkę i wziął pieniądze z kasy - jedzie do MAGAZYNU jak przy wymianie
+export const isCustomerReturn = (transfer) => !!transfer?.customerReturnOperationId
+  || String(transfer?.productId || '').startsWith('CUSTOMER_RETURN_');
+
+// Kurtka oddana przez klienta (przy wymianie albo zwykły zwrot) - sekcja „Zwrot od klienta” w Sprzedaży
+export const isClientReturn = (transfer) => isExchangeReturn(transfer) || isCustomerReturn(transfer);
+
+// Kurtka w drodze do MAGAZYNU, która nigdy nie była na stanie punktu (zwrot z wymiany, od klienta albo od Cudzicha)
+export const isReturnToWarehouse = (transfer) => isClientReturn(transfer) || isCudzichReturn(transfer);
 
 // Czy zwrot jest już dopisany do MAGAZYNU
 export const isExchangeReturnAccepted = (transfer) => isExchangeReturn(transfer) && transfer?.yellowProcessed === true;
