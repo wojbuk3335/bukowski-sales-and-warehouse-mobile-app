@@ -15,11 +15,13 @@ jest.mock('../../services/quickLogin', () => ({
   default: { getSaved: jest.fn(), availability: jest.fn(), unlock: jest.fn() },
 }));
 jest.mock('../../services/tokenService', () => ({ __esModule: true, default: { isAuthenticated: jest.fn() } }));
+jest.mock('../../services/appUpdates', () => ({ checkAndApplyUpdate: jest.fn(() => Promise.resolve({ status: 'up-to-date' })) }));
 
 const quickLogin = require('../../services/quickLogin').default;
 const tokenService = require('../../services/tokenService').default;
 const { GlobalStateContext } = require('../../context/GlobalState');
 const AppLock = require('../../components/AppLock').default;
+const { checkAndApplyUpdate } = require('../../services/appUpdates');
 
 let appStateListener;
 beforeEach(() => {
@@ -86,3 +88,16 @@ test('powrót po 5 min w tle blokuje, po krótkiej przerwie nie; „Wyloguj” w
   expect(logout).toHaveBeenCalled();
   spy.mockRestore();
 });
+
+// 31.10.2026: blokada najpierw sprawdza nową wersję (dawniej tylko ekran logowania) - przy nowej wersji aplikacja się
+// przeładowuje i okno odblokowania nie wyskakuje; bez nowej wersji - od razu okno odblokowania
+test('blokada: najpierw aktualizacja, przy nowej wersji bez okna odblokowania', async () => {
+  checkAndApplyUpdate.mockResolvedValueOnce({ status: 'reloading' });
+  const screen = renderLock();
+  await waitFor(() => expect(screen.getByTestId('app-lock')).toBeTruthy());
+  await waitFor(() => expect(checkAndApplyUpdate).toHaveBeenCalledTimes(1));
+  await act(async () => { await Promise.resolve(); });
+  expect(quickLogin.unlock).not.toHaveBeenCalled();
+  screen.unmount();
+});
+

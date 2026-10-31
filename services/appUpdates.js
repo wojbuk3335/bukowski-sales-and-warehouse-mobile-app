@@ -9,38 +9,130 @@ try {
   Updates = null;
 }
 
-// Aktualizacje OTA (EAS Update) są sprawdzane tylko na ekranie logowania: o północy backend
-// wylogowuje wszystkich, więc rano każdy przechodzi przez logowanie i dostaje nową wersję
-// zanim zacznie pracę. W ciągu dnia nic się nie zmienia (app.json: checkAutomatically NEVER).
+// Aktualizacje OTA (EAS Update). app.json: checkAutomatically NEVER - sprawdzamy sami, w bezpiecznych chwilach:
+//  - ekran logowania (sign-in) - jak dotąd,
+//  - blokada aplikacji (odblokowanie wzorem / PIN-em / odciskiem przy otwarciu i po 5 min w tle) - 31.10.2026:
+//    dawniej tam nie sprawdzaliśmy, a kto tylko odblokowywał aplikację (bez ekranu logowania), zostawał na starej wersji,
+//  - otwarcie aplikacji i powrót po 5 min w tle (components/AppUpdater) - nowa wersja wgrywa się od razu,
+//  - krótszy powrót z tła - pobranie po cichu; wgra się przy następnym otwarciu / bezpiecznej chwili.
+// Wszystkie miejsca korzystają z JEDNEGO sprawdzania naraz (nie pobieramy dwa razy).
 
 const DEFAULT_TIMEOUT_MS = 10000;
+
+let run = null; // trwające sprawdzanie + pobieranie (wspólne dla wszystkich wywołań)
+let stage = null; // null | 'checking' | 'downloading' | 'downloaded' | 'reloading'
+let downloaded = false; // nowa wersja pobrana - wgra się przy reloadAsync albo następnym uruchomieniu
+let reloading = false;
+const listeners = new Set();
+
+const setStage = (next) => {
+  stage = next;
+  listeners.forEach((listener) => {
+    try { listener(next); } catch (_error) { /* ignore */ }
+  });
+};
+
+// Etap aktualizacji dla nakładki (components/AppUpdater). Zwraca funkcję wypisującą.
+export const subscribeUpdateStage = (listener) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+export const getUpdateStage = () => stage;
+
+const updatesEnabled = () => !__DEV__ && Boolean(Updates?.isEnabled);
+
+// Sprawdzenie i pobranie nowej wersji (bez wgrywania). Wynik: 'up-to-date' | 'downloaded' | 'skipped' | 'error'
+const fetchLatest = () => {
+  if (!updatesEnabled()) return Promise.resolve("skipped");
+  if (downloaded) return Promise.resolve("downloaded");
+  if (!run) {
+    run = (async () => {
+      setStage("checking");
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (!check?.isAvailable) {
+          setStage(null);
+          return "up-to-date";
+        }
+        setStage("downloading");
+        await Updates.fetchUpdateAsync();
+        downloaded = true;
+        setStage("downloaded");
+        return "downloaded";
+      } catch (_error) {
+        setStage(null);
+        return "error";
+      }
+    })().finally(() => {
+      run = null;
+    });
+  }
+  return run;
+};
+
+// Wgranie pobranej wersji (przeładowanie aplikacji)
+const applyDownloaded = async (onApplying) => {
+  if (reloading) return { status: "reloading" };
+  reloading = true;
+  onApplying?.();
+  setStage("reloading");
+  try {
+    await Updates.reloadAsync();
+    return { status: "reloading" };
+  } catch (error) {
+    reloading = false;
+    setStage("downloaded");
+    return { status: "error", error };
+  }
+};
 
 // Sprawdza i instaluje aktualizację; przeładowuje aplikację, gdy jest nowa wersja.
 // Limit dotyczy sprawdzenia dostępności; pobieranie trwa do sukcesu albo błędu.
 export const checkAndApplyUpdate = async ({ timeoutMs = DEFAULT_TIMEOUT_MS, onDownloading, onApplying } = {}) => {
-  if (__DEV__ || !Updates?.isEnabled) return { status: "skipped" };
+  if (!updatesEnabled()) return { status: "skipped" };
+  if (downloaded) return applyDownloaded(onApplying);
 
-  let timeoutId;
-  try {
-    const check = await Promise.race([
-      Updates.checkForUpdateAsync(),
-      new Promise((resolve) => {
-        timeoutId = setTimeout(() => resolve(null), timeoutMs);
-      }),
-    ]);
-    clearTimeout(timeoutId);
-    if (!check) return { status: "timeout" };
-    if (!check.isAvailable) return { status: "up-to-date" };
+  const result = await new Promise((resolve) => {
+    let started = stage === "downloading"; // pobieranie już trwa (np. zaczęte przez inny ekran)
+    if (started) onDownloading?.();
+    const timer = setTimeout(() => {
+      if (!started) resolve("timeout");
+    }, timeoutMs);
+    const unsubscribe = subscribeUpdateStage((next) => {
+      if (next === "downloading" && !started) {
+        started = true;
+        clearTimeout(timer);
+        onDownloading?.();
+      }
+    });
+    fetchLatest().then((value) => {
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(value);
+    });
+  });
 
-    onDownloading?.();
-    await Updates.fetchUpdateAsync();
-    onApplying?.();
-    await Updates.reloadAsync();
-    return { status: "reloading" };
-  } catch (error) {
-    clearTimeout(timeoutId);
-    return { status: "error", error };
-  }
+  if (result === "downloaded") return applyDownloaded(onApplying);
+  if (result === "timeout") return { status: "timeout" }; // pobieranie (jeśli ruszy) dokończy się w tle
+  if (result === "error") return { status: "error" };
+  return { status: result };
+};
+
+// Pobranie w tle bez wgrywania (krótki powrót z tła): nowa wersja wgra się przy następnym otwarciu
+export const prefetchUpdate = () => fetchLatest();
+
+export const isUpdateDownloaded = () => downloaded;
+
+// Tylko testy: stan modułu od zera
+export const __resetUpdatesForTests = () => {
+  run = null;
+  stage = null;
+  downloaded = false;
+  reloading = false;
+  listeners.clear();
+};
+export const __setUpdatesModuleForTests = (module) => {
+  Updates = module;
 };
 
 const formatDateTime = (date) => {

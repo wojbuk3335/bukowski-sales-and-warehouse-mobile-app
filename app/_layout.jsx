@@ -14,6 +14,7 @@ import { enableScreenCaptureProtection } from '../services/screenCapture'; // mo
 import AppDialogHost from '../components/AppDialogHost'; // wspólne okienka zamiast Alert.alert
 import ActivityTracker from '../components/ActivityTracker'; // dziennik aktywności: ekrany, zrzuty, tło
 import AppLock from '../components/AppLock'; // szybkie logowanie: blokada przy otwarciu i po 5 min w tle
+import AppUpdater from '../components/AppUpdater'; // aktualizacja OTA przy otwarciu i po powrocie z tła (nad blokadą)
 
 // Configure axios baseURL globally
 axios.defaults.baseURL = API_CONFIG.BASE_URL;
@@ -136,6 +137,7 @@ const RootLayout = () => {
           <AppDialogHost />
           <ActivityTracker />
           <AppLock />
+          <AppUpdater />
         </GlobalStateProvider>
       </AuthProvider>
       </ThemeProvider>

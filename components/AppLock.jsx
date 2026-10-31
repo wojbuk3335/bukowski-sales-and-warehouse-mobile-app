@@ -10,6 +10,7 @@ import { GlobalStateContext } from '../context/GlobalState';
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext';
 import { look } from './AdminLook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkAndApplyUpdate } from '../services/appUpdates'; // nowa wersja przed odblokowaniem (31.10.2026)
 
 export const LOCK_AFTER_MS = 5 * 60 * 1000;
 
@@ -70,9 +71,16 @@ const AppLock = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Okno odblokowania od razu po zablokowaniu
+    // Po zablokowaniu: najpierw nowa wersja aplikacji (wgrywa się od razu - przed odblokowaniem nikt nie pracuje;
+    // dawniej blokada nie sprawdzała aktualizacji i kto tylko odblokowywał aplikację, zostawał na starej wersji),
+    // potem okno odblokowania
     useEffect(() => {
-        if (locked) tryUnlock();
+        if (!locked) return undefined;
+        let active = true;
+        checkAndApplyUpdate().then((result) => {
+            if (active && result?.status !== 'reloading') tryUnlock();
+        });
+        return () => { active = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [locked?.userId]);
 
