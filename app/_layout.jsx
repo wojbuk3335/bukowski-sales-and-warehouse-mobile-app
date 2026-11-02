@@ -133,6 +133,7 @@ const RootLayout = () => {
             <Stack.Screen name="payroll" options={{ headerShown: false }} />
             <Stack.Screen name="pan-kazek" options={{ headerShown: false }} />
             <Stack.Screen name="print-labels" options={{ headerShown: false }} />
+            <Stack.Screen name="remanent-magazyn" options={{ headerShown: false }} />
           </Stack>
           <AppDialogHost />
           <ActivityTracker />

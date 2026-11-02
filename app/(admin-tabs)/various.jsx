@@ -51,6 +51,14 @@ const Various = () => {
       color: "#DC2626",
     },
     {
+      id: "warehouse-remanent",
+      title: "Remanent magazynu",
+      subtitle: "Policz towar w magazynie: produkt z bazy + ilość sztuk, potem „Sprawdź”",
+      icon: "clipboard",
+      route: "/remanent-magazyn",
+      color: "#8B5CF6",
+    },
+    {
       id: "products",
       title: "Lista produktów",
       subtitle: "Zarządzaj produktami w systemie",

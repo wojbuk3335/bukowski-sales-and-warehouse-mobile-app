@@ -21,21 +21,34 @@ import useLiveRefresh from '../../services/useLiveRefresh'; // skany drugiego te
 import Logger from '../../services/logger'; // Import logger service
 import { getApiUrl } from '../../config/api';
 import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../config/remainingProductTypes';
+import { router } from 'expo-router';
 import LogoutButton from '../../components/LogoutButton';
-import { ScreenHeader } from '../../components/AdminLook';
+import { ScreenHeader, PageHeader } from '../../components/AdminLook';
+import ProductBasePicker from '../../components/scanner/ProductBasePicker'; // remanent MAGAZYNU: produkt z bazy + ilość
 import { KeyboardSafeOverlay } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola w okienku
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
 import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
 import { productNameFromBarcode } from '../../utils/productName';
 import { searchWords as toSearchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Szukaj
-const Remanent = () => {
+// symbol (opcjonalnie): remanent INNEGO punktu robiony przez admina - dziś MAGAZYN (2.11.2026, ekran /remanent-magazyn).
+// Towar w magazynie nie ma naklejonych metek, więc obok skanera jest „Z bazy” z ilością sztuk (model + kolor + rozmiar: N),
+// a liczbę sztuk pozycji można poprawić dotykając ×N. Serwer dostaje ?symbol=…, resztę liczy jak dla punktu.
+// Bez symbolu: zakładka Remanent sprzedawcy, jak dotąd.
+const Remanent = ({ symbol: targetSymbol = null } = {}) => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
+  const isAdminTarget = Boolean(targetSymbol);
   // Dolny pasek zakładek jest nałożony na ekran (position: absolute, wysokość jak w (tabs)/_layout.jsx) -
-  // rezerwujemy jego pełną wysokość, żeby przyciski na dole nie chowały się pod nim.
-  const tabBarSpace = Math.max(90, 70 + insets.bottom) + 8;
+  // rezerwujemy jego pełną wysokość, żeby przyciski na dole nie chowały się pod nim. Ekran admina (stos) - bez paska.
+  const tabBarSpace = isAdminTarget ? insets.bottom + 8 : Math.max(90, 70 + insets.bottom) + 8;
   const { user, sizes, colors, stocks, stateData, fetchSizes, fetchColors, fetchStock } = useContext(GlobalStateContext);
+  const scopeSymbol = targetSymbol || user?.symbol;
+  // Adres trasy remanentu: dla admina z ?symbol= (serwer honoruje tylko u admina), dla sprzedawcy bez zmian
+  const remanentUrl = (path) => {
+    if (!targetSymbol) return getApiUrl(path);
+    return getApiUrl(`${path}${path.includes('?') ? '&' : '?'}symbol=${encodeURIComponent(targetSymbol)}`);
+  };
   const [remanentData, setRemanentData] = useState([]);
   // Sesja remanentu PUNKTU (od „Rozpocznij remanent” do „Zakończ remanent”), wspólna dla wszystkich telefonów punktu
   const [session, setSession] = useState(null);
@@ -369,7 +382,7 @@ const Remanent = () => {
   // Stan TYLKO tego punktu (dawniej: cały stan wszystkich punktów przy każdej zmianie listy)
   const fetchPointState = async () => {
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/current-state'));
+      const response = await tokenService.authenticatedFetch(remanentUrl('/remanent/current-state'));
       if (!response.ok) return null;
       const data = await response.json();
       const list = Array.isArray(data?.data) ? data.data : [];
@@ -389,7 +402,7 @@ const Remanent = () => {
     quantity: 1,
     manual: Boolean(item.manual),
     value: item.value || 0,
-    location: user?.symbol,
+    location: scopeSymbol,
     scannedAt: item.scannedAt,
     timestamp: item.scannedAt,
     device: item.device || '' // nazwa telefonu (remanent we dwie osoby na jednym koncie)
@@ -402,7 +415,7 @@ const Remanent = () => {
     try {
       if (!silent) setLoading(true);
       fetchPointState();
-      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/session/current'));
+      const response = await tokenService.authenticatedFetch(remanentUrl('/remanent/session/current'));
       if (response.ok) {
         const data = await response.json();
         const current = data?.session || null;
@@ -423,7 +436,7 @@ const Remanent = () => {
   const startSession = async () => {
     setSessionBusy(true);
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/session/start'), { method: 'POST' });
+      const response = await tokenService.authenticatedFetch(remanentUrl('/remanent/session/start'), { method: 'POST' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.session) {
         setClearResult({ ok: false, text: data?.message || 'Nie udało się rozpocząć remanentu. Sprawdź połączenie.' });
@@ -449,7 +462,7 @@ const Remanent = () => {
     if (!session) return;
     setSessionBusy(true);
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/close`), {
+      const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${session._id}/close`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // wynik liczy serwer; telefon podaje tylko kody z filtrów (z podglądu „Sprawdź”)
@@ -558,7 +571,7 @@ const Remanent = () => {
       const remanentItemsForAPI = scannedJackets.map(jacket => ({
         name: jacket.name,
         code: jacket.code,
-        quantity: 1,
+        quantity: 1, // ilości > 1 (remanent MAGAZYNU) idą osobno przez PUT /count
         manual: Boolean(jacket.manual),
         scannedAt: new Date().toISOString()
       }));
@@ -570,7 +583,7 @@ const Remanent = () => {
         showScanToast('Remanent nie jest rozpoczęty - kliknij „Rozpocznij remanent”, skany zostają w skanerze.', 'warn');
         return false;
       }
-      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${activeSession._id}/items`), {
+      const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${activeSession._id}/items`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // batchId: ten sam klucz przy ponownej próbie tego samego zestawu - serwer nie dopisze skanów drugi raz
@@ -607,6 +620,58 @@ const Remanent = () => {
   };
 
 
+  // Remanent MAGAZYNU (admin): produkt „Z bazy” + ilość sztuk, albo poprawka ilości pozycji (dotknięcie ×N).
+  // Jedno okienko „Ile sztuk?” zapisuje ŁĄCZNĄ liczbę sztuk kodu (PUT /count): 0 usuwa pozycję.
+  const [basePickerOpen, setBasePickerOpen] = useState(false);
+  const [quantityPrompt, setQuantityPrompt] = useState(null); // { code, name, current }
+  const [quantityText, setQuantityText] = useState('');
+  const [quantityBusy, setQuantityBusy] = useState(false);
+  const openQuantityPrompt = (code, name) => {
+    const current = remanentData.filter((item) => item.code === code).length;
+    setQuantityPrompt({ code, name: name || code, current });
+    setQuantityText(current > 0 ? String(current) : '');
+  };
+  const pickFromBase = (code) => {
+    setBasePickerOpen(false);
+    const name = getProductNameFromBarcode(code);
+    const verdict = validateRemanentCode(code, { name });
+    if (!verdict.ok) { setClearResult({ ok: false, text: verdict.message }); return; }
+    openQuantityPrompt(code, name);
+  };
+  const submitQuantity = async () => {
+    if (!quantityPrompt) return;
+    const text = String(quantityText).trim();
+    const count = text ? Number(text) : NaN; // puste pole to NIE zero - zero (usunięcie pozycji) trzeba wpisać świadomie
+    if (!Number.isInteger(count) || count < 0 || count > 999) {
+      setClearResult({ ok: false, text: 'Podaj liczbę sztuk od 0 do 999.' });
+      return;
+    }
+    if (!session) {
+      setClearResult({ ok: false, text: 'Remanent nie jest rozpoczęty - kliknij „Rozpocznij remanent”.' });
+      return;
+    }
+    setQuantityBusy(true);
+    try {
+      const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${session._id}/count`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: quantityPrompt.code, name: quantityPrompt.name, count })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setClearResult({ ok: false, text: response.status === 409 ? closedElsewhereText(data) : (data?.message || 'Nie udało się zapisać ilości.') });
+        if (response.status === 409) fetchRemanentData({ silent: true });
+        return;
+      }
+      setQuantityPrompt(null);
+      await fetchRemanentData({ silent: true }); // sztuki z identyfikatorami z serwera (usuwanie ×, liczniki)
+    } catch (error) {
+      setClearResult({ ok: false, text: 'Nie udało się zapisać ilości. Sprawdź połączenie.' });
+    } finally {
+      setQuantityBusy(false);
+    }
+  };
+
   // Wyczyść wszystko: usuwa WSZYSTKIE skany bieżącego remanentu punktu na serwerze - także te zrobione na innych
   // telefonach punktu (R9, audyt 26.10.2026: dawniej okno mówiło tylko o liczbie z tego telefonu). Przed oknem
   // odświeżamy listę w tle, żeby liczba w pytaniu była aktualna.
@@ -619,7 +684,7 @@ const Remanent = () => {
     if (!session) return;
     setClearingAll(true);
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/items`), { method: 'DELETE' });
+      const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${session._id}/items`), { method: 'DELETE' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setClearResult({ ok: false, text: data?.message || 'Nie udało się wyczyścić remanentu.' });
@@ -640,7 +705,7 @@ const Remanent = () => {
   const removeRemanentItem = async (itemId) => {
     if (!session) return;
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/items/${itemId}`), { method: 'DELETE' });
+      const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${session._id}/items/${itemId}`), { method: 'DELETE' });
       if (response.ok) {
         setRemanentData(prev => prev.filter(item => item.id !== itemId));
       } else {
@@ -668,7 +733,7 @@ const Remanent = () => {
     setHistoryDetail(null);
     setHistoryLoading(true);
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/remanent/sessions?status=closed&limit=50'));
+      const response = await tokenService.authenticatedFetch(remanentUrl('/remanent/sessions?status=closed&limit=50'));
       const data = await response.json().catch(() => ({}));
       setHistoryList(response.ok ? (data.sessions || []) : []);
       if (!response.ok) setClearResult({ ok: false, text: data?.message || 'Nie udało się pobrać historii remanentów.' });
@@ -683,7 +748,7 @@ const Remanent = () => {
   const openHistoryDetail = async (summary) => {
     setHistoryDetail({ session: summary, loading: true });
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${summary._id}`));
+      const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${summary._id}`));
       const data = await response.json().catch(() => ({}));
       setHistoryDetail({ session: response.ok && data.session ? data.session : summary, loading: false });
     } catch (error) {
@@ -711,7 +776,7 @@ const Remanent = () => {
   const comparisonCodesRef = useRef(null); // kody z filtrów użyte w podglądzie - te same idą do zakończenia
   const fetchServerResult = async (filterCodes) => {
     if (!session) return null;
-    const response = await tokenService.authenticatedFetch(getApiUrl(`/remanent/session/${session._id}/preview`), {
+    const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${session._id}/preview`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(filterCodes ? { filterCodes } : {})
@@ -837,7 +902,12 @@ const Remanent = () => {
         <View style={{ flex: 1, marginRight: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={[styles.itemName, { flexShrink: 1 }]}>{item.name || 'Produkt'}</Text>
-            {item.count > 1 ? <Text style={styles.countBadge} testID="remanent-row-count">×{item.count}</Text> : null}
+            {isAdminTarget ? (
+              // remanent MAGAZYNU: dotknięcie licznika = poprawka łącznej liczby sztuk tego kodu
+              <TouchableOpacity onPress={() => openQuantityPrompt(item.code, item.name)} accessibilityLabel="Zmień ilość" testID={`remanent-row-count-${item.code}`}>
+                <Text style={styles.countBadge}>×{item.count} ✎</Text>
+              </TouchableOpacity>
+            ) : item.count > 1 ? <Text style={styles.countBadge} testID="remanent-row-count">×{item.count}</Text> : null}
           </View>
           {item.manualCount > 0 ? <Text style={styles.manualBadge}>wpisane ręcznie: {item.manualCount}</Text> : null}
           {multiDevice && item.devices.length > 0 ? <Text style={styles.deviceText} testID="remanent-row-device">{item.devices.join(', ')}</Text> : null}
@@ -872,8 +942,12 @@ const Remanent = () => {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ backgroundColor: tc('bg', "#000"), flex: 1, paddingBottom: tabBarSpace }}>
       <View style={styles.header}>
-        <ScreenHeader icon="clipboard" title="Remanent" subtitle="Stan magazynowy" />
-        
+        {isAdminTarget ? (
+          <PageHeader icon="clipboard" title={targetSymbol === 'MAGAZYN' ? 'Remanent magazynu' : `Remanent ${targetSymbol}`} subtitle="Liczenie ręczne: produkt z bazy + ilość sztuk" onBack={() => router.back()} />
+        ) : (
+          <ScreenHeader icon="clipboard" title="Remanent" subtitle="Stan magazynowy" />
+        )}
+
         {/* Przycisk filtrów na pełnej szerokości */}
         <View style={styles.headerButtons}>
           <TouchableOpacity 
@@ -958,7 +1032,9 @@ const Remanent = () => {
           <Ionicons name="clipboard-outline" size={64} color={tc('muted', "#CDCDE0")} />
           <Text style={styles.emptyText}>Brak rozpoczętego remanentu</Text>
           <Text style={styles.emptySubtext}>
-            Rozpocznij remanent, zeskanuj wszystkie sztuki w punkcie, a potem kliknij „Sprawdź” i „Zakończ remanent”.
+            {isAdminTarget
+              ? 'Rozpocznij remanent, dodawaj produkty przez „Z bazy” (model, kolor, rozmiar i ilość sztuk) albo skanuj metki, a potem kliknij „Sprawdź” i „Zakończ remanent”.'
+              : 'Rozpocznij remanent, zeskanuj wszystkie sztuki w punkcie, a potem kliknij „Sprawdź” i „Zakończ remanent”.'}
           </Text>
           <TouchableOpacity style={styles.startSessionButton} onPress={startSession} disabled={sessionBusy}>
             {sessionBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="play" size={20} color="white" />}
@@ -969,7 +1045,11 @@ const Remanent = () => {
         <View style={styles.emptyContainer}>
           <Ionicons name="scan-outline" size={64} color="#CDCDE0" />
           <Text style={styles.emptyText}>Remanent rozpoczęty</Text>
-          <Text style={styles.emptySubtext}>Kliknij „Skanuj” i zeskanuj sztuki. Każdy skan to jedna sztuka.</Text>
+          <Text style={styles.emptySubtext}>
+            {isAdminTarget
+              ? 'Kliknij „Z bazy”, wybierz produkt i rozmiar, wpisz ilość sztuk. Sztuki z metką możesz też skanować.'
+              : 'Kliknij „Skanuj” i zeskanuj sztuki. Każdy skan to jedna sztuka.'}
+          </Text>
         </View>
       ) : (
         <>
@@ -1035,6 +1115,18 @@ const Remanent = () => {
           <Ionicons name="qr-code" size={20} color="white" />
           <Text style={styles.addButtonText}>Skanuj</Text>
         </TouchableOpacity>
+
+        {isAdminTarget ? (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: '#8B5CF6' }, !session && { opacity: 0.5 }]}
+            onPress={() => setBasePickerOpen(true)}
+            disabled={!session}
+            testID="remanent-from-base"
+          >
+            <Ionicons name="list" size={20} color="white" />
+            <Text style={styles.addButtonText}>Z bazy</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity style={[styles.checkButton, !session && { opacity: 0.5 }]} onPress={checkCurrentState} disabled={!session}>
           <Ionicons name="checkmark-circle" size={20} color="white" />
@@ -1105,8 +1197,58 @@ const Remanent = () => {
         onConfirm={confirmScannedJackets}
         goods={goodsList}
         pickerSizes={pickerSizes}
-        draftKey={user?.symbol ? `remanent-${user.symbol}` : null}
+        draftKey={scopeSymbol ? `remanent-${scopeSymbol}` : null}
       />
+
+      {/* Remanent MAGAZYNU (admin): produkt z bazy + ilość sztuk */}
+      {isAdminTarget ? (
+        <>
+          <ProductBasePicker
+            visible={basePickerOpen}
+            goods={goodsList}
+            sizes={pickerSizes}
+            onPick={pickFromBase}
+            onClose={() => setBasePickerOpen(false)}
+            title="Wybierz produkt z bazy"
+          />
+          <Modal visible={Boolean(quantityPrompt)} transparent animationType="fade" onRequestClose={() => setQuantityPrompt(null)}>
+            <KeyboardSafeOverlay>
+              <View style={styles.filterOverlay}>
+                <View style={styles.filterCard} testID="remanent-quantity-dialog">
+                  <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 4 }]}>Ile sztuk?</Text>
+                  <Text style={{ color: tc('text', '#fff'), fontSize: 15, textAlign: 'center', fontWeight: '600' }}>{quantityPrompt?.name}</Text>
+                  <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                    {quantityPrompt?.current > 0
+                      ? `Policzono już ${quantityPrompt.current} szt. - wpisz łączną liczbę (0 usuwa pozycję).`
+                      : 'Łączna liczba sztuk tego produktu w magazynie.'}
+                  </Text>
+                  <TextInput
+                    style={[styles.selectSearchInput, { borderWidth: 1, borderColor: tc('border', '#334155'), borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 22, textAlign: 'center' }]}
+                    value={quantityText}
+                    onChangeText={(text) => setQuantityText(text.replace(/[^0-9]/g, '').slice(0, 3))}
+                    keyboardType="number-pad"
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={submitQuantity}
+                    placeholder="0"
+                    placeholderTextColor={tc('muted', '#64748B')}
+                    testID="remanent-quantity-input"
+                  />
+                  <View style={{ gap: 10, marginTop: 14 }}>
+                    <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary, quantityBusy && { opacity: 0.6 }]} onPress={submitQuantity} disabled={quantityBusy} testID="remanent-quantity-save">
+                      {quantityBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="checkmark" size={18} color="white" />}
+                      <Text style={styles.filterCardButtonText}>Zapisz</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setQuantityPrompt(null)} disabled={quantityBusy}>
+                      <Text style={styles.filterCardButtonText}>Anuluj</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </KeyboardSafeOverlay>
+          </Modal>
+        </>
+      ) : null}
 
       {/* Historia zakończonych remanentów punktu */}
       <Modal

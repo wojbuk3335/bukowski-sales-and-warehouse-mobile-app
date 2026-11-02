@@ -24,6 +24,7 @@ export const SCREEN_LABELS = {
     '/cudzych': 'Cudzych',
     '/profile': 'Zamówienia',
     '/remanent': 'Remanent',
+    '/remanent-magazyn': 'Remanent magazynu (admin)',
     '/QRScanner': 'Skaner (sprzedaż)',
     '/QRScannerSearch': 'Skaner (wyszukiwarka)',
     // panel admina
