@@ -156,6 +156,7 @@ const OperacjeList = () => {
   };
 
   const getOperationLabel = (type) => {
+    if (type === 'refund') return 'Zwrot kurtki'; // pieniądze oddane klientowi za kurtkę (1.11.2026)
     return type === 'addition' ? 'Dopisz kwotę' : 'Odpisz kwotę';
   };
 
@@ -164,6 +165,7 @@ const OperacjeList = () => {
   };
 
   const getOperationIcon = (type) => {
+    if (type === 'refund') return 'return-down-back';
     return type === 'addition' ? 'add-circle' : 'remove-circle';
   };
 

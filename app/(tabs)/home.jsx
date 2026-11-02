@@ -1458,7 +1458,7 @@ const Home = () => {
       setSuccessModalVisible(true);
 
       // Add item to local Pan Kazek list for immediate UI update
-      setPanKazekItems(prevItems => [...prevItems, { productId: selectedItem._id, ...panKazekData }]);
+      setPanKazekItems(prevItems => [...prevItems, { ...panKazekData, productId: selectedItem._id, status: 'pending' }]);
 
       // No need to refresh state data anymore since we're tracking sales directly
 
@@ -1877,6 +1877,15 @@ const Home = () => {
       throw new Error("Failed to fetch financial operation");
     }
     return response.json();
+  };
+
+  // Zwrot kurtki od klienta (type 'refund', 1.11.2026): na liście operacji był opisany jak „Zaliczka na produkt”,
+  // bo ma nazwę produktu - a to pieniądze oddane klientowi. Powód z zapisu „Zwrot kurtki: <kurtka> - <powód>”.
+  const customerReturnJacket = (item) => `${item.productName || ''}${item.productSize && item.productSize !== '-' ? ` ${item.productSize}` : ''}`.trim();
+  const customerReturnLabel = (item) => `Zwrot kurtki - oddano klientowi${customerReturnJacket(item) ? `: ${customerReturnJacket(item)}` : ''}`;
+  const customerReturnReason = (item) => {
+    const prefix = `Zwrot kurtki: ${customerReturnJacket(item)} - `;
+    return String(item.reason || '').startsWith(prefix) ? String(item.reason).slice(prefix.length) : '';
   };
 
   const openOperationOptionsModal = (item) => {
@@ -2305,19 +2314,30 @@ const Home = () => {
     || String(account?.symbol || '').toLowerCase() === 'most'
   );
 
-  // Check if sales item is in Pan Kazek list
-  const isItemInPanKazek = (salesItem) => {
-    if (!salesItem) return false;
-    // Handle both object and ID string
+  // Wpis Pana Kazka dla tej sprzedaży (z jego statusem) albo null
+  const panKazekEntryOf = (salesItem) => {
+    if (!salesItem) return null;
     const itemId = typeof salesItem === 'string' ? salesItem : salesItem._id;
-    // Check if this specific sales item (_id) is in Pan Kazek
-    return panKazekItems.some(panKazekItem => panKazekItem.productId === itemId);
+    return panKazekItems.find(panKazekItem => panKazekItem.productId === itemId) || null;
   };
+  const isItemInPanKazek = (salesItem) => Boolean(panKazekEntryOf(salesItem));
 
-  // Fetch Pan Kazek items
+  // Kurtka Pana Kazka po zwrocie / rozliczeniu (1.11.2026): sprzedawca widzi, co się z nią stało, zamiast „Usuń z listy”,
+  // które serwer i tak odrzuca (punkt usuwa tylko kurtkę do rozliczenia)
+  const PAN_KAZEK_INFO = {
+    paid: 'Rozliczona z Panem Kazkiem',
+    cancelled: 'Zwrot - Panu Kazkowi nie płacimy',
+    deduct: 'Zwrot - odliczymy przy rozliczeniu',
+    deducted: 'Zwrot - odliczone przy rozliczeniu',
+  };
+  const isPanKazekReturn = (entry) => ['cancelled', 'deduct', 'deducted'].includes(entry?.status);
+
+  // Lista Pana Kazka: tylko punkt Most i tylko dzisiejsze wpisy - lista pokazuje dzisiejsze sprzedaże
+  // (dawniej każdy punkt przy każdym wejściu pobierał całą historię od początku)
   const fetchPanKazekItems = async () => {
+    if (!isMostAccount(user)) return;
     try {
-      const response = await tokenService.authenticatedFetch(getApiUrl('/pan-kazek'));
+      const response = await tokenService.authenticatedFetch(getApiUrl('/pan-kazek?today=1'));
       if (response.ok) {
         const data = await response.json();
         setPanKazekItems(data.data || []);
@@ -2717,7 +2737,8 @@ const Home = () => {
                   <Text style={{ color: 'red', fontSize: 12, fontWeight: 'bold', marginLeft: 10 }}>(ODBIÓR)</Text>
                 )}
                 {isItemInPanKazek(item) && (
-                  <Text style={{ color: '#28a745', fontSize: 16, marginLeft: 5 }}>●</Text>
+                  // zielona - od Pana Kazka; szara - zwrócona (nie płacimy / odliczamy)
+                  <Text testID={`sale-pan-kazek-dot-${item._id}`} style={{ color: isPanKazekReturn(panKazekEntryOf(item)) ? '#94A3B8' : '#28a745', fontSize: 16, marginLeft: 5 }}>●</Text>
                 )}
               </Text>
               {/* Sprzedaż odpisana już w Dobieraniu - nie da się jej usunąć ani zmienić punktu */}
@@ -3056,7 +3077,12 @@ const Home = () => {
                           ]}
                         >
                           <Text style={styles.deductionItemTextLeft}>
-                            {index + 1}. {item.productName ? `Zaliczka na produkt ${item.productName}` : item.reason}
+                            {index + 1}. {item.type === 'refund'
+                              ? customerReturnLabel(item)
+                              : item.productName ? `Zaliczka na produkt ${item.productName}` : item.reason}
+                            {item.type === 'refund' && customerReturnReason(item) ? (
+                              <Text style={{ color: tc('muted', '#94A3B8'), fontSize: 12 }}>{`\nPowód: ${customerReturnReason(item)}`}</Text>
+                            ) : null}
                             {item.exchangedFor ? (
                               <Text style={{ color: '#F59E0B', fontWeight: '600' }}>{`\n↔ wymieniono na: ${item.exchangedFor}`}</Text>
                             ) : null}
@@ -3763,8 +3789,19 @@ const Home = () => {
                   }
                 }}
               />
-              {/* „Od Pana Kazka” - tylko punkt Most (jak sprawdza serwer), tylko niezwrócona sprzedaż */}
-              {isMostAccount(user) && !selectedItem?.returned && (
+              {/* „Od Pana Kazka” - tylko punkt Most (jak sprawdza serwer), tylko niezwrócona sprzedaż; rozliczona albo
+                  zwrócona - sam stan (bez usuwania) */}
+              {isMostAccount(user) && PAN_KAZEK_INFO[panKazekEntryOf(selectedItem)?.status] ? (
+                <ActionItem
+                  testID="sale-option-pan-kazek-info"
+                  icon="person-outline"
+                  color="#94A3B8"
+                  label="Od Pana Kazka"
+                  note={PAN_KAZEK_INFO[panKazekEntryOf(selectedItem).status]}
+                  disabled
+                  onPress={() => {}}
+                />
+              ) : isMostAccount(user) && !selectedItem?.returned && (
                 isItemInPanKazek(selectedItem) ? (
                   <ActionItem
                     testID="sale-option-pan-kazek-remove"

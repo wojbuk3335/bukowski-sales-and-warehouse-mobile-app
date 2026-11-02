@@ -203,6 +203,20 @@ const PanKazek = () => {
     ]);
   };
 
+  // Okienko rozliczenia ze świeżymi liczbami - ekran mógł być otwarty długo, a punkt w tym czasie oznaczał kurtki
+  const openPayModal = async () => {
+    setShowPayModal(true);
+    try {
+      const response = await tokenService.authenticatedFetch(getApiUrl("/pan-kazek?status=pending"));
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.toSettle) setToSettle(data.toSettle);
+      }
+    } catch (error) {
+      // zostają liczby z listy - serwer i tak sprawdzi je przy zapisie
+    }
+  };
+
   const preview = settlementTotal(ratePerItem, toSettle);
   const handlePayAll = async () => {
     if (!preview) {
@@ -220,10 +234,20 @@ const PanKazek = () => {
       const response = await tokenService.authenticatedFetch(getApiUrl("/pan-kazek/pay-all"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ratePerItem: Number(String(ratePerItem).replace(",", ".")) }),
+        // liczby z okienka - serwer odmówi, gdy w międzyczasie lista się zmieniła (inna kwota niż zatwierdzona)
+        body: JSON.stringify({
+          ratePerItem: Number(String(ratePerItem).replace(",", ".")),
+          expected: { pendingCount: toSettle.pendingCount, deductCount: toSettle.deductCount, deductAmount: toSettle.deductAmount },
+        }),
       });
 
       const data = await response.json();
+      if (data?.code === "PAN_KAZEK_LIST_CHANGED") {
+        // nowe liczby w podglądzie, okienko zostaje do ponownego zatwierdzenia
+        setToSettle(data.toSettle);
+        appAlert("Lista się zmieniła", data.message);
+        return;
+      }
       if (!response.ok) {
         throw new Error(data?.message || "Błąd rozliczania");
       }
@@ -413,7 +437,7 @@ const PanKazek = () => {
 
         {/* Rozliczenie obejmuje WSZYSTKIE oczekujące (niezależnie od filtra) - tak też liczy przycisk */}
         {toSettle && toSettle.pendingCount > 0 && (
-          <TouchableOpacity style={styles.payAllButton} onPress={() => setShowPayModal(true)} testID="pan-kazek-settle">
+          <TouchableOpacity style={styles.payAllButton} onPress={openPayModal} testID="pan-kazek-settle">
             <Ionicons name="cash-outline" size={20} color="#fff" />
             <Text style={styles.payAllText}>
               Rozlicz wszystkie oczekujące ({toSettle.pendingCount})

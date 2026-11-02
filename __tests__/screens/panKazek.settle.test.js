@@ -59,7 +59,32 @@ test('rozliczenie wszystkich oczekujących stawką admina; statusy zwrotu; rozli
   fireEvent.press(screen.getByTestId('pan-kazek-confirm'));
   await waitFor(() => {
     const call = tokenService.authenticatedFetch.mock.calls.find(([url]) => String(url).includes('/pay-all'));
-    expect(JSON.parse(call[1].body)).toEqual({ ratePerItem: 15 });
+    expect(JSON.parse(call[1].body)).toEqual({ ratePerItem: 15, expected: { pendingCount: 200, deductCount: 1, deductAmount: 15 } });
+  });
+});
+
+test('lista zmieniła się po otwarciu okienka: serwer odmawia, podgląd pokazuje nową kwotę, drugie zatwierdzenie z nowymi liczbami', async () => {
+  let refused = false;
+  const base = tokenService.authenticatedFetch.getMockImplementation();
+  tokenService.authenticatedFetch.mockImplementation((url, options) => {
+    if (String(url).includes('/pay-all') && !refused) {
+      refused = true;
+      return response({ code: 'PAN_KAZEK_LIST_CHANGED', message: 'Lista się zmieniła - sprawdź nową kwotę: 202 kurtek × 15 zł − 15 zł = 3015 zł.', toSettle: { pendingCount: 202, deductCount: 1, deductAmount: 15 } }, 409);
+    }
+    return base(url, options);
+  });
+  const screen = render(<PanKazek />);
+  fireEvent.press(await screen.findByTestId('pan-kazek-settle'));
+  fireEvent.changeText(screen.getByTestId('pan-kazek-rate'), '15');
+  fireEvent.press(screen.getByTestId('pan-kazek-confirm'));
+  await waitFor(() => expect(screen.getByTestId('pan-kazek-preview').props.children).toBe('202 × 15.00 zł = 3030.00 zł − 15.00 zł\nDo wypłaty: 3015.00 zł'));
+  expect(appAlert).toHaveBeenCalledWith('Lista się zmieniła', expect.stringContaining('3015 zł'));
+
+  fireEvent.press(screen.getByTestId('pan-kazek-confirm'));
+  await waitFor(() => {
+    const calls = tokenService.authenticatedFetch.mock.calls.filter(([url]) => String(url).includes('/pay-all'));
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(calls[1][1].body).expected).toEqual({ pendingCount: 202, deductCount: 1, deductAmount: 15 });
   });
 });
 
