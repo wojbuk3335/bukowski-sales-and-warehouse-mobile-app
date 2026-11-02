@@ -7,6 +7,7 @@ import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfika
 import { flush as flushActivity, reset as resetActivity } from "../services/activityLog"; // dziennik aktywności
 import quickLogin from "../services/quickLogin"; // szybkie logowanie wzorem / PIN-em
 import AuthErrorHandler from "../utils/authErrorHandler"; // Import auth error handler
+import Logger from "../services/logger"; // logi logowania tylko w wersji deweloperskiej (bez e-maili w logach telefonu)
 import { purgeStoredSessionSecrets, stripSessionSecrets } from "../utils/sessionProfile"; // profil bez tokenów do AsyncStorage
 import { AuthContext } from './AuthContext'; // Import auth context
 
@@ -335,9 +336,9 @@ export const GlobalStateProvider = ({ children }) => {
             const endpoint = isAdminPanel ? "/user/admin-login" : "/user/login";
             const url = getApiUrl(endpoint);
             
-            console.log(`🔐 [LOGIN][${loginAttemptId}] Panel: ${isAdminPanel ? 'Admin' : 'User'}`);
-            console.log(`🔐 [LOGIN][${loginAttemptId}] Email: ${email}`);
-            console.log(`🔐 [LOGIN][${loginAttemptId}] URL: ${url}`);
+            Logger.debug(`🔐 [LOGIN][${loginAttemptId}] Panel: ${isAdminPanel ? 'Admin' : 'User'}`);
+            Logger.debug(`🔐 [LOGIN][${loginAttemptId}] Email: ${email}`);
+            Logger.debug(`🔐 [LOGIN][${loginAttemptId}] URL: ${url}`);
 
             // Blokada „jedna osoba na punkcie”: backend rozpoznaje telefon po deviceId,
             // a deviceName pokazuje drugiej osobie, kto zajmuje punkt (dla admina nieszkodliwe)
@@ -352,7 +353,7 @@ export const GlobalStateProvider = ({ children }) => {
                 body: JSON.stringify({ email, password, deviceId, deviceName }),
             });
 
-            console.log(`🔐 [LOGIN][${loginAttemptId}] Response Status: ${response.status}`);
+            Logger.debug(`🔐 [LOGIN][${loginAttemptId}] Response Status: ${response.status}`);
 
             if (!response.ok) {
                 let errorData = null;
@@ -388,9 +389,9 @@ export const GlobalStateProvider = ({ children }) => {
                     throw forbiddenError;
                 }
 
-                console.warn(`⚠️ [LOGIN][${loginAttemptId}] Error Data:`, errorData);
-                console.warn(`⚠️ [LOGIN][${loginAttemptId}] Error Response: ${response.status} ${response.statusText}`);
-                console.warn(`⚠️ [LOGIN][${loginAttemptId}] Context: panel=${isAdminPanel ? 'Admin' : 'User'} endpoint=${endpoint}`);
+                Logger.warn(`⚠️ [LOGIN][${loginAttemptId}] Error Data:`, errorData);
+                Logger.warn(`⚠️ [LOGIN][${loginAttemptId}] Error Response: ${response.status} ${response.statusText}`);
+                Logger.warn(`⚠️ [LOGIN][${loginAttemptId}] Context: panel=${isAdminPanel ? 'Admin' : 'User'} endpoint=${endpoint}`);
 
                 // 🔒 SESSION BLOCKING ERROR
                 if (response.status === 403 && errorData?.error === 'SESSION_ACTIVE') {
@@ -410,15 +411,15 @@ export const GlobalStateProvider = ({ children }) => {
 
             const data = await response.json();
 
-            console.log(`✅ [LOGIN][${loginAttemptId}] Login successful for: ${email}`);
+            Logger.debug(`✅ [LOGIN][${loginAttemptId}] Login successful for: ${email}`);
             
             if (data?.requiresVerification) {
-                console.log(`🔐 [LOGIN][${loginAttemptId}] 2FA Required`);
+                Logger.debug(`🔐 [LOGIN][${loginAttemptId}] 2FA Required`);
                 return data;
             }
             
             const profile = await completeLogin(data);
-            console.log(`✅ [LOGIN][${loginAttemptId}] Tokens stored`);
+            Logger.debug(`✅ [LOGIN][${loginAttemptId}] Tokens stored`);
             return profile; // Return user data (bez tokenów - te są w SecureStore)
         } catch (error) {
             const expectedErrorCodes = ['INVALID_CREDENTIALS', 'FORBIDDEN', 'SESSION_ACTIVE'];
@@ -430,9 +431,9 @@ export const GlobalStateProvider = ({ children }) => {
                 String(error?.message || '').toLowerCase().includes('haslo');
 
             if (expectedErrorCodes.includes(error?.code) || expectedByMessage) {
-                console.warn(`⚠️ [LOGIN][${loginAttemptId}] Handled auth error:`, error.message);
+                Logger.warn(`⚠️ [LOGIN][${loginAttemptId}] Handled auth error:`, error.message);
             } else {
-                console.error(`❌ [LOGIN][${loginAttemptId}] Catch Error:`, error.message);
+                Logger.error(`❌ [LOGIN][${loginAttemptId}] Catch Error:`, error.message);
             }
             throw error;
         } finally {
