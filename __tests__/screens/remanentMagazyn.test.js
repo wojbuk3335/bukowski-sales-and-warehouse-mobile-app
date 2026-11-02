@@ -6,7 +6,8 @@ import { GlobalStateContext } from '../../context/GlobalState';
 import tokenService from '../../services/tokenService';
 
 // Remanent MAGAZYNU dla admina (2.11.2026): ten sam ekran co remanent punktu, dla symbolu MAGAZYN (?symbol= w każdym
-// zapytaniu), z liczeniem ręcznym: „Z bazy” -> produkt i rozmiar -> „Ile sztuk?” -> PUT /count; dotknięcie ×N poprawia ilość.
+// zapytaniu), z liczeniem ręcznym: „Z bazy” = trzy kroki w jednym okienku (pole z podpowiedziami: produkt -> rozmiar -> ilość,
+// Enter przy jednym trafieniu wybiera) -> PUT /count; dotknięcie ×N otwiera okienko od razu na ilości. Stopka bez ikon.
 
 jest.mock('expo-camera', () => {
   const React = require('react');
@@ -50,7 +51,10 @@ const contextValue = {
   fetchColors: jest.fn(),
   fetchStock: jest.fn(),
 };
-const GOODS = [{ _id: 'g1', fullName: 'Amanda CZARNY', code: '1234500000003', category: 'Kurtki kożuchy futra' }];
+const GOODS = [
+  { _id: 'g1', fullName: 'Amanda CZARNY', code: '1234500000003', category: 'Kurtki kożuchy futra' },
+  { _id: 'g2', fullName: 'Torebka BRĄZ', code: '0004500000009', category: 'Torebki' }, // bez rozmiaru - prosto do ilości
+];
 
 let session;
 let calls;
@@ -94,71 +98,100 @@ describe('Remanent magazynu (admin)', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
-  test('„Z bazy”: produkt -> rozmiar -> „Ile sztuk?” -> PUT /count z łączną ilością; lista pokazuje ×N, dotknięcie poprawia ilość', async () => {
+  test('„Z bazy”: wpis produktu -> wybór -> wpis rozmiaru (Enter przy dokładnym trafieniu) -> ilość -> PUT /count; ×N otwiera okienko na ilości', async () => {
     const screen = renderMagazyn();
     await waitFor(() => expect(screen.getByTestId('remanent-from-base')).toBeTruthy());
     await waitFor(() => expect(calls.some((call) => call.url.includes('get-all-goods'))).toBe(true));
 
     fireEvent.press(screen.getByTestId('remanent-from-base'));
-    await waitFor(() => expect(screen.getByTestId('product-base-picker')).toBeTruthy());
-    await waitFor(() => expect(screen.getByTestId('product-base-good-g1')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('product-base-good-g1'));
-    await waitFor(() => expect(screen.getByTestId('product-base-size-44')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('product-base-size-44'));
+    await waitFor(() => expect(screen.getByTestId('warehouse-count-wizard')).toBeTruthy());
+    expect(screen.getByText('Krok 1 z 3 · model i kolor')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('wizard-product-input'), 'amanda cza');
+    await waitFor(() => expect(screen.getByTestId('wizard-good-g1')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('wizard-good-g1'));
 
-    await waitFor(() => expect(screen.getByTestId('remanent-quantity-dialog')).toBeTruthy());
+    // krok 2: rozmiar - pole z podpowiedziami; „44” wpisane dokładnie + Enter wybiera bez klikania
+    await waitFor(() => expect(screen.getByTestId('wizard-size-input')).toBeTruthy());
+    expect(screen.getByText('Krok 2 z 3 · Amanda CZARNY')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('wizard-size-input'), '44');
+    expect(screen.queryByTestId('wizard-size-46')).toBeNull(); // lista zawężona
+    fireEvent(screen.getByTestId('wizard-size-input'), 'submitEditing');
+
+    // krok 3: ilość
+    await waitFor(() => expect(screen.getByTestId('wizard-quantity-input')).toBeTruthy());
+    expect(screen.getByText('Ile sztuk?')).toBeTruthy();
     expect(screen.getByText('Amanda CZARNY 44')).toBeTruthy();
-    expect(screen.getByText('Łączna liczba sztuk tego produktu w magazynie.')).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('remanent-quantity-input'), '14');
-    await act(async () => { fireEvent.press(screen.getByTestId('remanent-quantity-save')); });
+    fireEvent.changeText(screen.getByTestId('wizard-quantity-input'), '14');
+    await act(async () => { fireEvent.press(screen.getByTestId('wizard-save')); });
 
     const put = calls.find((call) => call.method === 'PUT');
     expect(put.url).toBe('http://mock.api/remanent/session/s1/count?symbol=MAGAZYN');
     expect(put.body).toMatchObject({ name: 'Amanda CZARNY 44', count: 14 });
     expect(put.body.code).toMatch(/^12345044\d{5}$/); // kod kurtki Amanda CZARNY w rozmiarze 44
 
-    // lista z serwera: jedna pozycja ×14; dotknięcie licznika otwiera okienko z wpisaną obecną ilością
-    await waitFor(() => expect(screen.queryByTestId('remanent-quantity-dialog')).toBeNull());
+    // okienko zamknięte, lista z serwera ×14; dotknięcie licznika = okienko od razu na ilości z wpisaną obecną
+    await waitFor(() => expect(screen.queryByTestId('warehouse-count-wizard')).toBeNull());
     const code = put.body.code;
     await waitFor(() => expect(screen.getByTestId(`remanent-row-count-${code}`)).toBeTruthy());
     expect(screen.getByText('×14 ✎')).toBeTruthy();
     fireEvent.press(screen.getByTestId(`remanent-row-count-${code}`));
-    await waitFor(() => expect(screen.getByTestId('remanent-quantity-dialog')).toBeTruthy());
-    expect(screen.getByTestId('remanent-quantity-input').props.value).toBe('14');
+    await waitFor(() => expect(screen.getByTestId('wizard-quantity-input')).toBeTruthy());
+    expect(screen.getByText('Zmień ilość')).toBeTruthy();
+    expect(screen.queryByTestId('wizard-product-input')).toBeNull();
+    expect(screen.getByTestId('wizard-quantity-input').props.value).toBe('14');
     expect(screen.getByText(/Policzono już 14 szt\./)).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('remanent-quantity-input'), '12');
-    await act(async () => { fireEvent.press(screen.getByTestId('remanent-quantity-save')); });
+    fireEvent.changeText(screen.getByTestId('wizard-quantity-input'), '12');
+    await act(async () => { fireEvent.press(screen.getByTestId('wizard-save')); });
     const puts = calls.filter((call) => call.method === 'PUT');
     expect(puts[1].body).toMatchObject({ code, count: 12 });
     await waitFor(() => expect(screen.getByText('×12 ✎')).toBeTruthy());
   });
 
-  test('ilość poza zakresem nie wychodzi do serwera; zakończony remanent (409) pokazuje kto i kiedy', async () => {
+  test('produkt bez rozmiaru (torebka) idzie prosto do ilości; Enter przy jednym trafieniu produktu wybiera; Wstecz cofa krok', async () => {
     const screen = renderMagazyn();
     await waitFor(() => expect(screen.getByTestId('remanent-from-base')).toBeTruthy());
     await waitFor(() => expect(calls.some((call) => call.url.includes('get-all-goods'))).toBe(true));
     fireEvent.press(screen.getByTestId('remanent-from-base'));
-    await waitFor(() => expect(screen.getByTestId('product-base-good-g1')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('product-base-good-g1'));
-    await waitFor(() => expect(screen.getByTestId('product-base-size-46')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('product-base-size-46'));
-    await waitFor(() => expect(screen.getByTestId('remanent-quantity-dialog')).toBeTruthy());
-
-    // pole przepuszcza tylko cyfry (max 3) - pusta wartość to błąd
-    fireEvent.changeText(screen.getByTestId('remanent-quantity-input'), 'abc');
-    expect(screen.getByTestId('remanent-quantity-input').props.value).toBe('');
-    await act(async () => { fireEvent.press(screen.getByTestId('remanent-quantity-save')); });
+    await waitFor(() => expect(screen.getByTestId('wizard-product-input')).toBeTruthy());
+    fireEvent.changeText(screen.getByTestId('wizard-product-input'), 'torebka');
+    fireEvent(screen.getByTestId('wizard-product-input'), 'submitEditing'); // jedyne trafienie -> wybrane
+    await waitFor(() => expect(screen.getByTestId('wizard-quantity-input')).toBeTruthy()); // torebka: bez kroku rozmiaru
+    expect(screen.getByText('Torebka BRĄZ')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('wizard-back')); // Wstecz -> produkt
+    await waitFor(() => expect(screen.getByTestId('wizard-product-input')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('wizard-back')); // Anuluj -> zamknięte
+    await waitFor(() => expect(screen.queryByTestId('warehouse-count-wizard')).toBeNull());
     expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(0);
-    await waitFor(() => expect(screen.getByText('Podaj liczbę sztuk od 0 do 999.')).toBeTruthy());
-    fireEvent.press(screen.getByText('OK'));
+  });
+
+  test('ilość pusta / poza zakresem zostaje w okienku bez zapytania; zakończony remanent (409) pokazuje kto i kiedy', async () => {
+    const screen = renderMagazyn();
+    await waitFor(() => expect(screen.getByTestId('remanent-from-base')).toBeTruthy());
+    await waitFor(() => expect(calls.some((call) => call.url.includes('get-all-goods'))).toBe(true));
+    fireEvent.press(screen.getByTestId('remanent-from-base'));
+    await waitFor(() => expect(screen.getByTestId('wizard-product-input')).toBeTruthy());
+    fireEvent.changeText(screen.getByTestId('wizard-product-input'), 'amanda');
+    await waitFor(() => expect(screen.getByTestId('wizard-good-g1')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('wizard-good-g1'));
+    await waitFor(() => expect(screen.getByTestId('wizard-size-46')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('wizard-size-46'));
+    await waitFor(() => expect(screen.getByTestId('wizard-quantity-input')).toBeTruthy());
+
+    // pole przepuszcza tylko cyfry (max 3) - pusta wartość to błąd w okienku, bez zapytania do serwera
+    fireEvent.changeText(screen.getByTestId('wizard-quantity-input'), 'abc');
+    expect(screen.getByTestId('wizard-quantity-input').props.value).toBe('');
+    await act(async () => { fireEvent.press(screen.getByTestId('wizard-save')); });
+    expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(0);
+    expect(screen.getByTestId('wizard-error').props.children).toBe('Podaj liczbę sztuk od 0 do 999.');
+    expect(screen.getByTestId('warehouse-count-wizard')).toBeTruthy();
 
     tokenService.authenticatedFetch.mockImplementation((url, options = {}) => {
       if (url.includes('/count') && options.method === 'PUT') return response({ message: 'zamknięty', closed: { closedBy: 'panel', closedAt: new Date().toISOString() } }, false, 409);
       if (url.includes('/remanent/session/current')) return response({ session: null });
       return response({});
     });
-    fireEvent.changeText(screen.getByTestId('remanent-quantity-input'), '3');
-    await act(async () => { fireEvent.press(screen.getByTestId('remanent-quantity-save')); });
+    fireEvent.changeText(screen.getByTestId('wizard-quantity-input'), '3');
+    await act(async () => { fireEvent.press(screen.getByTestId('wizard-save')); });
     await waitFor(() => expect(screen.getByText(/Remanent został zakończony przez panel/)).toBeTruthy());
   });
 

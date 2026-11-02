@@ -24,7 +24,7 @@ import { REMAINING_CATEGORY_LABELS, getRemainingProductTypeByKey } from '../../c
 import { router } from 'expo-router';
 import LogoutButton from '../../components/LogoutButton';
 import { ScreenHeader, PageHeader } from '../../components/AdminLook';
-import ProductBasePicker from '../../components/scanner/ProductBasePicker'; // remanent MAGAZYNU: produkt z bazy + ilość
+import WarehouseCountWizard from '../../components/scanner/WarehouseCountWizard'; // remanent MAGAZYNU: produkt -> rozmiar -> ilość
 import { KeyboardSafeOverlay } from '../../components/KeyboardSafe'; // klawiatura nie zasłania pola w okienku
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
@@ -620,55 +620,36 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
   };
 
 
-  // Remanent MAGAZYNU (admin): produkt „Z bazy” + ilość sztuk, albo poprawka ilości pozycji (dotknięcie ×N).
-  // Jedno okienko „Ile sztuk?” zapisuje ŁĄCZNĄ liczbę sztuk kodu (PUT /count): 0 usuwa pozycję.
-  const [basePickerOpen, setBasePickerOpen] = useState(false);
-  const [quantityPrompt, setQuantityPrompt] = useState(null); // { code, name, current }
-  const [quantityText, setQuantityText] = useState('');
-  const [quantityBusy, setQuantityBusy] = useState(false);
+  // Remanent MAGAZYNU (admin): okienko „Z bazy” (produkt -> rozmiar -> ilość) albo poprawka ilości pozycji (dotknięcie ×N,
+  // okienko od razu na kroku ilości). Zapis = ŁĄCZNA liczba sztuk kodu (PUT /count): 0 usuwa pozycję.
+  const [wizard, setWizard] = useState(null); // null = zamknięte; {} = dodawanie; { preset: { code, name, current } } = poprawka
   const openQuantityPrompt = (code, name) => {
     const current = remanentData.filter((item) => item.code === code).length;
-    setQuantityPrompt({ code, name: name || code, current });
-    setQuantityText(current > 0 ? String(current) : '');
+    setWizard({ preset: { code, name: name || code, current } });
   };
-  const pickFromBase = (code) => {
-    setBasePickerOpen(false);
-    const name = getProductNameFromBarcode(code);
-    const verdict = validateRemanentCode(code, { name });
-    if (!verdict.ok) { setClearResult({ ok: false, text: verdict.message }); return; }
-    openQuantityPrompt(code, name);
-  };
-  const submitQuantity = async () => {
-    if (!quantityPrompt) return;
-    const text = String(quantityText).trim();
-    const count = text ? Number(text) : NaN; // puste pole to NIE zero - zero (usunięcie pozycji) trzeba wpisać świadomie
-    if (!Number.isInteger(count) || count < 0 || count > 999) {
-      setClearResult({ ok: false, text: 'Podaj liczbę sztuk od 0 do 999.' });
-      return;
-    }
+  // true = zapisane (okienko się zamyka), false = zostaje otwarte (komunikat w oknie wyniku)
+  const saveCount = async ({ code, name, count }) => {
     if (!session) {
       setClearResult({ ok: false, text: 'Remanent nie jest rozpoczęty - kliknij „Rozpocznij remanent”.' });
-      return;
+      return false;
     }
-    setQuantityBusy(true);
     try {
       const response = await tokenService.authenticatedFetch(remanentUrl(`/remanent/session/${session._id}/count`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: quantityPrompt.code, name: quantityPrompt.name, count })
+        body: JSON.stringify({ code, name, count })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setClearResult({ ok: false, text: response.status === 409 ? closedElsewhereText(data) : (data?.message || 'Nie udało się zapisać ilości.') });
         if (response.status === 409) fetchRemanentData({ silent: true });
-        return;
+        return false;
       }
-      setQuantityPrompt(null);
       await fetchRemanentData({ silent: true }); // sztuki z identyfikatorami z serwera (usuwanie ×, liczniki)
+      return true;
     } catch (error) {
       setClearResult({ ok: false, text: 'Nie udało się zapisać ilości. Sprawdź połączenie.' });
-    } finally {
-      setQuantityBusy(false);
+      return false;
     }
   };
 
@@ -1106,30 +1087,30 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
         </>
       )}
 
+      {/* Stopka: u sprzedawcy 3 przyciski z ikonami; w remanencie MAGAZYNU 4 przyciski - same napisy (ikony nie mieszczą się) */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.addButton, !session && { opacity: 0.5 }]}
           onPress={openQRScanner}
           disabled={!session}
         >
-          <Ionicons name="qr-code" size={20} color="white" />
+          {!isAdminTarget ? <Ionicons name="qr-code" size={20} color="white" /> : null}
           <Text style={styles.addButtonText}>Skanuj</Text>
         </TouchableOpacity>
 
         {isAdminTarget ? (
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: '#8B5CF6' }, !session && { opacity: 0.5 }]}
-            onPress={() => setBasePickerOpen(true)}
+            onPress={() => setWizard({})}
             disabled={!session}
             testID="remanent-from-base"
           >
-            <Ionicons name="list" size={20} color="white" />
             <Text style={styles.addButtonText}>Z bazy</Text>
           </TouchableOpacity>
         ) : null}
 
         <TouchableOpacity style={[styles.checkButton, !session && { opacity: 0.5 }]} onPress={checkCurrentState} disabled={!session}>
-          <Ionicons name="checkmark-circle" size={20} color="white" />
+          {!isAdminTarget ? <Ionicons name="checkmark-circle" size={20} color="white" /> : null}
           <Text style={styles.checkButtonText}>Sprawdź</Text>
         </TouchableOpacity>
 
@@ -1138,7 +1119,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
           onPress={openClearDialog}
           disabled={clearingAll || remanentData.length === 0}
         >
-          {clearingAll ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="trash" size={20} color="white" />}
+          {clearingAll ? <ActivityIndicator size="small" color="white" /> : (!isAdminTarget ? <Ionicons name="trash" size={20} color="white" /> : null)}
           <Text style={styles.checkButtonText}>Wyczyść</Text>
         </TouchableOpacity>
       </View>
@@ -1200,54 +1181,18 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
         draftKey={scopeSymbol ? `remanent-${scopeSymbol}` : null}
       />
 
-      {/* Remanent MAGAZYNU (admin): produkt z bazy + ilość sztuk */}
+      {/* Remanent MAGAZYNU (admin): „Z bazy” - produkt -> rozmiar -> ilość; poprawka ilości od razu na kroku ilości */}
       {isAdminTarget ? (
-        <>
-          <ProductBasePicker
-            visible={basePickerOpen}
-            goods={goodsList}
-            sizes={pickerSizes}
-            onPick={pickFromBase}
-            onClose={() => setBasePickerOpen(false)}
-            title="Wybierz produkt z bazy"
-          />
-          <Modal visible={Boolean(quantityPrompt)} transparent animationType="fade" onRequestClose={() => setQuantityPrompt(null)}>
-            <KeyboardSafeOverlay>
-              <View style={styles.filterOverlay}>
-                <View style={styles.filterCard} testID="remanent-quantity-dialog">
-                  <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 4 }]}>Ile sztuk?</Text>
-                  <Text style={{ color: tc('text', '#fff'), fontSize: 15, textAlign: 'center', fontWeight: '600' }}>{quantityPrompt?.name}</Text>
-                  <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
-                    {quantityPrompt?.current > 0
-                      ? `Policzono już ${quantityPrompt.current} szt. - wpisz łączną liczbę (0 usuwa pozycję).`
-                      : 'Łączna liczba sztuk tego produktu w magazynie.'}
-                  </Text>
-                  <TextInput
-                    style={[styles.selectSearchInput, { borderWidth: 1, borderColor: tc('border', '#334155'), borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 22, textAlign: 'center' }]}
-                    value={quantityText}
-                    onChangeText={(text) => setQuantityText(text.replace(/[^0-9]/g, '').slice(0, 3))}
-                    keyboardType="number-pad"
-                    autoFocus
-                    returnKeyType="done"
-                    onSubmitEditing={submitQuantity}
-                    placeholder="0"
-                    placeholderTextColor={tc('muted', '#64748B')}
-                    testID="remanent-quantity-input"
-                  />
-                  <View style={{ gap: 10, marginTop: 14 }}>
-                    <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary, quantityBusy && { opacity: 0.6 }]} onPress={submitQuantity} disabled={quantityBusy} testID="remanent-quantity-save">
-                      {quantityBusy ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="checkmark" size={18} color="white" />}
-                      <Text style={styles.filterCardButtonText}>Zapisz</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => setQuantityPrompt(null)} disabled={quantityBusy}>
-                      <Text style={styles.filterCardButtonText}>Anuluj</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </KeyboardSafeOverlay>
-          </Modal>
-        </>
+        <WarehouseCountWizard
+          visible={Boolean(wizard)}
+          preset={wizard?.preset || null}
+          goods={goodsList}
+          sizes={pickerSizes}
+          resolveName={getProductNameFromBarcode}
+          validateCode={validateRemanentCode}
+          onSubmit={saveCount}
+          onClose={() => setWizard(null)}
+        />
       ) : null}
 
       {/* Historia zakończonych remanentów punktu */}
