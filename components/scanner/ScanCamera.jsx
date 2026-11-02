@@ -4,6 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
 import { SmartScanOverlay, useSmartBarcodeScan } from "./SmartScanOverlay"; // kod tylko z ramki, potwierdzony kilkoma odczytami
+import { pickPrimaryLens } from "./iosLens"; // iPhone: zwykły szeroki aparat zamiast wirtualnego (ultraszerokiego)
 import { KeyboardSafeScreen } from "../KeyboardSafe";
 import { ModalHeader, look } from "../AdminLook";
 import { tc } from "../../context/ThemeContext";
@@ -52,6 +53,8 @@ export const SCAN_BARCODE_TYPES = ["code128", "ean13", "qr"];
 // i nic się nie dekodowało. Z przybliżeniem kod wypełnia ramkę z 15-20 cm. expo-camera liczy zoom jako
 // maxZoom^zoom (CameraSessionManager.swift: videoZoomFactor = pow(videoMaxZoomFactor, zoom)), więc 0,12 ≈ 1,4-1,8×.
 // Android czyta bez zoomu - bez zmian.
+// 2.11.2026: zoom liczy się względem WYBRANEGO obiektywu - od teraz to zwykły szeroki aparat główny (selectedLens,
+// patrz iosLens.js), nie aparat wirtualny, w którym 1,0 oznaczało ultraszeroki i przybliżenie nic nie dawało.
 export const IOS_SCAN_ZOOM = 0.12;
 // Zdjęcie bywa odczytane jako inny typ niż na żywo - drugie podejście ze wszystkimi formatami
 const PHOTO_FALLBACK_TYPES = ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"];
@@ -128,6 +131,16 @@ const ScanCamera = ({
   };
 
   const smartScan = useSmartBarcodeScan({ enabled, onConfirmed: deliver, rearmKey });
+
+  // iPhone: expo-camera podaje listę obiektywów po uruchomieniu kamery (i po każdej zmianie) - wybieramy zwykły
+  // szeroki aparat główny. Ta sama nazwa przy kolejnym zdarzeniu nie zmienia stanu, więc nie ma pętli.
+  const [iosLens, setIosLens] = useState(null);
+  const handleAvailableLenses = (event) => {
+    const lenses = event?.lenses || event?.nativeEvent?.lenses;
+    const lens = pickPrimaryLens(lenses);
+    Logger.debug("Skaner iPhone: obiektywy", lenses, "-> wybrany:", lens);
+    if (lens) setIosLens(lens);
+  };
 
   // Kody z czytnika: Enter (onSubmitEditing) kończy kod; znak nowej linii w tekście też (kilka kodów naraz z pamięci czytnika)
   const deliverBluetoothCode = (raw) => {
@@ -358,6 +371,9 @@ const ScanCamera = ({
           style={styles.camera}
           facing={facing}
           zoom={Platform.OS === "ios" ? IOS_SCAN_ZOOM : 0}
+          // iPhone: zwykły szeroki aparat główny zamiast wirtualnego (ultraszerokiego) - patrz iosLens.js
+          selectedLens={Platform.OS === "ios" && facing === "back" && iosLens ? iosLens : undefined}
+          onAvailableLensesChanged={Platform.OS === "ios" && facing === "back" ? handleAvailableLenses : undefined}
           barcodeScannerSettings={{ barcodeTypes: SCAN_BARCODE_TYPES }}
           onBarcodeScanned={enabled ? smartScan.onBarcodeScanned : undefined}
         />
