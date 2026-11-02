@@ -7,6 +7,7 @@ import { getDeviceId, getDeviceName } from "../services/deviceId"; // Identyfika
 import { flush as flushActivity, reset as resetActivity } from "../services/activityLog"; // dziennik aktywności
 import quickLogin from "../services/quickLogin"; // szybkie logowanie wzorem / PIN-em
 import AuthErrorHandler from "../utils/authErrorHandler"; // Import auth error handler
+import { purgeStoredSessionSecrets, stripSessionSecrets } from "../utils/sessionProfile"; // profil bez tokenów do AsyncStorage
 import { AuthContext } from './AuthContext'; // Import auth context
 
 export const GlobalStateContext = createContext();
@@ -296,20 +297,22 @@ export const GlobalStateProvider = ({ children }) => {
         }
     }, [fetchWithTimeout]);
 
-    // Zapis sesji po udanym logowaniu (hasłem albo szybkim logowaniem): tokeny, użytkownik, AuthContext
+    // Zapis sesji po udanym logowaniu (hasłem albo szybkim logowaniem): tokeny, użytkownik, AuthContext.
+    // Tokeny idą wyłącznie do SecureStore - w AsyncStorage i w stanie zostaje sam profil (bez token/accessToken/refreshToken)
     const completeLogin = useCallback(async (data) => {
         if (data.token || data.accessToken) {
             await tokenService.setTokens(data.accessToken || data.token, data.refreshToken);
         }
         // Wait a bit to ensure AsyncStorage write is completed
         await new Promise(resolve => setTimeout(resolve, 100));
-        setUser(data); // Update user state
+        const profile = stripSessionSecrets(data);
+        setUser(profile); // Update user state
         setIsLoggedIn(true); // Set login status to true
-        await AsyncStorage.setItem("user", JSON.stringify(data)); // Save user data locally
+        await AsyncStorage.setItem("user", JSON.stringify(profile)); // Save user data locally
         if (authContext?.login) {
-            authContext.login(data);
+            authContext.login(profile);
         }
-        return data;
+        return profile;
     }, [authContext]);
 
     // Szybkie logowanie na zaufanym telefonie (wzór / PIN / odcisk) - błędy z kodem jak w services/quickLogin
@@ -414,9 +417,9 @@ export const GlobalStateProvider = ({ children }) => {
                 return data;
             }
             
-            await completeLogin(data);
+            const profile = await completeLogin(data);
             console.log(`✅ [LOGIN][${loginAttemptId}] Tokens stored`);
-            return data; // Return user data
+            return profile; // Return user data (bez tokenów - te są w SecureStore)
         } catch (error) {
             const expectedErrorCodes = ['INVALID_CREDENTIALS', 'FORBIDDEN', 'SESSION_ACTIVE'];
             const expectedByMessage = String(error?.message || '').toLowerCase().includes('błędny login') ||
@@ -612,6 +615,7 @@ export const GlobalStateProvider = ({ children }) => {
         // Initialize token service on app start
         const initializeApp = async () => {
             await tokenService.initialize();
+            await purgeStoredSessionSecrets(); // wpis „user” ze starszej wersji aplikacji mógł zawierać tokeny
         };
         
         initializeApp();

@@ -10,6 +10,7 @@ import { AuthContext } from "../../context/AuthContext";
 import { GlobalStateContext } from "../../context/GlobalState";
 import { getApiUrl } from "../../config/api";
 import tokenService from "../../services/tokenService";
+import { stripSessionSecrets } from "../../utils/sessionProfile"; // profil bez tokenów do AsyncStorage
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 
@@ -125,11 +126,13 @@ const TwoFactorScreen = () => {
         await tokenService.setTokens(accessToken, data.refreshToken);
       }
 
-      await AsyncStorage.setItem("user", JSON.stringify(data));
-      setUser(data);
+      // do AsyncStorage i stanu sam profil - tokeny są już w SecureStore, kody odzyskiwania tylko na ekranie poniżej
+      const profile = stripSessionSecrets(data);
+      await AsyncStorage.setItem("user", JSON.stringify(profile));
+      setUser(profile);
       setIsLoggedIn(true);
       if (authContext?.login) {
-        authContext.login(data);
+        authContext.login(profile);
       }
 
       if (data?.recoveryCodes?.length) {
