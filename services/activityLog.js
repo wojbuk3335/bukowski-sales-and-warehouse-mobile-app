@@ -14,7 +14,6 @@ const MAX_QUEUE = 200; // bez internetu kolejka nie rośnie w nieskończoność
 export const SCREEN_LABELS = {
     '/': 'Start',
     '/sign-in': 'Logowanie',
-    '/sign-up': 'Rejestracja',
     '/two-factor': 'Kod 2FA',
     '/change-password': 'Zmiana hasła',
     // panel użytkownika (zakładki)

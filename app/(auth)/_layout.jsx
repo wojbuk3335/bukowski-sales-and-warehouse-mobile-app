@@ -12,7 +12,6 @@ const AuthLayout = () => {
       <View style={{ height: 32, backgroundColor: tc('bg', "#161622") }} />
       <Stack options={{ headerShown: false }}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-        <Stack.Screen name="sign-up" options={{ headerShown: false }} />
         <Stack.Screen name="two-factor" options={{ headerShown: false }} />
       </Stack>
 
