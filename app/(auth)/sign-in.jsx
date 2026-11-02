@@ -30,16 +30,17 @@ const SignIn = () => {
   // Informacja (nie błąd) po przekierowaniu z aplikacji, np. zakończona sesja
   const [notice, setNotice] = useState("");
   const [isAdminPanel, setIsAdminPanel] = useState(false);
-  // Panel (Użytkownik / Administrator) zapamiętany na telefonie - PIN odpala się dla ostatnio używanego panelu
+  // Panel (Użytkownik / Administrator) zapamiętany na telefonie - dotyczy tylko logowania hasłem (inna końcówka serwera)
   const PANEL_KEY = "BukowskiLoginPanel";
   const rememberPanel = (admin) => AsyncStorage.setItem(PANEL_KEY, admin ? "admin" : "user").catch(() => {});
   const navigation = useNavigation();
   const { setUser, bukowski_login, quick_login, isLoading, user } = useContext(GlobalStateContext);
-  // Szybkie logowanie: zapamiętane konta na tym telefonie (admin, konto punktu…) i czy pokazać zwykły formularz
+  // Szybkie logowanie: zapamiętane konta na tym telefonie (admin, konto punktu…) i czy pokazać zwykły formularz.
+  // Wszystkie konta naraz, bez filtra po panelu (2.11.2026): rola jest na karcie konta. Dawniej konta były dzielone
+  // między panele i PIN odpalał się sam dla „jedynego konta w panelu” - przy koncie admina i koncie punktu na jednym
+  // telefonie strzelał zawsze i trzeba było go anulować, żeby przełączyć panel i wybrać drugie konto.
   const [accounts, setAccounts] = useState([]);
-  // Konta tego panelu: Użytkownik - konta punktów, Administrator - konta adminów (admin ma oba na jednym telefonie)
-  const panelAccounts = accounts.filter((account) => (account.role === 'admin') === isAdminPanel);
-  const saved = panelAccounts.length === 1 ? panelAccounts[0] : null; // jedno konto w panelu - karta „Odblokuj"
+  const saved = accounts.length === 1 ? accounts[0] : null; // jedyne konto na telefonie - karta „Odblokuj”
   const reloadAccounts = async () => {
     const list = await quickLogin.getAccounts().catch(() => []);
     setAccounts(list);
@@ -73,10 +74,10 @@ const SignIn = () => {
     }
   }, [params?.reason]);
 
-  // Zapisany i nadal zalogowany użytkownik wchodzi od razu do swojego panelu (bez wpisywania hasła),
-  // gdy wybrany panel pasuje do jego roli. Wywoływane przy wejściu na ekran, przy zmianie panelu
-  // i przy kliknięciu w już zaznaczony panel.
-  const tryAutoLogin = async (newIsAdminPanel) => {
+  // Zapisany i nadal zalogowany użytkownik wchodzi od razu do swojego panelu (bez wpisywania hasła).
+  // Przy wejściu na ekran (null) - niezależnie od zaznaczonego panelu; przy zmianie panelu i kliknięciu
+  // w już zaznaczony panel - gdy wybrany panel pasuje do jego roli.
+  const tryAutoLogin = async (newIsAdminPanel = null) => {
     try {
       const userData = await AsyncStorage.getItem("user");
       if (userData) {
@@ -92,17 +93,10 @@ const SignIn = () => {
           return;
         }
         
-        // Jeśli przełącza na panel admina i jest adminem - automatycznie zaloguj
-        if (newIsAdminPanel && parsedUser.role === 'admin') {
+        const admin = parsedUser.role === 'admin';
+        if (newIsAdminPanel === null || newIsAdminPanel === admin) {
           setUser(parsedUser);
-          router.replace("/(admin-tabs)/dashboard");
-          return true;
-        }
-        
-        // Jeśli przełącza na panel użytkownika i jest userem - automatycznie zaloguj
-        if (!newIsAdminPanel && parsedUser.role !== 'admin') {
-          setUser(parsedUser);
-          router.replace("/home");
+          router.replace(admin ? "/(admin-tabs)/dashboard" : "/home");
           return true;
         }
       }
@@ -114,14 +108,13 @@ const SignIn = () => {
   const handlePanelSwitch = async () => {
     const newIsAdminPanel = !isAdminPanel;
     setIsAdminPanel(newIsAdminPanel);
-    setShowForm(false); // nowy panel: jego zapamiętane konto (karta PIN) albo formularz; PIN nie odpala się sam
     setError("");
     rememberPanel(newIsAdminPanel);
     await tryAutoLogin(newIsAdminPanel);
   };
 
-  // Panel na start: zapamiętany, a bez zapamiętanego - panel ostatnio używanego konta PIN
-  // (telefon tylko admina otwiera się na Administratorze)
+  // Panel formularza hasła na start: zapamiętany, a bez zapamiętanego - panel ostatnio używanego konta PIN
+  // (telefon tylko admina otwiera formularz na Administratorze)
   const initialPanel = async (list) => {
     let stored = null;
     try { stored = await AsyncStorage.getItem(PANEL_KEY); } catch (error) { stored = null; }
@@ -130,7 +123,7 @@ const SignIn = () => {
     return admin;
   };
 
-  // Wejście na ekran: zalogowany użytkownik punktu (domyślnie zaznaczony panel „Użytkownik”) wchodzi od razu.
+  // Wejście na ekran: zalogowany (ważna sesja) wchodzi od razu do swojego panelu.
   // Czekamy na koniec sprawdzania aktualizacji OTA, żeby nie przełączać ekranu w trakcie jej wgrywania.
   const autoLoginTriedRef = useRef(false);
   useEffect(() => {
@@ -138,12 +131,11 @@ const SignIn = () => {
     autoLoginTriedRef.current = true;
     (async () => {
       const list = await reloadAccounts();
-      const admin = await initialPanel(list);
-      if (await tryAutoLogin(admin)) return;
-      // Bez ważnej sesji: jedno zapamiętane konto w tym panelu -> od razu okno odblokowania (wzór / PIN / odcisk) -
-      // tylko przy otwarciu ekranu, nigdy po przełączeniu panelu. Kilka kont w panelu -> lista do wyboru.
-      const inPanel = list.filter((account) => (account.role === 'admin') === admin);
-      if (inPanel.length === 1 && (await quickLogin.availability()) === 'ok') quickSubmit(inPanel[0]);
+      await initialPanel(list);
+      if (await tryAutoLogin()) return;
+      // Bez ważnej sesji: JEDYNE zapamiętane konto na telefonie -> od razu okno odblokowania (wzór / PIN / odcisk) -
+      // tylko przy otwarciu ekranu. Kilka kont (np. admin i punkt) -> lista do wyboru, PIN dopiero po kliknięciu konta.
+      if (list.length === 1 && (await quickLogin.availability()) === 'ok') quickSubmit(list[0]);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateStage]);
@@ -168,7 +160,7 @@ const SignIn = () => {
       if (quickError.code === 'CANCELLED') return; // zamknięte okno odblokowania - zostaje przycisk „Odblokuj”
       if (quickError.code === 'TRUSTED_DEVICE_REJECTED' || quickError.code === 'NOT_ENABLED') {
         const left = await reloadAccounts(); // to konto zniknęło z telefonu; pozostałe zostają
-        if (!left.some((item) => (item.role === 'admin') === isAdminPanel)) setShowForm(true); // w tym panelu nic nie zostało
+        if (left.length === 0) setShowForm(true); // nic nie zostało - formularz hasła
         setError(quickError.message);
       } else if (quickError.code === 'SESSION_ACTIVE') {
         setError(buildSessionActiveMessage(quickError.session, Date.now(), quickError.sessions));
@@ -190,7 +182,7 @@ const SignIn = () => {
         onPress: async () => {
           await quickLogin.forget(account?.userId);
           const left = await reloadAccounts();
-          if (!left.some((item) => (item.role === 'admin') === isAdminPanel)) setShowForm(true); // w tym panelu nic nie zostało
+          if (left.length === 0) setShowForm(true); // nic nie zostało - formularz hasła
         },
       },
     ]);
@@ -281,30 +273,7 @@ const SignIn = () => {
           />
 
           <View style={styles.card}>
-          {/* Wybór panelu na samej górze: Użytkownik (konta punktów) / Administrator (konta adminów) - PIN i formularz pod spodem */}
-          <View style={styles.segment}>
-            {[
-              { admin: false, label: "Użytkownik", icon: "person" },
-              { admin: true, label: "Administrator", icon: "shield-checkmark" },
-            ].map((option) => {
-              const active = isAdminPanel === option.admin;
-              return (
-                <TouchableOpacity
-                  key={option.label}
-                  testID={option.admin ? "panel-admin" : "panel-user"}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: active }}
-                  style={[styles.segmentOption, active && styles.segmentOptionActive]}
-                  onPress={() => { if (active) tryAutoLogin(isAdminPanel); else handlePanelSwitch(); }}
-                >
-                  <Ionicons name={active ? option.icon : `${option.icon}-outline`} size={18} color={active ? "#fff" : tc('muted', "#94A3B8")} />
-                  <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{option.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {panelAccounts.length > 1 && !showForm ? (
+          {accounts.length > 1 && !showForm ? (
             <View testID="quick-login-list">
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
@@ -313,7 +282,7 @@ const SignIn = () => {
                 <Text style={styles.cardTitle}>Wybierz konto</Text>
                 <Text style={styles.cardSubtitle}>Odblokujesz je wzorem, PIN-em albo odciskiem palca</Text>
               </View>
-              {panelAccounts.map((account) => (
+              {accounts.map((account) => (
                 <View key={account.userId} style={styles.accountRow}>
                   <TouchableOpacity
                     testID={`quick-account-${account.userId}`}
@@ -372,11 +341,33 @@ const SignIn = () => {
             </View>
           ) : (
           <>
-          {panelAccounts.length > 0 ? (
+          {accounts.length > 0 ? (
             <TouchableOpacity onPress={() => { setShowForm(false); setError(""); }} style={{ marginBottom: 10 }} testID="quick-back">
               <Text style={styles.quickLink}>{saved ? `← Szybkie logowanie (${saved.symbol || saved.email})` : '← Szybkie logowanie (wybór konta)'}</Text>
             </TouchableOpacity>
           ) : null}
+          {/* Wybór panelu tylko przy logowaniu hasłem: Użytkownik (konta punktów) / Administrator (konta adminów) - inna końcówka serwera */}
+          <View style={styles.segment}>
+            {[
+              { admin: false, label: "Użytkownik", icon: "person" },
+              { admin: true, label: "Administrator", icon: "shield-checkmark" },
+            ].map((option) => {
+              const active = isAdminPanel === option.admin;
+              return (
+                <TouchableOpacity
+                  key={option.label}
+                  testID={option.admin ? "panel-admin" : "panel-user"}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  style={[styles.segmentOption, active && styles.segmentOptionActive]}
+                  onPress={() => { if (active) tryAutoLogin(isAdminPanel); else handlePanelSwitch(); }}
+                >
+                  <Ionicons name={active ? option.icon : `${option.icon}-outline`} size={18} color={active ? "#fff" : tc('muted', "#94A3B8")} />
+                  <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderIcon}>
               <Ionicons name={isAdminPanel ? "shield-checkmark" : "log-in"} size={28} color="#0D6EFD" />

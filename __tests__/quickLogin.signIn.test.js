@@ -2,6 +2,8 @@
  * Ekran logowania z szybkim logowaniem (19.10.2026): zapamiętane konto -> karta „Odblokuj” i od razu okno
  * odblokowania; po odblokowaniu wejście do panelu; odcięty telefon -> zwykły formularz z komunikatem;
  * „Zaloguj innym kontem” pokazuje formularz; po zalogowaniu hasłem propozycja włączenia.
+ * 2.11.2026: konta pokazywane wszystkie naraz (bez dzielenia na panele) - PIN sam odpala się tylko przy JEDYNYM
+ * koncie na telefonie; przy kilku lista do wyboru. Przełącznik Użytkownik / Administrator tylko przy formularzu hasła.
  */
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
@@ -28,8 +30,13 @@ jest.mock('../services/quickLogin', () => ({
   default: { getAccounts: jest.fn(), getSaved: jest.fn(), availability: jest.fn(), forget: jest.fn() },
 }));
 jest.mock('../utils/quickLoginOffer', () => ({ offerQuickLogin: jest.fn() }));
+jest.mock('../services/tokenService', () => ({
+  __esModule: true,
+  default: { isAuthenticated: jest.fn(async () => false) },
+}));
 
 const quickLogin = require('../services/quickLogin').default;
+const tokenService = require('../services/tokenService').default;
 const { offerQuickLogin } = require('../utils/quickLoginOffer');
 
 const SAVED = { userId: 'u1', secret: 'x', symbol: 'P', sellingPoint: 'Parzygnat', email: 'parzygnat@wp.pl', role: 'user' };
@@ -47,6 +54,7 @@ beforeEach(async () => {
   quickLogin.getAccounts.mockResolvedValue([SAVED]);
   quickLogin.getSaved.mockResolvedValue(SAVED);
   quickLogin.availability.mockResolvedValue('ok');
+  tokenService.isAuthenticated.mockResolvedValue(false);
 });
 
 test('zapamiętane konto: karta „Odblokuj”, od razu szybkie logowanie i wejście do panelu użytkownika', async () => {
@@ -94,47 +102,65 @@ test('„Zaloguj innym kontem” pokazuje formularz i link powrotu; bez blokady 
   await waitFor(() => expect(screen.getByTestId('quick-login-card')).toBeTruthy());
   await act(async () => { await Promise.resolve(); });
   expect(quick_login).not.toHaveBeenCalled();
+  expect(screen.queryByTestId('panel-admin')).toBeNull(); // przełącznik panelu tylko przy formularzu hasła
   fireEvent.press(screen.getByTestId('quick-other-account'));
   expect(screen.getAllByTestId('text-input')).toHaveLength(2);
+  expect(screen.getByTestId('panel-admin')).toBeTruthy();
   fireEvent.press(screen.getByTestId('quick-back'));
   expect(screen.getByTestId('quick-login-card')).toBeTruthy();
 });
 
-test('dwa konta na telefonie (admin + punkt): PIN tylko dla panelu ostatnio używanego konta; konto admina nie w panelu Użytkownik', async () => {
+test('dwa konta na telefonie (admin + punkt): lista obu kont, PIN nie odpala się sam; wybór konta punktu loguje do panelu użytkownika', async () => {
   const ADMIN = { userId: 'a1', secret: 'y', symbol: 'ADM', email: 'admin@x.pl', role: 'admin' };
-  quickLogin.getAccounts.mockResolvedValue([SAVED, ADMIN]); // ostatnio używane konto punktu -> start na panelu Użytkownik
+  quickLogin.getAccounts.mockResolvedValue([SAVED, ADMIN]);
   const quick_login = jest.fn(async (userId) => (userId === 'u1' ? { role: 'user', symbol: 'P' } : { role: 'admin' }));
   const screen = renderSignIn({ quick_login });
-  await waitFor(() => expect(screen.getByTestId('quick-login-card')).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId('quick-login-list')).toBeTruthy());
   expect(screen.getByText('P')).toBeTruthy();
-  expect(screen.queryByText('ADM')).toBeNull();
-  await waitFor(() => expect(quick_login).toHaveBeenCalledWith('u1')); // PIN od razu, dla panelu Użytkownik
-  expect(quick_login).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('ADM')).toBeTruthy();
+  expect(screen.queryByTestId('quick-login-card')).toBeNull();
+  expect(screen.queryByTestId('panel-user')).toBeNull(); // bez przełącznika panelu nad listą kont
+  await act(async () => { await Promise.resolve(); });
+  expect(quick_login).not.toHaveBeenCalled(); // dawniej PIN strzelał od razu dla „jedynego konta w panelu”
+
+  await act(async () => { fireEvent.press(screen.getByTestId('quick-account-u1')); });
+  expect(quick_login).toHaveBeenCalledWith('u1');
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/home'));
 });
 
-test('dwa konta: panel Administrator pokazuje konto admina; przełączenie panelu nie odpala PIN-u, „Odblokuj” loguje admina', async () => {
+test('dwa konta: wybór konta admina loguje do panelu admina; „Zaloguj innym kontem” pokazuje formularz z przełącznikiem panelu', async () => {
   const ADMIN = { userId: 'a1', secret: 'y', symbol: 'ADM', email: 'admin@x.pl', role: 'admin' };
-  quickLogin.availability.mockResolvedValue('no-lock'); // bez automatycznego PIN-u na starcie
   quickLogin.getAccounts.mockResolvedValue([SAVED, ADMIN]);
   const quick_login = jest.fn(async () => ({ role: 'admin' }));
   const screen = renderSignIn({ quick_login });
-  await waitFor(() => expect(screen.getByTestId('quick-login-card')).toBeTruthy());
-  expect(screen.getByText('P')).toBeTruthy();
+  await waitFor(() => expect(screen.getByTestId('quick-login-list')).toBeTruthy());
 
-  await act(async () => { fireEvent.press(screen.getByTestId('panel-admin')); });
-  expect(quick_login).not.toHaveBeenCalled();
-  expect(screen.getByText('ADM')).toBeTruthy();
-  expect(screen.queryByText('P')).toBeNull();
-
-  await act(async () => { fireEvent.press(screen.getByText('Odblokuj')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('quick-account-a1')); });
   expect(quick_login).toHaveBeenCalledWith('a1');
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(admin-tabs)/dashboard'));
+
   fireEvent.press(screen.getByTestId('quick-other-account'));
   expect(screen.getAllByTestId('text-input')).toHaveLength(2);
+  expect(screen.getByTestId('panel-admin')).toBeTruthy();
+  fireEvent.press(screen.getByTestId('quick-back'));
+  expect(screen.getByTestId('quick-login-list')).toBeTruthy();
 });
 
-test('dwa konta punktów w panelu Użytkownik: lista do wyboru, bez automatycznego PIN-u', async () => {
+test('ważna sesja przy wejściu: admin wchodzi do swojego panelu, choć zapamiętany panel formularza to Użytkownik', async () => {
+  const storage = require('@react-native-async-storage/async-storage');
+  const AsyncStorage = storage.default || storage;
+  await AsyncStorage.setItem('user', JSON.stringify({ userId: 'a1', role: 'admin', symbol: 'ADM' }));
+  await AsyncStorage.setItem('BukowskiLoginPanel', 'user');
+  tokenService.isAuthenticated.mockResolvedValue(true);
+  const quick_login = jest.fn();
+  const setUser = jest.fn();
+  renderSignIn({ quick_login, setUser });
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(admin-tabs)/dashboard'));
+  expect(setUser).toHaveBeenCalledWith({ userId: 'a1', role: 'admin', symbol: 'ADM' });
+  expect(quick_login).not.toHaveBeenCalled(); // zalogowany - bez okna PIN
+});
+
+test('dwa konta punktów: lista do wyboru, bez automatycznego PIN-u', async () => {
   const SECOND = { userId: 'u2', secret: 'z', symbol: 'SOP', sellingPoint: 'Sopot', email: 'sopot@wp.pl', role: 'user' };
   quickLogin.getAccounts.mockResolvedValue([SAVED, SECOND]);
   const quick_login = jest.fn(async () => ({ role: 'user', symbol: 'SOP' }));
