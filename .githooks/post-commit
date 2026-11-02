@@ -1,6 +1,0 @@
-#!/bin/sh
-# Po commicie na main: automatyczna aktualizacja OTA (szczegóły w eas-auto-update.sh).
-# W trakcie rebase pomijane - liczy się wynik końcowy.
-GIT_DIR=$(git rev-parse --git-dir)
-[ -d "$GIT_DIR/rebase-merge" ] || [ -d "$GIT_DIR/rebase-apply" ] && exit 0
-exec sh "$(dirname "$0")/eas-auto-update.sh" "HEAD^"

@@ -1,0 +1,42 @@
+#!/bin/sh
+# Wypchnięcie na GitHub (git push) gałęzi main = aktualizacja OTA na telefony (2.11.2026).
+# Dawniej wysyłał GitHub (workflow eas-update.yml, token Expo) oraz ten komputer po każdym commicie -
+# każda zmiana szła na telefony dwa razy, a token omijał 2FA konta Expo. Teraz wysyła tylko ten komputer,
+# podpisując aktualizację kluczem keys/private-key.pem (szczegóły i warunki w eas-auto-update.sh).
+#
+# Git nie ma haka „po pushu”, więc w tle czekamy, aż git zapisze origin/main = wysłany commit - dzieje się
+# to dopiero, gdy GitHub przyjmie push. Odrzucony push (np. drugi komputer wypchnął coś wcześniej) -
+# aktualizacja nie wychodzi, więc na telefony nie trafia wersja, której nie ma na GitHubie.
+# Pominięcie dla jednego pushu: [skip-update] w treści ostatniego commita. Wynik: .eas-update.log.
+
+REMOTE="$1"
+LOG=".eas-update.log"
+HOOK_DIR=$(dirname "$0")
+ZERO="0000000000000000000000000000000000000000"
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+  [ "$REMOTE_REF" = "refs/heads/main" ] || continue
+  [ "$LOCAL_SHA" = "$ZERO" ] && continue # usuwanie gałęzi na GitHubie
+  if [ "$LOCAL_SHA" != "$(git rev-parse HEAD)" ]; then
+    echo "[eas-update] Pominięto: wysyłany commit to nie bieżący stan katalogu - wyślij ręcznie: npm run update -- \"opis\""
+    continue
+  fi
+  BASE="$REMOTE_SHA"
+  [ "$BASE" = "$ZERO" ] && BASE="HEAD^"
+  SHORT=$(git rev-parse --short "$LOCAL_SHA")
+  echo "[eas-update] Po przyjęciu pushu przez GitHub wyślę aktualizację na telefony ($SHORT). Log: $LOG"
+  (
+    tries=0
+    while [ "$(git rev-parse --verify --quiet "refs/remotes/$REMOTE/main")" != "$LOCAL_SHA" ]; do
+      tries=$((tries + 1))
+      if [ "$tries" -gt 90 ]; then
+        echo "=== $(date '+%Y-%m-%d %H:%M:%S') $SHORT push nie dotarł na GitHub w 3 min - aktualizacja NIE wysłana ==="
+        exit 0
+      fi
+      sleep 2
+    done
+    sh "$HOOK_DIR/eas-auto-update.sh" "$BASE"
+  ) >> "$LOG" 2>&1 < /dev/null &
+done
+
+exit 0
