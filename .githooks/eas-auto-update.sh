@@ -1,28 +1,37 @@
 #!/bin/sh
-# Automatyczna aktualizacja OTA (EAS Update) po zmianie na main: po commicie (post-commit)
-# i po scaleniu gałęzi, także fast-forward (post-merge).
-# Pracownicy dostają ją przy następnym logowaniu (Android i iOS, aplikacja publiczna i prywatna).
+# Aktualizacja OTA (EAS Update) po zmianie na main: po commicie (post-commit) i po scaleniu gałęzi,
+# także fast-forward (post-merge). Pracownicy dostają ją przy następnym otwarciu aplikacji (Android i iOS,
+# aplikacja publiczna i prywatna).
+#
+# Od 2.11.2026 wysyłka jest ŚWIADOMA: leci tylko, gdy w treści commita jest [ota]. Dawniej każdy commit
+# na main szedł na wszystkie telefony od razu - pomyłka, merge z drugiego komputera albo obcy commit po
+# przejęciu komputera trafiały do sklepów bez niczyjej decyzji. Bez znacznika: ręcznie `npm run update -- "opis"`.
 #
 # Użycie: eas-auto-update.sh <commit bazowy>  - sprawdza zmiany od bazy do HEAD.
 #
 # Pomijane, gdy:
 #   - gałąź inna niż main,
-#   - w treści ostatniego commita jest [skip-update],
+#   - w treści ostatniego commita NIE ma [ota],
 #   - zmiany dotyczą tylko dokumentacji / testów,
 #   - w katalogu zostały niezacommitowane zmiany (eas update wysyła pliki z dysku, nie z commita),
 #   - zmiany dotyczą części natywnej (zależności, app.json, app.config.js, eas.json) - wtedy potrzebny nowy build ze sklepu.
+# Podpis kodu: aktualizacja jest podpisywana kluczem keys/private-key.pem (poza gitem); bez klucza na tym
+# komputerze wysyłka jest przerywana - telefony z buildem 1.2.1+ odrzuciłyby niepodpisaną paczkę.
 # Wynik: .eas-update.log w katalogu projektu.
 
 BASE="$1"
 LOG=".eas-update.log"
+PRIVATE_KEY="keys/private-key.pem"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 SUBJECT=$(git log -1 --pretty=%s)
+BODY=$(git log -1 --pretty=%B)
 HASH=$(git rev-parse --short HEAD)
 
 [ "$BRANCH" = "main" ] || exit 0
 
-case "$SUBJECT" in
-  *"[skip-update]"*) echo "[eas-update] Pominięto ($HASH): [skip-update] w treści commita."; exit 0 ;;
+case "$BODY" in
+  *"[ota]"*) ;;
+  *) echo "[eas-update] Bez wysyłki ($HASH): brak [ota] w treści commita. Ręcznie: npm run update -- \"opis\""; exit 0 ;;
 esac
 
 if [ -n "$BASE" ] && git rev-parse --verify --quiet "$BASE" >/dev/null; then
@@ -49,11 +58,17 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 0
 fi
 
+if [ ! -f "$PRIVATE_KEY" ]; then
+  echo "[eas-update] STOP ($HASH): brak klucza podpisu $PRIVATE_KEY na tym komputerze - aktualizacja NIE została wysłana."
+  echo "[eas-update] Klucz jest w Bitwardenie (wpis „Expo OTA - klucz podpisu”); zapisz go jako $PRIVATE_KEY i wyślij: npm run update -- \"opis\""
+  exit 0
+fi
+
 echo "[eas-update] Wysyłam aktualizację w tle ($HASH: $SUBJECT). Log: $LOG"
 (
   echo "=== $(date '+%Y-%m-%d %H:%M:%S') $HASH $SUBJECT ==="
   EXPO_PUBLIC_API_URL=https://bukowskiapp.pl/api EXPO_PUBLIC_ENVIRONMENT=production \
-    npx eas update --channel production --message "$SUBJECT" --non-interactive 2>&1
+    npx eas update --channel production --private-key-path "$PRIVATE_KEY" --message "$SUBJECT" --non-interactive 2>&1
   echo "=== koniec: kod $? ==="
 ) >> "$LOG" 2>&1 &
 

@@ -17,28 +17,7 @@
         "NSPhotoLibraryUsageDescription": "We need photo library access to let you attach product images to inventory records for documentation purposes.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
-          "NSExceptionDomains": {
-            "192.168.1.25": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSExceptionRequiresForwardSecrecy": false,
-              "NSIncludesSubdomains": false
-            },
-            "192.168.1.22": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSExceptionRequiresForwardSecrecy": false,
-              "NSIncludesSubdomains": false
-            },
-            "192.168.1.132": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSExceptionRequiresForwardSecrecy": false,
-              "NSIncludesSubdomains": false
-            },
-            "localhost": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSExceptionRequiresForwardSecrecy": false,
-              "NSIncludesSubdomains": true
-            }
-          }
+          "NSAllowsLocalNetworking": true
         }
       }
     },
@@ -111,7 +90,12 @@
     "updates": {
       "url": "https://u.expo.dev/9e828d3c-82f4-4e57-ab94-21d149810aef",
       "checkAutomatically": "NEVER",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "codeSigningCertificate": "./certs/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      }
     }
   }
 }

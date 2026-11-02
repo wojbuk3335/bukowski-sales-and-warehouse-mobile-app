@@ -45,3 +45,7 @@ app-example
 
 # log automatycznych aktualizacji OTA
 .eas-update.log
+
+# klucz prywatny podpisu aktualizacji OTA (certyfikat w certs/ jest publiczny i wchodzi do aplikacji)
+keys/
+!certs/certificate.pem
