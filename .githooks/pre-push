@@ -1,8 +1,8 @@
 #!/bin/sh
 # Wypchnięcie na GitHub (git push) gałęzi main = aktualizacja OTA na telefony (2.11.2026).
 # Dawniej wysyłał GitHub (workflow eas-update.yml, token Expo) oraz ten komputer po każdym commicie -
-# każda zmiana szła na telefony dwa razy, a token omijał 2FA konta Expo. Teraz wysyła tylko ten komputer,
-# podpisując aktualizację kluczem keys/private-key.pem (szczegóły i warunki w eas-auto-update.sh).
+# każda zmiana szła na telefony dwa razy, a token omijał 2FA konta Expo. Teraz wysyła tylko ten komputer
+# (zalogowany do Expo; szczegóły i warunki w eas-auto-update.sh).
 #
 # Git nie ma haka „po pushu”, więc w tle czekamy, aż git zapisze origin/main = wysłany commit - dzieje się
 # to dopiero, gdy GitHub przyjmie push. Odrzucony push (np. drugi komputer wypchnął coś wcześniej) -

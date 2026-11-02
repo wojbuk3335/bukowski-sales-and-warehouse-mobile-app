@@ -4,6 +4,8 @@
 #
 # 2.11.2026: wysyła TYLKO ten komputer, przy pushu (nie przy commicie). Dawniej: każdy commit stąd + każdy push
 # przez GitHub (workflow z tokenem Expo, omijającym 2FA) - zmiana szła na telefony dwa razy, commit lokalny też.
+# Bez podpisu kodu: podpisywanie aktualizacji EAS jest tylko w płatnym planie Production (Free/Starter - nie);
+# ochrona to 2FA konta Expo i wysyłka wyłącznie z komputera zalogowanego do Expo.
 #
 # Użycie: eas-auto-update.sh <commit bazowy>  - sprawdza zmiany od bazy (stan GitHuba przed pushem) do HEAD.
 #
@@ -12,14 +14,11 @@
 #   - w treści ostatniego commita jest [skip-update],
 #   - zmiany dotyczą tylko dokumentacji / testów / hooków,
 #   - w katalogu zostały niezacommitowane zmiany (eas update wysyła pliki z dysku, nie z commita),
-#   - zmiany dotyczą części natywnej (zależności, app.json, app.config.js, eas.json) - wtedy potrzebny nowy build ze sklepu,
-#   - na tym komputerze nie ma klucza podpisu keys/private-key.pem (telefony z buildem 1.2.1+ odrzuciłyby
-#     niepodpisaną paczkę; klucz jest w Bitwardenie: „Expo OTA - klucz podpisu”).
+#   - zmiany dotyczą części natywnej (zależności, app.json, app.config.js, eas.json) - wtedy potrzebny nowy build ze sklepu.
 # Ręcznie (np. po pominięciu): npm run update -- "opis". Test bez wysyłki: EAS_UPDATE_DRY_RUN=1.
 # Wynik: .eas-update.log w katalogu projektu.
 
 BASE="$1"
-PRIVATE_KEY="keys/private-key.pem"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 SUBJECT=$(git log -1 --pretty=%s)
 BODY=$(git log -1 --pretty=%B)
@@ -54,18 +53,13 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 0
 fi
 
-if [ ! -f "$PRIVATE_KEY" ]; then
-  echo "=== $STAMP $HASH STOP: brak klucza podpisu $PRIVATE_KEY na tym komputerze - aktualizacja NIE wysłana (klucz w Bitwardenie: „Expo OTA - klucz podpisu”) ==="
-  exit 0
-fi
-
 echo "=== $STAMP $HASH $SUBJECT ==="
 if [ "$EAS_UPDATE_DRY_RUN" = "1" ]; then
-  echo "[próba] npx eas update --channel production --private-key-path $PRIVATE_KEY --message \"$SUBJECT\" --non-interactive"
+  echo "[próba] npx eas update --channel production --message \"$SUBJECT\" --non-interactive"
   echo "=== koniec: kod 0 (próba, nic nie wysłano) ==="
   exit 0
 fi
 EXPO_PUBLIC_API_URL=https://bukowskiapp.pl/api EXPO_PUBLIC_ENVIRONMENT=production \
-  npx eas update --channel production --private-key-path "$PRIVATE_KEY" --message "$SUBJECT" --non-interactive 2>&1
+  npx eas update --channel production --message "$SUBJECT" --non-interactive 2>&1
 echo "=== koniec: kod $? ==="
 exit 0
