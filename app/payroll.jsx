@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   StyleSheet,
@@ -11,121 +11,129 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
+import { WebView } from "react-native-webview";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import tokenService from "../services/tokenService";
 import { getApiUrl } from "../config/api";
-import usePullToRefresh from '../hooks/usePullToRefresh'; // odświeżanie przeciągnięciem palca
+import usePullToRefresh from "../hooks/usePullToRefresh"; // odświeżanie przeciągnięciem palca
+import useLiveRefresh from "../services/useLiveRefresh"; // prowizje, zaliczki, wypłaty i godziny pracy na żywo
+import buildPayrollSheetHtml from "../utils/payrollSheetHtml"; // wydruk miesięczny (ten sam szablon co w panelu)
 
-import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
-import { PageHeader, ModalHeader, look } from "../components/AdminLook"; // wspólny wygląd (styl panelu admina)
+import { tc, createThemedStyles, useAppTheme } from "../context/ThemeContext"; // kolory zależne od motywu
+import { PageHeader, ModalHeader, IconButton, MessageModal, look } from "../components/AdminLook"; // wspólny wygląd admina
 import { KeyboardSafeOverlay } from "../components/KeyboardSafe"; // klawiatura nie zasłania pola
+
+// Ekran Wypłaty (admin) - 3.11.2026 przepisany na wygląd reszty ekranów admina, z pełnym zestawem funkcji panelu:
+// dane ładują się same po wyborze pracownika i miesiąca (bez „Pokaż wypłaty”), odświeżają na żywo, rachunek
+// miesiąca jak pasek wypłaty, rozliczenie z zaokrągleniem (dopłata), cofnięcie, wydruk miesięczny (podgląd).
+
 const FILTERS_KEY = "payrollFilters";
+const GREEN = "#10B981";
+const RED = "#EF4444";
+const AMBER = "#F59E0B";
+const BLUE = "#2563EB";
+const CYAN = "#06B6D4";
+
+const MONTHS = [
+  { value: "1", label: "Styczeń" }, { value: "2", label: "Luty" }, { value: "3", label: "Marzec" },
+  { value: "4", label: "Kwiecień" }, { value: "5", label: "Maj" }, { value: "6", label: "Czerwiec" },
+  { value: "7", label: "Lipiec" }, { value: "8", label: "Sierpień" }, { value: "9", label: "Wrzesień" },
+  { value: "10", label: "Październik" }, { value: "11", label: "Listopad" }, { value: "12", label: "Grudzień" },
+];
+const TYPE_META = {
+  work_hours: { label: "Praca", color: BLUE, icon: "time" },
+  commission: { label: "Prowizja", color: CYAN, icon: "trending-up" },
+  advance: { label: "Zaliczka", color: RED, icon: "cash" },
+  payment: { label: "Wypłata", color: AMBER, icon: "card" },
+};
+
+// Kwoty po polsku bez Intl (Hermes na starszych buildach nie ma pl-PL): 1 234,50 zł
+const zl = (value) => {
+  const number = Number(value || 0);
+  const [int, dec] = Math.abs(number).toFixed(2).split(".");
+  return `${number < 0 ? "-" : ""}${int.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${dec} zł`;
+};
+const pad2 = (n) => String(n).padStart(2, "0");
+const formatDate = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+};
+const hoursText = (value) => String(Math.round(Number(value || 0) * 10) / 10).replace(".", ",");
+
+// Zaliczka pracownika w PLN: w PLN - kwota; w walucie - wartość po kursie dnia zapisana przez serwer (plnAmount);
+// bez kursu - null (nie odejmujemy po cichu 100 EUR jak 100 zł). Patrz backend services/dailyRates.js.
+const advanceCurrency = (advance) => String(advance?.currency || "PLN").toUpperCase();
+const advancePln = (advance) => {
+  if (advanceCurrency(advance) === "PLN") return Math.abs(Number(advance.amount) || 0);
+  return typeof advance.plnAmount === "number" ? advance.plnAmount : null;
+};
 
 const Payroll = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
-  const insets = useSafeAreaInsets(); // Get safe area insets
+  const insets = useSafeAreaInsets();
+
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [workHours, setWorkHours] = useState([]);
   const [advances, setAdvances] = useState([]);
   const [payments, setPayments] = useState([]);
   const [commissions, setCommissions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false); // dane dla bieżących filtrów są wczytane
   const [summary, setSummary] = useState(null);
-  const [hasRestoredFilters, setHasRestoredFilters] = useState(false);
+  const requestCounter = useRef(0); // numer ostatniego zapytania - odpowiedź starszego (po zmianie filtra) jest pomijana
 
-  const [showWorkHours, setShowWorkHours] = useState(true);
-  const [showAdvances, setShowAdvances] = useState(true);
-  const [showPayments, setShowPayments] = useState(true);
-  const [showCommissions, setShowCommissions] = useState(true);
+  const [visibleTypes, setVisibleTypes] = useState({ work_hours: true, commission: true, advance: true, payment: true });
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [undoPayment, setUndoPayment] = useState(null); // wypłata do cofnięcia (okienko potwierdzenia)
+  const [undoLoading, setUndoLoading] = useState(false);
 
-  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
-  const [showMonthModal, setShowMonthModal] = useState(false);
-  const [showYearModal, setShowYearModal] = useState(false);
-
-  const [selectedCommissionDetails, setSelectedCommissionDetails] = useState(null);
-
-  const [showErrorModal, setShowErrorModal] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-
-  const months = useMemo(
-    () => [
-      { value: "1", label: "Styczeń" },
-      { value: "2", label: "Luty" },
-      { value: "3", label: "Marzec" },
-      { value: "4", label: "Kwiecień" },
-      { value: "5", label: "Maj" },
-      { value: "6", label: "Czerwiec" },
-      { value: "7", label: "Lipiec" },
-      { value: "8", label: "Sierpień" },
-      { value: "9", label: "Wrzesień" },
-      { value: "10", label: "Październik" },
-      { value: "11", label: "Listopad" },
-      { value: "12", label: "Grudzień" },
-    ],
-    []
-  );
+  const [picker, setPicker] = useState(null); // 'employee' | 'month' | 'year'
+  const [commissionDetails, setCommissionDetails] = useState(null);
+  const [sheetHtml, setSheetHtml] = useState(null); // podgląd wydruku
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [message, setMessage] = useState(null); // { type, title, text }
 
   const years = useMemo(() => {
     const current = new Date().getFullYear();
-    const span = 15;
-    return Array.from({ length: span }, (_, i) => (current - 7 + i).toString());
+    return Array.from({ length: 5 }, (_, i) => String(current - 3 + i)); // 3 lata wstecz, rok w przód (jak panel)
   }, []);
 
-  const showError = useCallback((message) => {
-    setErrorMessage(message);
-    setShowErrorModal(true);
-  }, []);
+  const showError = useCallback((text) => setMessage({ type: "error", text }), []);
+  const showSuccess = useCallback((text) => setMessage({ type: "success", text }), []);
 
-  const showSuccess = useCallback((message) => {
-    setSuccessMessage(message);
-    setShowSuccessModal(true);
-  }, []);
-
-  const persistFilters = useCallback(async (filters) => {
-    try {
-      await AsyncStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
-    } catch {
-      // Storage failure should not block UI
-    }
-  }, []);
-
-  const loadFilters = useCallback(async () => {
-    try {
-      const saved = await AsyncStorage.getItem(FILTERS_KEY);
-      if (!saved) return;
-      const parsed = JSON.parse(saved);
-      if (parsed.selectedEmployee) setSelectedEmployee(parsed.selectedEmployee);
-      if (parsed.selectedMonth) setSelectedMonth(parsed.selectedMonth);
-      if (parsed.selectedYear) setSelectedYear(parsed.selectedYear.toString());
-      setHasRestoredFilters(true);
-    } catch {
-      // Ignore invalid storage data
-    }
+  // ---------- filtry (zapamiętywane) ----------
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(FILTERS_KEY);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedEmployee) setSelectedEmployee(parsed.selectedEmployee);
+        if (parsed.selectedMonth) setSelectedMonth(String(parsed.selectedMonth));
+        if (parsed.selectedYear) setSelectedYear(String(parsed.selectedYear));
+      } catch {
+        // zapis filtrów nie jest krytyczny
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    loadFilters();
-  }, [loadFilters]);
+    AsyncStorage.setItem(FILTERS_KEY, JSON.stringify({ selectedEmployee, selectedMonth, selectedYear })).catch(() => {});
+  }, [selectedEmployee, selectedMonth, selectedYear]);
 
-  useEffect(() => {
-    persistFilters({ selectedEmployee, selectedMonth, selectedYear });
-  }, [selectedEmployee, selectedMonth, selectedYear, persistFilters]);
-
+  // ---------- dane ----------
   const fetchEmployees = useCallback(async () => {
     try {
-      const url = getApiUrl("/employees");
-      const response = await tokenService.authenticatedFetch(url);
+      const response = await tokenService.authenticatedFetch(getApiUrl("/employees"));
       if (!response.ok) {
         showError("Błąd podczas ładowania pracowników");
         return;
@@ -145,262 +153,211 @@ const Payroll = () => {
     const year = parseInt(selectedYear, 10);
     const monthIndex = parseInt(selectedMonth, 10) - 1;
     const startDate = new Date(year, monthIndex, 1).toISOString();
-    // Do KOŃCA ostatniego dnia (dawniej północ na jego początku - zaliczka z 31-go w dzień wypadała z rozliczenia)
+    // do KOŃCA ostatniego dnia (wypłata pensji ma datę 23:59:59 ostatniego dnia miesiąca)
     const endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999).toISOString();
-    return {
-      startDate: encodeURIComponent(startDate),
-      endDate: encodeURIComponent(endDate),
-    };
+    return { startDate: encodeURIComponent(startDate), endDate: encodeURIComponent(endDate) };
   }, [selectedYear, selectedMonth]);
 
   const fetchFinancialOperations = useCallback(async () => {
-    if (!selectedEmployee || !selectedMonth || !selectedYear) {
-      return { advances: [], payments: [], commissions: [] };
-    }
+    const { startDate, endDate } = buildDateRange();
+    const base = `/financial-operations?employeeId=${selectedEmployee}&startDate=${startDate}&endDate=${endDate}`;
+    const [advancesResponse, paymentsResponse, commissionsResponse] = await Promise.all([
+      tokenService.authenticatedFetch(getApiUrl(`${base}&type=employee_advance`)),
+      tokenService.authenticatedFetch(getApiUrl(`${base}&type=salary_payment`)),
+      tokenService.authenticatedFetch(getApiUrl(`${base}&type=sales_commission`)),
+    ]);
+    const asList = async (response) => {
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    };
+    return { advances: await asList(advancesResponse), payments: await asList(paymentsResponse), commissions: await asList(commissionsResponse) };
+  }, [selectedEmployee, buildDateRange]);
 
-    try {
-      const { startDate, endDate } = buildDateRange();
-      const base = `/financial-operations?employeeId=${selectedEmployee}&startDate=${startDate}&endDate=${endDate}`;
-
-      const [advancesResponse, paymentsResponse, commissionsResponse] = await Promise.all([
-        tokenService.authenticatedFetch(getApiUrl(`${base}&type=employee_advance`)),
-        tokenService.authenticatedFetch(getApiUrl(`${base}&type=salary_payment`)),
-        tokenService.authenticatedFetch(getApiUrl(`${base}&type=sales_commission`)),
-      ]);
-
-      const advancesData = advancesResponse.ok ? await advancesResponse.json() : [];
-      const paymentsData = paymentsResponse.ok ? await paymentsResponse.json() : [];
-      const commissionsData = commissionsResponse.ok ? await commissionsResponse.json() : [];
-
-      const allAdvances = Array.isArray(advancesData) ? advancesData : [];
-      const allPayments = Array.isArray(paymentsData) ? paymentsData : [];
-      const allCommissions = Array.isArray(commissionsData) ? commissionsData : [];
-
-      setAdvances(allAdvances);
-      setPayments(allPayments);
-      setCommissions(allCommissions);
-
-      return { advances: allAdvances, payments: allPayments, commissions: allCommissions };
-    } catch (error) {
-      showError(error?.message || "Błąd podczas pobierania wypłat");
-      setAdvances([]);
-      setPayments([]);
-      setCommissions([]);
-      return { advances: [], payments: [], commissions: [] };
-    }
-  }, [selectedEmployee, selectedMonth, selectedYear, buildDateRange, showError]);
-
-  const calculateSummary = useCallback((hours, advancesData = [], paymentsData = [], commissionsData = []) => {
+  const calculateSummary = useCallback((hours, advancesData, paymentsData, commissionsData) => {
     const totalHours = hours.reduce((sum, record) => sum + (record.totalHours || 0), 0);
     const totalPay = hours.reduce((sum, record) => sum + (record.dailyPay || 0), 0);
-    const totalAdvances = advancesData.reduce((sum, advance) => sum + Math.abs(advance.amount || 0), 0);
+    const totalAdvances = advancesData.reduce((sum, advance) => sum + (advancePln(advance) ?? 0), 0);
+    const unconvertedAdvances = advancesData.filter((advance) => advancePln(advance) === null).length; // waluta bez kursu
     const totalPayments = paymentsData.reduce((sum, payment) => sum + Math.abs(payment.amount || 0), 0);
     const totalCommissions = commissionsData.reduce((sum, commission) => sum + Math.abs(commission.amount || 0), 0);
-    const finalPay = totalPay + totalCommissions - totalAdvances - totalPayments;
-    const workDays = hours.length;
-
+    // Dopłaty (zaokrąglenie wypłaty w górę) liczą się jak zarobek - po wypłacie miesiąc wychodzi na 0, nie na „nadpłatę”
+    const totalBonus = paymentsData.reduce((sum, payment) => sum + Math.max(0, Number(payment.bonusAmount) || 0), 0);
+    const earned = totalPay + totalCommissions + totalBonus - totalAdvances;
+    const finalPay = earned - totalPayments;
     setSummary({
-      totalHours,
-      totalPay,
-      totalCommissions,
-      totalAdvances,
-      totalPayments,
-      finalPay,
-      workDays,
-      averageHoursPerDay: workDays > 0 ? totalHours / workDays : 0,
+      totalHours, totalPay, totalCommissions, totalBonus, totalAdvances, unconvertedAdvances, totalPayments, earned, finalPay,
+      workDays: hours.length,
     });
   }, []);
 
-  const fetchWorkHours = useCallback(async () => {
-    if (!selectedEmployee || !selectedMonth || !selectedYear) {
-      showError("Wybierz pracownika, miesiąc i rok");
-      return;
-    }
-
-    setLoading(true);
+  // silent: odświeżenie na żywo bez kółka ładowania i bez komunikatów
+  const fetchWorkHours = useCallback(async ({ silent = false } = {}) => {
+    if (!selectedEmployee || !selectedMonth || !selectedYear) return;
+    const requestId = ++requestCounter.current;
+    if (!silent) setLoading(true);
     try {
-      const url = getApiUrl(
-        `/work-hours?employeeId=${selectedEmployee}&month=${selectedMonth}&year=${selectedYear}`
+      // limit: domyślne 50 ucinało najstarsze dni przy dwóch stoiskach dziennie
+      const response = await tokenService.authenticatedFetch(
+        getApiUrl(`/work-hours?employeeId=${selectedEmployee}&month=${selectedMonth}&year=${selectedYear}&limit=500`)
       );
-      const response = await tokenService.authenticatedFetch(url);
       const data = await response.json();
-
       if (!response.ok) {
-        showError(data?.message || "Błąd podczas ładowania danych");
-        setWorkHours([]);
-        setSummary(null);
+        if (requestId !== requestCounter.current) return;
+        if (!silent) showError(data?.message || "Błąd podczas ładowania danych");
         return;
       }
-
       const hours = data.workHours || [];
-      setWorkHours(hours);
       const financial = await fetchFinancialOperations();
+      if (requestId !== requestCounter.current) return; // w międzyczasie zmieniono filtry - to już nieaktualne
+      setWorkHours(hours);
+      setAdvances(financial.advances);
+      setPayments(financial.payments);
+      setCommissions(financial.commissions);
       calculateSummary(hours, financial.advances, financial.payments, financial.commissions);
+      setLoaded(true);
     } catch (error) {
-      showError(error?.message || "Błąd połączenia z serwerem");
-      setWorkHours([]);
-      setSummary(null);
+      if (requestId !== requestCounter.current) return;
+      if (!silent) showError(error?.message || "Błąd połączenia z serwerem");
     } finally {
-      setLoading(false);
+      if (requestId === requestCounter.current) setLoading(false);
     }
   }, [selectedEmployee, selectedMonth, selectedYear, fetchFinancialOperations, calculateSummary, showError]);
 
-  useEffect(() => {
-    if (employees.length > 0 && hasRestoredFilters && selectedEmployee && selectedMonth && selectedYear) {
-      fetchWorkHours();
-    }
-  }, [employees.length, hasRestoredFilters, selectedEmployee, selectedMonth, selectedYear, fetchWorkHours]);
+  const filtersComplete = Boolean(selectedEmployee && selectedMonth && selectedYear);
 
-  // Przeciągnięcie w dół: lista pracowników + godziny/wypłaty dla AKTUALNIE wybranego pracownika, miesiąca i roku
-  const refreshAll = useCallback(
-    () =>
-      Promise.all([
-        fetchEmployees(),
-        selectedEmployee && selectedMonth && selectedYear ? fetchWorkHours() : null,
-      ]),
-    [fetchEmployees, fetchWorkHours, selectedEmployee, selectedMonth, selectedYear]
-  );
+  // Bez przycisku „Pokaż wypłaty”: każda zmiana pracownika / miesiąca / roku (i wejście z zapisanymi filtrami)
+  // od razu ładuje dane; niepełne filtry czyszczą ekran
+  useEffect(() => {
+    if (filtersComplete) {
+      fetchWorkHours();
+    } else {
+      requestCounter.current += 1;
+      setWorkHours([]);
+      setAdvances([]);
+      setPayments([]);
+      setCommissions([]);
+      setSummary(null);
+      setLoaded(false);
+    }
+  }, [filtersComplete, fetchWorkHours]);
+
+  // Na żywo: nowa prowizja (przeliczenie po sprzedaży), zaliczka, wypłata lub zmiana godzin pracy odświeża ekran sama
+  useLiveRefresh(["financialOperations", "workHours", "sales"], () => fetchWorkHours({ silent: true }), { enabled: filtersComplete });
+
+  const refreshAll = useCallback(() => Promise.all([fetchEmployees(), filtersComplete ? fetchWorkHours() : null]), [fetchEmployees, fetchWorkHours, filtersComplete]);
   const { refreshControl } = usePullToRefresh(refreshAll);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("pl-PL");
-  };
+  // ---------- pochodne ----------
+  const employee = employees.find((emp) => emp._id === selectedEmployee);
+  const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : "";
+  const monthLabel = MONTHS.find((m) => m.value === selectedMonth)?.label || "";
+  const endOfSelectedMonth = () => new Date(Number(selectedYear), Number(selectedMonth), 0, 23, 59, 59, 999);
+  const startOfNextMonth = () => new Date(Number(selectedYear), Number(selectedMonth), 1);
 
-  const formatAmount = (amount) => {
-    const value = Number(amount || 0);
-    return `${value.toFixed(3)} zł`;
-  };
+  // Stan rozliczenia miesiąca: do wypłaty / rozliczony (0 po wypłacie) / nadpłata
+  const finalPayNumber = Number(summary?.finalPay || 0);
+  const settlement = !summary ? null
+    : finalPayNumber > 0.004 ? "due"
+    : finalPayNumber < -0.004 ? "overpaid"
+    : Number(summary.totalPayments) > 0 ? "settled" : null;
+  const latestPayment = payments.length
+    ? [...payments].sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))[0]
+    : null;
 
-  const getSelectedEmployeeName = () => {
-    const employee = employees.find((emp) => emp._id === selectedEmployee);
-    return employee ? `${employee.firstName} ${employee.lastName}` : "";
-  };
+  // Kwota wypłacana ponad „do wypłaty” to dopłata (zaokrąglenie w górę, np. 5670 → 5700 zł); mniejsza - reszta zostaje
+  const paymentNumber = Number(String(paymentAmount).replace(",", ".") || 0);
+  const paymentExtra = Math.round((paymentNumber - finalPayNumber) * 100) / 100;
+  const roundUpTo = (step) => setPaymentAmount(String(Math.ceil((finalPayNumber - 0.0001) / step) * step));
 
-  const selectedMonthLabel = useMemo(() => {
-    return months.find((month) => month.value === selectedMonth)?.label || "";
-  }, [months, selectedMonth]);
-
-  const getCombinedFinancialData = useCallback(() => {
-    const combined = [];
-
-    if (showWorkHours) {
-      workHours.forEach((record) => {
-        combined.push({
-          type: "work_hours",
-          date: record.date,
-          description: `${(record.totalHours || 0).toFixed(1)}h pracy w ${record.sellingPoint || "punkt nieznany"}`,
-          amount: record.dailyPay || 0,
-          details: {
-            startTime: record.startTime,
-            endTime: record.endTime,
-            notes: record.notes,
-          },
-        });
-      });
+  const history = useMemo(() => {
+    const rows = [];
+    if (visibleTypes.work_hours) {
+      workHours.forEach((record) => rows.push({
+        type: "work_hours", date: record.date,
+        title: `${hoursText(record.totalHours)} h · ${record.sellingPoint || "punkt nieznany"}`,
+        amount: record.dailyPay || 0,
+        detail: [record.startTime && record.endTime ? `${record.startTime} - ${record.endTime}` : null, record.notes].filter(Boolean).join(" | "),
+      }));
     }
-
-    if (showAdvances) {
+    if (visibleTypes.advance) {
       advances.forEach((advance) => {
-        combined.push({
-          type: "advance",
-          date: advance.date,
-          description: "Zaliczka pracownika",
-          amount: -Math.abs(advance.amount || 0),
-          details: {
-            reason: advance.reason,
-            currency: advance.currency,
-          },
+        const currency = advanceCurrency(advance);
+        const pln = advancePln(advance);
+        rows.push({
+          type: "advance", date: advance.date,
+          title: currency === "PLN" ? "Zaliczka" : `Zaliczka ${Math.abs(Number(advance.amount)).toFixed(2)} ${currency}`,
+          amount: -(pln ?? 0),
+          detail: advance.reason,
+          warn: currency !== "PLN" && pln === null ? "bez przeliczenia - brak kursu, nie odjęte od wypłaty" : null,
+          note: currency !== "PLN" && pln !== null ? `po kursie dnia ${Number(advance.plnRate || 0).toFixed(4)} = ${zl(pln)}` : null,
         });
       });
     }
-
-    if (showPayments) {
-      payments.forEach((payment) => {
-        combined.push({
-          type: "payment",
-          date: payment.date,
-          description: "Wypłata pensji",
-          amount: -Math.abs(payment.amount || 0),
-          details: {
-            reason: payment.reason,
-            currency: payment.currency,
-          },
-        });
-      });
+    if (visibleTypes.payment) {
+      payments.forEach((payment) => rows.push({
+        type: "payment", date: payment.date,
+        title: Number(payment.bonusAmount) > 0 ? `Wypłata (w tym dopłata ${zl(payment.bonusAmount)})` : "Wypłata",
+        amount: -Math.abs(payment.amount || 0),
+        detail: payment.reason,
+        note: payment.createdByEmail ? `wypłacił: ${payment.createdByEmail}` : null,
+      }));
     }
-
-    if (showCommissions) {
-      commissions.forEach((commission) => {
-        combined.push({
-          type: "commission",
-          date: commission.date,
-          description: "Prowizja od sprzedaży",
-          amount: commission.amount || 0,
-          details: {
-            reason: commission.reason,
-            currency: commission.currency,
-            salesAmount: commission.salesAmount,
-            commissionRate: commission.commissionRate,
-            commissionDetails: commission.commissionDetails,
-            employeeName: commission.employeeName,
-          },
-        });
-      });
+    if (visibleTypes.commission) {
+      commissions.forEach((commission) => rows.push({
+        type: "commission", date: commission.date,
+        title: "Prowizja od sprzedaży",
+        amount: commission.amount || 0,
+        detail: commission.salesAmount ? `obrót ${zl(commission.salesAmount)}${commission.commissionRate ? ` · ${commission.commissionRate}%` : ""}` : "",
+        commission,
+      }));
     }
+    return rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [workHours, advances, payments, commissions, visibleTypes]);
+  const historyEmpty = workHours.length === 0 && advances.length === 0 && payments.length === 0 && commissions.length === 0;
 
-    return combined.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [workHours, advances, payments, commissions, showWorkHours, showAdvances, showPayments, showCommissions]);
-
-  const handlePaymentClick = () => {
-    if (summary && summary.finalPay > 0) {
-      setPaymentAmount(Number(summary.finalPay || 0).toFixed(3));
-      setShowPaymentModal(true);
-    }
+  // ---------- akcje ----------
+  const openPayment = () => {
+    if (!summary || finalPayNumber <= 0) return;
+    setPaymentAmount(finalPayNumber.toFixed(2));
+    setShowPaymentModal(true);
   };
 
-  const handlePaymentSubmit = async () => {
-    const amountValue = parseFloat(paymentAmount);
-    if (!amountValue || amountValue <= 0) {
+  const submitPayment = async () => {
+    if (!paymentNumber || paymentNumber <= 0) {
       showError("Wprowadź prawidłową kwotę wypłaty");
       return;
     }
-
     setPaymentLoading(true);
     try {
-      const employee = employees.find((emp) => emp._id === selectedEmployee);
-      const monthLabel = months.find((month) => month.value === selectedMonth)?.label;
-
+      const bonus = paymentExtra > 0 ? paymentExtra : 0; // dopłata = to, co ponad „do wypłaty”
+      // Wypłata pensji należy do rozliczanego miesiąca: data = koniec jego ostatniego dnia (serwer pilnuje tego samego)
       const paymentData = {
-        userSymbol: "ADMIN",
-        amount: -Math.abs(amountValue),
+        // bez userSymbol: serwer zapisuje wypłatę na konto zalogowanego administratora (kto wypłacił)
+        amount: -Math.abs(paymentNumber),
         currency: "PLN",
         type: "salary_payment",
-        reason: `Wypłata pensji dla ${employee?.firstName || ""} ${employee?.lastName || ""} za ${monthLabel} ${selectedYear}`.trim(),
-        date: new Date().toISOString(),
+        reason: `Wypłata pensji dla ${employeeName} za ${monthLabel} ${selectedYear}${bonus > 0 ? ` (w tym dopłata ${bonus.toFixed(2)} zł)` : ""}`.trim(),
+        date: endOfSelectedMonth().toISOString(),
+        bonusAmount: bonus,
         employeeId: selectedEmployee,
-        employeeName: `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim(),
+        employeeName,
         employeeCode: employee?.employeeId,
       };
-
       const response = await tokenService.authenticatedFetch(getApiUrl("/financial-operations"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(paymentData),
       });
-
       const data = await response.json();
       if (!response.ok) {
         showError(`Błąd podczas rejestrowania wypłaty: ${data?.error || data?.message || ""}`.trim());
         return;
       }
-
-      showSuccess("Wypłata została zarejestrowana pomyślnie!");
       setShowPaymentModal(false);
       setPaymentAmount("");
-      await fetchWorkHours();
+      showSuccess(`Wypłata ${zl(paymentNumber)} za ${monthLabel.toLowerCase()} ${selectedYear} zapisana`);
+      await fetchWorkHours({ silent: true });
     } catch (error) {
       showError(error?.message || "Błąd połączenia z serwerem");
     } finally {
@@ -408,524 +365,274 @@ const Payroll = () => {
     }
   };
 
-  const handleResetFilters = async () => {
-    setSelectedEmployee("");
-    setSelectedMonth("");
-    setSelectedYear(new Date().getFullYear().toString());
-    setWorkHours([]);
-    setAdvances([]);
-    setPayments([]);
-    setCommissions([]);
-    setSummary(null);
-    setHasRestoredFilters(false);
+  // Cofnięcie wypłaty (pomyłka): usunięcie operacji - kwota (z dopłatą) wraca do „Do wypłaty”
+  const confirmUndoPayment = async () => {
+    if (!undoPayment?._id) return;
+    setUndoLoading(true);
     try {
-      await AsyncStorage.removeItem(FILTERS_KEY);
-    } catch {
-      // Ignore storage errors
+      const response = await tokenService.authenticatedFetch(getApiUrl(`/financial-operations/${undoPayment._id}`), { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError(`Nie udało się cofnąć wypłaty: ${data?.message || data?.error || response.status}`);
+        return;
+      }
+      setUndoPayment(null);
+      showSuccess("Wypłata cofnięta - kwota wróciła do „Do wypłaty”");
+      await fetchWorkHours({ silent: true });
+    } catch (error) {
+      showError(error?.message || "Błąd połączenia z serwerem");
+    } finally {
+      setUndoLoading(false);
     }
   };
 
-  const combinedData = useMemo(() => getCombinedFinancialData(), [getCombinedFinancialData]);
+  // Wydruk miesięczny: serwer liczy arkusz (zmiany, sztuki kurtek, prowizje, zaliczki), telefon pokazuje podgląd
+  const openSheet = async () => {
+    if (!filtersComplete) return;
+    setSheetLoading(true);
+    try {
+      const response = await tokenService.authenticatedFetch(
+        getApiUrl(`/work-hours/payroll-sheet?employeeId=${selectedEmployee}&month=${selectedMonth}&year=${selectedYear}`)
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        showError(`Nie udało się przygotować wydruku: ${data?.message || data?.error || response.status}`);
+        return;
+      }
+      setSheetHtml(buildPayrollSheetHtml(data));
+    } catch (error) {
+      showError(error?.message || "Błąd połączenia z serwerem");
+    } finally {
+      setSheetLoading(false);
+    }
+  };
+
+  const resetFilters = async () => {
+    setSelectedEmployee("");
+    setSelectedMonth("");
+    setSelectedYear(String(new Date().getFullYear()));
+    try { await AsyncStorage.removeItem(FILTERS_KEY); } catch { /* bez znaczenia */ }
+  };
+
+  const toggleType = (type) => setVisibleTypes((prev) => ({ ...prev, [type]: !prev[type] }));
+  const allVisible = Object.values(visibleTypes).every(Boolean);
+
+  // ---------- widok ----------
+  const renderStatementRow = (label, value, { color, bold, big, sub } = {}) => (
+    <View style={[styles.statementRow, bold && styles.statementRowTotal, big && styles.statementRowFinal]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.statementLabel, bold && styles.statementLabelBold, big && styles.statementLabelBig]}>{label}</Text>
+        {!!sub && <Text style={styles.statementSub}>{sub}</Text>}
+      </View>
+      <Text style={[styles.statementValue, color && { color }, bold && styles.statementLabelBold, big && styles.statementValueBig]}>{value}</Text>
+    </View>
+  );
+
+  const pickerItems = picker === "employee"
+    ? employees.map((emp) => ({ key: emp._id, label: `${emp.firstName} ${emp.lastName}`, sub: emp.position || emp.employeeId, selected: emp._id === selectedEmployee, onPick: () => setSelectedEmployee(emp._id) }))
+    : picker === "month"
+      ? MONTHS.map((m) => ({ key: m.value, label: m.label, selected: m.value === selectedMonth, onPick: () => setSelectedMonth(m.value) }))
+      : years.map((y) => ({ key: y, label: y, selected: y === selectedYear, onPick: () => setSelectedYear(y) }));
+  const pickerTitle = picker === "employee" ? "Wybierz pracownika" : picker === "month" ? "Wybierz miesiąc" : "Wybierz rok";
+  const pickerIcon = picker === "employee" ? "person" : "calendar";
 
   return (
     <SafeAreaView style={styles.container}>
-      <PageHeader title="Wypłaty" icon="wallet" color="#10B981" onBack={() => router.back()} />
+      <PageHeader
+        title="Wypłaty"
+        subtitle={filtersComplete ? `${employeeName} · ${monthLabel} ${selectedYear}` : "wybierz pracownika i miesiąc"}
+        icon="wallet"
+        color={GREEN}
+        onBack={() => router.back()}
+        right={<IconButton icon="print" color={GREEN} onPress={openSheet} disabled={!filtersComplete || sheetLoading} accessibilityLabel="Wydruk miesięczny" />}
+      />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(120, insets.bottom + 120) }]}
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(40, insets.bottom + 40) }]}
         refreshControl={refreshControl}
         alwaysBounceVertical
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>System wypłat pracowników</Text>
-          <Text style={styles.sectionSubtitle}>
-            Filtry są automatycznie zapisywane i przywracane po odświeżeniu
-          </Text>
-
-          <View style={styles.filtersRow}>
-            <View style={styles.filterBlock}>
-              <Text style={styles.filterLabel}>Pracownik</Text>
-              <TouchableOpacity
-                style={styles.selectField}
-                onPress={() => setShowEmployeeModal(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={selectedEmployee ? styles.selectText : styles.selectPlaceholder}>
-                  {selectedEmployee
-                    ? `${getSelectedEmployeeName()} (${employees.find((emp) => emp._id === selectedEmployee)?.employeeId || ""})`
-                    : "Wybierz pracownika"}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.filterBlockRow}>
-              <View style={styles.filterBlockSmall}>
-                <Text style={styles.filterLabel}>Miesiąc</Text>
-                <TouchableOpacity
-                  style={styles.selectField}
-                  onPress={() => setShowMonthModal(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={selectedMonth ? styles.selectText : styles.selectPlaceholder}>
-                    {selectedMonthLabel || "Wybierz miesiąc"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
+        {/* Filtry */}
+        <View style={styles.card}>
+          <View style={styles.cardTitleRow}>
+            <Text style={look.sectionLabel}>Pracownik i miesiąc</Text>
+            {loading ? <ActivityIndicator color={GREEN} /> : (
+              (selectedEmployee || selectedMonth) ? (
+                <TouchableOpacity onPress={resetFilters} style={styles.clearLink}>
+                  <Ionicons name="close-circle" size={16} color={tc("muted", "#94A3B8")} />
+                  <Text style={styles.clearLinkText}>Wyczyść</Text>
                 </TouchableOpacity>
-              </View>
-
-              <View style={styles.filterBlockSmall}>
-                <Text style={styles.filterLabel}>Rok</Text>
-                <TouchableOpacity
-                  style={styles.selectField}
-                  onPress={() => setShowYearModal(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={selectedYear ? styles.selectText : styles.selectPlaceholder}>
-                    {selectedYear || "Wybierz rok"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color={tc('muted', "#94A3B8")} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={[styles.primaryButton, (!selectedEmployee || !selectedMonth || !selectedYear || loading) && styles.buttonDisabled]}
-                onPress={fetchWorkHours}
-                disabled={!selectedEmployee || !selectedMonth || !selectedYear || loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="search" size={16} color="#fff" />
-                    <Text style={styles.primaryButtonText}>Pokaż wypłaty</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.resetButton} onPress={handleResetFilters}>
-                <Ionicons name="close" size={22} color={tc('muted', "#94A3B8")} />
-              </TouchableOpacity>
-            </View>
+              ) : null
+            )}
           </View>
+          <TouchableOpacity style={[look.selectField, styles.field]} onPress={() => setPicker("employee")} activeOpacity={0.8}>
+            <View style={styles.fieldInner}>
+              <Ionicons name="person" size={18} color={selectedEmployee ? GREEN : tc("muted", "#94A3B8")} />
+              <Text style={selectedEmployee ? look.selectFieldText : styles.placeholder}>{employeeName || "Pracownik"}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={18} color={tc("muted", "#94A3B8")} />
+          </TouchableOpacity>
+          <View style={styles.fieldRow}>
+            <TouchableOpacity style={[look.selectField, styles.field, { flex: 1.4 }]} onPress={() => setPicker("month")} activeOpacity={0.8}>
+              <View style={styles.fieldInner}>
+                <Ionicons name="calendar" size={18} color={selectedMonth ? GREEN : tc("muted", "#94A3B8")} />
+                <Text style={selectedMonth ? look.selectFieldText : styles.placeholder}>{monthLabel || "Miesiąc"}</Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={tc("muted", "#94A3B8")} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[look.selectField, styles.field, { flex: 1 }]} onPress={() => setPicker("year")} activeOpacity={0.8}>
+              <Text style={look.selectFieldText}>{selectedYear}</Text>
+              <Ionicons name="chevron-down" size={18} color={tc("muted", "#94A3B8")} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.hint}>Dane ładują się same i odświeżają na żywo. Ikona drukarki u góry: wydruk miesięczny.</Text>
         </View>
 
-        {hasRestoredFilters && selectedEmployee && selectedMonth && selectedYear && (
-          <View style={styles.infoBanner}>
-            <Ionicons name="information-circle" size={18} color="#38BDF8" />
-            <Text style={styles.infoText}>
-              Przywrócono zapisane filtry. Dane zostały automatycznie załadowane.
-            </Text>
-          </View>
-        )}
-
+        {/* Rachunek miesiąca */}
         {summary && (
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>
-              Podsumowanie dla {getSelectedEmployeeName()} - {months.find((m) => m.value === selectedMonth)?.label} {selectedYear}
-            </Text>
-            <View style={styles.summaryGrid}>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryValue}>{summary.workDays}</Text>
-                <Text style={styles.summaryLabel}>Dni pracy</Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryValue}>{summary.totalHours.toFixed(1)}h</Text>
-                <Text style={styles.summaryLabel}>Łączne godziny</Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryValue}>{formatAmount(summary.totalPay)}</Text>
-                <Text style={styles.summaryLabel}>Wypłata brutto</Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={[styles.summaryValue, styles.summaryPositive]}>+{formatAmount(summary.totalCommissions)}</Text>
-                <Text style={styles.summaryLabel}>Prowizje</Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={[styles.summaryValue, styles.summaryNegative]}>-{formatAmount(summary.totalAdvances)}</Text>
-                <Text style={styles.summaryLabel}>Zaliczki</Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={[styles.summaryValue, styles.summaryWarning]}>-{formatAmount(summary.totalPayments)}</Text>
-                <Text style={styles.summaryLabel}>Wypłacone</Text>
-              </View>
-              <View style={[styles.summaryCard, styles.summaryCardWide]}>
-                <Text style={styles.summaryValue}>{formatAmount(summary.finalPay)}</Text>
-                <Text style={styles.summaryLabelStrong}>Do wypłaty</Text>
-              </View>
-            </View>
+          <View style={styles.card}>
+            <Text style={look.sectionLabel}>Rachunek: {monthLabel} {selectedYear}</Text>
+            {renderStatementRow("Za godziny", zl(summary.totalPay), { sub: `${hoursText(summary.totalHours)} h, ${summary.workDays} ${summary.workDays === 1 ? "dzień" : "dni"}` })}
+            {renderStatementRow("Prowizje", `+ ${zl(summary.totalCommissions)}`, { color: GREEN })}
+            {summary.totalBonus > 0 && renderStatementRow("Dopłata (zaokrąglenie)", `+ ${zl(summary.totalBonus)}`, { color: GREEN })}
+            {renderStatementRow("Zaliczki", `− ${zl(summary.totalAdvances)}`, { color: RED })}
+            {renderStatementRow("Razem za miesiąc", zl(summary.earned), { bold: true })}
+            {renderStatementRow("Wypłacono", `− ${zl(summary.totalPayments)}`, { color: AMBER })}
+            {renderStatementRow("Do wypłaty", zl(summary.finalPay), { big: true, color: settlement === "overpaid" ? RED : settlement === "settled" ? GREEN : undefined })}
 
-            {summary.finalPay > 0 && (
-              <TouchableOpacity style={styles.payButton} onPress={handlePaymentClick}>
-                <Ionicons name="card" size={18} color="#fff" />
-                <Text style={styles.payButtonText}>Rozlicz wypłatę</Text>
+            {summary.unconvertedAdvances > 0 && (
+              <View style={styles.warnBanner}>
+                <Ionicons name="alert-circle" size={18} color={RED} />
+                <Text style={styles.warnText}>
+                  {summary.unconvertedAdvances === 1 ? "Zaliczka w obcej walucie bez kursu" : `${summary.unconvertedAdvances} zaliczki w obcej walucie bez kursu`} - nie odjęte od wypłaty. Ustaw kurs w Tabeli walut i zapisz zaliczkę ponownie.
+                </Text>
+              </View>
+            )}
+
+            {settlement === "due" && (
+              <TouchableOpacity style={styles.payButton} onPress={openPayment} activeOpacity={0.85}>
+                <View style={styles.payButtonIcon}><Ionicons name="card" size={22} color="#fff" /></View>
+                <View style={styles.payButtonTextBlock}>
+                  <Text style={styles.payButtonText}>Rozlicz {monthLabel.toLowerCase()} {selectedYear}</Text>
+                  <Text style={styles.payButtonHint}>do wypłaty {zl(summary.finalPay)}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            {settlement === "settled" && (
+              <View style={styles.statusBanner}>
+                <Ionicons name="checkmark-circle" size={20} color={GREEN} />
+                <Text style={[styles.statusText, { color: GREEN }]}>{monthLabel} {selectedYear} rozliczony</Text>
+              </View>
+            )}
+            {settlement === "overpaid" && (
+              <View style={[styles.statusBanner, styles.statusBannerRed]}>
+                <Ionicons name="alert-circle" size={20} color={RED} />
+                <Text style={[styles.statusText, { color: RED }]}>Nadpłata {zl(Math.abs(finalPayNumber))}</Text>
+              </View>
+            )}
+            {/* Cofanie tylko tu (nie w wierszach historii): rozliczenie, a przy wypłacie częściowej - ostatnia wypłata */}
+            {latestPayment && (
+              <TouchableOpacity style={styles.undoButton} onPress={() => setUndoPayment(latestPayment)} activeOpacity={0.85}>
+                <View style={styles.undoButtonIcon}><Ionicons name="arrow-undo" size={18} color="#3b0a0a" /></View>
+                <View style={styles.payButtonTextBlock}>
+                  <Text style={styles.undoButtonText}>{settlement === "settled" ? "Cofnij rozliczenie" : "Cofnij ostatnią wypłatę"}</Text>
+                  <Text style={styles.undoButtonHint}>usuwa wypłatę {zl(Math.abs(Number(latestPayment.amount)))} z {formatDate(latestPayment.date)}</Text>
+                </View>
               </TouchableOpacity>
             )}
           </View>
         )}
 
-        {(workHours.length > 0 || advances.length > 0 || payments.length > 0 || commissions.length > 0) && (
-          <View style={styles.sectionCard}>
-            <View>
-              <View style={styles.sectionHeaderRow}>
-                <View>
-                  <Text style={styles.sectionTitle}>Historia finansowa pracownika</Text>
-                  <Text style={styles.sectionSubtitle}>Godziny pracy, zaliczki, wypłaty i prowizje</Text>
-                </View>
-              </View>
-              <View style={styles.toggleRow}>
-                <TouchableOpacity
-                  style={styles.toggleAllButton}
-                  onPress={() => {
-                    const allOn = showWorkHours && showAdvances && showPayments && showCommissions;
-                    setShowWorkHours(!allOn);
-                    setShowAdvances(!allOn);
-                    setShowPayments(!allOn);
-                    setShowCommissions(!allOn);
-                  }}
-                >
-                  <Text style={styles.toggleAllText}>
-                    {showWorkHours && showAdvances && showPayments && showCommissions ? "Ukryj wszystko" : "Pokaż wszystko"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.filterChips}>
-              <TouchableOpacity
-                style={[styles.filterChip, showWorkHours && styles.filterChipActive]}
-                onPress={() => setShowWorkHours((prev) => !prev)}
-              >
-                <Text style={[styles.filterChipText, showWorkHours && styles.filterChipTextActive]}>Godziny pracy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterChip, showAdvances && styles.filterChipActive]}
-                onPress={() => setShowAdvances((prev) => !prev)}
-              >
-                <Text style={[styles.filterChipText, showAdvances && styles.filterChipTextActive]}>Zaliczki</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterChip, showPayments && styles.filterChipActive]}
-                onPress={() => setShowPayments((prev) => !prev)}
-              >
-                <Text style={[styles.filterChipText, showPayments && styles.filterChipTextActive]}>Wypłaty</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterChip, showCommissions && styles.filterChipActive]}
-                onPress={() => setShowCommissions((prev) => !prev)}
-              >
-                <Text style={[styles.filterChipText, showCommissions && styles.filterChipTextActive]}>Prowizje</Text>
+        {/* Historia */}
+        {loaded && filtersComplete && (
+          <View style={styles.card}>
+            <View style={styles.cardTitleRow}>
+              <Text style={look.sectionLabel}>Historia miesiąca</Text>
+              <TouchableOpacity onPress={() => setVisibleTypes({ work_hours: !allVisible, commission: !allVisible, advance: !allVisible, payment: !allVisible })}>
+                <Text style={styles.clearLinkText}>{allVisible ? "Ukryj wszystko" : "Pokaż wszystko"}</Text>
               </TouchableOpacity>
             </View>
+            <View style={styles.chipsRow}>
+              {Object.entries(TYPE_META).map(([type, meta]) => {
+                const on = visibleTypes[type];
+                return (
+                  <TouchableOpacity key={type} onPress={() => toggleType(type)} style={[styles.chip, on && { backgroundColor: `${meta.color}26`, borderColor: `${meta.color}99` }]}>
+                    <Ionicons name={meta.icon} size={14} color={on ? meta.color : tc("muted", "#94A3B8")} />
+                    <Text style={[styles.chipText, on && { color: tc("text", "#fff") }]}>{meta.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            <FlatList
-              data={combinedData}
-              keyExtractor={(item, index) => `${item.type}-${index}`}
-              scrollEnabled={false}
-              renderItem={({ item }) => (
-                <View style={[styles.historyCard, styles[`stripe_${item.type}`]]}>
-                  <View style={styles.historyHeader}>
-                    <Text style={styles.historyDate}>{formatDate(item.date)}</Text>
-                    <View style={[styles.typeBadge, styles[`badge_${item.type}`]]}>
-                      <Text style={styles.typeBadgeText}>
-                        {item.type === "work_hours"
-                          ? "Praca"
-                          : item.type === "advance"
-                          ? "Zaliczka"
-                          : item.type === "commission"
-                          ? "Prowizja"
-                          : "Wypłata"}
-                      </Text>
+            {historyEmpty ? (
+              <View style={look.emptyState}>
+                <Ionicons name="file-tray-outline" size={32} color={tc("muted", "#94A3B8")} />
+                <Text style={look.emptyStateText}>Brak godzin pracy, zaliczek, wypłat i prowizji</Text>
+              </View>
+            ) : history.length === 0 ? (
+              <View style={look.emptyState}>
+                <Text style={look.emptyStateText}>Wszystkie typy ukryte</Text>
+              </View>
+            ) : (
+              history.map((row, index) => {
+                const meta = TYPE_META[row.type];
+                return (
+                  <View key={`${row.type}-${index}`} style={[look.itemCard, styles.historyCard, { borderLeftColor: meta.color }]}>
+                    <View style={[styles.historyIcon, { backgroundColor: `${meta.color}26` }]}>
+                      <Ionicons name={meta.icon} size={18} color={meta.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.historyTop}>
+                        <Text style={styles.historyDate}>{formatDate(row.date)}</Text>
+                        <Text style={[styles.historyAmount, { color: row.amount >= 0 ? GREEN : RED }]}>
+                          {row.amount >= 0 ? "+" : "−"} {zl(Math.abs(row.amount))}
+                        </Text>
+                      </View>
+                      <Text style={styles.historyTitle}>{row.title}</Text>
+                      {!!row.detail && <Text style={styles.historyDetail} numberOfLines={2}>{row.detail}</Text>}
+                      {!!row.note && <Text style={styles.historyDetail}>{row.note}</Text>}
+                      {!!row.warn && <Text style={[styles.historyDetail, { color: RED }]}>{row.warn}</Text>}
+                      {row.type === "commission" && (
+                        <TouchableOpacity style={styles.detailsLink} onPress={() => setCommissionDetails(row.commission)}>
+                          <Text style={styles.detailsLinkText}>Szczegóły prowizji</Text>
+                          <Ionicons name="chevron-forward" size={14} color={CYAN} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
-                  <Text style={styles.historyDescription}>{item.description}</Text>
-                  <View style={styles.historyAmountRow}>
-                    <Text style={[styles.historyAmount, item.amount >= 0 ? styles.amountPositive : styles.amountNegative]}>
-                      {item.amount >= 0 ? "+" : ""}
-                      {formatAmount(item.amount)}
-                    </Text>
-                  </View>
-                  {item.type === "work_hours" && (
-                    <Text style={styles.historyDetails}>
-                      {item.details.startTime && item.details.endTime
-                        ? `${item.details.startTime} - ${item.details.endTime}`
-                        : "-"}
-                      {item.details.notes ? ` | ${item.details.notes}` : ""}
-                    </Text>
-                  )}
-                  {(item.type === "advance" || item.type === "payment") && (
-                    <Text style={styles.historyDetails}>{item.details.reason || "-"}</Text>
-                  )}
-                  {item.type === "commission" && (
-                    <TouchableOpacity
-                      style={styles.detailsButton}
-                      onPress={() =>
-                        setSelectedCommissionDetails({
-                          details:
-                            item.details.commissionDetails || [
-                              {
-                                productName: "Pojedyncza prowizja",
-                                saleAmount: item.details.salesAmount || item.amount * 100,
-                                commissionAmount: item.amount,
-                                description: item.details.reason,
-                              },
-                            ],
-                          totalAmount: item.amount,
-                          totalSalesAmount: item.details.salesAmount,
-                          commissionRate: item.details.commissionRate,
-                          employeeName: item.details.employeeName || getSelectedEmployeeName(),
-                        })
-                      }
-                    >
-                      <Text style={styles.detailsButtonText}>Szczegóły</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            />
-
-            <View style={styles.summaryRow}>
-              {advances.length > 0 && (
-                <View style={styles.inlineSummary}> 
-                  <Text style={styles.inlineSummaryText}>
-                    Suma zaliczek: -{formatAmount(advances.reduce((sum, advance) => sum + Math.abs(advance.amount || 0), 0))}
-                  </Text>
-                </View>
-              )}
-              {payments.length > 0 && (
-                <View style={styles.inlineSummary}> 
-                  <Text style={styles.inlineSummaryText}>
-                    Suma wypłat: -{formatAmount(payments.reduce((sum, payment) => sum + Math.abs(payment.amount || 0), 0))}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {!loading && workHours.length === 0 && selectedEmployee && selectedMonth && selectedYear && (
-          <View style={styles.infoBanner}>
-            <Ionicons name="information-circle" size={18} color="#38BDF8" />
-            <Text style={styles.infoText}>
-              Brak danych o godzinach pracy dla wybranego okresu
-            </Text>
+                );
+              })
+            )}
           </View>
         )}
       </ScrollView>
 
-      {/* Payment Modal */}
-      <Modal
-        visible={showPaymentModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowPaymentModal(false)}
-      >
-        <KeyboardSafeOverlay>
+      {/* Wybór pracownika / miesiąca / roku */}
+      <Modal visible={Boolean(picker)} transparent animationType="slide" onRequestClose={() => setPicker(null)}>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
-            <ModalHeader icon="card" color="#10B981" title="Rozlicz wypłatę" />
-            <View style={styles.modalBody}>
-              <Text style={styles.modalText}>Pracownik: {getSelectedEmployeeName()}</Text>
-              <Text style={styles.modalText}>
-                Okres: {months.find((m) => m.value === selectedMonth)?.label} {selectedYear}
-              </Text>
-              <Text style={styles.modalText}>
-                Kwota do wypłaty: <Text style={styles.summaryPositive}>{formatAmount(summary?.finalPay || 0)}</Text>
-              </Text>
-
-              <View style={styles.formGroup}>
-                <Text style={look.formLabel}>Kwota wypłacana</Text>
-                <TextInput
-                  style={look.formInput}
-                  keyboardType="numeric"
-                  value={paymentAmount}
-                  onChangeText={setPaymentAmount}
-                  placeholder="Wprowadź kwotę wypłaty"
-                  placeholderTextColor={tc('muted', "#64748B")}
-                />
-                <Text style={styles.formHint}>Możesz wypłacić całą kwotę lub część.</Text>
-              </View>
-            </View>
-            <View style={look.buttonRow}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setShowPaymentModal(false)}
-                disabled={paymentLoading}
-              >
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: "#10B981" }, (!paymentAmount || paymentLoading) && look.disabled]}
-                onPress={handlePaymentSubmit}
-                disabled={!paymentAmount || paymentLoading}
-              >
-                {paymentLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={look.buttonText}>Zatwierdź wypłatę</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        </KeyboardSafeOverlay>
-      </Modal>
-
-      {/* Employee Modal */}
-      <Modal
-        visible={showEmployeeModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowEmployeeModal(false)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="person" color="#0D6EFD" title="Wybierz pracownika" />
+            <ModalHeader icon={pickerIcon} color={GREEN} title={pickerTitle} />
             <FlatList
               style={styles.optionList}
-              data={employees}
-              keyExtractor={(item) => item._id}
+              data={pickerItems}
+              keyExtractor={(item) => item.key}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[styles.optionRow, selectedEmployee === item._id && styles.optionRowSelected]}
-                  onPress={() => {
-                    setSelectedEmployee(item._id);
-                    setShowEmployeeModal(false);
-                  }}
+                  style={[look.optionCard, item.selected && { borderColor: GREEN, backgroundColor: `${GREEN}1F` }]}
+                  onPress={() => { item.onPick(); setPicker(null); }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.optionTitle}>{item.firstName} {item.lastName}</Text>
-                    <Text style={styles.optionSubtitle}>ID: {item.employeeId}</Text>
+                    <Text style={look.optionCardLabel}>{item.label}</Text>
+                    {!!item.sub && <Text style={styles.optionSub}>{item.sub}</Text>}
                   </View>
-                  {selectedEmployee === item._id && <Ionicons name="checkmark-circle" size={22} color="#0D6EFD" />}
+                  <Ionicons name={item.selected ? "checkmark-circle" : "ellipse-outline"} size={22} color={item.selected ? GREEN : tc("muted", "#94A3B8")} />
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>Brak pracowników</Text>
-              }
+              ListEmptyComponent={<Text style={look.emptyStateText}>Brak pozycji</Text>}
             />
             <View style={look.buttonRow}>
-              <TouchableOpacity style={look.neutralButton} onPress={() => setShowEmployeeModal(false)}>
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Month Modal */}
-      <Modal
-        visible={showMonthModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowMonthModal(false)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="calendar" color="#0D6EFD" title="Wybierz miesiąc" />
-            <FlatList
-              style={styles.optionList}
-              data={months}
-              keyExtractor={(item) => item.value}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.optionRow, selectedMonth === item.value && styles.optionRowSelected]}
-                  onPress={() => {
-                    setSelectedMonth(item.value);
-                    setShowMonthModal(false);
-                  }}
-                >
-                  <Text style={styles.optionTitle}>{item.label}</Text>
-                  {selectedMonth === item.value && <Ionicons name="checkmark-circle" size={22} color="#0D6EFD" />}
-                </TouchableOpacity>
-              )}
-            />
-            <View style={look.buttonRow}>
-              <TouchableOpacity style={look.neutralButton} onPress={() => setShowMonthModal(false)}>
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Year Modal */}
-      <Modal
-        visible={showYearModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowYearModal(false)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="calendar-outline" color="#0D6EFD" title="Wybierz rok" />
-            <FlatList
-              style={styles.optionList}
-              data={years}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.optionRow, selectedYear === item && styles.optionRowSelected]}
-                  onPress={() => {
-                    setSelectedYear(item);
-                    setShowYearModal(false);
-                  }}
-                >
-                  <Text style={styles.optionTitle}>{item}</Text>
-                  {selectedYear === item && <Ionicons name="checkmark-circle" size={22} color="#0D6EFD" />}
-                </TouchableOpacity>
-              )}
-            />
-            <View style={look.buttonRow}>
-              <TouchableOpacity style={look.neutralButton} onPress={() => setShowYearModal(false)}>
-                <Text style={look.neutralButtonText}>Anuluj</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Commission Details Modal */}
-      <Modal
-        visible={selectedCommissionDetails !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedCommissionDetails(null)}
-      >
-        <View style={look.modalOverlay}>
-          <View style={look.modalContent}>
-            <ModalHeader icon="trending-up" color="#06B6D4" title="Szczegóły prowizji" />
-            <ScrollView style={styles.modalScroll}>
-              {selectedCommissionDetails && (
-                <>
-                  <Text style={styles.modalText}>Pracownik: {selectedCommissionDetails.employeeName}</Text>
-                  <Text style={styles.modalText}>
-                    Całkowita prowizja: <Text style={styles.summaryPositive}>{formatAmount(selectedCommissionDetails.totalAmount)}</Text>
-                  </Text>
-                  {selectedCommissionDetails.totalSalesAmount && (
-                    <Text style={styles.modalText}>
-                      Całkowity obrót: {formatAmount(selectedCommissionDetails.totalSalesAmount)}
-                    </Text>
-                  )}
-
-                  <Text style={styles.modalSectionTitle}>Szczegółowy breakdown</Text>
-                  {selectedCommissionDetails.details.map((detail, index) => (
-                    <View key={index} style={styles.detailCard}>
-                      <Text style={styles.detailTitle}>{detail.productName || "Nieznany produkt"}</Text>
-                      <Text style={styles.detailLine}>Kwota sprzedaży: {formatAmount(detail.saleAmount || 0)}</Text>
-                      <Text style={styles.detailLine}>Prowizja: {formatAmount(detail.commissionAmount || 0)}</Text>
-                      {detail.description ? <Text style={styles.detailLine}>{detail.description}</Text> : null}
-                    </View>
-                  ))}
-                </>
-              )}
-            </ScrollView>
-            <View style={look.buttonRow}>
-              <TouchableOpacity
-                style={look.neutralButton}
-                onPress={() => setSelectedCommissionDetails(null)}
-              >
+              <TouchableOpacity style={look.neutralButton} onPress={() => setPicker(null)}>
                 <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
@@ -933,478 +640,211 @@ const Payroll = () => {
         </View>
       </Modal>
 
-      {/* Success Modal */}
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
-      >
+      {/* Rozliczenie wypłaty */}
+      <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
+        <KeyboardSafeOverlay>
+          <View style={look.modalOverlay}>
+            <View style={look.modalContent}>
+              <ModalHeader icon="card" color={GREEN} title="Rozlicz wypłatę" subtitle={`${employeeName} · ${monthLabel.toUpperCase()} ${selectedYear}`} />
+              <Text style={styles.modalLine}>Do wypłaty: <Text style={{ color: GREEN, fontWeight: "700" }}>{zl(summary?.finalPay)}</Text></Text>
+              <Text style={[look.formLabel, { marginTop: 12 }]}>Kwota wypłacana</Text>
+              <TextInput
+                style={look.formInput}
+                keyboardType="numeric"
+                value={paymentAmount}
+                onChangeText={setPaymentAmount}
+                placeholder="Kwota"
+                placeholderTextColor={tc("muted", "#64748B")}
+              />
+              <View style={styles.roundRow}>
+                <Text style={styles.roundLabel}>Zaokrąglij w górę:</Text>
+                {[10, 50, 100].map((step) => (
+                  <TouchableOpacity key={step} style={styles.roundButton} onPress={() => roundUpTo(step)}>
+                    <Text style={styles.roundButtonText}>do {step} zł</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {paymentExtra > 0.004 && (
+                <Text style={[styles.modalNote, { color: GREEN, fontWeight: "700" }]}>Dopłata (zaokrąglenie): + {zl(paymentExtra)} - zapisze się razem z wypłatą i będzie na wydruku</Text>
+              )}
+              {paymentExtra < -0.004 && (
+                <Text style={[styles.modalNote, { color: AMBER }]}>Wypłata częściowa - zostanie do wypłaty {zl(Math.abs(paymentExtra))}</Text>
+              )}
+              <View style={styles.infoBanner}>
+                <Ionicons name="information-circle" size={18} color="#38BDF8" />
+                <Text style={styles.infoText}>
+                  Wypłata zapisze się z datą {formatDate(endOfSelectedMonth())} i odliczy od miesiąca {monthLabel.toLowerCase()} {selectedYear}. Zaliczki wydane od {formatDate(startOfNextMonth())} należą już do następnego miesiąca.
+                </Text>
+              </View>
+              <View style={look.buttonRow}>
+                <TouchableOpacity style={look.neutralButton} onPress={() => setShowPaymentModal(false)} disabled={paymentLoading}>
+                  <Text style={look.neutralButtonText}>Anuluj</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[look.primaryButton, { backgroundColor: GREEN }, (!paymentNumber || paymentLoading) && look.disabled]}
+                  onPress={submitPayment}
+                  disabled={!paymentNumber || paymentLoading}
+                >
+                  {paymentLoading ? <ActivityIndicator color="#fff" /> : <Text style={look.buttonText}>Zatwierdź</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardSafeOverlay>
+      </Modal>
+
+      {/* Cofnięcie wypłaty */}
+      <Modal visible={Boolean(undoPayment)} transparent animationType="fade" onRequestClose={() => setUndoPayment(null)}>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
-            <ModalHeader icon="checkmark-circle" color="#10B981" title="Sukces!" />
-            <Text style={look.modalMessage}>{successMessage}</Text>
+            <ModalHeader icon="arrow-undo" color={RED} title="Cofnąć wypłatę?" />
+            <Text style={look.modalMessage}>
+              Wypłata {zl(Math.abs(Number(undoPayment?.amount || 0)))} z {formatDate(undoPayment?.date)} dla {employeeName}
+              {Number(undoPayment?.bonusAmount) > 0 ? ` (w tym dopłata ${zl(undoPayment.bonusAmount)})` : ""} zostanie usunięta, a kwota wróci do „Do wypłaty”.
+            </Text>
             <View style={look.buttonRow}>
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: "#10B981" }]}
-                onPress={() => setShowSuccessModal(false)}
-              >
-                <Text style={look.buttonText}>OK</Text>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setUndoPayment(null)} disabled={undoLoading}>
+                <Text style={look.neutralButtonText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[look.primaryButton, { backgroundColor: "#DC2626" }, undoLoading && look.disabled]} onPress={confirmUndoPayment} disabled={undoLoading}>
+                {undoLoading ? <ActivityIndicator color="#fff" /> : <Text style={look.buttonText}>Cofnij wypłatę</Text>}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Error Modal */}
-      <Modal
-        visible={showErrorModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowErrorModal(false)}
-      >
+      {/* Szczegóły prowizji */}
+      <Modal visible={Boolean(commissionDetails)} transparent animationType="slide" onRequestClose={() => setCommissionDetails(null)}>
         <View style={look.modalOverlay}>
           <View style={look.modalContent}>
-            <ModalHeader icon="close-circle" color="#DC3545" title="Błąd" />
-            <Text style={look.modalMessage}>{errorMessage}</Text>
+            <ModalHeader icon="trending-up" color={CYAN} title="Szczegóły prowizji" subtitle={commissionDetails ? `${formatDate(commissionDetails.date)} · ${zl(commissionDetails.amount)}` : ""} />
+            {commissionDetails?.salesAmount ? (
+              <Text style={styles.modalLine}>Obrót: <Text style={{ fontWeight: "700" }}>{zl(commissionDetails.salesAmount)}</Text>{commissionDetails.commissionRate ? ` · ${commissionDetails.commissionRate}%` : ""}</Text>
+            ) : null}
+            <FlatList
+              style={styles.optionList}
+              data={commissionDetails?.commissionDetails?.length ? commissionDetails.commissionDetails : [{ productName: "Prowizja", saleAmount: commissionDetails?.salesAmount, commissionAmount: commissionDetails?.amount, description: commissionDetails?.reason }]}
+              keyExtractor={(_, index) => String(index)}
+              renderItem={({ item }) => (
+                <View style={[look.itemCard, { borderLeftColor: CYAN, alignItems: "flex-start" }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={look.itemCardText}>{item.productName || "Nieznany produkt"}</Text>
+                    {!!item.description && <Text style={styles.historyDetail} numberOfLines={3}>{item.description}</Text>}
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[styles.historyAmount, { color: GREEN }]}>+ {zl(item.commissionAmount)}</Text>
+                    {item.saleAmount ? <Text style={styles.historyDetail}>z {zl(item.saleAmount)}</Text> : null}
+                  </View>
+                </View>
+              )}
+            />
             <View style={look.buttonRow}>
-              <TouchableOpacity
-                style={[look.primaryButton, { backgroundColor: "#DC3545" }]}
-                onPress={() => setShowErrorModal(false)}
-              >
-                <Text style={look.buttonText}>OK</Text>
+              <TouchableOpacity style={look.neutralButton} onPress={() => setCommissionDetails(null)}>
+                <Text style={look.neutralButtonText}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* Podgląd wydruku miesięcznego */}
+      <Modal visible={Boolean(sheetHtml)} animationType="slide" onRequestClose={() => setSheetHtml(null)}>
+        <SafeAreaView style={styles.container}>
+          <PageHeader title="Wydruk miesięczny" subtitle={`${employeeName} · ${monthLabel} ${selectedYear}`} icon="print" color={GREEN} onBack={() => setSheetHtml(null)} />
+          <Text style={styles.sheetHint}>Podgląd arkusza A4 (powiększ palcami). Drukowanie z telefonu dojdzie z następnym buildem; z panelu drukuje się od razu.</Text>
+          {sheetHtml && (
+            <WebView
+              originWhitelist={["*"]}
+              source={{ html: sheetHtml }}
+              style={{ flex: 1, backgroundColor: "#fff" }}
+              scalesPageToFit
+              setBuiltInZoomControls
+              setDisplayZoomControls={false}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      <MessageModal
+        visible={Boolean(message)}
+        type={message?.type === "error" ? "error" : "success"}
+        title={message?.type === "error" ? "Błąd" : "Gotowe"}
+        message={message?.text}
+        onClose={() => setMessage(null)}
+      />
     </SafeAreaView>
   );
 };
 
 const styles = createThemedStyles(() => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: tc('bg', "#000000"),
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  sectionCard: {
-    backgroundColor: tc('surface', "#161622"),
+  container: { flex: 1, backgroundColor: tc("bg", "#0F0F1A") },
+  content: { padding: 16, paddingTop: 8 },
+  card: {
+    backgroundColor: tc("surface", "#161622"),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 6,
-  },
-  toggleRow: {
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  sectionSubtitle: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
-  },
-  filtersRow: {
-    gap: 16,
-    marginTop: 16,
-  },
-  filterBlock: {
-    gap: 6,
-  },
-  filterBlockRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  filterBlockSmall: {
-    flex: 1,
-    gap: 6,
-  },
-  filterLabel: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  selectField: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  selectText: {
-    color: tc('text', "#fff"),
-    fontSize: 15,
-    fontWeight: "600",
-    flex: 1,
-  },
-  selectPlaceholder: {
-    color: tc('muted', "#64748B"),
-    fontSize: 15,
-    flex: 1,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  primaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#0D6EFD",
-    paddingVertical: 14,
-    borderRadius: 12,
-    flex: 1,
-  },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  resetButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: tc('surface2', "#1E1E2D"),
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  infoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: tc('surface', "#161622"),
-    borderWidth: 1,
-    borderColor: tc('border', "#1E293B"),
-    borderLeftWidth: 4,
-    borderLeftColor: "#38BDF8",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-  },
-  infoText: {
-    color: tc('text', "#E2E8F0"),
-    fontSize: 13,
-    flex: 1,
-  },
-  summaryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 12,
-  },
-  summaryCard: {
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    padding: 12,
-    flexBasis: "47%",
-    flexGrow: 1,
-  },
-  summaryCardWide: {
-    flexBasis: "100%",
-    borderLeftWidth: 4,
-    borderLeftColor: "#10B981",
-  },
-  summaryValue: {
-    color: tc('text', "#fff"),
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  summaryLabel: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
-    marginTop: 4,
-  },
-  summaryLabelStrong: {
-    color: tc('text', "#E2E8F0"),
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: "600",
-  },
-  summaryPositive: {
-    color: "#10B981",
-  },
-  summaryNegative: {
-    color: "#EF4444",
-  },
-  summaryWarning: {
-    color: "#F59E0B",
-  },
-  payButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#10B981",
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  payButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  toggleAllButton: {
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    alignSelf: "flex-start",
-  },
-  toggleAllText: {
-    color: tc('text', "#fff"),
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  filterChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
-  },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    backgroundColor: tc('surface2', "#1E1E2D"),
-  },
-  filterChipActive: {
-    backgroundColor: "#0D6EFD26",
-    borderColor: "#0D6EFD",
-  },
-  filterChipText: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  filterChipTextActive: {
-    color: tc('text', "#fff"),
-  },
-  historyCard: {
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    borderLeftWidth: 4,
-    padding: 12,
-    marginBottom: 10,
-  },
-  // kolorowy pasek z lewej wg typu operacji
-  stripe_work_hours: {
-    borderLeftColor: "#2563EB",
-  },
-  stripe_advance: {
-    borderLeftColor: "#EF4444",
-  },
-  stripe_payment: {
-    borderLeftColor: "#F59E0B",
-  },
-  stripe_commission: {
-    borderLeftColor: "#06B6D4",
-  },
-  historyHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  historyDate: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
-  },
-  typeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  typeBadgeText: {
-    color: tc('text', "#fff"),
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  badge_work_hours: {
-    backgroundColor: "#2563EB26",
-    borderColor: "#2563EB80",
-  },
-  badge_advance: {
-    backgroundColor: "#EF444426",
-    borderColor: "#EF444480",
-  },
-  badge_payment: {
-    backgroundColor: "#F59E0B26",
-    borderColor: "#F59E0B80",
-  },
-  badge_commission: {
-    backgroundColor: "#06B6D426",
-    borderColor: "#06B6D480",
-  },
-  historyDescription: {
-    color: tc('text', "#fff"),
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  historyAmountRow: {
-    marginBottom: 6,
-  },
-  historyAmount: {
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  amountPositive: {
-    color: "#10B981",
-  },
-  amountNegative: {
-    color: "#EF4444",
-  },
-  historyDetails: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
-  },
-  detailsButton: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#0D6EFD",
-    borderRadius: 12,
-  },
-  detailsButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  summaryRow: {
-    gap: 8,
-    marginTop: 8,
-  },
-  inlineSummary: {
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    padding: 10,
-  },
-  inlineSummaryText: {
-    color: tc('text', "#E2E8F0"),
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  modalBody: {
-    marginBottom: 8,
-  },
-  modalScroll: {
-    flexGrow: 0,
-    marginBottom: 8,
-  },
-  optionList: {
-    flexGrow: 0,
-  },
-  optionRow: {
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  optionRowSelected: {
-    borderColor: "#0D6EFD",
-    backgroundColor: "#0D6EFD1F",
-  },
-  optionTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  optionSubtitle: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
-    marginTop: 4,
-  },
-  emptyText: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 14,
-    textAlign: "center",
-    paddingVertical: 16,
-  },
-  modalText: {
-    color: tc('text', "#E2E8F0"),
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  modalSectionTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  formGroup: {
-    marginTop: 12,
-  },
-  formHint: {
-    color: tc('muted', "#64748B"),
-    fontSize: 12,
-    marginTop: 6,
-  },
-  detailCard: {
-    backgroundColor: tc('surface2', "#1E1E2D"),
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tc('border', "#334155"),
-    borderLeftWidth: 4,
-    borderLeftColor: "#06B6D4",
-    padding: 12,
-    marginBottom: 10,
-  },
-  detailTitle: {
-    color: tc('text', "#fff"),
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  detailLine: {
-    color: tc('muted', "#94A3B8"),
-    fontSize: 12,
-    marginBottom: 4,
-  },
+    borderColor: tc("border", "#1E293B"),
+    padding: 14,
+    marginBottom: 14,
+  },
+  cardTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  clearLink: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
+  clearLinkText: { color: tc("muted", "#94A3B8"), fontSize: 13, fontWeight: "600" },
+  field: { marginBottom: 10 },
+  fieldRow: { flexDirection: "row", gap: 10 },
+  fieldInner: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  placeholder: { color: tc("muted", "#94A3B8"), fontSize: 16 },
+  hint: { color: tc("muted", "#94A3B8"), fontSize: 12, marginTop: 2 },
+  // rachunek
+  statementRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: tc("border", "#1E293B") },
+  statementRowTotal: { borderTopWidth: 2, borderTopColor: tc("text", "#fff"), marginTop: 2 },
+  statementRowFinal: { borderTopWidth: 3, borderTopColor: tc("text", "#fff"), borderBottomWidth: 0, marginTop: 2, paddingVertical: 12 },
+  statementLabel: { color: tc("text", "#fff"), fontSize: 15 },
+  statementLabelBold: { fontWeight: "700" },
+  statementLabelBig: { fontSize: 18, fontWeight: "800" },
+  statementSub: { color: tc("muted", "#94A3B8"), fontSize: 12, marginTop: 1 },
+  statementValue: { color: tc("text", "#fff"), fontSize: 15, fontVariant: ["tabular-nums"] },
+  statementValueBig: { fontSize: 24, fontWeight: "800" },
+  warnBanner: { flexDirection: "row", gap: 8, alignItems: "flex-start", marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: `${RED}1A`, borderWidth: 1, borderColor: `${RED}66` },
+  warnText: { flex: 1, color: tc("text", "#fff"), fontSize: 13 },
+  payButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, backgroundColor: "#198754" },
+  payButtonIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  payButtonTextBlock: { alignItems: "center" },
+  payButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  payButtonHint: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 2 },
+  statusBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14, paddingVertical: 12, borderRadius: 10, backgroundColor: `${GREEN}1F`, borderWidth: 1, borderColor: `${GREEN}80` },
+  statusBannerRed: { backgroundColor: `${RED}1F`, borderColor: `${RED}80` },
+  statusText: { fontSize: 16, fontWeight: "700" },
+  undoButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 10, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: "rgba(248,113,113,0.55)", backgroundColor: "rgba(248,113,113,0.1)" },
+  undoButtonIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#f87171", alignItems: "center", justifyContent: "center" },
+  undoButtonText: { color: tc("text", "#fff"), fontSize: 14, fontWeight: "700" },
+  undoButtonHint: { color: tc("muted", "#94A3B8"), fontSize: 11, marginTop: 2 },
+  // historia
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: tc("border", "#334155"), backgroundColor: tc("surface2", "#1E1E2D") },
+  chipText: { color: tc("muted", "#94A3B8"), fontSize: 12, fontWeight: "600" },
+  historyCard: { alignItems: "flex-start", gap: 10 },
+  historyIcon: { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  historyTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  historyDate: { color: tc("muted", "#94A3B8"), fontSize: 12, fontWeight: "600" },
+  historyAmount: { fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  historyTitle: { color: tc("text", "#fff"), fontSize: 14, fontWeight: "600", marginTop: 2 },
+  historyDetail: { color: tc("muted", "#94A3B8"), fontSize: 12, marginTop: 2 },
+  detailsLink: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 6, alignSelf: "flex-start" },
+  detailsLinkText: { color: CYAN, fontSize: 13, fontWeight: "600" },
+  // okienka
+  optionList: { maxHeight: 380, marginBottom: 8 },
+  optionSub: { color: tc("muted", "#94A3B8"), fontSize: 12, marginTop: 2 },
+  modalLine: { color: tc("text", "#fff"), fontSize: 15, marginTop: 4 },
+  modalNote: { fontSize: 13, marginTop: 8 },
+  roundRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  roundLabel: { color: tc("muted", "#94A3B8"), fontSize: 12 },
+  roundButton: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: tc("border", "#334155"), backgroundColor: tc("surface2", "#1E293B") },
+  roundButtonText: { color: tc("text", "#E2E8F0"), fontSize: 12, fontWeight: "600" },
+  infoBanner: { flexDirection: "row", gap: 8, alignItems: "flex-start", marginTop: 12, marginBottom: 4, padding: 10, borderRadius: 10, backgroundColor: "rgba(56,189,248,0.12)", borderWidth: 1, borderColor: "rgba(56,189,248,0.4)" },
+  infoText: { flex: 1, color: tc("text", "#fff"), fontSize: 12 },
+  sheetHint: { color: tc("muted", "#94A3B8"), fontSize: 12, paddingHorizontal: 16, paddingBottom: 8 },
 }));
 
 export default Payroll;
