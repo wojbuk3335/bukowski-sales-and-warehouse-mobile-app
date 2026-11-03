@@ -190,6 +190,9 @@ const Profile = () => {
   }, [postalCode, deliveryOption]);
 
   const postalHint = postalCodeHint(postalCheck, citySearchText);
+  // Wysyłka (3.11.2026): miejscowość, ulica i numer domu zablokowane (wyszarzone), dopóki nie ma poprawnego kodu
+  // pocztowego XX-XXX - kod jest pierwszy, bo z niego podpowiadamy miejscowość i sprawdzamy adres
+  const addressLocked = deliveryOption === 'shipping' && !isPostalCodeFormatValid(postalCode);
 
   // Po wpisaniu miejscowości, ulicy i numeru (przy wysyłce także poprawnego kodu) sprawdzamy cały adres
   useEffect(() => {
@@ -1390,13 +1393,14 @@ const Profile = () => {
                     <View style={styles.fieldContainer}>
                       <Text style={styles.fieldLabel}>Miejscowość:</Text>
                       <TextInput
-                        style={[styles.input, cityInputFocused && styles.inputFocused]}
-                        placeholder="Wpisz miejscowość..."
+                        style={[styles.input, cityInputFocused && styles.inputFocused, addressLocked && styles.inputLocked]}
+                        placeholder={addressLocked ? 'Najpierw wpisz kod pocztowy' : 'Wpisz miejscowość...'}
                         value={citySearchText}
                         onChangeText={handleCityChange}
                         onFocus={() => setCityInputFocused(true)}
                         onBlur={() => setCityInputFocused(false)}
                         placeholderTextColor={tc('muted', "#666")}
+                        editable={!addressLocked}
                         testID="city-input"
                       />
                       {postalHint === 'mismatch' && (
@@ -1422,13 +1426,14 @@ const Profile = () => {
                     <View style={styles.fieldContainer}>
                       <Text style={styles.fieldLabel}>Ulica (opcjonalnie):</Text>
                       <TextInput
-                        style={[styles.input, streetInputFocused && styles.inputFocused]}
-                        placeholder="Wpisz ulicę..."
+                        style={[styles.input, streetInputFocused && styles.inputFocused, addressLocked && styles.inputLocked]}
+                        placeholder={addressLocked ? 'Najpierw wpisz kod pocztowy' : 'Wpisz ulicę...'}
                         value={streetSearchText}
                         onChangeText={setStreetSearchText}
                         onFocus={() => setStreetInputFocused(true)}
                         onBlur={() => setTimeout(() => setStreetInputFocused(false), 250)}
                         placeholderTextColor={tc('muted', "#666")}
+                        editable={!addressLocked}
                         testID="street-input"
                       />
                       {renderStreetSuggestions()}
@@ -1440,14 +1445,16 @@ const Profile = () => {
                     <View style={styles.fieldContainer}>
                       <Text style={styles.fieldLabel}>Numer domu/mieszkania:</Text>
                       <TextInput
-                        style={[styles.input, houseNumberFocused && styles.inputFocused]}
-                        placeholder="np. 12, 12A, 12/3"
+                        style={[styles.input, houseNumberFocused && styles.inputFocused, addressLocked && styles.inputLocked]}
+                        placeholder={addressLocked ? 'Najpierw wpisz kod pocztowy' : 'np. 12, 12A, 12/3'}
                         value={houseNumber}
                         onChangeText={setHouseNumber}
                         onFocus={() => setHouseNumberFocused(true)}
                         onBlur={() => setHouseNumberFocused(false)}
                         placeholderTextColor={tc('muted', "#666")}
+                        editable={!addressLocked}
                         autoCapitalize="characters"
+                        testID="house-number-input"
                       />
                       {renderAddressHint()}
                     </View>
@@ -1926,6 +1933,9 @@ const styles = createThemedStyles(() => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 15,
     height: 50,
+  },
+  inputLocked: {
+    opacity: 0.45, // wyszarzone pola adresu przed wpisaniem kodu pocztowego
   },
   inputFocused: {
     borderColor: '#0D6EFD',
