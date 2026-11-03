@@ -12,6 +12,7 @@ import { KeyboardSafeScreen } from '../../components/KeyboardSafe'; // klawiatur
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import { searchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Remanencie
 import { comparePlBase } from '../../utils/plSort'; // szybkie sortowanie po polsku (localeCompare blokował ekran)
+import { groupAvailability } from '../../utils/stateAvailability'; // jeden wiersz na model + rozmiar + punkt (bez liczby sztuk)
 const SearchScreen = () => {
   useAppTheme(); // przerysowanie ekranu po zmianie motywu
   const insets = useSafeAreaInsets(); // Get safe area insets
@@ -51,8 +52,10 @@ const SearchScreen = () => {
   // punktów był przeszukiwany i sortowany localeCompare('pl'), co na Androidzie blokowało aplikację ponad 4 s przy wejściu
   // na zakładkę. Teraz: sortowanie raz na zmianę stanu (wspólny Intl.Collator), filtrowanie tylko przy otwartej
   // wyszukiwarce i tylko przy zmianie wpisanego tekstu (filterBySearch zachowuje kolejność).
+  // 3.11.2026: lista to dostępność w punkcie - jeden wiersz na model + rozmiar + punkt, nie każda sztuka
+  // (200 sztuk w magazynie dawało 200 wierszy)
   const sortedState = useMemo(
-    () => [...(stateData || [])].sort((a, b) => comparePlBase(a.fullName || '', b.fullName || '')), // kopia: nie zmieniamy tablicy z kontekstu
+    () => groupAvailability([...(stateData || [])].sort((a, b) => comparePlBase(a.fullName || '', b.fullName || ''))), // kopia: nie zmieniamy tablicy z kontekstu
     [stateData]
   );
   const filteredData = useMemo(() => (showSearchBar
@@ -145,7 +148,7 @@ const SearchScreen = () => {
   return (
     <View style={styles.container}>
       <View style={{ paddingHorizontal: 12 }}>
-        <ScreenHeader icon="search" title="Szukaj" subtitle="Znajdź produkt w stanach wszystkich punktów" />
+        <ScreenHeader icon="search" title="Szukaj" subtitle="Dostępność modelu i rozmiaru w punktach" />
         <MenuCard
           testID="search-by-code"
           icon="barcode-outline"

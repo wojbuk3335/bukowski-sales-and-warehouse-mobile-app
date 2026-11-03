@@ -51,3 +51,18 @@ test('menu Szukaj: stan sortowany raz (nie przy każdym przerysowaniu), wyszukiw
   fireEvent.changeText(screen.getByPlaceholderText('Nazwa, kolor, rozmiar, kod, punkt...'), 'lucja');
   expect(screen.getByText('Wyników: 1')).toBeTruthy();
 });
+
+test('Szukaj pokazuje dostępność: jeden wiersz na model + rozmiar + punkt, bez liczby sztuk (3.11.2026)', () => {
+  const screen = renderSearch([
+    { id: 'a', fullName: 'Ada CZERWONY', size: 'M', symbol: 'MAGAZYN', barcode: '0004' },
+    { id: 'b', fullName: 'Ada CZERWONY', size: 'M', symbol: 'MAGAZYN', barcode: '0004' },
+    { id: 'c', fullName: 'Ada CZERWONY', size: 'M', symbol: 'MAGAZYN', barcode: '0004' },
+    { id: 'd', fullName: 'Ada CZERWONY', size: 'M', symbol: 'P', barcode: '0004' },
+    { id: 'e', fullName: 'Ada CZERWONY', size: 'L', symbol: 'MAGAZYN', barcode: '0005' },
+  ]);
+  fireEvent.press(screen.getByTestId('search-by-text'));
+  expect(screen.getByText('Wyników: 3')).toBeTruthy(); // M w MAGAZYN, M w P, L w MAGAZYN - nie 5 sztuk
+  const names = screen.getAllByText(/\d+\. /).map((node) => [].concat(node.props.children).join(''));
+  expect(names).toEqual(['1. Ada CZERWONY  M', '2. Ada CZERWONY  M', '3. Ada CZERWONY  L']);
+  expect(screen.queryByText(/3 szt/)).toBeNull();
+});

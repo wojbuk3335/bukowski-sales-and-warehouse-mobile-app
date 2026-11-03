@@ -2,6 +2,7 @@ import { useCameraPermissions } from "expo-camera";
 import ScanCamera from "../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { useContext, useState } from "react";
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { groupAvailability } from "../utils/stateAvailability"; // jeden wiersz na model + rozmiar + punkt
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
 import { GlobalStateContext } from "../context/GlobalState"; // Adjust the import path as necessary
 import { ModalHeader, PointPill, pointColorMap, look } from '../components/AdminLook';
@@ -80,10 +81,8 @@ const QRScannerSearch = () => {
              itemBaseName.toLowerCase() === baseName.toLowerCase();
     });
 
-    // Remove duplicates and sort by size
-    const uniqueProducts = relatedProducts.filter((item, index, self) => 
-      index === self.findIndex(p => p.id === item.id)
-    );
+    // Dostępność, nie sztuki (3.11.2026): jeden wiersz na model + rozmiar + punkt (jak w wyszukiwarce tekstowej)
+    const uniqueProducts = groupAvailability(relatedProducts);
 
     setMatchedItems(uniqueProducts);
     setModalVisible(true);
