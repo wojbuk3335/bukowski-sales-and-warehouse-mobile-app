@@ -349,8 +349,13 @@ const Profile = () => {
       <View testID={`address-hint-${addrHint}`}>
         <Text style={postalHintStyles.warn}>{message}</Text>
         {addrHint === 'corrected' && suggestionText ? (
-          <TouchableOpacity style={postalHintStyles.chip} onPress={applyAddressSuggestion} testID="address-apply">
-            <Text style={postalHintStyles.chipText}>Użyj: {suggestionText}</Text>
+          <TouchableOpacity style={postalHintStyles.chip} onPress={applyAddressSuggestion} testID="address-apply" activeOpacity={0.8}>
+            <View style={postalHintStyles.chipIcon}><Ionicons name="checkmark-circle" size={16} color="#0D6EFD" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={postalHintStyles.chipText}>{suggestionText}</Text>
+              <Text style={postalHintStyles.chipHint}>dotknij, żeby użyć tego adresu</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={tc('muted', '#94A3B8')} />
           </TouchableOpacity>
         ) : null}
         <Text style={postalHintStyles.muted}>Możesz zostawić adres bez zmian i złożyć zamówienie.</Text>
@@ -1410,8 +1415,13 @@ const Profile = () => {
                           </Text>
                           <View style={postalHintStyles.chips}>
                             {postalCheck.localities.slice(0, 6).map((place) => (
-                              <TouchableOpacity key={place} style={postalHintStyles.chip} onPress={() => setCitySearchText(place)}>
-                                <Text style={postalHintStyles.chipText}>{place}</Text>
+                              <TouchableOpacity key={place} style={postalHintStyles.chip} onPress={() => setCitySearchText(place)} activeOpacity={0.8}>
+                                <View style={postalHintStyles.chipIcon}><Ionicons name="location" size={16} color="#0D6EFD" /></View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={postalHintStyles.chipText}>{place}</Text>
+                                  <Text style={postalHintStyles.chipHint}>dotknij, żeby wpisać</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color={tc('muted', '#94A3B8')} />
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -2297,9 +2307,16 @@ const postalHintStyles = createThemedStyles(() => StyleSheet.create({
   muted: { color: tc('muted', '#94A3B8'), fontSize: 13, marginTop: 6 },
   ok: { color: tcl('#22C55E', '#15803d'), fontSize: 13, marginTop: 6, fontWeight: '600' },
   warn: { color: tcl('#F59E0B', '#b45309'), fontSize: 13, marginTop: 6, fontWeight: '600' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: tc('surface2', '#1E293B'), borderColor: '#F59E0B', borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  chipText: { color: '#F59E0B', fontSize: 13, fontWeight: '600' },
+  // Podpowiedzi miejscowości / adresu (3.11.2026): karty jak OptionCard w całej aplikacji zamiast pomarańczowych plakietek
+  chips: { gap: 8, marginTop: 8 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6,
+    backgroundColor: tc('surface2', '#1E293B'), borderColor: tc('border', '#334155'), borderWidth: 1, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  chipIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(13, 110, 253, 0.15)', alignItems: 'center', justifyContent: 'center' },
+  chipText: { flex: 1, color: tc('text', '#FFFFFF'), fontSize: 14, fontWeight: '600' },
+  chipHint: { color: tc('muted', '#94A3B8'), fontSize: 11, marginTop: 1 },
   suggestList: { marginTop: 4, backgroundColor: tc('surface2', '#1E293B'), borderColor: tc('border', '#334155'), borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   suggestItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomColor: tc('border', '#334155'), borderBottomWidth: 1 },
   suggestText: { color: tc('text', '#FFFFFF'), fontSize: 15 },
