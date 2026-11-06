@@ -51,12 +51,29 @@ export const isRectCenterInsideFrame = (rect, frame, margin = 12) => {
 export const isPlausibleCode = (data, type) => {
   const value = String(data || "").trim();
   if (!value) return false;
-  const isEan13 = String(type || "").toLowerCase().includes("ean13") || String(type || "") === "32";
-  if (isEan13) {
-    return isValidEan13(value);
+  if (isEanFamily(type)) {
+    return isValidEan13(restoreLeadingZero(value));
   }
   return true;
 };
+
+// EAN-13 zaczynający się od zera jest jednocześnie kodem UPC-A (próba EAN-13 na metkach, 6.11.2026): iPhone
+// (expo-camera obcina zero), Android (ML Kit potrafi zgłosić upc_a) i część czytników oddają go jako 12 cyfr
+// (0040408300005 -> 040408300005). Dopisujemy zero z powrotem, gdy wynik jest poprawnym EAN-13 - nasze kody mają
+// zawsze 13 cyfr, więc taki 12-cyfrowy odczyt to obcięte zero. Inne wartości zostają bez zmian.
+export const restoreLeadingZero = (data) => {
+  const value = String(data ?? "").trim();
+  return /^\d{12}$/.test(value) && isValidEan13(`0${value}`) ? `0${value}` : value;
+};
+
+// Typ z rodziny EAN-13 / UPC-A (nazwa z expo-camera albo numer formatu: 32 = EAN-13, 512 = UPC-A)
+export const isEanFamily = (type) => {
+  const name = String(type || "").toLowerCase();
+  return name.includes("ean13") || name.includes("upc_a") || name.includes("upca") || name === "32" || name === "512";
+};
+
+// Kod w postaci, w jakiej jest w systemie: odczyt EAN-13 / UPC-A z przywróconym zerem, reszta bez zmian
+export const normalizeScannedCode = (data, type) => (isEanFamily(type) ? restoreLeadingZero(data) : data);
 
 // Licznik potwierdzeń: ten sam kod `requiredHits` razy, kolejne odczyty nie dalej niż `windowMs` od poprzedniego.
 // Inny kod w międzyczasie zaczyna liczenie od nowa.

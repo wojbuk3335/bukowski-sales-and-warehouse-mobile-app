@@ -5,6 +5,7 @@ import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera"
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
 import { SmartScanOverlay, useSmartBarcodeScan } from "./SmartScanOverlay"; // kod tylko z ramki, potwierdzony kilkoma odczytami
 import { pickPrimaryLens } from "./iosLens"; // iPhone: zwykły szeroki aparat zamiast wirtualnego (ultraszerokiego)
+import { normalizeScannedCode, restoreLeadingZero } from "./smartScanLogic"; // EAN-13 z zerem na początku oddawany jako 12 cyfr
 import { KeyboardSafeScreen } from "../KeyboardSafe";
 import { ModalHeader, look } from "../AdminLook";
 import { tc } from "../../context/ThemeContext";
@@ -46,8 +47,10 @@ const KEEP_AWAKE_TAG = "scanner-bluetooth";
  *   children                   - elementy nad kamerą (np. przycisk zamknięcia)
  */
 
-// Tylko formaty, które drukujemy (metki Code 128) - inne (UPC-A, Code 39, EAN-8) dawały błędne odczyty
-export const SCAN_BARCODE_TYPES = ["code128", "ean13", "qr"];
+// Tylko formaty, które drukujemy (metki Code 128, próbnie EAN-13) - inne (Code 39, EAN-8) dawały błędne odczyty.
+// upc_a (6.11.2026): EAN-13 zaczynający się od zera to jednocześnie UPC-A i Android potrafi zgłosić go właśnie tak;
+// odczyt przechodzi tylko, gdy po dopisaniu zera jest poprawnym EAN-13 (smartScanLogic.normalizeScannedCode).
+export const SCAN_BARCODE_TYPES = ["code128", "ean13", "upc_a", "qr"];
 // Lekkie przybliżenie TYLKO na iPhonie (audyt skanera 26.10.2026): expo-camera nie włącza obiektywu makro, a aparat
 // iPhone'a ostrzy najbliżej z 12-20 cm; ramka 280 pkt kazała trzymać telefon ~9 cm od metki - obraz był nieostry
 // i nic się nie dekodowało. Z przybliżeniem kod wypełnia ramkę z 15-20 cm. expo-camera liczy zoom jako
@@ -144,7 +147,7 @@ const ScanCamera = ({
 
   // Kody z czytnika: Enter (onSubmitEditing) kończy kod; znak nowej linii w tekście też (kilka kodów naraz z pamięci czytnika)
   const deliverBluetoothCode = (raw) => {
-    const code = cleanScannerCode(raw);
+    const code = restoreLeadingZero(cleanScannerCode(raw)); // czytnik oddaje EAN-13 z zerem na początku jako 12 cyfr
     if (!code) return;
     setBtLastCode(code);
     if (!enabledRef.current) return; // formularz otwarty - kod bez odbiorcy (jak zasłonięta kamera)
@@ -200,7 +203,7 @@ const ScanCamera = ({
         return;
       }
       Logger.debug("Scan from photo:", first.type, first.data);
-      deliver({ data: String(first.data), type: first.type });
+      deliver({ data: String(normalizeScannedCode(first.data, first.type)), type: first.type });
     } catch (error) {
       setPhotoScanning(false);
       setPhotoUri(null);

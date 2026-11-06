@@ -7,6 +7,7 @@ import {
   createConfirmCounter,
   isPlausibleCode,
   isRectCenterInsideFrame,
+  normalizeScannedCode,
 } from "./smartScanLogic";
 
 /**
@@ -84,7 +85,8 @@ export const useSmartBarcodeScan = ({ onConfirmed, enabled = true, requiredHits 
 
   const onBarcodeScanned = useCallback((scan) => {
     if (!enabled || doneRef.current) return;
-    const { data, type } = scan || {};
+    const { type } = scan || {};
+    const data = normalizeScannedCode(scan?.data, type); // EAN-13 z zerem na początku: przywrócone obcięte zero
     if (!isPlausibleCode(data, type)) return; // zła cyfra kontrolna / pusty odczyt
 
     const rect = codeRectFromScan(scan);

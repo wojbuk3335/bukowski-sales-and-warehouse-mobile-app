@@ -94,7 +94,7 @@ describe('ScanCamera', () => {
     fireEvent.press(screen.getByTestId('scan-from-photo'));
 
     await waitFor(() => expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'ean13' }));
-    expect(mockScanFromURLAsync).toHaveBeenCalledWith('file:///metka.jpg', ['code128', 'ean13', 'qr']);
+    expect(mockScanFromURLAsync).toHaveBeenCalledWith('file:///metka.jpg', ['code128', 'ean13', 'upc_a', 'qr']);
   });
 
   test('„Wpisz kod” z resolveName: kod z bazy przechodzi, spoza bazy zablokowany', async () => {

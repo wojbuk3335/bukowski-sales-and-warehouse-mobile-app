@@ -316,7 +316,7 @@ describe('QRScanner - Dynamiczne aktualizowanie produktu', () => {
 
       fireEvent.press(getByTestId('scan-from-photo'));
 
-      await waitFor(() => expect(mockScanFromURLAsync).toHaveBeenCalledWith('file:///metka.jpg', ['code128', 'ean13', 'qr']));
+      await waitFor(() => expect(mockScanFromURLAsync).toHaveBeenCalledWith('file:///metka.jpg', ['code128', 'ean13', 'upc_a', 'qr']));
       await waitFor(() => getByPlaceholderText('Wpisz lub zeskanuj kod kreskowy'));
       await waitFor(() => expect(queryByDisplayValue(/Kurtka Czarna/)).toBeTruthy());
     });
