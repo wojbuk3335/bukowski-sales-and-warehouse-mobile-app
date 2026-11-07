@@ -35,6 +35,7 @@ const LABEL_HEIGHT = 400;
 const PRINT_SPEED_IPS = 2; // najwolniejszy druk (2 cale/s): równe krawędzie kresek ważniejsze niż czas wydruku
 const PRINT_DARKNESS = 12; // domyślne zaczernienie (^MD, względem ustawienia drukarki) - do korekty po próbie przy drukarce
 const MIN_MODULE_WIDTH = 3; // kreska nigdy cieńsza niż 3 pkt (0,25 mm) - 2 pkt (stare metki) aparat czytał źle
+const MAX_MODULE_WIDTH = 8; // najgrubsza kreska do wyboru w edytorze (0,68 mm) - EAN-13 ma wtedy 64 mm, więcej nie ma sensu
 const QUIET_ZONE_MODULES = 10; // biały margines z każdej strony kodu: 10 szerokości kreski (norma Code 128)
 const EDGE = 12;
 const PRICE_FONT = 80; // wysokość liter ceny (6,8 mm) = szerokość kolumny ceny; 27.10.2026 dwa razy większa (było 40) - decyzja właściciela
@@ -57,6 +58,9 @@ const EAN13_DIGITS_MODULES = 10;
 // digits: cyfry kodu pod kreskami. EAN-13: show = drukarka rysuje standardowe cyfry (y / font nieużywane);
 // Code 128: osobne pole wyśrodkowane w polu kodu na wysokości y (fontLong dla kodów dłuższych niż 15 znaków).
 // price.rotation: 'R' = obrócona o 90° wzdłuż prawej krawędzi (jak dotąd), 'N' = pozioma.
+// barcodeFormat (8.11.2026): format kodu ustawiany WYŁĄCZNIE w Ustawieniach wydruku → Metki ('ean13' | 'code128').
+// barcode.moduleWidth: grubość kreski w punktach (3-8); 0 = automatycznie (największa, przy której kod mieści się w polu
+// z pełną strefą ciszy). Edytor zmienia ją razem z wysokością kresek - kod skaluje się zawsze proporcjonalnie.
 // name.variant: która nazwa produktu (serwer, labelService.productNameForLabel): 'code' = nazwa bez słowa koloru + kod
 // koloru (jak dotąd), 'model' = sama nazwa modelu (bez koloru i kodu), 'full' = pełna nazwa z kolorem.
 const DEFAULT_LABEL_LAYOUT = {
@@ -65,7 +69,8 @@ const DEFAULT_LABEL_LAYOUT = {
     height: LABEL_HEIGHT,
     speed: PRINT_SPEED_IPS,
     darkness: PRINT_DARKNESS,
-    barcode: { show: true, area: { x: 0, width: AREA_WIDTH }, y: BARCODE_TOP, height: BARCODE_HEIGHT, digits: { show: true, y: DIGITS_TOP, font: 30, fontLong: 24 } },
+    barcodeFormat: 'ean13',
+    barcode: { show: true, area: { x: 0, width: AREA_WIDTH }, y: BARCODE_TOP, height: BARCODE_HEIGHT, moduleWidth: 0, digits: { show: true, y: DIGITS_TOP, font: 30, fontLong: 24 } },
     name: { show: true, x: EDGE, y: 12, font: 28, width: AREA_WIDTH - EDGE - POINT_WIDTH - 6, variant: 'code' },
     point: { show: true, x: AREA_WIDTH - POINT_WIDTH, y: 16, font: 22, width: POINT_WIDTH },
     price: { show: true, x: PRICE_X, y: 10, font: PRICE_FONT, length: PRICE_LENGTH, rotation: 'R', bold: true },
@@ -78,7 +83,7 @@ const LABEL_PRESETS = {
     full: DEFAULT_LABEL_LAYOUT,
     ean_only: {
         ...DEFAULT_LABEL_LAYOUT,
-        barcode: { show: true, area: { x: 0, width: LABEL_WIDTH }, y: BARCODE_TOP, height: BARCODE_HEIGHT, digits: { show: true, y: DIGITS_TOP, font: 30, fontLong: 24 } },
+        barcode: { show: true, area: { x: 0, width: LABEL_WIDTH }, y: BARCODE_TOP, height: BARCODE_HEIGHT, moduleWidth: 0, digits: { show: true, y: DIGITS_TOP, font: 30, fontLong: 24 } },
         name: { ...DEFAULT_LABEL_LAYOUT.name, show: false },
         point: { ...DEFAULT_LABEL_LAYOUT.point, show: false },
         price: { ...DEFAULT_LABEL_LAYOUT.price, show: false },
@@ -120,11 +125,13 @@ const normalizeLabelLayout = (raw) => {
         height: LABEL_HEIGHT,
         speed: clampInt(r.speed, d.speed, 2, 6),
         darkness: clampInt(r.darkness, d.darkness, -30, 30),
+        barcodeFormat: r.barcodeFormat === 'code128' ? 'code128' : 'ean13',
         barcode: {
             show: asBool(b.show, d.barcode.show),
             area: { x: areaX, width: clampInt(area.width, d.barcode.area.width, 100, LABEL_WIDTH - areaX) },
             y: clampInt(b.y, d.barcode.y, 0, LABEL_HEIGHT - 40),
             height: clampInt(b.height, d.barcode.height, 40, LABEL_HEIGHT),
+            moduleWidth: Number(b.moduleWidth) === 0 || b.moduleWidth === undefined || b.moduleWidth === null || b.moduleWidth === '' ? 0 : clampInt(b.moduleWidth, 0, MIN_MODULE_WIDTH, MAX_MODULE_WIDTH),
             digits: {
                 show: asBool(digits.show, d.barcode.digits.show),
                 y: clampInt(digits.y, d.barcode.digits.y, 0, LABEL_HEIGHT - 1),
@@ -183,9 +190,14 @@ const barcodeQuietZones = (format) => (format === 'ean13' ? { left: 11, right: 7
 
 // Grubość kreski i położenie: największa kreska, przy której kod mieści się w lewej części
 // z wymaganym białym marginesem (kod wyśrodkowany - marginesy wychodzą równe)
-const barcodeGeometry = (data, areaWidth = AREA_WIDTH, format = 'code128') => {
+// fixedModule: grubość kreski ustawiona w układzie (3-8 pkt) - wtedy bez dopasowania do pola (edytor ostrzega o strefie ciszy)
+const barcodeGeometry = (data, areaWidth = AREA_WIDTH, format = 'code128', fixedModule = 0) => {
     const ean13 = format === 'ean13';
     const modules = ean13 ? EAN13_MODULES : code128Modules(data);
+    if (fixedModule >= MIN_MODULE_WIDTH) {
+        const width = modules * fixedModule;
+        return { moduleWidth: fixedModule, width, x: Math.max(0, Math.round((areaWidth - width) / 2)) };
+    }
     let moduleWidth = MIN_MODULE_WIDTH;
     for (const width of [4, MIN_MODULE_WIDTH]) {
         const quietModules = ean13 ? EAN13_QUIET_MODULES : 2 * QUIET_ZONE_MODULES; // pełny margines z obu stron, dla każdej grubości
@@ -213,7 +225,7 @@ const textField = (x, y, font, block, hex, rotation = 'N', bold = false) => (bol
     : `^FO${x},${y}^A0${rotation},${font},${font}${block}^FH_^FD${hex}^FS`);
 
 // darkness: zaczernienie względem ustawienia drukarki (^MD, -30..30); bez podania - z układu (domyślnie PRINT_DARKNESS)
-// barcodeFormat: 'code128' = wymuszony Code 128; bez podania - EAN-13 (kod bez poprawnej cyfry kontrolnej - Code 128)
+// barcodeFormat: 'code128' / 'ean13'; bez podania - z układu (domyślnie EAN-13; kod bez poprawnej cyfry kontrolnej - Code 128)
 // layout: układ metki (z bazy / edytora / LABEL_PRESETS); bez podania - DEFAULT_LABEL_LAYOUT
 const buildLabelZpl = ({ productName, price, size, pointNumber, barcode, darkness, barcodeFormat, layout } = {}) => {
     const L = normalizeLabelLayout(layout);
@@ -223,8 +235,8 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode, darknes
     const pointText = `Punkt: ${pointNumber || 'N/A'}`;
     const code = (barcode || 'NO-BARCODE').toString().trim();
 
-    const format = resolveBarcodeFormat(code, barcodeFormat);
-    const { moduleWidth, x: barcodeX } = barcodeGeometry(code, L.barcode.area.width, format);
+    const format = resolveBarcodeFormat(code, barcodeFormat || L.barcodeFormat);
+    const { moduleWidth, x: barcodeX } = barcodeGeometry(code, L.barcode.area.width, format, L.barcode.moduleWidth);
     const digitsFont = code.length > 15 ? L.barcode.digits.fontLong : L.barcode.digits.font; // cyfry pod kodem ~2,5 mm (27.10.2026: było 22 = 1,9 mm; pod kodem jest ok. 6 mm miejsca)
 
     const lines = [
@@ -273,4 +285,4 @@ const buildLabelZpl = ({ productName, price, size, pointNumber, barcode, darknes
     return lines.join('\n');
 };
 
-export { buildLabelZpl, barcodeGeometry, barcodeQuietZones, ean13DigitsHeight, code128Modules, toZplUtf8Hex, isValidEan13, resolveBarcodeFormat, DEFAULT_LABEL_LAYOUT, LABEL_PRESETS, normalizeLabelLayout };
+export { MIN_MODULE_WIDTH, MAX_MODULE_WIDTH, buildLabelZpl, barcodeGeometry, barcodeQuietZones, ean13DigitsHeight, code128Modules, toZplUtf8Hex, isValidEan13, resolveBarcodeFormat, DEFAULT_LABEL_LAYOUT, LABEL_PRESETS, normalizeLabelLayout };
