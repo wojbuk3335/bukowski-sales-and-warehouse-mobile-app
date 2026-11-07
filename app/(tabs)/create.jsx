@@ -97,9 +97,12 @@ export default function Create() {
     setErrorMessage("");
     setShowErrorModal(false);
 
-    // Pełnoekranowe „Ładowanie” (które odmontowuje i montuje od nowa skaner) tylko, gdy czegoś naprawdę brakuje.
-    // Wcześniej każde wejście na zakładkę „+” to 9 pełnych pobrań i ekran ładowania, choć dane były te same.
-    const needsLoading = !isDataFresh(REQUIRED_DATA);
+    // Pełnoekranowe „Ładowanie” (które odmontowuje i montuje od nowa skaner - start kamery od zera) tylko, gdy
+    // jakiegoś zbioru NIGDY nie udało się pobrać (zaraz po zalogowaniu, po nieudanym pobraniu). Przeterminowane dane
+    // (stan po 30 s, słowniki po 5 min) ensureData odświeża w tle, a skaner stoi od razu na danych z pamięci.
+    // 7.11.2026: dawniej ekran ładowania przy każdym wejściu po > 30 s od ostatniego pobrania stanu - czyli prawie
+    // przy każdym kliknięciu „+”, choć pobierał się tylko stan (29.10 zostały już usunięte salwy pełnych pobrań).
+    const needsLoading = !isDataFresh(REQUIRED_DATA, Infinity);
     if (needsLoading) {
       setIsLoading(true);
       // Add a small delay to ensure the loading state renders before starting API calls
