@@ -71,3 +71,21 @@ describe("smartScanLogic", () => {
     expect(c.push("A", 1000)).toBe(1); // za długa przerwa
   });
 });
+
+// Próg skanera w aplikacji (7.11.2026): 2 odczyty, kolejny do 1,5 s po poprzednim - przerwa 1 s (metka papierowa,
+// odczyt co kilka klatek) nie zeruje już licznika; dawniej 3 odczyty w oknach po 600 ms
+describe('próg przyjęcia kodu: 2 odczyty w 1,5 s', () => {
+  const { SCAN_REQUIRED_HITS, SCAN_WINDOW_MS } = require('../../components/scanner/SmartScanOverlay');
+  it('wartości progu', () => {
+    expect(SCAN_REQUIRED_HITS).toBe(2);
+    expect(SCAN_WINDOW_MS).toBe(1500);
+  });
+  it('drugi odczyt po 1 s potwierdza kod; po 2 s liczenie od nowa', () => {
+    const c = createConfirmCounter({ requiredHits: SCAN_REQUIRED_HITS, windowMs: SCAN_WINDOW_MS });
+    expect(c.isConfirmed(c.push('1002005300009', 0))).toBe(false);
+    expect(c.isConfirmed(c.push('1002005300009', 1000))).toBe(true);
+    c.reset();
+    c.push('1002005300009', 0);
+    expect(c.push('1002005300009', 2000)).toBe(1);
+  });
+});

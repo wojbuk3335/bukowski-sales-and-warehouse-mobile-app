@@ -26,10 +26,16 @@ import {
 
 const FRAME_W = 280;
 const FRAME_H = 200;
-const IDLE_RESET_MS = 450; // po tym czasie bez kodu ramka wraca na środek
+// Próg przyjęcia kodu (7.11.2026): 2 zgodne odczyty, kolejny najpóźniej 1,5 s po poprzednim (było 3 w 600 ms, a ramka
+// wracała na środek - i zerowała licznik - już po 450 ms bez kodu). Z monitora aparat czyta kod w każdej klatce, z papierowej
+// metki co kilka klatek - przerwa > 600 ms zaczynała liczenie od nowa i trudniejsza metka nie przechodziła wcale.
+// EAN-13 i Code 128 mają własną sumę kontrolną (EAN-13 dodatkowo sprawdzamy - isPlausibleCode), więc 2 odczyty wystarczą.
+export const SCAN_REQUIRED_HITS = 2;
+export const SCAN_WINDOW_MS = 1500;
+const IDLE_RESET_MS = SCAN_WINDOW_MS; // po tym czasie bez kodu ramka wraca na środek (i licznik od zera)
 
 // rearmKey: zmiana wartości = nowa sesja skanowania bez wyłączania (tryb ciągły - kolejne sztuki)
-export const useSmartBarcodeScan = ({ onConfirmed, enabled = true, requiredHits = 3, windowMs = 600, rearmKey = 0 } = {}) => {
+export const useSmartBarcodeScan = ({ onConfirmed, enabled = true, requiredHits = SCAN_REQUIRED_HITS, windowMs = SCAN_WINDOW_MS, rearmKey = 0 } = {}) => {
   const counter = useRef(createConfirmCounter({ requiredHits, windowMs })).current;
   const frameRef = useRef(null); // ramka w układzie kamery {x, y, width, height}
   const idleTimer = useRef(null);

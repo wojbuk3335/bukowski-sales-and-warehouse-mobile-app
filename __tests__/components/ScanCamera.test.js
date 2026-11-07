@@ -35,11 +35,12 @@ describe('ScanCamera', () => {
     ImagePicker.launchImageLibraryAsync.mockReset();
   });
 
-  test('kod przyjęty dopiero po kilku zgodnych odczytach w ramce', async () => {
+  // 7.11.2026: 2 zgodne odczyty (było 3) - papierowa metka czyta się co kilka klatek, nie w każdej
+  test('kod przyjęty dopiero po 2 zgodnych odczytach w ramce', async () => {
     const onScanned = jest.fn();
     const screen = render(<ScanCamera onScanned={onScanned} />);
 
-    await cameraFrames(screen, CODE, 2);
+    await cameraFrames(screen, CODE, 1);
     expect(onScanned).not.toHaveBeenCalled();
     await cameraFrames(screen, CODE, 1);
     expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'code128' });
