@@ -517,13 +517,12 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   }, [paymentMode, salePriceList]);
 
   // ---- Sprzedaż ciągła (8.11.2026): skan = sprzedaż zapisana od razu (utils/quickSale) ----
+  // 8.11.2026 (decyzja właściciela): zawsze gotówka, bez wyboru płatności i bez formularza; zapis także sztuki spoza stanu
   const [quickMode, setQuickMode] = useState(false); // przełącznik zapamiętany w telefonie
-  const [quickPayment, setQuickPayment] = useState("cash"); // płatność kolejnych sprzedaży (zostaje, dopóki się jej nie zmieni)
-  const [quickNextForm, setQuickNextForm] = useState(false); // jednorazowo: następna kurtka przez pełny formularz
   const [quickBusy, setQuickBusy] = useState(false); // zapis / cofanie w toku - skaner wstrzymany
-  const [quickLast, setQuickLast] = useState(null); // ostatnia sprzedaż: { id, label, amount, payment, undone }
+  const [quickLast, setQuickLast] = useState(null); // ostatnia sprzedaż: { id, label, amount, undone, duplicate }
   const [quickSeries, setQuickSeries] = useState({ count: 0, total: 0 }); // seria od włączenia trybu
-  const [quickNotice, setQuickNotice] = useState(""); // dlaczego otwarto formularz zamiast zapisu
+  const [quickError, setQuickError] = useState(null); // { text, retry } - czerwony pasek, skaner działa dalej
   const quickLastScanRef = useRef({ code: "", at: 0 });
   useEffect(() => {
     let active = true;
@@ -612,8 +611,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
 
   const toggleQuickMode = (on) => {
     setQuickMode(on);
-    setQuickNextForm(false);
-    setQuickNotice("");
+    setQuickError(null);
     if (on) setQuickSeries({ count: 0, total: 0 });
     AsyncStorage.setItem(QUICK_SALE_MODE_KEY, on ? "1" : "0").catch(() => {});
   };
@@ -627,28 +625,25 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       const response = await tokenService.authenticatedFetch(getApiUrl("/sales/save-sales"), { method: "POST", body: JSON.stringify(payload) });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        appAlert("Sprzedaż niezapisana", errorData.message || `Serwer odrzucił sprzedaż (HTTP ${response.status}).`);
+        setQuickError({ text: `NIE ZAPISANO ${sale.label}: ${errorData.message || `serwer odrzucił sprzedaż (HTTP ${response.status})`}` });
         return;
       }
       const data = await response.json().catch(() => ({}));
-      setQuickNotice("");
-      setQuickLast({ id: data?.sales?._id || null, label: sale.label, amount: sale.amount, payment: sale.payment, undone: false, duplicate: Boolean(data?.duplicate) });
+      setQuickError(null);
+      setQuickLast({ id: data?.sales?._id || null, label: sale.label, amount: sale.amount, undone: false, duplicate: Boolean(data?.duplicate) });
       if (!data?.duplicate) setQuickSeries((series) => ({ count: series.count + 1, total: series.total + sale.amount }));
       Haptics.notificationAsync?.(Haptics.NotificationFeedbackType?.Success)?.catch?.(() => {});
     } catch (error) {
       Logger.error("Quick sale save error:", error);
       if (error?.isAuthError || error?.code === "SESSION_REVOKED" || String(error?.message || "").includes("401")) {
-        appAlert("Błąd", "Nie jesteś zalogowany. Zaloguj się ponownie.");
+        setQuickError({ text: "NIE ZAPISANO: nie jesteś zalogowany - zaloguj się ponownie." });
         return;
       }
-      appAlert(
-        "Brak odpowiedzi serwera",
-        `${sale.label}: sprzedaż mogła się zapisać. „Spróbuj ponownie” - jeśli już jest zapisana, nie zapisze się drugi raz.`,
-        [
-          { text: "Zamknij", style: "cancel" },
-          { text: "Spróbuj ponownie", onPress: () => saveQuickSale(code, sale, clientRequestId) },
-        ]
-      );
+      // brak odpowiedzi: „Ponów” wysyła TEN SAM numer - serwer nie zapisze sprzedaży drugi raz
+      setQuickError({
+        text: `Brak odpowiedzi serwera - ${sale.label} mogła się zapisać. „Ponów” nie zapisze jej drugi raz.`,
+        retry: () => saveQuickSale(code, sale, clientRequestId),
+      });
     } finally {
       setQuickBusy(false);
     }
@@ -663,14 +658,14 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       const response = await tokenService.authenticatedFetch(getApiUrl(`/sales/delete-sale/${last.id}`), { method: "DELETE" });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        appAlert("Nie cofnięto", errorData.message || `Serwer nie usunął sprzedaży (HTTP ${response.status}). Sprawdź ją na liście sprzedaży.`);
+        setQuickError({ text: `Nie cofnięto: ${errorData.message || `serwer nie usunął sprzedaży (HTTP ${response.status})`} - sprawdź ją na liście sprzedaży.` });
         return;
       }
       setQuickLast({ ...last, undone: true });
       if (!last.duplicate) setQuickSeries((series) => ({ count: Math.max(0, series.count - 1), total: Math.max(0, series.total - last.amount) }));
     } catch (error) {
       Logger.error("Quick sale undo error:", error);
-      appAlert("Nie cofnięto", "Brak połączenia z serwerem - sprawdź tę sprzedaż na liście sprzedaży.");
+      setQuickError({ text: "Nie cofnięto: brak połączenia z serwerem - sprawdź tę sprzedaż na liście sprzedaży." });
     } finally {
       setQuickBusy(false);
     }
@@ -684,33 +679,38 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     const previous = quickLastScanRef.current;
     const repeat = previous.code === code && now - previous.at < QUICK_REPEAT_MS;
     quickLastScanRef.current = { code, at: now };
-    const result = buildQuickSale({ code, stateData, goods, sizes, priceList: myPriceList, user, payment: quickPayment });
+    // kamera: ta sama metka wciąż w kadrze - pomijamy; czytnik / wpisany kod: każdy skan to kolejna sprzedaż
+    if (repeat && type !== "bluetooth" && type !== "manual") return;
+    // sztuki nie ma na żadnym stanie: nazwa i rozmiar z samego kodu (karta produktu), jak w formularzu
+    const inState = (stateData || []).some((item) => item.barcode === code);
+    const unstocked = inState ? null : await describeUnstockedCode(code);
+    const result = buildQuickSale({ code, stateData, goods, sizes, priceList: myPriceList, user, unstocked });
     if (!result.ok) {
-      // tego nie zgadujemy - zwykły formularz z powodem na górze
-      setQuickNotice(result.reason);
-      await openSaleForm(code);
-      return;
-    }
-    if (repeat) {
-      // kamera: ta sama metka wciąż w kadrze - pomijamy; czytnik / wpisany kod: świadomy drugi skan - pytamy
-      if (type !== "bluetooth" && type !== "manual") return;
-      appAlert("Ta sama kurtka jeszcze raz?", `${result.sale.label} - przed chwilą sprzedana. Sprzedać drugą taką samą sztukę?`, [
-        { text: "Nie", style: "cancel" },
-        { text: "Tak, sprzedaj", onPress: () => saveQuickSale(code, result.sale, newQuickSaleId()) },
-      ]);
+      setQuickError({ text: `NIE ZAPISANO: ${result.reason}` }); // bez formularza - skaner czeka na następną kurtkę
       return;
     }
     await saveQuickSale(code, result.sale, newQuickSaleId());
   };
 
+  // Produkt rozpoznany z samego kodu (sztuki nie ma na stanie): torebka / portfel / pozostały asortyment bez rozmiaru,
+  // kurtka „Nazwa ROZMIAR” - tak samo jak formularz przy zapisie
+  const describeUnstockedCode = async (code) => {
+    const sizeless = buildBagNameFromBarcode(code) || buildWalletNameFromBarcode(code) || (await buildRemainingProductNameFromBarcode(code));
+    if (sizeless) return { fullName: sizeless, size: "-" };
+    const jacket = buildJacketNameFromBarcode(code);
+    if (jacket) {
+      const parts = jacket.split(" ");
+      return { fullName: parts.slice(0, -1).join(" ") || jacket, size: parts[parts.length - 1] || "-" };
+    }
+    // karta produktu o dokładnie tym kodzie (np. asortyment bez rozmiaru)
+    const card = (goods || []).find((good) => String(good?.code || "").trim() === code);
+    return card?.fullName ? { fullName: card.fullName, size: "-" } : null;
+  };
+
   const handleScan = async ({ data, type }) => {
-    if (quickMode && !quickNextForm) {
+    if (quickMode) {
       await handleQuickScan(data, type);
       return;
-    }
-    if (quickNextForm) {
-      setQuickNextForm(false); // jednorazowo
-      setQuickNotice("");
     }
     await openSaleForm(data);
   };
@@ -1399,7 +1399,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
       {!modalVisible && (
       <View style={{ flex: 1 }}>
         {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
-        {/* Sprzedaż ciągła: przełącznik, płatność kolejnych sprzedaży, „następna przez formularz”, seria */}
+        {/* Sprzedaż ciągła: przełącznik i seria (zawsze gotówka - bez wyboru płatności, 8.11.2026) */}
         <View style={quickStyles.bar} testID="quick-sale-bar">
           <View style={quickStyles.row}>
             <Ionicons name="flash" size={18} color={quickMode ? "#F59E0B" : tc('muted', '#94A3B8')} />
@@ -1410,38 +1410,39 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
               <Text style={quickStyles.series} testID="quick-sale-series">Seria: {quickSeries.count} szt. · {formatMoney(quickSeries.total)} zł</Text>
             )}
           </View>
-          {quickMode && (
-            <View style={quickStyles.row}>
-              {[["cash", "Gotówka", "cash-outline"], ["card", "Karta", "card-outline"]].map(([value, label, icon]) => (
-                <TouchableOpacity key={value} onPress={() => setQuickPayment(value)} style={[quickStyles.chip, quickPayment === value && quickStyles.chipOn]} testID={`quick-pay-${value}`} accessibilityRole="button" accessibilityState={{ selected: quickPayment === value }}>
-                  <Ionicons name={icon} size={16} color={quickPayment === value ? "#fff" : tc('text', '#fff')} />
-                  <Text style={[quickStyles.chipText, quickPayment === value && { color: "#fff" }]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity onPress={() => setQuickNextForm((on) => !on)} style={[quickStyles.chip, quickNextForm && quickStyles.chipForm]} testID="quick-next-form" accessibilityRole="button" accessibilityState={{ selected: quickNextForm }}>
-                <Ionicons name="create-outline" size={16} color={quickNextForm ? "#fff" : tc('text', '#fff')} />
-                <Text style={[quickStyles.chipText, quickNextForm && { color: "#fff" }]}>Następna: formularz</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
         <ScanCamera
           enabled={!scanned && !quickBusy}
+          continuous={quickMode} // sprzedaż ciągła: kamera sama gotowa na następną metkę (także po czerwonym pasku)
           active={isActive !== false} // zakładka „+” na wierzchu - tylko wtedy czytnik Bluetooth słucha (8.11.2026)
           onScanned={handleScan}
           resolveName={resolveProductNameFromBarcode}
           facing={facing}
-          hint={quickMode
-            ? (quickNextForm ? "Następna kurtka: pełny formularz." : `Sprzedaż ciągła: skan = sprzedaż (${quickPayment === "card" ? "karta" : "gotówka"}).`)
-            : null}
+          hint={quickMode ? "Sprzedaż ciągła: skan = sprzedaż gotówką." : null}
         />
+        {/* Nie zapisano (nieznany kod, brak ceny, odmowa / brak odpowiedzi serwera) - skaner działa dalej */}
+        {quickMode && quickError && (
+          <View style={[quickStyles.banner, quickStyles.bannerError]} testID="quick-sale-error">
+            <Ionicons name="alert-circle" size={22} color="#fff" />
+            <Text style={quickStyles.bannerText} numberOfLines={3}>{quickError.text}</Text>
+            {quickError.retry ? (
+              <TouchableOpacity onPress={quickError.retry} disabled={quickBusy} style={quickStyles.undo} testID="quick-sale-retry" accessibilityRole="button">
+                <Text style={quickStyles.undoText}>Ponów</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => setQuickError(null)} style={quickStyles.undo} testID="quick-sale-error-close" accessibilityRole="button">
+                <Ionicons name="close" size={16} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         {/* Ostatnia sprzedaż z trybu ciągłego + „Cofnij” */}
         {quickMode && quickLast && (
           <View style={[quickStyles.banner, quickLast.undone && quickStyles.bannerUndone]} testID="quick-sale-banner">
             <Ionicons name={quickLast.undone ? "arrow-undo" : "checkmark-circle"} size={22} color="#fff" />
             <Text style={quickStyles.bannerText} numberOfLines={2}>
               {quickLast.undone ? "Cofnięto: " : quickLast.duplicate ? "Już zapisana: " : "Sprzedano: "}
-              {quickLast.label} · {formatMoney(quickLast.amount)} zł · {quickLast.payment === "card" ? "karta" : "gotówka"}
+              {quickLast.label} · {formatMoney(quickLast.amount)} zł · gotówka
             </Text>
             {!quickLast.undone && quickLast.id && (
               <TouchableOpacity onPress={undoQuickSale} disabled={quickBusy} style={quickStyles.undo} testID="quick-sale-undo" accessibilityRole="button">
@@ -1507,9 +1508,6 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
                   <Ionicons name="close" size={24} color={tc('text', '#fff')} />
                 </Pressable>
                 <ModalHeader icon="cart" color="#10B981" title="Nowa sprzedaż" />
-                {quickMode && !!quickNotice && (
-                  <Text style={quickStyles.formReason} testID="quick-sale-form-reason">Sprzedaż ciągła: {quickNotice}</Text>
-                )}
                 <Text style={look.formLabel}>Kod kreskowy</Text>
                 <TextInput
                   style={styles.inputField}
@@ -2342,16 +2340,12 @@ const quickStyles = {
   row: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   get title() { return { color: tc('text', '#fff'), fontSize: 15, fontWeight: "700" }; },
   series: { color: "#10B981", fontSize: 13, fontWeight: "700" },
-  get chip() { return { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: tc('border', '#475569') }; },
-  chipOn: { backgroundColor: "#0D6EFD", borderColor: "#0D6EFD" },
-  chipForm: { backgroundColor: "#F59E0B", borderColor: "#F59E0B" },
-  get chipText() { return { color: tc('text', '#fff'), fontSize: 13, fontWeight: "600" }; },
   banner: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#059669" },
   bannerUndone: { backgroundColor: "#6B7280" },
+  bannerError: { backgroundColor: "#DC2626" },
   bannerText: { flex: 1, color: "#fff", fontSize: 15, fontWeight: "700" },
   undo: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.25)", borderWidth: 1, borderColor: "rgba(255,255,255,0.6)" },
   undoText: { color: "#fff", fontSize: 14, fontWeight: "800" },
-  formReason: { color: "#F59E0B", fontSize: 14, fontWeight: "600", marginBottom: 8 },
 };
 
 export default QRScanner;

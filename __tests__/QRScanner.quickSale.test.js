@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 
-// Sprzedaż ciągła (8.11.2026): skan = sprzedaż zapisana od razu (cena z cennika, gotówka albo karta), pasek
-// z „Cofnij”; czego nie da się ustalić bez sprzedawcy - zwykły formularz z powodem.
+// Sprzedaż ciągła (8.11.2026): skan = sprzedaż zapisana od razu, ZAWSZE gotówką, także sztuka spoza stanu; pasek
+// z „Cofnij”. Czego serwer nie przyjmie (nieznany kod, brak ceny) - czerwony pasek, bez formularza, skaner działa dalej.
 
 jest.mock('expo-camera', () => {
   const React = require('react');
@@ -37,7 +37,7 @@ const GOOD = { _id: 'good-1', code: '1234567890', fullName: 'Kurtka', category: 
 const props = {
   stateData: [
     { barcode: '1234567890', fullName: 'Kurtka', size: 'M', symbol: 'PUNKT1' },
-    { barcode: '5555555555', fullName: 'Inna', size: 'L', symbol: 'PUNKT2' }, // tylko w innym punkcie
+    { barcode: '5555555555', fullName: 'Inna', size: 'L', symbol: 'PUNKT2', price: 300, category: 'Kurtki kożuchy futra' }, // tylko w innym punkcie
   ],
   user: { sellingPoint: 'PUNKT1', symbol: 'PUNKT1', email: 'test@test.com' },
   sizes: [],
@@ -106,30 +106,56 @@ describe('QRScanner - sprzedaż ciągła', () => {
     await waitFor(() => expect(utils.getByText(/Cofnięto: Kurtka M/)).toBeTruthy());
   });
 
-  test('płatność „Karta”: pełna cena z cennika kartą', async () => {
+  test('sztuka tylko na stanie innego punktu: zapis od razu z tamtego punktu (jak domyślne „Sprzedano od”)', async () => {
     const utils = await renderQuick();
-    fireEvent.press(utils.getByTestId('quick-pay-card'));
+    await scan(utils, '5555555555');
+    await waitFor(() => expect(saveCalls()).toHaveLength(1));
+    expect(bodyOf(saveCalls()[0])).toMatchObject({ fullName: 'Inna', size: 'L', from: 'PUNKT2', symbol: 'PUNKT2', card: [] });
+    expect(bodyOf(saveCalls()[0]).cash[0].currency).toBe('PLN');
+    expect(utils.queryByText('Nowa sprzedaż')).toBeNull(); // bez formularza
+  });
+
+  test('sztuki nie ma na żadnym stanie, ale kod ma kartę produktu: zapis od razu z własnego punktu', async () => {
+    const utils = render(<QRScanner {...props} stateData={[]} />);
+    await AsyncStorage.setItem('quick-sale-mode', '1');
+    fireEvent(utils.getByTestId('quick-sale-switch'), 'valueChange', true);
     await scan(utils, '1234567890');
     await waitFor(() => expect(saveCalls()).toHaveLength(1));
     const body = bodyOf(saveCalls()[0]);
-    expect(body.card).toEqual([{ price: '850', currency: 'PLN' }]);
-    expect(body.cash).toEqual([{ price: '0', currency: 'PLN' }]);
+    expect(body).toMatchObject({ fullName: 'Kurtka', size: '-', from: 'PUNKT1', symbol: 'PUNKT1' });
+    expect(body.cash).toEqual([{ price: '850.00', currency: 'PLN' }]);
   });
 
-  test('sztuka spoza stanu tego punktu: nic się nie zapisuje, otwiera się formularz z powodem', async () => {
+  test('nieznany kod: nic nie zapisuje, czerwony pasek, bez formularza; skaner gotowy na następny', async () => {
     const utils = await renderQuick();
-    await scan(utils, '5555555555');
-    await waitFor(() => expect(utils.getByText('Nowa sprzedaż')).toBeTruthy());
-    expect(utils.getByTestId('quick-sale-form-reason').props.children.join('')).toMatch(/nie ma na stanie Twojego punktu/);
+    await scan(utils, '9999999999');
+    await waitFor(() => expect(utils.getByTestId('quick-sale-error')).toBeTruthy());
+    expect(utils.getByText(/NIE ZAPISANO: Nieznany kod 9999999999/)).toBeTruthy();
     expect(saveCalls()).toHaveLength(0);
+    expect(utils.queryByText('Nowa sprzedaż')).toBeNull();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 700)); }); // kamera przezbraja się sama po 0,6 s
+    await scan(utils, '1234567890'); // następna kurtka idzie normalnie
+    await waitFor(() => expect(saveCalls()).toHaveLength(1));
+    await waitFor(() => expect(utils.queryByTestId('quick-sale-error')).toBeNull());
   });
 
-  test('„Następna: formularz” - jednorazowo pełny formularz zamiast zapisu', async () => {
+  test('bez wyboru płatności: nie ma przycisków Gotówka / Karta / Następna: formularz', async () => {
     const utils = await renderQuick();
-    fireEvent.press(utils.getByTestId('quick-next-form'));
+    expect(utils.queryByTestId('quick-pay-card')).toBeNull();
+    expect(utils.queryByTestId('quick-pay-cash')).toBeNull();
+    expect(utils.queryByTestId('quick-next-form')).toBeNull();
+  });
+
+  test('odmowa serwera: czerwony pasek z powodem zamiast okienka', async () => {
+    tokenService.authenticatedFetch.mockImplementation((url) => {
+      if (url.endsWith('/sales/save-sales')) return json({ message: 'Minimalna cena tego produktu to 900 zł.' }, 400);
+      if (url.endsWith('/pricelists/my')) return json({ priceList: [] });
+      return json({});
+    });
+    const utils = await renderQuick();
     await scan(utils, '1234567890');
-    await waitFor(() => expect(utils.getByTestId('payment-mode')).toBeTruthy());
-    expect(saveCalls()).toHaveLength(0);
+    await waitFor(() => expect(utils.getByText(/NIE ZAPISANO Kurtka M: Minimalna cena/)).toBeTruthy());
+    expect(appAlert).not.toHaveBeenCalled();
   });
 
   test('wyłączony przełącznik: jak dotąd - skan otwiera formularz', async () => {
@@ -140,7 +166,7 @@ describe('QRScanner - sprzedaż ciągła', () => {
     expect(saveCalls()).toHaveLength(0);
   });
 
-  test('brak odpowiedzi serwera: „Spróbuj ponownie” wysyła ten sam numer sprzedaży', async () => {
+  test('brak odpowiedzi serwera: „Ponów” na pasku wysyła ten sam numer sprzedaży', async () => {
     let attempt = 0;
     tokenService.authenticatedFetch.mockImplementation((url) => {
       if (url.endsWith('/sales/save-sales')) {
@@ -153,10 +179,10 @@ describe('QRScanner - sprzedaż ciągła', () => {
     });
     const utils = await renderQuick();
     await scan(utils, '1234567890');
-    await waitFor(() => expect(appAlert).toHaveBeenCalledWith('Brak odpowiedzi serwera', expect.any(String), expect.any(Array)));
+    await waitFor(() => expect(utils.getByTestId('quick-sale-retry')).toBeTruthy());
+    expect(appAlert).not.toHaveBeenCalled(); // bez okienka - kasa nie stoi
     const firstId = bodyOf(saveCalls()[0]).clientRequestId;
-    const buttons = appAlert.mock.calls.find(([title]) => title === 'Brak odpowiedzi serwera')[2];
-    await act(async () => { buttons.find((b) => b.text === 'Spróbuj ponownie').onPress(); });
+    await act(async () => { fireEvent.press(utils.getByTestId('quick-sale-retry')); });
     await waitFor(() => expect(saveCalls()).toHaveLength(2));
     expect(bodyOf(saveCalls()[1]).clientRequestId).toBe(firstId);
     await waitFor(() => expect(utils.getByText(/Już zapisana: Kurtka M/)).toBeTruthy());
@@ -165,9 +191,11 @@ describe('QRScanner - sprzedaż ciągła', () => {
 
 describe('buildQuickSale', () => {
   const base = { stateData: props.stateData, goods: [GOOD], sizes: [], priceList: [], user: props.user };
-  test('cena poniżej minimum albo brak ceny = formularz', () => {
-    const cheap = { ...GOOD, price: 0 };
-    expect(buildQuickSale({ ...base, code: '1234567890', goods: [cheap] }).ok).toBe(false);
-    expect(buildQuickSale({ ...base, code: 'nieznany' })).toEqual({ ok: false, reason: expect.stringMatching(/nie ma na stanie/) });
+  test('brak ceny = nie zapisuje; nieznany kod = nie zapisuje; spoza stanu z nazwą z kodu = zapis z własnego punktu', () => {
+    expect(buildQuickSale({ ...base, code: '1234567890', goods: [{ ...GOOD, price: 0 }] })).toEqual({ ok: false, reason: expect.stringMatching(/brak ceny/) });
+    expect(buildQuickSale({ ...base, code: 'nieznany' })).toEqual({ ok: false, reason: expect.stringMatching(/Nieznany kod/) });
+    const unstocked = buildQuickSale({ ...base, stateData: [], code: '1234567890', unstocked: { fullName: 'Kurtka', size: 'XL' } });
+    expect(unstocked.ok).toBe(true);
+    expect(unstocked.sale).toMatchObject({ fullName: 'Kurtka', size: 'XL', symbol: 'PUNKT1', payment: 'cash', card: [] });
   });
 });

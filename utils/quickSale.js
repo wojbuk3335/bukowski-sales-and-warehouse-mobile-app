@@ -1,13 +1,13 @@
-// Sprzedaż ciągła (8.11.2026): skan = sprzedaż zapisana od razu, bez formularza - przy dużym ruchu czytnikiem
-// Bluetooth (DS2278) albo kamerą. Cena i minimum DOKŁADNIE jak w formularzu „Nowa sprzedaż” (utils/defaultSalePrice):
-// gotówka = cena domyślna z cennika punktu (regularna opuszczona o końcówkę, promocja bez zmian), karta = pełna cena
-// z cennika (bez rabatu). Gdy czegoś nie da się ustalić bez sprzedawcy (kurtki nie ma na stanie TEGO punktu, brak
-// ceny, cena poniżej minimum), zwracamy powód - ekran otwiera wtedy zwykły formularz.
-import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from './defaultSalePrice';
+// Sprzedaż ciągła (8.11.2026): skan = sprzedaż zapisana od razu, ZAWSZE gotówką, bez formularza - przy dużym ruchu
+// czytnikiem Bluetooth (DS2278) albo kamerą. Decyzja właściciela (8.11): zapis „bez względu na wszystko” - także gdy
+// sztuki nie ma na stanie (serwer stanu nie wymaga). Cena DOKŁADNIE jak podpowiedź formularza „Nowa sprzedaż”
+// (utils/defaultSalePrice): cena domyślna z cennika punktu (regularna opuszczona o końcówkę, promocja bez zmian).
+// Nie zapisze się tylko to, czego serwer i tak nie przyjmie: kod bez nazwy produktu i produkt bez ceny.
+import { regularOrPromoRule, salePriceRule, stateItemStoredMinimum } from './defaultSalePrice';
 import { formatMoneyExact } from './paymentBalance';
 
 export const QUICK_SALE_MODE_KEY = 'quick-sale-mode'; // przełącznik zapamiętany w telefonie
-export const QUICK_REPEAT_MS = 5000; // ten sam kod ponownie w tym czasie = pytanie o drugą sztukę (kamera: pomijany)
+export const QUICK_REPEAT_MS = 5000; // kamera: ten sam kod w tym czasie = ta sama metka wciąż w kadrze (pomijany)
 
 const itemName = (item) => (typeof item?.fullName === 'object' ? item.fullName?.fullName : item?.fullName) || '';
 const hasRealSize = (size) => {
@@ -15,42 +15,39 @@ const hasRealSize = (size) => {
   return Boolean(value) && value !== '-' && value !== 'Nieznany rozmiar';
 };
 
-// Zwraca { ok: true, sale } albo { ok: false, reason }.
-// sale: { fullName, size, symbol, cash, card, amount, payment, label }
-export const buildQuickSale = ({ code, stateData, goods, sizes, priceList, user, payment = 'cash' }) => {
+// unstocked: { fullName, size } produktu rozpoznanego z samego kodu (karta produktu), gdy sztuki nie ma na żadnym stanie.
+// Zwraca { ok: true, sale } albo { ok: false, reason }. sale: { fullName, size, symbol, cash, card, amount, label }
+export const buildQuickSale = ({ code, stateData, goods, sizes, priceList, user, unstocked = null }) => {
   const barcode = String(code || '').trim();
   if (!barcode) return { ok: false, reason: 'Pusty kod.' };
   const items = (stateData || []).filter((item) => item.barcode === barcode);
-  if (items.length === 0) return { ok: false, reason: 'Tego kodu nie ma na stanie - sprawdź produkt w formularzu.' };
-  const own = items.find((item) => item.symbol === user?.symbol);
-  if (!own) return { ok: false, reason: 'Tej sztuki nie ma na stanie Twojego punktu - wybierz w formularzu, z którego punktu sprzedajesz.' };
+  // jak domyślny wybór „Sprzedano od” w formularzu: własny punkt, gdy ma sztukę; inaczej punkt, w którym jest;
+  // nigdzie na stanie - własny punkt
+  const stocked = items.find((item) => item.symbol === user?.symbol) || items[0] || null;
+  const symbol = stocked?.symbol || user?.symbol;
 
-  // jak w formularzu: karta produktu (cennik punktu), a bez karty - cena zapisana na stanie
-  const fromGoods = salePriceRule({ barcode, goods, sizes, priceList });
-  const rule = fromGoods || regularOrPromoRule(own.price, own.discount_price, own.category, stateItemStoredMinimum(own, goods));
-  const listPrice = fromGoods ? salePriceListForBarcode({ barcode, goods, sizes, priceList }) : listPriceOf(own.price, own.discount_price);
-
-  const fullName = itemName(own);
-  const size = hasRealSize(own.size) ? String(own.size).trim() : '-';
-  const label = size !== '-' ? `${fullName} ${size}` : fullName;
-  const base = { fullName, size, symbol: user.symbol, label };
-
-  if (payment === 'card') {
-    // karta: bez rabatu - pełna cena z cennika (jak blokada w formularzu)
-    if (!(Number(listPrice) > 0)) return { ok: false, reason: 'Brak ceny z cennika do płatności kartą.' };
-    return {
-      ok: true,
-      sale: { ...base, payment: 'card', amount: Number(listPrice), cash: [{ price: '0', currency: 'PLN' }], card: [{ price: String(listPrice), currency: 'PLN' }] },
-    };
+  let fullName;
+  let size;
+  if (stocked) {
+    fullName = itemName(stocked);
+    size = hasRealSize(stocked.size) ? String(stocked.size).trim() : '-';
+  } else if (unstocked?.fullName) {
+    fullName = unstocked.fullName;
+    size = hasRealSize(unstocked.size) ? String(unstocked.size).trim() : '-';
+  } else {
+    return { ok: false, reason: `Nieznany kod ${barcode} - nie ma go w kartach produktów ani na stanie.` };
   }
+  const label = size !== '-' ? `${fullName} ${size}` : fullName;
 
+  // cena: karta produktu (cennik punktu), a bez karty - cena zapisana na stanie
+  const rule = salePriceRule({ barcode, goods, sizes, priceList })
+    || (stocked ? regularOrPromoRule(stocked.price, stocked.discount_price, stocked.category, stateItemStoredMinimum(stocked, goods)) : null);
   const amount = Number(rule?.defaultPrice);
-  if (!(amount > 0)) return { ok: false, reason: 'Brak ceny tego produktu w cenniku - wpisz cenę w formularzu.' };
-  const minimumError = minimumPriceError(amount, rule?.minPrice);
-  if (minimumError) return { ok: false, reason: minimumError };
+  if (!(amount > 0)) return { ok: false, reason: `${label}: brak ceny w cenniku - sprzedaj przez formularz (wyłącz sprzedaż ciągłą).` };
+
   return {
     ok: true,
-    sale: { ...base, payment: 'cash', amount, cash: [{ price: formatMoneyExact(amount), currency: 'PLN' }], card: [] },
+    sale: { fullName, size, symbol, label, amount, payment: 'cash', cash: [{ price: formatMoneyExact(amount), currency: 'PLN' }], card: [] },
   };
 };
 
