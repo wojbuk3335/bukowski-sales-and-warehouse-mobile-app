@@ -134,4 +134,21 @@ describe('ScanCamera', () => {
     expect(onExtra).toHaveBeenCalled();
     expect(screen.getByText('nad kamerą')).toBeTruthy();
   });
+
+  // 8.11.2026: czytnik Bluetooth „pisze” tylko do pola z fokusem - na ekranie widać, czy słucha
+  test('czytnik Bluetooth: stan „Gotowy” / „nie słucha” według fokusu ukrytego pola; kod z Enterem idzie dalej', async () => {
+    const onScanned = jest.fn();
+    const screen = render(<ScanCamera onScanned={onScanned} active />);
+    await act(async () => {}); // zapamiętany tryb wczytany z pamięci telefonu (domyślnie kamera)
+    fireEvent.press(screen.getByTestId('scan-mode-bluetooth'));
+    const input = await screen.findByTestId('bluetooth-scan-input');
+    expect(screen.getByTestId('bluetooth-status').props.children).toMatch(/nie słucha/);
+    await act(async () => { fireEvent(input, 'focus'); });
+    expect(screen.getByTestId('bluetooth-status').props.children).toMatch(/Gotowy/);
+    await act(async () => { fireEvent.changeText(input, CODE); });
+    await act(async () => { fireEvent(input, 'submitEditing'); });
+    expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'bluetooth' });
+    await act(async () => { fireEvent(input, 'blur'); });
+    expect(screen.getByTestId('bluetooth-status').props.children).toMatch(/nie słucha/);
+  });
 });

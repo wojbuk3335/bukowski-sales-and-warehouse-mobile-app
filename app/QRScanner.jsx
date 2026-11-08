@@ -1278,6 +1278,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
         {/* Skaner jak w całej aplikacji (components/scanner/ScanCamera): ramka, „Odczytaj ze zdjęcia”, „Wpisz kod” */}
         <ScanCamera
           enabled={!scanned}
+          active={isActive !== false} // zakładka „+” na wierzchu - tylko wtedy czytnik Bluetooth słucha (8.11.2026)
           onScanned={handleScan}
           resolveName={resolveProductNameFromBarcode}
           facing={facing}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Image, Modal, Platform, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { AppState, Image, Modal, Platform, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
@@ -62,6 +62,9 @@ export const IOS_SCAN_ZOOM = 0.12;
 // Zdjęcie bywa odczytane jako inny typ niż na żywo - drugie podejście ze wszystkimi formatami
 const PHOTO_FALLBACK_TYPES = ["code128", "ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "itf14", "qr", "pdf417", "aztec", "datamatrix"];
 const CONTINUOUS_REARM_MS = 600;
+// Czytnik Bluetooth (8.11.2026): co tyle sprawdzamy, czy ukryte pole ma fokus, i przywracamy go (czytnik „pisze” tylko
+// do pola z fokusem - bez niego kody szły w próżnię, a działało dopiero „Wpisz kod”)
+const BT_FOCUS_WATCH_MS = 1000;
 
 const ScanCamera = ({
   onScanned,
@@ -72,6 +75,7 @@ const ScanCamera = ({
   extraActions = [],
   hint = null,
   facing = "back",
+  active = true, // ekran widoczny (zakładka na wierzchu) - tylko wtedy czytnik słucha; ukryta zakładka nie „zjada” kodów
   style,
   children,
 }) => {
@@ -80,6 +84,8 @@ const ScanCamera = ({
   onScannedRef.current = onScanned;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   // Czytnik Bluetooth: tryb zapamiętany w telefonie, ukryte pole na kody, „nie gaś ekranu”
   const [inputMode, setInputModeState] = useState("camera");
@@ -93,6 +99,9 @@ const ScanCamera = ({
     getKeepAwake().then((on) => { if (active) setKeepAwakeOn(on); });
     return () => { active = false; };
   }, []);
+  const inputModeRef = useRef(inputMode);
+  inputModeRef.current = inputMode;
+  const [btListening, setBtListening] = useState(false); // ukryte pole ma fokus = czytnik słucha (widać na ekranie)
   const switchInputMode = (mode) => {
     setInputModeState(mode);
     setBtBuffer("");
@@ -102,12 +111,36 @@ const ScanCamera = ({
     setKeepAwakeOn(on);
     setKeepAwake(on);
   };
-  // Pole czytnika musi mieć fokus, gdy skaner jest aktywny (po zamknięciu formularza fokus wraca sam)
+  // Pole czytnika musi mieć fokus, gdy skaner jest aktywny. 8.11.2026: dawniej fokus ustawiał się RAZ (włączenie trybu
+  // albo zamknięcie formularza) - zakładka „+” jest zamontowana w tle, więc fokus padał na niewidoczny ekran i po wejściu
+  // na zakładkę, odblokowaniu telefonu czy powrocie do aplikacji nikt go nie przywracał. Teraz: przy wejściu na ekran,
+  // po powrocie aplikacji, po utracie fokusu i co sekundę (strażnik). Nie zabieramy fokusu innemu polu (np. „Wpisz kod”).
+  const focusReader = () => {
+    if (inputModeRef.current !== "bluetooth" || !enabledRef.current || !activeRef.current) return;
+    const input = btInputRef.current;
+    if (!input || input.isFocused?.()) return;
+    const other = TextInput.State?.currentlyFocusedInput?.();
+    if (other && other !== input) return; // pisze ktoś w innym polu - nie przeszkadzamy
+    input.focus?.();
+  };
   useEffect(() => {
-    if (inputMode !== "bluetooth" || !enabled) return undefined;
-    const timer = setTimeout(() => btInputRef.current?.focus?.(), 50);
-    return () => clearTimeout(timer);
-  }, [inputMode, enabled]);
+    if (inputMode !== "bluetooth") return undefined;
+    if (!enabled || !active) {
+      // ukryta zakładka / otwarty formularz: pole oddaje fokus, żeby kod nie trafił do niewidocznego ekranu
+      if (!active) btInputRef.current?.blur?.();
+      return undefined;
+    }
+    const timer = setTimeout(focusReader, 50);
+    const watch = setInterval(focusReader, BT_FOCUS_WATCH_MS);
+    const appState = AppState.addEventListener?.("change", (state) => {
+      if (state === "active") setTimeout(focusReader, 150);
+    });
+    return () => {
+      clearTimeout(timer);
+      clearInterval(watch);
+      appState?.remove?.();
+    };
+  }, [inputMode, enabled, active]); // eslint-disable-line react-hooks/exhaustive-deps
   // Ekran nie gaśnie, dopóki działa tryb czytnika z włączonym „nie gaś ekranu”
   useEffect(() => {
     const keepAwake = keepAwakeModule();
@@ -292,6 +325,8 @@ const ScanCamera = ({
             value={btBuffer}
             onChangeText={handleBluetoothText}
             onSubmitEditing={handleBluetoothSubmit}
+            onFocus={() => setBtListening(true)}
+            onBlur={() => { setBtListening(false); setTimeout(focusReader, 300); }}
             blurOnSubmit={false}
             autoFocus
             autoCorrect={false}
@@ -303,9 +338,15 @@ const ScanCamera = ({
           />
           <Ionicons name="bluetooth" size={56} color={bt.icon} />
           <Text style={bt.title}>Czytnik Bluetooth</Text>
+          {enabled && (
+            // stan nasłuchu widoczny od razu: zielony = czytnik trafi do aplikacji, czerwony = dotknij panelu
+            <Text style={[bt.status, { color: btListening ? "#10B981" : "#EF4444" }]} testID="bluetooth-status">
+              {btListening ? "● Gotowy - naciśnij spust czytnika" : "● Czytnik nie słucha - dotknij tutaj"}
+            </Text>
+          )}
           <Text style={bt.hint}>
             {enabled
-              ? `${hint || "Naciśnij spust czytnika na metce."}\nDotknij tutaj, jeśli czytnik nie reaguje.`
+              ? `${hint || "Naciśnij spust czytnika na metce."}`
               : "Czytnik wstrzymany - zamknij formularz, żeby skanować dalej."}
           </Text>
           {!!btLastCode && (
@@ -460,6 +501,7 @@ const btStyles = () => ({
   panel: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10, backgroundColor: tc('bg', '#000') },
   title: { color: tc('text', '#fff'), fontSize: 20, fontWeight: "700" },
   hint: { color: tc('muted', '#CBD5E1'), fontSize: 14, textAlign: "center", lineHeight: 20 },
+  status: { fontSize: 15, fontWeight: "700", textAlign: "center" },
   last: { color: "#10B981", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 4 },
   action: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: tc('border', '#232533'), backgroundColor: tc('surface2', '#232533') },
   actionText: { color: tc('text', '#fff'), fontSize: 14, fontWeight: "600" },
