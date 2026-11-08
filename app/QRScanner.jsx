@@ -524,6 +524,8 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   const [quickSeries, setQuickSeries] = useState({ count: 0, total: 0 }); // seria od włączenia trybu
   const [quickError, setQuickError] = useState(null); // { text, retry } - czerwony pasek, skaner działa dalej
   const quickLastScanRef = useRef({ code: "", at: 0 });
+  const quickQueueRef = useRef([]); // skany czekające na zapis (czytnik nie jest wyłączany w czasie zapisu)
+  const quickRunningRef = useRef(false);
   useEffect(() => {
     let active = true;
     AsyncStorage.getItem(QUICK_SALE_MODE_KEY).then((value) => { if (active) setQuickMode(value === "1"); }).catch(() => {});
@@ -671,8 +673,23 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
     }
   };
 
+  // Kolejka sprzedaży ciągłej (8.11.2026): skan w trakcie zapisu poprzedniego nie ginie i nie wyłącza czytnika -
+  // czeka i zapisuje się po kolei
   const handleQuickScan = async (data, type) => {
-    if (quickBusy) return;
+    quickQueueRef.current.push({ data, type });
+    if (quickRunningRef.current) return;
+    quickRunningRef.current = true;
+    try {
+      while (quickQueueRef.current.length > 0) {
+        const next = quickQueueRef.current.shift();
+        await processQuickScan(next.data, next.type);
+      }
+    } finally {
+      quickRunningRef.current = false;
+    }
+  };
+
+  const processQuickScan = async (data, type) => {
     const code = String(data || "").trim();
     if (!code) return;
     const now = Date.now();
@@ -1412,7 +1429,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           </View>
         </View>
         <ScanCamera
-          enabled={!scanned && !quickBusy}
+          enabled={!scanned} // w czasie zapisu sprzedaży ciągłej skaner NIE jest wyłączany (kody czekają w kolejce)
           continuous={quickMode} // sprzedaż ciągła: kamera sama gotowa na następną metkę (także po czerwonym pasku)
           active={isActive !== false} // zakładka „+” na wierzchu - tylko wtedy czytnik Bluetooth słucha (8.11.2026)
           onScanned={handleScan}

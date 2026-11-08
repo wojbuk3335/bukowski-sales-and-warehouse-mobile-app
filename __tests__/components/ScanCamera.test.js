@@ -170,4 +170,19 @@ describe('ScanCamera', () => {
     expect(screen.getByTestId('bluetooth-last')).toBeTruthy();
     expect(screen.queryByTestId('bluetooth-receiving')).toBeNull();
   });
+
+  // 8.11.2026: editable={false} na Androidzie wyłącza pole i zabiera fokus - po każdej sprzedaży „Czytnik nie słucha”
+  test('czytnik Bluetooth: wstrzymany skaner nie wyłącza pola (fokus zostaje), kod w tym czasie jest pomijany', async () => {
+    const onScanned = jest.fn();
+    const screen = render(<ScanCamera onScanned={onScanned} active enabled />);
+    await act(async () => {});
+    const toCard = screen.queryByTestId('scan-mode-bluetooth');
+    if (toCard) fireEvent.press(toCard);
+    const input = await screen.findByTestId('bluetooth-scan-input');
+    screen.rerender(<ScanCamera onScanned={onScanned} active enabled={false} />);
+    expect(screen.getByTestId('bluetooth-scan-input').props.editable).not.toBe(false);
+    await act(async () => { fireEvent.changeText(screen.getByTestId('bluetooth-scan-input'), CODE); });
+    await act(async () => { fireEvent(screen.getByTestId('bluetooth-scan-input'), 'submitEditing'); });
+    expect(onScanned).not.toHaveBeenCalled(); // skaner wstrzymany - kod bez odbiorcy
+  });
 });

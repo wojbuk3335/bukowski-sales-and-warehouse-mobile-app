@@ -158,6 +158,35 @@ describe('QRScanner - sprzedaż ciągła', () => {
     expect(appAlert).not.toHaveBeenCalled();
   });
 
+  test('czytnik: dwa skany szybko po sobie (pierwszy jeszcze się zapisuje) - oba zapisane po kolei, czytnik nie gaśnie', async () => {
+    let releaseFirst;
+    let calls = 0;
+    tokenService.authenticatedFetch.mockImplementation((url) => {
+      if (url.endsWith('/sales/save-sales')) {
+        calls += 1;
+        if (calls === 1) return new Promise((resolve) => { releaseFirst = () => resolve({ ok: true, status: 201, json: () => Promise.resolve({ sales: { _id: 'a' } }) }); });
+        return json({ sales: { _id: 'b' } }, 201);
+      }
+      if (url.endsWith('/pricelists/my')) return json({ priceList: [] });
+      return json({});
+    });
+    const utils = await renderQuick();
+    const toCard = utils.queryByTestId('scan-mode-bluetooth');
+    if (toCard) fireEvent.press(toCard);
+    const input = await utils.findByTestId('bluetooth-scan-input');
+    await act(async () => { fireEvent.changeText(input, '1234567890'); });
+    await act(async () => { fireEvent(input, 'submitEditing'); });
+    await waitFor(() => expect(saveCalls()).toHaveLength(1));
+    expect(utils.getByTestId('bluetooth-scan-input').props.editable).not.toBe(false); // w trakcie zapisu pole czytnika działa
+    await act(async () => { fireEvent.changeText(utils.getByTestId('bluetooth-scan-input'), '1234567890'); });
+    await act(async () => { fireEvent(utils.getByTestId('bluetooth-scan-input'), 'submitEditing'); });
+    expect(saveCalls()).toHaveLength(1); // drugi czeka w kolejce
+    await act(async () => { releaseFirst(); });
+    await waitFor(() => expect(saveCalls()).toHaveLength(2));
+    expect(bodyOf(saveCalls()[0]).clientRequestId).not.toBe(bodyOf(saveCalls()[1]).clientRequestId);
+    await act(async () => { await AsyncStorage.setItem('scanner-input-mode', 'camera'); });
+  });
+
   test('wyłączony przełącznik: jak dotąd - skan otwiera formularz', async () => {
     const utils = render(<QRScanner {...props} />);
     await waitFor(() => expect(utils.getByTestId('quick-sale-switch').props.value).toBe(false));

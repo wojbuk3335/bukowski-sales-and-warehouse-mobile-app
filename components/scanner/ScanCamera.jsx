@@ -106,6 +106,11 @@ const ScanCamera = ({
   const inputModeRef = useRef(inputMode);
   inputModeRef.current = inputMode;
   const [btListening, setBtListening] = useState(false); // ukryte pole ma fokus = czytnik słucha (widać na ekranie)
+  const btListeningRef = useRef(false); // stan z prawdziwych zdarzeń telefonu (onFocus / onBlur), nie z pamięci aplikacji
+  const markListening = (on) => {
+    btListeningRef.current = on;
+    setBtListening(on);
+  };
   const switchInputMode = (mode) => {
     setInputModeState(mode);
     setBtBuffer("");
@@ -119,12 +124,20 @@ const ScanCamera = ({
   // albo zamknięcie formularza) - zakładka „+” jest zamontowana w tle, więc fokus padał na niewidoczny ekran i po wejściu
   // na zakładkę, odblokowaniu telefonu czy powrocie do aplikacji nikt go nie przywracał. Teraz: przy wejściu na ekran,
   // po powrocie aplikacji, po utracie fokusu i co sekundę (strażnik). Nie zabieramy fokusu innemu polu (np. „Wpisz kod”).
+  // 8.11.2026 (2): „Czytnik nie słucha” po sprzedaży - aplikacja „myślała”, że pole ma fokus (isFocused), a telefon
+  // już go zabrał; teraz liczy się stan z prawdziwych zdarzeń onFocus / onBlur, a w razie rozjazdu fokus od nowa.
   const focusReader = () => {
     if (inputModeRef.current !== "bluetooth" || !enabledRef.current || !activeRef.current) return;
     const input = btInputRef.current;
-    if (!input || input.isFocused?.()) return;
+    if (!input || btListeningRef.current) return;
     const other = TextInput.State?.currentlyFocusedInput?.();
     if (other && other !== input) return; // pisze ktoś w innym polu - nie przeszkadzamy
+    if (input.isFocused?.()) {
+      // aplikacja uważa pole za aktywne, telefon nie - zdejmujemy i ustawiamy fokus od nowa
+      input.blur?.();
+      setTimeout(() => btInputRef.current?.focus?.(), 30);
+      return;
+    }
     input.focus?.();
   };
   useEffect(() => {
@@ -342,22 +355,28 @@ const ScanCamera = ({
     const bt = btStyles();
     return (
       <View style={[styles.container, style]}>
-        <TouchableOpacity activeOpacity={0.95} style={bt.panel} onPress={() => btInputRef.current?.focus?.()} testID="bluetooth-panel">
+        <TouchableOpacity
+          activeOpacity={0.95}
+          style={[bt.panel, enabled && !btListening && { backgroundColor: "#7F1D1D" }]} // czerwony z daleka = czytnik nie słucha
+          onPress={() => { btInputRef.current?.blur?.(); setTimeout(() => btInputRef.current?.focus?.(), 30); }}
+          testID="bluetooth-panel"
+        >
           <TextInput
             ref={btInputRef}
             style={styles.btHiddenInput}
             value={btBuffer}
             onChangeText={handleBluetoothText}
             onSubmitEditing={handleBluetoothSubmit}
-            onFocus={() => setBtListening(true)}
-            onBlur={() => { setBtListening(false); setTimeout(focusReader, 300); }}
+            onFocus={() => markListening(true)}
+            onBlur={() => { markListening(false); setTimeout(focusReader, 300); }}
             blurOnSubmit={false}
             autoFocus
             autoCorrect={false}
             autoCapitalize="none"
             showSoftInputOnFocus={false}
             caretHidden
-            editable={enabled}
+            // NIGDY editable={false}: na Androidzie to wyłącza pole i zabiera fokus (po każdej sprzedaży „Czytnik nie
+            // słucha”, 8.11.2026). Gdy skaner nie przyjmuje kodów, deliverBluetoothCode je pomija.
             testID="bluetooth-scan-input"
           />
           <Ionicons name="bluetooth" size={56} color={bt.icon} />
