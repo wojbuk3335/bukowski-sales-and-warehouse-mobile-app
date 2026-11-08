@@ -1,6 +1,8 @@
 // Sprzedaż ciągła (8.11.2026): skan = sprzedaż zapisana od razu, ZAWSZE gotówką, bez formularza - przy dużym ruchu
 // czytnikiem Bluetooth (DS2278) albo kamerą. Decyzja właściciela (8.11): zapis „bez względu na wszystko” - także gdy
-// sztuki nie ma na stanie (serwer stanu nie wymaga). Cena DOKŁADNIE jak podpowiedź formularza „Nowa sprzedaż”
+// sztuki nie ma na stanie (serwer stanu nie wymaga) - i ZAWSZE „sprzedano od” punktu zalogowanego sprzedawcy
+// („najbezpieczniejsze”: kurtkę trzyma w ręku sprzedawca tego punktu; rozjazd ze stanem wyjdzie na remanencie).
+// Stan innych punktów służy tylko do nazwy, rozmiaru i ceny. Cena DOKŁADNIE jak podpowiedź formularza „Nowa sprzedaż”
 // (utils/defaultSalePrice): cena domyślna z cennika punktu (regularna opuszczona o końcówkę, promocja bez zmian).
 // Nie zapisze się tylko to, czego serwer i tak nie przyjmie: kod bez nazwy produktu i produkt bez ceny.
 import { regularOrPromoRule, salePriceRule, stateItemStoredMinimum } from './defaultSalePrice';
@@ -21,10 +23,10 @@ export const buildQuickSale = ({ code, stateData, goods, sizes, priceList, user,
   const barcode = String(code || '').trim();
   if (!barcode) return { ok: false, reason: 'Pusty kod.' };
   const items = (stateData || []).filter((item) => item.barcode === barcode);
-  // jak domyślny wybór „Sprzedano od” w formularzu: własny punkt, gdy ma sztukę; inaczej punkt, w którym jest;
-  // nigdzie na stanie - własny punkt
+  // sprzedaż ZAWSZE z punktu zalogowanego; sztuka ze stanu (najlepiej własnego) - tylko nazwa, rozmiar i cena
   const stocked = items.find((item) => item.symbol === user?.symbol) || items[0] || null;
-  const symbol = stocked?.symbol || user?.symbol;
+  const symbol = user?.symbol;
+  if (!symbol) return { ok: false, reason: 'Brak punktu zalogowanego konta - zaloguj się ponownie.' };
 
   let fullName;
   let size;

@@ -106,11 +106,12 @@ describe('QRScanner - sprzedaż ciągła', () => {
     await waitFor(() => expect(utils.getByText(/Cofnięto: Kurtka M/)).toBeTruthy());
   });
 
-  test('sztuka tylko na stanie innego punktu: zapis od razu z tamtego punktu (jak domyślne „Sprzedano od”)', async () => {
+  test('sztuka tylko na stanie innego punktu: zapis od razu, ZAWSZE z punktu zalogowanego (nazwa i cena ze stanu tamtego)', async () => {
     const utils = await renderQuick();
     await scan(utils, '5555555555');
     await waitFor(() => expect(saveCalls()).toHaveLength(1));
-    expect(bodyOf(saveCalls()[0])).toMatchObject({ fullName: 'Inna', size: 'L', from: 'PUNKT2', symbol: 'PUNKT2', card: [] });
+    expect(bodyOf(saveCalls()[0])).toMatchObject({ fullName: 'Inna', size: 'L', from: 'PUNKT1', symbol: 'PUNKT1', card: [] });
+    expect(bodyOf(saveCalls()[0]).cash).toEqual([{ price: '300.00', currency: 'PLN' }]);
     expect(bodyOf(saveCalls()[0]).cash[0].currency).toBe('PLN');
     expect(utils.queryByText('Nowa sprzedaż')).toBeNull(); // bez formularza
   });
