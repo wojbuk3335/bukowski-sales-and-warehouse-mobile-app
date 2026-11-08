@@ -21,7 +21,7 @@ import { warsawToday } from '../../utils/warsawDay'; // dzień polski, nie UTC (
 import { sortCurrenciesForPicker } from '../../utils/currencyOrder'; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from '../../utils/useSubmitGuard'; // blokada podwójnego kliknięcia przy zapisie
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from '../../utils/pickupOrders'; // „Odbiór” w edycji = wybór zamówienia
-import { minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
+import { salePriceLimitsOn, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../../utils/defaultSalePrice'; // domyślna cena i blokada rabatu jak przy sprzedaży
 import { KeyboardSafeScreen, KeyboardSafeOverlay, useRevealInput } from "../../components/KeyboardSafe"; // klawiatura nie zasłania pola tekstowego (ekrany i okienka)
 import { useCameraPermissions } from "expo-camera"; // Import camera for QR scanning
 import ScanCamera from "../../components/scanner/ScanCamera"; // skaner jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
@@ -548,7 +548,7 @@ const Home = () => {
   // Edycja = poprawka zapisanych wpłat (po fakcie nie ma ceny proponowanej, dopłaty ani reszty): liczy się suma wpłat w PLN
   const editPaymentBalance = computePaymentBalance({ price: 0, payments: [...cashPriceCurrencyPairs, ...cardPriceCurrencyPairs], currencyRates });
 
-  const effectiveEditMinPrice = editCardNoDiscount ? editListPrice : editMinPrice;
+  const effectiveEditMinPrice = salePriceLimitsOn() ? (editCardNoDiscount ? editListPrice : editMinPrice) : null; // 8.11.2026: bez limitów ceny
   // Odbiór z wymianą na inny model (zamówienie wybrane w edycji): minimum dopłaty = minimum kurtki - zaliczka zamówienia
   const editExchangeOrder = editData?.isPickup && editData?.pickupOrder && isOrderProductMismatch(editData.pickupOrder, `${editData?.fullName || ''} ${editData?.size || ''}`)
     ? editData.pickupOrder

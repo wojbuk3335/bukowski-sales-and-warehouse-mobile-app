@@ -1,5 +1,12 @@
 import { defaultDiscountMinimum, defaultRegularMinimum, defaultSalePrice, discountedRegularPrice, minimumPriceError, minimumRegularPrice, regularOrPromoRule, salePriceRule, salePriceRuleForGood, stateItemStoredMinimum } from '../utils/defaultSalePrice';
 
+// Dawne zasady (zniżka w domyślnej cenie + blokada minimum) - od 8.11.2026 wyłączone u klienta (SALE_PRICE_LIMITS),
+// ale zostają w kodzie; te testy pilnują ich na wypadek powrotu.
+import { setSalePriceLimits as setSalePriceLimitsForTest } from '../utils/defaultSalePrice';
+beforeAll(() => setSalePriceLimitsForTest(true));
+afterAll(() => setSalePriceLimitsForTest(false));
+
+
 describe('discountedRegularPrice - domyślna cena', () => {
   it('końcówkę 90 opuszcza o 40 zł', () => {
     expect(discountedRegularPrice(990)).toBe(950);

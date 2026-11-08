@@ -32,6 +32,13 @@ jest.mock('../config/api', () => ({
 import tokenService from '../services/tokenService';
 import QRScanner from '../app/QRScanner';
 
+// Dawne zasady (zniżka w domyślnej cenie + blokada minimum) - od 8.11.2026 wyłączone u klienta (SALE_PRICE_LIMITS),
+// ale zostają w kodzie; te testy pilnują ich na wypadek powrotu.
+import { setSalePriceLimits as setSalePriceLimitsForTest } from '../utils/defaultSalePrice';
+beforeAll(() => setSalePriceLimitsForTest(true));
+afterAll(() => setSalePriceLimitsForTest(false));
+
+
 const json = (data) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
 
 describe('QRScanner - płatność gotówką', () => {

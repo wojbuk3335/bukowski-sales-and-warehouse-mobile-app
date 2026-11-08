@@ -19,7 +19,7 @@ import { sanitizeAmountInput } from "../utils/amountInput";
 import { sortCurrenciesForPicker } from "../utils/currencyOrder"; // EUR, USD, HUF, CAD na górze listy // przecinek = kropka w polach kwot
 import { useSubmitGuard } from "../utils/useSubmitGuard"; // blokada podwójnego kliknięcia przy zapisie // sprzedaż w kilku walutach: ile do dopłaty
 import { formatOrderDeposit, isOrderProductMismatch, orderDepositPln, orderMatchScore, orderMismatchMessage, orderProductName, sortPickupOrders } from "../utils/pickupOrders"; // zamówienia do wydania (odbiór/dostawa)
-import { listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
+import { salePriceLimitsOn, listPriceOf, minimumPriceError, regularOrPromoRule, salePriceListForBarcode, salePriceRule, stateItemStoredMinimum } from "../utils/defaultSalePrice"; // domyślna cena i blokada rabatu: cennik punktu / karta produktu
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ModalHeader, look } from '../components/AdminLook';
 import { tc, createThemedStyles, useAppTheme } from '../context/ThemeContext'; // kolory zależne od motywu
@@ -460,7 +460,7 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
   // Każda płatność kartą (sama lub z gotówką): bez rabatu, cena i minimum to cena z cennika
   const cardNoDiscount = priceRuleSale && paymentMode !== "cash";
   const effectiveSalePrice = cardNoDiscount ? String(salePriceList) : salePrice;
-  const effectiveSaleMin = cardNoDiscount ? salePriceList : salePriceMin;
+  const effectiveSaleMin = salePriceLimitsOn() ? (cardNoDiscount ? salePriceList : salePriceMin) : null; // 8.11.2026: bez limitów ceny
   // Gotówka i karta: bez rabatu - karta dopłaca to, czego brakuje po gotówce (podpowiedź w górę do grosza).
   // Kwotę można podnieść ręcznie (np. 849.45 → 850 - nadwyżka zostaje u nas, karta nie wydaje reszty),
   // obniżyć poniżej ceny nie - to byłby rabat (blokada minimum).

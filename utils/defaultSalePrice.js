@@ -9,6 +9,14 @@
  * zapisane w karcie produktu albo cenniku punktu - zasady kategorii nie są liczone przy sprzedaży.
  */
 
+// ZASADA KLIENTA (8.11.2026): przy sprzedaży cena = cena z cennika BEZ ŻADNYCH ZNIŻEK (bez opuszczania końcówki,
+// bez -20% torebek) i BEZ LIMITÓW ceny minimalnej. Dawne zasady zostają w kodzie - powrót: true (tu i na serwerze
+// w services/salePriceRules.js). Pola „cena minimalna” w kartach produktów i cennikach zostają w bazie, ale nie blokują.
+let salePriceLimits = false;
+export const salePriceLimitsOn = () => salePriceLimits;
+// tylko testy dawnych zasad (zniżki i minimum) - w aplikacji zawsze false
+export const setSalePriceLimits = (on) => { salePriceLimits = Boolean(on); };
+
 const JACKETS_CATEGORY = 'Kurtki kożuchy futra';
 const BAG_WALLET_CATEGORIES = ['Torebki', 'Portfele'];
 const OTHER_CATEGORY = 'Pozostały asortyment';
@@ -159,6 +167,8 @@ const storedMinimum = (value) => (Number(value) > 0 ? Number(value) : null);
 // Reguła ceny i minimum. stored (z bazy): exception - wyjątek rozmiaru; minimumPrice / discountMinimumPrice - zapisane minima.
 // Brak zapisu = brak blokady. Zwraca { defaultPrice, minPrice }; minPrice null = bez blokady.
 export const regularOrPromoRule = (price, discountPrice, category, stored = null) => {
+  // bez zniżek i bez limitów: cena z cennika (promocja, a bez niej regularna / wyjątek rozmiaru), minimum brak
+  if (!salePriceLimits) return { defaultPrice: listPriceOf(price, discountPrice), minPrice: null };
   const regular = Number(price);
   const promo = Number(discountPrice);
   const bag = BAG_WALLET_CATEGORIES.includes(category);
@@ -225,7 +235,7 @@ export const defaultSalePrice = (args) => salePriceRule(args)?.defaultPrice ?? n
 
 // Komunikat blokady albo null, gdy kwota jest w porządku
 export const minimumPriceError = (paidPln, minPrice) => (
-  minPrice && paidPln < minPrice - 0.0001 // tylko błąd zmiennoprzecinkowy, nie pół grosza na korzyść klienta
+  salePriceLimits && minPrice && paidPln < minPrice - 0.0001 // tylko błąd zmiennoprzecinkowy, nie pół grosza na korzyść klienta
     ? `Minimalna cena tego produktu to ${minPrice} zł. Klient płaci ${(Math.round(paidPln * 100) / 100).toFixed(2)} zł - zwiększ kwotę.`
     : null
 );
