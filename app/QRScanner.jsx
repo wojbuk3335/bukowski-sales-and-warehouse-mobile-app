@@ -1404,10 +1404,11 @@ const QRScanner = ({ stateData, user, sizes, colors, goods, stocks, users, bags,
           <View style={quickStyles.row}>
             <Ionicons name="flash" size={18} color={quickMode ? "#F59E0B" : tc('muted', '#94A3B8')} />
             <Text style={quickStyles.title}>Sprzedaż ciągła</Text>
+            {/* przełącznik zaraz przy napisie - prawy górny róg zasłania stały przycisk „Wyloguj” (8.11.2026) */}
+            <Switch value={quickMode} onValueChange={toggleQuickMode} testID="quick-sale-switch" />
             {quickMode && quickSeries.count > 0 && (
               <Text style={quickStyles.series} testID="quick-sale-series">Seria: {quickSeries.count} szt. · {formatMoney(quickSeries.total)} zł</Text>
             )}
-            <Switch value={quickMode} onValueChange={toggleQuickMode} testID="quick-sale-switch" style={{ marginLeft: "auto" }} />
           </View>
           {quickMode && (
             <View style={quickStyles.row}>

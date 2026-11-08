@@ -65,6 +65,10 @@ const CONTINUOUS_REARM_MS = 600;
 // Czytnik Bluetooth (8.11.2026): co tyle sprawdzamy, czy ukryte pole ma fokus, i przywracamy go (czytnik „pisze” tylko
 // do pola z fokusem - bez niego kody szły w próżnię, a działało dopiero „Wpisz kod”)
 const BT_FOCUS_WATCH_MS = 1000;
+// Czytnik bez Entera po kodzie (8.11.2026: DS2278 fabrycznie wysyła „dane jak są”, bez Entera - kod zostawał
+// w ukrytym polu i nic się nie działo): kod jest kompletny, gdy przez tyle ms nie przyjdzie kolejny znak.
+// Czytnik wpisuje cały kod w kilkadziesiąt ms; Enter (gdy czytnik go wysyła) kończy kod od razu.
+export const BT_IDLE_SUBMIT_MS = 250;
 
 const ScanCamera = ({
   onScanned,
@@ -186,18 +190,38 @@ const ScanCamera = ({
     if (!enabledRef.current) return; // formularz otwarty - kod bez odbiorcy (jak zasłonięta kamera)
     onScannedRef.current?.({ data: code, type: "bluetooth" });
   };
+  // Bufor w ref (aktualny przy timerze i przy Enterze) + w stanie (widoczny na ekranie „Odbieram: …”)
+  const btBufferRef = useRef("");
+  const btIdleTimer = useRef(null);
+  useEffect(() => () => clearTimeout(btIdleTimer.current), []);
+  const setBuffer = (value) => {
+    btBufferRef.current = value;
+    setBtBuffer(value);
+  };
+  const flushBluetoothBuffer = () => {
+    clearTimeout(btIdleTimer.current);
+    const value = btBufferRef.current;
+    setBuffer("");
+    if (value) deliverBluetoothCode(value);
+  };
+  const scheduleIdleSubmit = () => {
+    clearTimeout(btIdleTimer.current);
+    if (cleanScannerCode(btBufferRef.current)) btIdleTimer.current = setTimeout(flushBluetoothBuffer, BT_IDLE_SUBMIT_MS);
+  };
   const handleBluetoothText = (text) => {
     if (/[\r\n]/.test(text)) {
+      clearTimeout(btIdleTimer.current);
       const { codes, rest } = splitScannerInput(text);
       codes.forEach(deliverBluetoothCode);
-      setBtBuffer(rest);
+      setBuffer(rest);
+      scheduleIdleSubmit();
       return;
     }
-    setBtBuffer(text);
+    setBuffer(text);
+    scheduleIdleSubmit(); // czytnik bez Entera
   };
   const handleBluetoothSubmit = () => {
-    deliverBluetoothCode(btBuffer);
-    setBtBuffer("");
+    flushBluetoothBuffer();
     setTimeout(() => btInputRef.current?.focus?.(), 0);
   };
 
@@ -349,6 +373,10 @@ const ScanCamera = ({
               ? `${hint || "Naciśnij spust czytnika na metce."}`
               : "Czytnik wstrzymany - zamknij formularz, żeby skanować dalej."}
           </Text>
+          {!!btBuffer && (
+            // znaki z czytnika już dochodzą - widać, że czytnik „pisze” do aplikacji
+            <Text style={bt.hint} testID="bluetooth-receiving">Odbieram: {btBuffer}</Text>
+          )}
           {!!btLastCode && (
             <Text style={bt.last} testID="bluetooth-last">Ostatni odczyt: {btLastCode}</Text>
           )}

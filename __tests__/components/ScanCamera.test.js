@@ -151,4 +151,23 @@ describe('ScanCamera', () => {
     await act(async () => { fireEvent(input, 'blur'); });
     expect(screen.getByTestId('bluetooth-status').props.children).toMatch(/nie słucha/);
   });
+
+  // 8.11.2026: DS2278 fabrycznie nie wysyła Entera - kod przechodzi sam po chwili bez nowych znaków
+  test('czytnik Bluetooth bez Entera: kod przechodzi sam po krótkiej przerwie', async () => {
+    const onScanned = jest.fn();
+    const screen = render(<ScanCamera onScanned={onScanned} active />);
+    await act(async () => {});
+    const toCard = screen.queryByTestId('scan-mode-bluetooth'); // tryb mógł zostać zapamiętany przez poprzedni test
+    if (toCard) fireEvent.press(toCard);
+    const input = await screen.findByTestId('bluetooth-scan-input');
+    await act(async () => { fireEvent(input, 'focus'); });
+    await act(async () => { fireEvent.changeText(input, '00406003'); });
+    await act(async () => { fireEvent.changeText(input, CODE); }); // reszta znaków dochodzi chwilę później
+    expect(screen.getByTestId('bluetooth-receiving')).toBeTruthy();
+    expect(onScanned).not.toHaveBeenCalled(); // jeszcze w trakcie wpisywania
+    await waitFor(() => expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'bluetooth' }), { timeout: 2000 });
+    expect(onScanned).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('bluetooth-last')).toBeTruthy();
+    expect(screen.queryByTestId('bluetooth-receiving')).toBeNull();
+  });
 });
