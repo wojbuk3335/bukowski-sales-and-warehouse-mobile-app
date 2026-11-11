@@ -423,13 +423,28 @@ const WarehouseMobile = () => {
     }
   };
 
+  // Dokładna nazwa, potem początek nazwy, potem początek słowa, na końcu reszta (alfabetycznie)
+  const searchGoods = (text) => {
+    const query = text.trim().toLowerCase();
+    const rankOf = (name) => {
+      if (name === query) return 0;
+      if (name.startsWith(query)) return 1;
+      if (name.split(/[\s\-/(),.]+/).some((word) => word.startsWith(query))) return 2;
+      return name.includes(query) ? 3 : -1;
+    };
+    return goods
+      .map((good) => ({ good, name: good.fullName.toLowerCase() }))
+      .map((entry) => ({ ...entry, rank: rankOf(entry.name) }))
+      .filter((entry) => entry.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, "pl"))
+      .map((entry) => entry.good);
+  };
+
   // Handle product name input
   const handleProductNameChange = (text) => {
     setProductName(text);
     if (text.trim()) {
-      const filtered = goods.filter((good) =>
-        good.fullName.toLowerCase().includes(text.toLowerCase())
-      );
+      const filtered = searchGoods(text);
       setFilteredProducts(filtered);
       setShowProductDropdown(true);
     } else {
@@ -813,9 +828,7 @@ const WarehouseMobile = () => {
   const handleEditProductNameChange = (text) => {
     setEditFullName(text);
     if (text.trim()) {
-      const filtered = goods.filter((good) =>
-        good.fullName.toLowerCase().includes(text.toLowerCase())
-      );
+      const filtered = searchGoods(text);
       setFilteredEditProducts(filtered);
       setShowEditProductDropdown(true);
     } else {
@@ -1293,7 +1306,7 @@ const WarehouseMobile = () => {
                 nestedScrollEnabled={true}
                 scrollEnabled={filteredProducts.length > 5}
               >
-                {filteredProducts.slice(0, 10).map((product, idx) => (
+                {filteredProducts.slice(0, 40).map((product, idx) => (
                   <TouchableOpacity
                     key={idx}
                     testID={`product-suggestion-${product._id || idx}`}
@@ -1579,7 +1592,7 @@ const WarehouseMobile = () => {
                     nestedScrollEnabled={true}
                     scrollEnabled={filteredEditProducts.length > 5}
                   >
-                    {filteredEditProducts.slice(0, 10).map((product, idx) => (
+                    {filteredEditProducts.slice(0, 40).map((product, idx) => (
                       <TouchableOpacity
                         key={idx}
                         style={styles.dropdownItem}
