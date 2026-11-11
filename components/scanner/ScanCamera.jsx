@@ -80,10 +80,13 @@ const ScanCamera = ({
   hint = null,
   facing = "back",
   active = true, // ekran widoczny (zakładka na wierzchu) - tylko wtedy czytnik słucha; ukryta zakładka nie „zjada” kodów
+  bluetoothWhenPaused = false, // true = kody z czytnika idą do onScanned także przy enabled=false (ekran je kolejkuje)
   style,
   children,
 }) => {
   const [permission, requestPermission] = useCameraPermissions();
+  const bluetoothWhenPausedRef = useRef(bluetoothWhenPaused);
+  bluetoothWhenPausedRef.current = bluetoothWhenPaused;
   const onScannedRef = useRef(onScanned);
   onScannedRef.current = onScanned;
   const enabledRef = useRef(enabled);
@@ -200,38 +203,56 @@ const ScanCamera = ({
     const code = restoreLeadingZero(cleanScannerCode(raw)); // czytnik oddaje EAN-13 z zerem na początku jako 12 cyfr
     if (!code) return;
     setBtLastCode(code);
-    if (!enabledRef.current) return; // formularz otwarty - kod bez odbiorcy (jak zasłonięta kamera)
+    // formularz otwarty - kod bez odbiorcy (jak zasłonięta kamera); chyba że ekran sam kolejkuje kody na czas pytania
+    if (!enabledRef.current && !bluetoothWhenPausedRef.current) return;
     onScannedRef.current?.({ data: code, type: "bluetooth" });
   };
-  // Bufor w ref (aktualny przy timerze i przy Enterze) + w stanie (widoczny na ekranie „Odbieram: …”)
-  const btBufferRef = useRef("");
+  // Pole czytnika jest NIEKONTROLOWANE (11.11.2026, remanent z błędnymi kodami): dawniej aplikacja przy każdej cyfrze
+  // odsyłała do pola jego treść (value={…}); przy szybkim skanowaniu telefon dostawał nieaktualny tekst w trakcie
+  // „pisania” czytnika i cyfry potrafiły zginąć, zdublować się albo zamienić miejscami (np. czarna Teresa zapisana
+  // jako niebieska z inną cyfrą kontrolną). Teraz tekst pola zna tylko telefon; aplikacja pamięta, ile znaków już
+  // przetworzyła (btConsumedRef), i czyści pole po oddaniu kodu. btBuffer służy tylko do napisu „Odbieram: …”.
+  const btTextRef = useRef(""); // cała treść pola (z ostatniego onChangeText)
+  const btConsumedRef = useRef(0); // ile znaków z początku pola to kody już oddane
   const btIdleTimer = useRef(null);
   useEffect(() => () => clearTimeout(btIdleTimer.current), []);
-  const setBuffer = (value) => {
-    btBufferRef.current = value;
-    setBtBuffer(value);
+  const pendingBluetoothText = () => btTextRef.current.slice(btConsumedRef.current);
+  // Czyszczenie pola NIE zeruje licznika przetworzonych znaków (11.11.2026, kurtki „×2” w remanencie): zanim telefon
+  // wyczyści pole, może jeszcze przyjść znak od czytnika (np. drugi znak Entera albo pierwsza cyfra kolejnego kodu)
+  // i telefon odda wtedy STARY tekst + nowy znak. Dawniej stary kod szedł wtedy drugi raz. Teraz: tekst zaczynający się
+  // od już oddanego kodu to dalszy ciąg (bierzemy tylko nowe znaki); pole puste / krótsze / inne = wyczyszczone.
+  const clearBluetoothField = () => {
+    btInputRef.current?.clear?.();
   };
   const flushBluetoothBuffer = () => {
     clearTimeout(btIdleTimer.current);
-    const value = btBufferRef.current;
-    setBuffer("");
-    if (value) deliverBluetoothCode(value);
+    const value = pendingBluetoothText();
+    btConsumedRef.current = btTextRef.current.length;
+    setBtBuffer("");
+    clearBluetoothField();
+    if (cleanScannerCode(value)) deliverBluetoothCode(value);
   };
   const scheduleIdleSubmit = () => {
     clearTimeout(btIdleTimer.current);
-    if (cleanScannerCode(btBufferRef.current)) btIdleTimer.current = setTimeout(flushBluetoothBuffer, BT_IDLE_SUBMIT_MS);
+    if (cleanScannerCode(pendingBluetoothText())) btIdleTimer.current = setTimeout(flushBluetoothBuffer, BT_IDLE_SUBMIT_MS);
   };
   const handleBluetoothText = (text) => {
-    if (/[\r\n]/.test(text)) {
+    const value = String(text ?? "");
+    // Pole wyczyszczone albo podmienione (to nie jest dalszy ciąg tego, co już przetworzyliśmy) - liczymy od zera
+    const consumedPrefix = btTextRef.current.slice(0, btConsumedRef.current);
+    if (value.length < btConsumedRef.current || !value.startsWith(consumedPrefix)) btConsumedRef.current = 0;
+    btTextRef.current = value;
+    const pending = pendingBluetoothText();
+    if (/[\r\n]/.test(pending)) {
+      // Enter w tekście (część czytników) albo kilka kodów naraz z pamięci czytnika
       clearTimeout(btIdleTimer.current);
-      const { codes, rest } = splitScannerInput(text);
+      const lastBreak = Math.max(pending.lastIndexOf("\n"), pending.lastIndexOf("\r"));
+      const { codes } = splitScannerInput(pending.slice(0, lastBreak + 1));
+      btConsumedRef.current += lastBreak + 1;
       codes.forEach(deliverBluetoothCode);
-      setBuffer(rest);
-      scheduleIdleSubmit();
-      return;
     }
-    setBuffer(text);
-    scheduleIdleSubmit(); // czytnik bez Entera
+    setBtBuffer(cleanScannerCode(pendingBluetoothText()));
+    scheduleIdleSubmit(); // czytnik bez Entera: kod kompletny po krótkiej ciszy
   };
   const handleBluetoothSubmit = () => {
     flushBluetoothBuffer();
@@ -364,7 +385,7 @@ const ScanCamera = ({
           <TextInput
             ref={btInputRef}
             style={styles.btHiddenInput}
-            value={btBuffer}
+            // bez value={…} - patrz handleBluetoothText (pole niekontrolowane)
             onChangeText={handleBluetoothText}
             onSubmitEditing={handleBluetoothSubmit}
             onFocus={() => markListening(true)}
@@ -373,6 +394,12 @@ const ScanCamera = ({
             autoFocus
             autoCorrect={false}
             autoCapitalize="none"
+            spellCheck={false}
+            autoComplete="off"
+            importantForAutofill="no"
+            // Android: klawiatura telefonu (Gboard / Samsung) nie składa „słów” z cyfr czytnika - przy szybkim
+            // wpisywaniu podpowiedzi potrafiły przestawić znaki (11.11.2026)
+            keyboardType={Platform.OS === "android" ? "visible-password" : "default"}
             showSoftInputOnFocus={false}
             caretHidden
             // NIGDY editable={false}: na Androidzie to wyłącza pole i zabiera fokus (po każdej sprzedaży „Czytnik nie

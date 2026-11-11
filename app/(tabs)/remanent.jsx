@@ -29,7 +29,7 @@ import { KeyboardSafeOverlay } from '../../components/KeyboardSafe'; // klawiatu
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
 import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
-import { productNameFromBarcode } from '../../utils/productName';
+import { productNameFromBarcode, isMisreadCode, misreadMessage } from '../../utils/productName';
 import { searchWords as toSearchWords, filterBySearch } from '../../utils/searchText'; // wyszukiwarka jak w Stanie i Szukaj
 // symbol (opcjonalnie): remanent INNEGO punktu robiony przez admina - dziś MAGAZYN (2.11.2026, ekran /remanent-magazyn).
 // Towar w magazynie nie ma naklejonych metek, więc obok skanera jest „Z bazy” z ilością sztuk (model + kolor + rozmiar: N),
@@ -77,6 +77,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
   // Assortment filter states
   // Stan punktu (sztuki na stanie) - pobierany raz przy wejściu/odświeżeniu/zatwierdzeniu, nie przy każdej zmianie listy
   const [pointState, setPointState] = useState([]);
+  const [pointStateLoaded, setPointStateLoaded] = useState(false); // stan pobrany - wiadomo, ile sztuk ma być
   const [filteredRemanentData, setFilteredRemanentData] = useState([]); // Przefiltrowane dane
   const [scanSearch, setScanSearch] = useState(''); // wyszukiwarka zeskanowanych sztuk (nazwa, rozmiar, kod) - 26.10.2026
 
@@ -387,6 +388,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
       const data = await response.json();
       const list = Array.isArray(data?.data) ? data.data : [];
       setPointState(list);
+      setPointStateLoaded(Array.isArray(data?.data));
       return list;
     } catch (error) {
       return null;
@@ -512,8 +514,30 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
     setScannerVisible(true);
   };
 
+  // Kody, które na pewno istnieją: sztuki na stanie punktu i karty produktów (pozostały asortyment ma kod karty na metce)
+  const knownCodes = React.useMemo(
+    () => new Set([...pointState.map((item) => String(item.barcode || '')), ...Object.keys(goodsByCode)].filter(Boolean)),
+    [pointState, goodsByCode]
+  );
+  // Ile sztuk danego kodu jest na stanie punktu - skan ponad stan zatrzymuje skaner z pytaniem (11.11.2026)
+  const expectedCountByCode = React.useMemo(() => {
+    const counts = {};
+    pointState.forEach((item) => {
+      const code = String(item.barcode || '');
+      if (code) counts[code] = (counts[code] || 0) + 1;
+    });
+    return counts;
+  }, [pointState]);
+  const countExpected = (code) => (pointStateLoaded ? expectedCountByCode[String(code)] || 0 : null);
+
   // Decyzja remanentu dla kodu ze skanera (skan, „Wpisz kod”, „Z bazy”): obcy kod i kod spoza filtrów są odrzucane
   const validateRemanentCode = (data, { name: jacketName }) => {
+    // Błędny odczyt czytnika (zła cyfra kontrolna, 11.11.2026): dawniej przechodził jako „kurtka, której nie ma”,
+    // a prawdziwa kurtka wychodziła jako brak. Kod dokładnie ze stanu / z kart produktów przechodzi zawsze.
+    if (isMisreadCode(data, knownCodes)) {
+      return { ok: false, tone: 'error', message: misreadMessage(data) };
+    }
+
     // Obcy kod (opakowanie, kod QR, metka spoza naszej bazy) nie jest sztuką remanentu:
     // odrzucamy go z komunikatem zamiast dopisywać jako „nadwyżkę”
     if (!isKnownProductCode(data, jacketName)) {
@@ -1175,6 +1199,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
         previewName={getProductNameFromBarcode}
         validateCode={validateRemanentCode}
         countSaved={(code) => remanentData.filter((item) => item.code === code).length}
+        countExpected={countExpected}
         onConfirm={confirmScannedJackets}
         goods={goodsList}
         pickerSizes={pickerSizes}

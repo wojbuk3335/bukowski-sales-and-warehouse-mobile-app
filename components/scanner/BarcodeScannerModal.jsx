@@ -16,6 +16,7 @@ import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłania pola w nakładce
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { playScanAlarm, preloadScanAlarm } from '../../services/scanAlarm'; // alarm z telefonu przy czytniku Bluetooth
 
 // Niezatwierdzone skany zapisywane w pamięci telefonu (audyt Remanentu 26.10.2026): zabicie aplikacji, aktualizacja
 // albo wylogowanie nie kasują zeskanowanych sztuk - po otwarciu skanera lista wraca
@@ -44,6 +45,9 @@ export const draftStorageKey = (draftKey) => `${DRAFT_PREFIX}${draftKey}`;
 //                                     ok=false: kod odrzucony (message w toaście); ok=true bez message:
 //                                     domyślny komunikat „Dodano: …”.
 //   countSaved(code)                - ile sztuk tego kodu jest już policzonych poza skanerem (do pytania o powtórkę)
+//   countExpected(code)             - ile sztuk tego kodu jest na stanie (null = nie wiadomo). Skan ponad stan
+//                                     (np. ta sama kurtka zeskanowana drugi raz) zatrzymuje skaner z pytaniem
+//                                     „ta sama metka czy kolejna sztuka?” - także przy czytniku Bluetooth (11.11.2026)
 //   onConfirm(pieces, { groups, showToast, batchId }) - async; true = przyjęte (z listy znikają TYLKO wysłane sztuki,
 //                                     skany zrobione w trakcie zapisu zostają), false = skany zostają;
 //                                     batchId - ten sam klucz przy ponownej próbie tego samego zestawu (serwer nie liczy podwójnie)
@@ -66,13 +70,27 @@ const BarcodeScannerModal = ({
   previewName,
   validateCode,
   countSaved,
+  countExpected,
   onConfirm,
   goods = [],
   pickerSizes = [],
   draftKey = null,
 }) => {
   useAppTheme(); // przerysowanie po zmianie motywu
-  const [scannedJackets, setScannedJackets] = useState([]);
+  const [scannedJackets, setScannedJacketsState] = useState([]);
+  // Aktualna lista także dla kodów z czytnika przetwarzanych w kolejce (11.11.2026): kolejka działa w jednym
+  // „starym” obiegu i widziała listę sprzed swoich własnych dodań - trzeci skan tej samej kurtki liczył się jak
+  // pierwszy. Ref zmienia się od razu przy dodaniu sztuki.
+  const scannedRef = useRef([]);
+  const setScannedJackets = (next) => {
+    const value = typeof next === 'function' ? next(scannedRef.current) : next;
+    scannedRef.current = value;
+    setScannedJacketsState(value);
+  };
+  const countSavedRef = useRef(countSaved);
+  countSavedRef.current = countSaved;
+  const countExpectedRef = useRef(countExpected);
+  countExpectedRef.current = countExpected;
   const [scanningEnabled, setScanningEnabled] = useState(true);
   const lastScanRef = useRef({ code: '', time: 0 });
   const scanBusyRef = useRef(false);
@@ -93,11 +111,18 @@ const BarcodeScannerModal = ({
   const [closePrompt, setClosePrompt] = useState(false); // X / wstecz przy niezatwierdzonych skanach
   const btQueueRef = useRef([]); // kody z czytnika czekające na przetworzenie (po kolei)
   const btDrainingRef = useRef(false);
+  const btPausedRef = useRef(false); // pytanie na ekranie - kody z czytnika czekają w kolejce, nie przepadają
+  const [btWaiting, setBtWaiting] = useState(0); // ile kodów z czytnika czeka na odpowiedź na pytanie
+  const [alarmFlash, setAlarmFlash] = useState(null); // czerwony ekran przy alarmie (czytnik: telefon nie jest w ręce)
+  const alarmFlashTimer = useRef(null);
   const pendingBatchRef = useRef({ key: '', batchId: '' }); // ten sam zestaw sztuk = ten sam klucz zatwierdzenia
   const draftLoadedRef = useRef(false);
 
   // Toast nie może zostać z odliczaniem po zamknięciu ekranu
-  useEffect(() => () => clearTimeout(scanToastTimer.current), []);
+  useEffect(() => () => {
+    clearTimeout(scanToastTimer.current);
+    clearTimeout(alarmFlashTimer.current);
+  }, []);
 
   // Otwarcie skanera: włączone skanowanie; lista z pamięci telefonu (niezatwierdzone skany z poprzedniego
   // otwarcia / sprzed zabicia aplikacji), bez klucza - pusta
@@ -108,6 +133,7 @@ const BarcodeScannerModal = ({
     }
     setScanningEnabled(true);
     setClosePrompt(false);
+    preloadScanAlarm();
     if (!draftKey) {
       setScannedJackets([]);
       draftLoadedRef.current = true;
@@ -156,6 +182,15 @@ const BarcodeScannerModal = ({
     } catch (error) {
       // bez wibracji (np. Expo Go bez modułu)
     }
+  };
+
+  // Alarm przy czytniku Bluetooth (11.11.2026): czytnik Zebra piszczy przy KAŻDYM odczycie, także błędnym, a telefon
+  // leży z boku - wibracja nic nie daje. Zły / nadmiarowy skan = głośny alarm z telefonu + czerwony ekran.
+  const raiseAlarm = (text) => {
+    playScanAlarm();
+    setAlarmFlash(text || 'Sprawdź skan');
+    clearTimeout(alarmFlashTimer.current);
+    alarmFlashTimer.current = setTimeout(() => setAlarmFlash(null), 2500);
   };
 
   const resumeScanning = () => {
@@ -217,8 +252,8 @@ const BarcodeScannerModal = ({
     }
 
     const alreadyCounted =
-      scannedJackets.filter((jacket) => jacket.code === data).length +
-      (countSaved ? Number(countSaved(data)) || 0 : 0);
+      scannedRef.current.filter((jacket) => jacket.code === data).length +
+      (countSavedRef.current ? Number(countSavedRef.current(data)) || 0 : 0);
 
     let verdict;
     try {
@@ -232,16 +267,30 @@ const BarcodeScannerModal = ({
       const kind = toastKindOf(verdict.tone || 'warn');
       scanFeedback(kind);
       showScanToast(verdict.message || `Pominięto kod: ${data}`, kind);
+      if (bluetooth) raiseAlarm(verdict.message || `Pominięto kod: ${data}`);
       resumeScanning();
       return;
     }
 
     const name = verdict.name || productName;
 
+    // Kamera: sztuka ponad stan (więcej niż na stanie punktu) wymaga potwierdzenia - telefon jest w ręce.
+    // Czytnik Bluetooth: BEZ pytań (11.11.2026) - telefon jest w kieszeni i nikt na niego nie patrzy; poprawny kod liczy
+    // się od razu, a nadwyżki widać w porównaniu na końcu. Alarm przy czytniku znaczy tylko jedno: „nie policzono,
+    // zeskanuj tę metkę jeszcze raz”.
+    const expected = !bluetooth && countExpectedRef.current ? countExpectedRef.current(data) : null;
+    if (Number.isFinite(expected) && alreadyCounted + 1 > expected) {
+      scanFeedback('warn');
+      setDuplicatePrompt({ code: data, name: name || data, count: alreadyCounted, expected, manual, verdict });
+      return; // skanowanie wznawia się po wyborze w okienku
+    }
+
     if (bluetooth) {
-      // Czytnik: każde naciśnięcie spustu to jedna sztuka - bez pytania o powtórkę
+      // Czytnik: każdy poprawny kod to jedna sztuka - bez pytań (laser nie czyta jednej metki kilka razy jak kamera)
       addScannedPiece(data, name, alreadyCounted, manual, verdict);
-      scanFeedback(toastKindOf(verdict.tone));
+      // policzone = zwykła krótka wibracja (nawet „nadwyżka” w „Sprawdź”); mocna wibracja + alarm tylko przy
+      // kodzie, który NIE został policzony - żeby w kieszeni dało się to rozróżnić bez patrzenia
+      scanFeedback('ok');
       resumeScanning();
       return;
     }
@@ -264,19 +313,24 @@ const BarcodeScannerModal = ({
     if (btDrainingRef.current) return;
     btDrainingRef.current = true;
     try {
-      while (btQueueRef.current.length > 0) {
+      while (btQueueRef.current.length > 0 && !btPausedRef.current) {
         const code = btQueueRef.current.shift();
         // eslint-disable-next-line no-await-in-loop
         await processCode(code, false, { bluetooth: true });
       }
     } finally {
       btDrainingRef.current = false;
+      setBtWaiting(btQueueRef.current.length);
     }
   };
   const enqueueBluetoothCode = (raw) => {
     const code = String(raw || '').trim();
     if (!code) return;
     btQueueRef.current.push(code);
+    if (btPausedRef.current) {
+      setBtWaiting(btQueueRef.current.length);
+      raiseAlarm('Najpierw odpowiedz na pytanie na ekranie');
+    }
     drainBluetoothQueue();
   };
   // Ręczne dodanie (wpisany kod / wybór z bazy) - ta sama ścieżka co skan
@@ -337,6 +391,9 @@ const BarcodeScannerModal = ({
     // ten sam kod jeszcze przez chwilę ignorujemy (kamera wciąż widzi metkę)
     lastScanRef.current = { code: prompt?.code || '', time: Date.now() };
     resumeScanning();
+    // kody z czytnika zeskanowane w czasie pytania - dalej po kolei
+    btPausedRef.current = false;
+    drainBluetoothQueue();
   };
 
   // Ustawia łączną liczbę sztuk danego kodu w skanerze (np. 12 czapek z wieszaka)
@@ -422,6 +479,10 @@ const BarcodeScannerModal = ({
   // jedno przypadkowe dotknięcie „wstecz” kasowało wszystkie zeskanowane sztuki (audyt 26.10.2026)
   const resetScannerUi = () => {
     setDuplicatePrompt(null);
+    btPausedRef.current = false;
+    btQueueRef.current = [];
+    setBtWaiting(0);
+    setAlarmFlash(null);
     setQuantityEdit(null);
     setManualCodeOpen(false);
     setPickerOpen(false);
@@ -479,6 +540,7 @@ const BarcodeScannerModal = ({
             continuous
             enabled={visible && scanningEnabled && !manualCodeOpen && !pickerOpen && !duplicatePrompt && !quantityEdit}
             onScanned={handleScan}
+            bluetoothWhenPaused={Boolean(duplicatePrompt)} // kody z czytnika w czasie pytania czekają w kolejce
             onManualCode={() => { setManualCode(''); setManualCodeOpen(true); }}
             hint={scanningEnabled ? null : 'Przetwarzanie...'}
           >
@@ -527,6 +589,14 @@ const BarcodeScannerModal = ({
           </View>
         )}
 
+        {alarmFlash && (
+          // czerwony ekran przy alarmie - widać z daleka, że skan trzeba sprawdzić
+          <View style={[StyleSheet.absoluteFill, styles.alarmFlash]} pointerEvents="none" testID="scan-alarm-flash">
+            <Ionicons name="warning" size={72} color="white" />
+            <Text style={styles.alarmFlashText} numberOfLines={4}>{alarmFlash}</Text>
+          </View>
+        )}
+
         {closePrompt && (
           <View style={[StyleSheet.absoluteFill, styles.filterOverlay]} testID="scanner-close-prompt">
             <View style={styles.filterCard}>
@@ -561,19 +631,30 @@ const BarcodeScannerModal = ({
               <View style={{ alignItems: 'center', marginBottom: 10 }}>
                 <Ionicons name="copy-outline" size={48} color="#F59E0B" />
               </View>
-              <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]}>Ten kod jest już policzony</Text>
-              <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{duplicatePrompt.name}</Text>
-              <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 14 }}>
-                Policzono już {duplicatePrompt.count} szt. Czy to ta sama metka, czy kolejna, identyczna sztuka?
+              <Text style={[styles.filterCardTitle, { textAlign: 'center', marginBottom: 6 }]} testID="duplicate-prompt-title">
+                {Number.isFinite(duplicatePrompt.expected)
+                  ? (duplicatePrompt.expected > 0 ? 'Więcej sztuk niż na stanie' : 'Tej sztuki nie ma na stanie')
+                  : 'Ten kod jest już policzony'}
               </Text>
+              <Text style={{ color: tc('text', 'white'), fontSize: 16, fontWeight: '600', textAlign: 'center' }}>{duplicatePrompt.name}</Text>
+              <Text style={{ color: tc('muted', '#CBD5E1'), fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 14 }} testID="duplicate-prompt-text">
+                {Number.isFinite(duplicatePrompt.expected)
+                  ? `Na stanie: ${duplicatePrompt.expected} szt., policzono już: ${duplicatePrompt.count} szt.\n${duplicatePrompt.count > 0 ? 'Czy to ta sama metka zeskanowana drugi raz, czy naprawdę kolejna sztuka?' : 'Czy na pewno dodać tę sztukę?'}`
+                  : `Policzono już ${duplicatePrompt.count} szt. Czy to ta sama metka, czy kolejna, identyczna sztuka?`}
+              </Text>
+              {btWaiting > 0 && (
+                <Text style={{ color: '#F59E0B', fontSize: 14, textAlign: 'center', marginBottom: 12 }} testID="duplicate-prompt-waiting">
+                  Czeka {btWaiting} {btWaiting === 1 ? 'kod' : 'kodów'} z czytnika - zostaną dodane po odpowiedzi.
+                </Text>
+              )}
               <View style={{ gap: 10 }}>
                 <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonSecondary]} onPress={() => resolveDuplicate(false)}>
                   <Ionicons name="close" size={18} color={tc('text', 'white')} />
-                  <Text style={styles.filterCardButtonText}>Ta sama metka - pomiń</Text>
+                  <Text style={styles.filterCardButtonText}>{duplicatePrompt.count > 0 ? 'Ta sama metka - pomiń' : 'Nie dodawaj'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.dialogStackButton, styles.filterCardButtonPrimary]} onPress={() => resolveDuplicate(true)}>
                   <Ionicons name="add" size={18} color="white" />
-                  <Text style={styles.filterCardButtonText}>Kolejna sztuka - dodaj</Text>
+                  <Text style={styles.filterCardButtonText}>{duplicatePrompt.count > 0 ? 'Kolejna sztuka - dodaj' : 'Dodaj'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -851,6 +932,19 @@ const styles = createThemedStyles(() => StyleSheet.create({
     color: 'white',
     fontSize: 15,
     fontWeight: '600',
+  },
+  alarmFlash: {
+    backgroundColor: 'rgba(220, 38, 38, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 16,
+  },
+  alarmFlashText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   scannedListContainer: {
     backgroundColor: tc('surface', '#1E1E2D'),

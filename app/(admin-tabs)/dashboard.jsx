@@ -22,7 +22,7 @@ import BarcodeScannerModal from '../../components/scanner/BarcodeScannerModal';
 import ScanCompareResultModal from '../../components/scanner/ScanCompareResultModal';
 import useProductCatalog from '../../hooks/useProductCatalog';
 import { compareScans } from '../../utils/compareScans';
-import { isUnknownProductName } from '../../utils/productName';
+import { isUnknownProductName, isMisreadCode, misreadMessage } from '../../utils/productName';
 
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext'; // kolory zależne od motywu
 
@@ -256,6 +256,13 @@ const Dashboard = () => {
 
     if (!/^\d{13}$/.test(String(code || "").trim())) {
       return { ok: false, tone: "warn", message: `Nieznany kod: ${code}\nTo nie jest metka z bazy produktów - pominięto.` };
+    }
+
+    // Błędny odczyt czytnika (zła cyfra kontrolna, 11.11.2026) - chyba że serwer zna dokładnie ten kod (stara metka)
+    if (isMisreadCode(code)) {
+      const server = await fetchServerName(code);
+      if (!server.found) return { ok: false, tone: "error", message: misreadMessage(code) };
+      return { ok: true, tone: "warn", name: server.name, message: `Nie było w dobieranych: ${server.name}` };
     }
 
     let productName = name;

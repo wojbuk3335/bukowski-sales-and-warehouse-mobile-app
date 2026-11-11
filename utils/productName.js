@@ -49,4 +49,18 @@ export const productNameFromBarcode = (barcodeData, lookup = {}) => {
   return `Nieznany kod ${code}`;
 };
 
-export const isUnknownProductName = (name) => String(name || '').startsWith('Nieznany kod');
+// Błędny odczyt z czytnika (11.11.2026, remanent): czytnik Bluetooth „wpisuje” kod cyfra po cyfrze i przy szybkim
+// skanowaniu cyfry potrafiły się zgubić / przestawić. Taki kod często dalej zaczynał się od istniejącego modelu
+// i koloru, więc wyglądał jak prawdziwa kurtka (np. „Teresa NIEBIESKI 48” zamiast czarnej Teresy). Cyfra kontrolna
+// EAN-13 wyłapuje każdą jedną złą cyfrę i prawie każde przestawienie. Kod, który dokładnie jest na stanie albo
+// w kartach produktów (knownCodes), przechodzi zawsze - nawet stara metka bez poprawnej cyfry kontrolnej.
+export const isMisreadCode = (code, knownCodes) => {
+  const value = String(code ?? '').trim();
+  if (!/^\d{13}$/.test(value)) return false; // inny format ocenia ekran („Nieznany kod”)
+  if (knownCodes && typeof knownCodes.has === 'function' && knownCodes.has(value)) return false;
+  return !isValidEan13(value);
+};
+
+export const misreadMessage = (code) => `Błędny odczyt: ${code}\nTaki kod nie istnieje (zła cyfra kontrolna) - zeskanuj metkę jeszcze raz.`;
+
+export const isUnknownProductName =(name) => String(name || '').startsWith('Nieznany kod');

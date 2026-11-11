@@ -179,6 +179,7 @@ describe('QRScanner - sprzedaż ciągła', () => {
     await act(async () => { fireEvent(input, 'submitEditing'); });
     await waitFor(() => expect(saveCalls()).toHaveLength(1));
     expect(utils.getByTestId('bluetooth-scan-input').props.editable).not.toBe(false); // w trakcie zapisu pole czytnika działa
+    await act(async () => { fireEvent.changeText(utils.getByTestId('bluetooth-scan-input'), ''); }); // telefon wyczyścił pole po kodzie
     await act(async () => { fireEvent.changeText(utils.getByTestId('bluetooth-scan-input'), '1234567890'); });
     await act(async () => { fireEvent(utils.getByTestId('bluetooth-scan-input'), 'submitEditing'); });
     expect(saveCalls()).toHaveLength(1); // drugi czeka w kolejce

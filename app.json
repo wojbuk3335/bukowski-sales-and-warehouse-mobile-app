@@ -65,6 +65,13 @@
           "faceIDPermission": "Face ID służy do szybkiego logowania do aplikacji Bukowski bez wpisywania hasła."
         }
       ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "./plugins/withAutofillHighlight",
       [
         "expo-build-properties",

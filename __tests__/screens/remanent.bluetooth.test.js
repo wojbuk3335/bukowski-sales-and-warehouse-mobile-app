@@ -92,15 +92,18 @@ test('czytnik: Enter dodaje sztukę; ten sam kod pod rząd = kolejna sztuka bez 
   await waitFor(() => expect(screen.getByText('Zatwierdź (1)')).toBeTruthy());
   expect(screen.getByText('Dodano: Amanda CZARNY 44')).toBeTruthy();
 
-  fireEvent.changeText(input, CODE_44); // druga identyczna kurtka - bez okienka „ta sama metka?”
+  fireEvent.changeText(input, ''); // telefon wyczyścił pole po kodzie
+  fireEvent.changeText(input, CODE_44); // druga identyczna kurtka - bez okienka (telefon w kieszeni), nawet ponad stan
   fireEvent(input, 'submitEditing');
   await waitFor(() => expect(screen.getByText('Zatwierdź (2)')).toBeTruthy());
-  expect(screen.queryByText('Ten kod jest już policzony')).toBeNull();
+  expect(screen.queryByTestId('duplicate-prompt-title')).toBeNull();
   expect(screen.getByText('Dodano: Amanda CZARNY 44 (2. sztuka)')).toBeTruthy();
+  fireEvent.changeText(input, '');
 
   fireEvent.changeText(input, 'QR-XYZ');
   fireEvent(input, 'submitEditing');
-  await waitFor(() => expect(screen.getByText('Nieznany kod: QR-XYZ\nTo nie jest metka z bazy produktów - pominięto.')).toBeTruthy());
+  // komunikat nad skanerem i na czerwonym ekranie alarmu (czytnik: telefon nie jest w ręce)
+  await waitFor(() => expect(screen.getAllByText('Nieznany kod: QR-XYZ\nTo nie jest metka z bazy produktów - pominięto.').length).toBeGreaterThan(0));
   expect(screen.getByTestId('bluetooth-last').props.children.join('')).toBe('Ostatni odczyt: QR-XYZ');
   expect(screen.getByText('Zatwierdź (2)')).toBeTruthy();
 
@@ -117,6 +120,7 @@ test('pamięć czytnika: kilka kodów naraz z nowymi liniami - wszystkie po kole
   const input = await screen.findByTestId('bluetooth-scan-input');
   await act(async () => { fireEvent.changeText(input, `${CODE_44}\n${CODE_46}\n${CODE_44}\n`); });
   await waitFor(() => expect(screen.getByText('Zatwierdź (3)')).toBeTruthy(), { timeout: 4000 });
+  expect(screen.queryByTestId('duplicate-prompt-title')).toBeNull();
   expect(screen.getByText('Zeskanowano: 3 szt. (2 produktów)')).toBeTruthy();
 
   // zamknięcie z odrzuceniem i ponowne otwarcie - tryb czytnika wraca
