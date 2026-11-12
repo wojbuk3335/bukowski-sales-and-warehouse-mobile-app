@@ -33,6 +33,8 @@ jest.mock('../../services/zebraSsi', () => ({
   saveBtAddress: jest.fn((address) => Promise.resolve(String(address).trim().toUpperCase())),
   isValidBtAddress: (address) => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(String(address || '').trim()),
   scannerFeedback: jest.fn(() => Promise.resolve(true)),
+  refreshStatus: jest.fn(() => Promise.resolve(ssi.state)),
+  connectScanner: jest.fn(() => Promise.resolve(true)),
 }));
 
 import ScanCamera from '../../components/scanner/ScanCamera';
@@ -93,6 +95,15 @@ test('parowanie: SDK nie zna adresu Bluetooth telefonu → wpisanie adresu → k
   await waitFor(() => expect(screen.getByTestId('ssi-pairing-image')).toBeTruthy());
   expect(saveBtAddress).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF');
   expect(pairingBarcodePng).toHaveBeenLastCalledWith({ btAddress: 'AA:BB:CC:DD:EE:FF', factoryDefaults: true });
+});
+
+test('czytnik widoczny dla SDK, ale bez sesji: przycisk „Połącz” wywołuje connectScanner', async () => {
+  const { connectScanner } = require('../../services/zebraSsi');
+  const screen = await openSsi();
+  await act(async () => { ssi.stateHandler({ available: true, started: true, scanner: null, error: '', availableScanners: [{ id: 7, name: 'DS2278', model: '' }] }); });
+  fireEvent.press(screen.getByTestId('ssi-connect-7'));
+  expect(connectScanner).toHaveBeenCalledWith(7);
+  expect(screen.queryByTestId('ssi-nothing-seen')).toBeNull();
 });
 
 test('wstrzymany skaner (formularz otwarty): kod z czytnika SSI bez odbiorcy', async () => {

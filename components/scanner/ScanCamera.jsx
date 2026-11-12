@@ -13,7 +13,7 @@ import { tc } from "../../context/ThemeContext";
 import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
 import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
-import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
+import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
 
 // Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
 const keepAwakeModule = () => {
@@ -489,10 +489,28 @@ const ScanCamera = ({
             // dlaczego czytnik nie działa (brak zgody na Bluetooth, moduł nie wystartował) - zamiast zgadywania
             <Text style={[bt.hint, { color: "#FCA5A5" }]} testID="ssi-error">{ssiState.error}</Text>
           )}
+          {!scanner && (ssiState.availableScanners || []).length > 0 && (
+            // SDK widzi sparowany czytnik, ale sesja nie powstała sama - ręczne „Połącz”
+            <View style={{ alignItems: "center", gap: 6 }} testID="ssi-available">
+              {(ssiState.availableScanners || []).map((item) => (
+                <TouchableOpacity key={item.id} style={bt.action} onPress={() => connectSsiScanner(item.id)} accessibilityRole="button" testID={`ssi-connect-${item.id}`}>
+                  <Ionicons name="link-outline" size={18} color={bt.actionText.color} />
+                  <Text style={bt.actionText}>Połącz: {item.name || item.model || `czytnik ${item.id}`}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {!scanner && ssiState.started && (ssiState.availableScanners || []).length === 0 && !ssiState.error && (
+            <Text style={bt.hint} testID="ssi-nothing-seen">SDK nie widzi jeszcze żadnego czytnika. Po zeskanowaniu kodu parowania potwierdź na telefonie prośbę o sparowanie Bluetooth (pasek powiadomień), potem „Odśwież”.</Text>
+          )}
           <View style={styles.btActionsRow}>
             <TouchableOpacity style={bt.action} onPress={() => openSsiPairing()} testID="ssi-pair" accessibilityRole="button">
               <Ionicons name="link-outline" size={18} color={bt.actionText.color} />
               <Text style={bt.actionText}>{scanner ? "Paruj inny czytnik" : "Paruj czytnik"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={bt.action} onPress={() => refreshSsiStatus().then(setSsiState)} testID="ssi-refresh" accessibilityRole="button">
+              <Ionicons name="refresh-outline" size={18} color={bt.actionText.color} />
+              <Text style={bt.actionText}>Odśwież</Text>
             </TouchableOpacity>
             <TouchableOpacity style={bt.action} onPress={() => switchInputMode("camera")} testID="scan-mode-camera" accessibilityRole="button">
               <Ionicons name="camera-outline" size={18} color={bt.actionText.color} />

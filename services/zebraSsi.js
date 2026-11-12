@@ -28,9 +28,11 @@ export const ensureBluetoothPermissions = async () => {
 let started = false;
 let connectedScanner = null; // { id, name, model } albo null
 let lastError = ''; // dlaczego SDK nie działa (brak zgody na Bluetooth, błąd modułu) - widoczne na ekranie (12.11.2026)
+let availableScanners = []; // czytniki, które SDK widzi (po parowaniu), ale sesja jeszcze nie powstała - [{ id, name, model }]
 const stateListeners = new Set();
 const notifyState = () => stateListeners.forEach((listener) => { try { listener(getState()); } catch (error) { /* słuchacz */ } });
-export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError });
+export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners });
+const scannerInfo = (scanner) => ({ id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '' });
 export const onStateChange = (listener) => { stateListeners.add(listener); return () => stateListeners.delete(listener); };
 
 let subscriptions = [];
@@ -55,12 +57,23 @@ export const startSsi = async () => {
     connectedScanner = null;
     notifyState();
   }));
+  // czytnik widoczny dla SDK (sparowany), zanim powstanie sesja - na ekranie z przyciskiem „Połącz”
+  subscriptions.push(zebra.addListener('onScannerAppeared', (scanner) => {
+    const info = scannerInfo(scanner);
+    availableScanners = [...availableScanners.filter((item) => item.id !== info.id), info];
+    notifyState();
+  }));
+  subscriptions.push(zebra.addListener('onScannerDisappeared', (event) => {
+    availableScanners = availableScanners.filter((item) => item.id !== (event?.id ?? -1));
+    notifyState();
+  }));
   try {
     const status = await zebra.start();
     started = true;
     lastError = '';
     const active = Array.isArray(status?.active) ? status.active[0] : null;
-    if (active) connectedScanner = { id: active.id, name: active.name || '', model: active.model || '' };
+    if (active) connectedScanner = scannerInfo(active);
+    availableScanners = (Array.isArray(status?.available) ? status.available : []).map(scannerInfo);
     notifyState();
     return true;
   } catch (error) {
@@ -71,11 +84,44 @@ export const startSsi = async () => {
   }
 };
 
+// Odświeżenie stanu z SDK (lista widocznych i połączonych czytników) - przycisk „Odśwież” na ekranie
+export const refreshStatus = async () => {
+  if (!started) return getState();
+  try {
+    const status = await zebra.getStatus();
+    const active = Array.isArray(status?.active) ? status.active[0] : null;
+    connectedScanner = active ? scannerInfo(active) : connectedScanner;
+    availableScanners = (Array.isArray(status?.available) ? status.available : []).map(scannerInfo);
+    if (!active && connectedScanner && !(status?.activeScannerId >= 0)) connectedScanner = null;
+  } catch (error) {
+    lastError = `Błąd odczytu stanu: ${error?.message || error}`;
+  }
+  notifyState();
+  return getState();
+};
+
+// Ręczne nawiązanie sesji z widocznym czytnikiem (gdy automat po parowaniu nie zadziałał)
+export const connectScanner = async (scannerId) => {
+  if (!started) return false;
+  try {
+    const ok = await zebra.connect(scannerId);
+    if (!ok) lastError = `SDK odmówiło połączenia z czytnikiem ${scannerId} - sprawdź, czy telefon potwierdził parowanie Bluetooth.`;
+    else lastError = '';
+    notifyState();
+    return ok;
+  } catch (error) {
+    lastError = `Błąd połączenia: ${error?.message || error}`;
+    notifyState();
+    return false;
+  }
+};
+
 export const stopSsi = async () => {
   if (!started) return;
   unsubscribeAll();
   started = false;
   connectedScanner = null;
+  availableScanners = [];
   try { await zebra.stop(); } catch (error) { /* SDK już zamknięte */ }
   notifyState();
 };

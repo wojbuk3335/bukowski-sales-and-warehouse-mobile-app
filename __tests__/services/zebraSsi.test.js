@@ -12,6 +12,8 @@ const mockNative = {
   start: jest.fn(() => Promise.resolve({ started: true, active: [], available: [] })),
   stop: jest.fn(() => Promise.resolve()),
   beep: jest.fn(() => Promise.resolve(true)),
+  connect: jest.fn(() => Promise.resolve(true)),
+  getStatus: jest.fn(() => Promise.resolve({ started: true, activeScannerId: -1, active: [], available: [] })),
   getPairingBarcodePng: jest.fn(() => Promise.resolve('UElORw==')),
   addListener: jest.fn((event, handler) => {
     listeners[event] = handler;
@@ -42,7 +44,12 @@ test('start: pyta o uprawnienia Bluetooth (Android 12+), uruchamia SDK, stan po≈
   expect(await zebraSsi.startSsi()).toBe(true);
   expect(PermissionsAndroid.requestMultiple).toHaveBeenCalledWith([PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT, PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN]);
   expect(mockNative.start).toHaveBeenCalledTimes(1);
-  expect(zebraSsi.getState()).toEqual({ available: true, started: true, scanner: null, error: '' });
+  expect(zebraSsi.getState()).toEqual({ available: true, started: true, scanner: null, error: '', availableScanners: [] });
+  listeners.onScannerAppeared({ id: 7, name: 'DS2278', model: 'DS2278-SR' }); // sparowany, bez sesji
+  expect(zebraSsi.getState().availableScanners).toEqual([{ id: 7, name: 'DS2278', model: 'DS2278-SR' }]);
+  expect(await zebraSsi.connectScanner(7)).toBe(true);
+  listeners.onScannerDisappeared({ id: 7 });
+  expect(zebraSsi.getState().availableScanners).toEqual([]);
 
   listeners.onSessionEstablished({ id: 1, name: 'DS2278', model: 'DS2278-SR' });
   expect(zebraSsi.getState().scanner).toEqual({ id: 1, name: 'DS2278', model: 'DS2278-SR' });
