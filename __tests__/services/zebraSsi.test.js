@@ -53,8 +53,11 @@ test('start: pyta o uprawnienia Bluetooth (Android 12+), uruchamia SDK, stan po�
 
   listeners.onSessionEstablished({ id: 1, name: 'DS2278', model: 'DS2278-SR' });
   expect(zebraSsi.getState().scanner).toEqual({ id: 1, name: 'DS2278', model: 'DS2278-SR', connectionType: '' });
+  listeners.onSessionTerminated({ id: 2 }); // inna (pusta) sesja - połączony czytnik 1 zostaje
+  expect(zebraSsi.getState().scanner).toMatchObject({ id: 1 });
   listeners.onSessionTerminated({ id: 1 });
   expect(zebraSsi.getState().scanner).toBeNull();
+  expect(zebraSsi.getState().error).toMatch(/rozłączył się/);
   expect(seen.length).toBeGreaterThanOrEqual(3);
   unsubscribe();
 

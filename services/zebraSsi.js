@@ -51,10 +51,20 @@ export const startSsi = async () => {
   unsubscribeAll();
   subscriptions.push(zebra.addListener('onSessionEstablished', (scanner) => {
     connectedScanner = scannerInfo(scanner);
+    lastError = '';
     notifyState();
   }));
-  subscriptions.push(zebra.addListener('onSessionTerminated', () => {
+  subscriptions.push(zebra.addListener('onSessionTerminated', (event) => {
+    // SDK potrafi zgłosić ten sam czytnik dwa razy (Classic i LE) - koniec tej drugiej, pustej sesji nie może
+    // gasić statusu żywej sesji; gaśnie tylko, gdy zamknęła się sesja POŁĄCZONEGO czytnika
+    const id = event?.id ?? -1;
+    if (connectedScanner && id !== -1 && id !== connectedScanner.id) {
+      lastError = `Zamknięta sesja czytnika ${id} (połączony zostaje ${connectedScanner.id})`;
+      notifyState();
+      return;
+    }
     connectedScanner = null;
+    lastError = `Czytnik ${id} rozłączył się - SDK spróbuje połączyć ponownie; możesz też kliknąć „Odśwież” / „Połącz”.`;
     notifyState();
   }));
   // czytnik widoczny dla SDK (sparowany), zanim powstanie sesja - na ekranie z przyciskiem „Połącz”
