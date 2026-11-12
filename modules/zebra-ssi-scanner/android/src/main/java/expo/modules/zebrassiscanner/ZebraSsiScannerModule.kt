@@ -59,14 +59,16 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
     Function("isAvailable") { true }
 
     // Uruchomienie SDK: nasłuch czytników (Bluetooth Classic SSI + BLE), automatyczne łączenie z tym, który się pojawi
+    // SDKHandler rejestruje obserwator cyklu życia (addObserver) - wolno to robić tylko z wątku głównego
+    // (build 19: „Method addObserver must be called on the main thread”), stąd runOnQueue(Queues.MAIN)
     AsyncFunction("start") {
       startSdk()
       status()
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("stop") {
       stopSdk()
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("getStatus") { status() }
 
