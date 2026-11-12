@@ -134,7 +134,8 @@ const ScanCamera = ({
   const ssiAvailable = isSsiAvailable();
   const [ssiState, setSsiState] = useState(() => getSsiState());
   const [ssiStarting, setSsiStarting] = useState(false);
-  const [ssiPairing, setSsiPairing] = useState(null); // null | { png, needsAddress, address, error }
+  const [ssiPairing, setSsiPairing] = useState(null); // null | { png, needsAddress, address, error, protocol }
+  const [ssiProtocol, setSsiProtocol] = useState("ble"); // 'ble' (domyślnie, jak w aplikacji Zebry) albo 'classic'
   const [ssiLastCode, setSsiLastCode] = useState("");
   useEffect(() => {
     if (inputMode !== "ssi" || !ssiAvailable) return undefined;
@@ -160,14 +161,18 @@ const ScanCamera = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputMode, ssiAvailable]);
-  const openSsiPairing = async (address = "") => {
+  const openSsiPairing = async (address = "", protocol = ssiProtocol) => {
     const saved = address || (await getSavedBtAddress());
-    const png = await pairingBarcodePng({ btAddress: saved, factoryDefaults: true });
+    const png = await pairingBarcodePng({ btAddress: saved, factoryDefaults: true, protocol });
     const state = getSsiState();
     setSsiState(state);
     // bez działającego SDK pole adresu nic nie da - pokazujemy prawdziwy powód (zgoda na Bluetooth, błąd modułu)
     const reason = !state.started ? (state.error || "Moduł czytnika nie wystartował.") : (png ? "" : (saved ? (state.error || "Nie udało się zbudować kodu parowania - sprawdź adres Bluetooth telefonu.") : ""));
-    setSsiPairing({ png, needsAddress: !png, address: saved, error: reason });
+    setSsiPairing({ png, needsAddress: !png, address: saved, error: reason, protocol });
+  };
+  const switchSsiProtocol = (protocol) => {
+    setSsiProtocol(protocol);
+    openSsiPairing(ssiPairing?.address || "", protocol);
   };
   const submitSsiAddress = async () => {
     const address = String(ssiPairing?.address || "").trim().toUpperCase();
@@ -495,7 +500,7 @@ const ScanCamera = ({
               {(ssiState.availableScanners || []).map((item) => (
                 <TouchableOpacity key={item.id} style={bt.action} onPress={() => connectSsiScanner(item.id)} accessibilityRole="button" testID={`ssi-connect-${item.id}`}>
                   <Ionicons name="link-outline" size={18} color={bt.actionText.color} />
-                  <Text style={bt.actionText}>Połącz: {item.name || item.model || `czytnik ${item.id}`}</Text>
+                  <Text style={bt.actionText}>Połącz: {item.name || item.model || `czytnik ${item.id}`}{item.connectionType ? ` (${item.connectionType.replace("DCSSDK_CONNTYPE_", "")})` : ""}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -540,10 +545,27 @@ const ScanCamera = ({
             <View style={look.modalOverlay}>
               <View style={look.modalContent}>
                 <ModalHeader icon="link" color="#0D6EFD" title="Parowanie czytnika Zebra" subtitle="Zeskanuj czytnikiem kod z ekranu" />
+                <View style={[styles.btActionsRow, { marginTop: 0, marginBottom: 8 }]}>
+                  {[{ key: "ble", label: "Bluetooth LE (zalecane)" }, { key: "classic", label: "Bluetooth Classic" }].map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[bt.action, (ssiPairing?.protocol || ssiProtocol) === option.key && { backgroundColor: bt.icon, borderColor: bt.icon }]}
+                      onPress={() => switchSsiProtocol(option.key)}
+                      accessibilityRole="button"
+                      testID={`ssi-protocol-${option.key}`}
+                    >
+                      <Text style={bt.actionText}>{option.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
                 {ssiPairing?.png ? (
                   <View style={{ alignItems: "center", gap: 8 }}>
                     <Image source={{ uri: `data:image/png;base64,${ssiPairing.png}` }} style={{ width: 300, height: 90, backgroundColor: "#fff" }} resizeMode="contain" testID="ssi-pairing-image" />
-                    <Text style={bt.hint}>Czytnik piszczy i po chwili łączy się sam. Przy pierwszym parowaniu Android może zapytać o zgodę na połączenie - potwierdź.</Text>
+                    <Text style={bt.hint}>
+                      {(ssiPairing?.protocol || ssiProtocol) === "classic"
+                        ? "Czytnik piszczy i sam łączy się z telefonem. Android zapyta o parowanie Bluetooth (okienko albo pasek powiadomień) - potwierdź. Potem w panelu „Odśwież” / „Połącz”."
+                        : "Czytnik piszczy i przeładowuje się; telefon łączy się z nim sam (bez pytania o parowanie). Potem w panelu „Odśwież” / „Połącz”."}
+                    </Text>
                   </View>
                 ) : (
                   <View style={{ gap: 8 }}>

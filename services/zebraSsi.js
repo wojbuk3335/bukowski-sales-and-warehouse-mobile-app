@@ -32,7 +32,7 @@ let availableScanners = []; // czytniki, które SDK widzi (po parowaniu), ale se
 const stateListeners = new Set();
 const notifyState = () => stateListeners.forEach((listener) => { try { listener(getState()); } catch (error) { /* słuchacz */ } });
 export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners });
-const scannerInfo = (scanner) => ({ id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '' });
+const scannerInfo = (scanner) => ({ id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '', connectionType: scanner?.connectionType || '' });
 export const onStateChange = (listener) => { stateListeners.add(listener); return () => stateListeners.delete(listener); };
 
 let subscriptions = [];
@@ -50,7 +50,7 @@ export const startSsi = async () => {
   }
   unsubscribeAll();
   subscriptions.push(zebra.addListener('onSessionEstablished', (scanner) => {
-    connectedScanner = { id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '' };
+    connectedScanner = scannerInfo(scanner);
     notifyState();
   }));
   subscriptions.push(zebra.addListener('onSessionTerminated', () => {
@@ -150,12 +150,14 @@ export const saveBtAddress = async (address) => {
 };
 export const isValidBtAddress = (address) => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(String(address || '').trim());
 
-// Kod parowania (PNG base64) - czytnik skanuje go z ekranu i łączy się z telefonem; SSI przez Bluetooth Classic.
+// Kod parowania (PNG base64) - czytnik skanuje go z ekranu i łączy się z telefonem.
+// protocol: 'ble' (SSI przez Bluetooth LE - telefon sam łączy się z czytnikiem, bez potwierdzania parowania; domyślny
+// w aplikacji Zebry) albo 'classic' (SSI przez Bluetooth Classic - czytnik łączy się z telefonem, Android pyta o parowanie).
 // Bez działającego SDK próbujemy je uruchomić (np. zgoda na Bluetooth dana dopiero teraz); błąd modułu trafia do stanu.
-export const pairingBarcodePng = async ({ btAddress = '', factoryDefaults = true } = {}) => {
+export const pairingBarcodePng = async ({ btAddress = '', factoryDefaults = true, protocol = 'ble' } = {}) => {
   if (!started && !(await startSsi())) return null;
   try {
-    const png = await zebra.getPairingBarcodePng({ protocol: 'classic', factoryDefaults, btAddress, width: 1000, height: 300 });
+    const png = await zebra.getPairingBarcodePng({ protocol: protocol === 'classic' ? 'classic' : 'ble', factoryDefaults, btAddress, width: 1000, height: 300 });
     if (!png && btAddress) lastError = 'Moduł Zebry nie zbudował kodu parowania mimo adresu - sprawdź, czy Bluetooth w telefonie jest włączony.';
     if (png) lastError = '';
     notifyState();
