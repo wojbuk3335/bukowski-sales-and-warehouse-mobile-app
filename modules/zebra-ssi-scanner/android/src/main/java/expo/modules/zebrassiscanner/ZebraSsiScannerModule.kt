@@ -28,7 +28,7 @@ import java.nio.charset.Charset
  * sygnałem: kod policzony = zwykły pisk, kod odrzucony = inny sygnał błędu, słyszalny z czytnika, gdy telefon jest
  * w kieszeni.
  *
- * Biblioteka: Zebra Barcode Scanner SDK for Android 2.6.29 (libs/*.aar, z publicznego repozytorium ZebraDevs, MIT).
+ * Biblioteka: Zebra Barcode Scanner SDK for Android 2.6.29 (plik .aar w libs, z publicznego repozytorium ZebraDevs, MIT).
  * Parowanie: kod Scan-To-Connect wyświetlany w aplikacji (dcssdkGetPairingBarcode) - czytnik go skanuje i sam łączy
  * się z telefonem. Nowe Androidy nie zdradzają aplikacji własnego adresu Bluetooth - wtedy użytkownik wpisuje go raz
  * (Ustawienia → Informacje o telefonie), aplikacja przekazuje go do SDK.
