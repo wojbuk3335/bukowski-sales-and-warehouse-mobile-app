@@ -163,7 +163,11 @@ const ScanCamera = ({
   const openSsiPairing = async (address = "") => {
     const saved = address || (await getSavedBtAddress());
     const png = await pairingBarcodePng({ btAddress: saved, factoryDefaults: true });
-    setSsiPairing({ png, needsAddress: !png, address: saved, error: png ? "" : (saved ? "Nie udało się zbudować kodu parowania - sprawdź adres Bluetooth telefonu." : "") });
+    const state = getSsiState();
+    setSsiState(state);
+    // bez działającego SDK pole adresu nic nie da - pokazujemy prawdziwy powód (zgoda na Bluetooth, błąd modułu)
+    const reason = !state.started ? (state.error || "Moduł czytnika nie wystartował.") : (png ? "" : (saved ? (state.error || "Nie udało się zbudować kodu parowania - sprawdź adres Bluetooth telefonu.") : ""));
+    setSsiPairing({ png, needsAddress: !png, address: saved, error: reason });
   };
   const submitSsiAddress = async () => {
     const address = String(ssiPairing?.address || "").trim().toUpperCase();
@@ -481,6 +485,10 @@ const ScanCamera = ({
               : "Czytnik wstrzymany - zamknij formularz, żeby skanować dalej."}
           </Text>
           {!!ssiLastCode && <Text style={bt.last} testID="ssi-last">Ostatni odczyt: {ssiLastCode}</Text>}
+          {!!ssiState.error && (
+            // dlaczego czytnik nie działa (brak zgody na Bluetooth, moduł nie wystartował) - zamiast zgadywania
+            <Text style={[bt.hint, { color: "#FCA5A5" }]} testID="ssi-error">{ssiState.error}</Text>
+          )}
           <View style={styles.btActionsRow}>
             <TouchableOpacity style={bt.action} onPress={() => openSsiPairing()} testID="ssi-pair" accessibilityRole="button">
               <Ionicons name="link-outline" size={18} color={bt.actionText.color} />

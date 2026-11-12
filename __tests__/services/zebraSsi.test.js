@@ -42,7 +42,7 @@ test('start: pyta o uprawnienia Bluetooth (Android 12+), uruchamia SDK, stan po�
   expect(await zebraSsi.startSsi()).toBe(true);
   expect(PermissionsAndroid.requestMultiple).toHaveBeenCalledWith([PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT, PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN]);
   expect(mockNative.start).toHaveBeenCalledTimes(1);
-  expect(zebraSsi.getState()).toEqual({ available: true, started: true, scanner: null });
+  expect(zebraSsi.getState()).toEqual({ available: true, started: true, scanner: null, error: '' });
 
   listeners.onSessionEstablished({ id: 1, name: 'DS2278', model: 'DS2278-SR' });
   expect(zebraSsi.getState().scanner).toEqual({ id: 1, name: 'DS2278', model: 'DS2278-SR' });
@@ -59,6 +59,7 @@ test('odmowa uprawnień = SDK nie startuje; sygnał tylko przy połączonym czyt
   PermissionsAndroid.requestMultiple = jest.fn(() => Promise.resolve({ a: 'denied', b: 'granted' }));
   expect(await zebraSsi.startSsi()).toBe(false);
   expect(mockNative.start).not.toHaveBeenCalled();
+  expect(zebraSsi.getState().error).toMatch(/Brak zgody na Bluetooth/); // powód widoczny na ekranie (12.11)
   expect(await zebraSsi.scannerFeedback('ok')).toBe(false); // niepołączony - bez sygnału
 
   PermissionsAndroid.requestMultiple = jest.fn(() => Promise.resolve({ a: 'granted' }));
@@ -76,9 +77,10 @@ test('kod parowania: zapamiętany adres Bluetooth telefonu, walidacja postaci', 
   expect(await zebraSsi.saveBtAddress(' aa:bb:cc:dd:ee:ff ')).toBe('AA:BB:CC:DD:EE:FF');
   expect(await zebraSsi.getSavedBtAddress()).toBe('AA:BB:CC:DD:EE:FF');
 
-  expect(await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF' })).toBeNull(); // przed startem SDK
-  await zebraSsi.startSsi();
+  // przed startem SDK kod parowania sam uruchamia SDK (zgoda na Bluetooth dana dopiero teraz)
   expect(await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF' })).toBe('UElORw==');
+  expect(mockNative.start).toHaveBeenCalledTimes(1);
+  expect(zebraSsi.getState().started).toBe(true);
   expect(mockNative.getPairingBarcodePng).toHaveBeenCalledWith({ protocol: 'classic', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 });
 });
 
