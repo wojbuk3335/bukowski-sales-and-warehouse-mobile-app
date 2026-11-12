@@ -185,4 +185,67 @@ describe('ScanCamera', () => {
     await act(async () => { fireEvent(screen.getByTestId('bluetooth-scan-input'), 'submitEditing'); });
     expect(onScanned).not.toHaveBeenCalled(); // skaner wstrzymany - kod bez odbiorcy
   });
+
+  // 12.11.2026 (remanent 600 szt.: pocięte i sklejone kody z czytnika) - kod to całość, ramka od czytnika kończy kod
+  const openReader = async (onScanned) => {
+    const screen = render(<ScanCamera onScanned={onScanned} active />);
+    await act(async () => {});
+    const toCard = screen.queryByTestId('scan-mode-bluetooth');
+    if (toCard) fireEvent.press(toCard);
+    const input = await screen.findByTestId('bluetooth-scan-input');
+    await act(async () => { fireEvent(input, 'focus'); });
+    return { screen, input };
+  };
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const CODE_2 = '0040600300100'; // kolejny poprawny EAN-13 (5 pierwszych cyfr te same, inny rozmiar)
+
+  test('czytnik: pocięty kod (czkawka Bluetooth w środku) czeka na resztę, nie oddaje ułamka', async () => {
+    const onScanned = jest.fn();
+    const { input } = await openReader(onScanned);
+    await act(async () => { fireEvent.changeText(input, CODE.slice(0, 7)); }); // 7 cyfr i cisza
+    await sleep(500); // dawniej po 250 ms ułamek szedł dalej jako „kod” i sztuka ginęła
+    expect(onScanned).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.changeText(input, CODE); }); // reszta dochodzi po czkawce
+    await waitFor(() => expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'bluetooth' }), { timeout: 2000 });
+    expect(onScanned).toHaveBeenCalledTimes(1);
+  });
+
+  test('czytnik z prefiksem i Enterem: ramka kończy kod od razu, bez czekania na ciszę', async () => {
+    const onScanned = jest.fn();
+    const { input } = await openReader(onScanned);
+    await act(async () => { fireEvent.changeText(input, `*${CODE}
+*${CODE_2}`); }); // drugi kod jeszcze w trakcie
+    expect(onScanned).toHaveBeenCalledTimes(1);
+    expect(onScanned).toHaveBeenCalledWith({ data: CODE, type: 'bluetooth' });
+    await act(async () => { fireEvent.changeText(input, `*${CODE}
+*${CODE_2}
+`); });
+    expect(onScanned).toHaveBeenCalledTimes(2);
+    expect(onScanned).toHaveBeenLastCalledWith({ data: CODE_2, type: 'bluetooth' });
+  });
+
+  test('czytnik bez Entera: dwa kody sklejone (skany szybciej niż cisza) rozdzielone po 13 cyfr', async () => {
+    const onScanned = jest.fn();
+    const { input } = await openReader(onScanned);
+    await act(async () => { fireEvent.changeText(input, `${CODE}${CODE_2}`); });
+    await waitFor(() => expect(onScanned).toHaveBeenCalledTimes(2), { timeout: 2000 });
+    expect(onScanned).toHaveBeenNthCalledWith(1, { data: CODE, type: 'bluetooth' });
+    expect(onScanned).toHaveBeenNthCalledWith(2, { data: CODE_2, type: 'bluetooth' });
+  });
+
+  test('czytnik: pole nie jest czyszczone po kodzie - kolejny kod dopisany do starego tekstu liczy się raz', async () => {
+    const onScanned = jest.fn();
+    const { input } = await openReader(onScanned);
+    await act(async () => { fireEvent.changeText(input, CODE); });
+    await act(async () => { fireEvent(input, 'submitEditing'); });
+    expect(onScanned).toHaveBeenCalledTimes(1);
+    // telefon trzyma stary tekst (bez clear) - nowe cyfry dochodzą na końcu
+    await act(async () => { fireEvent.changeText(input, `${CODE}${CODE_2.slice(0, 5)}`); });
+    await act(async () => { fireEvent.changeText(input, `${CODE}${CODE_2}`); });
+    await act(async () => { fireEvent(input, 'submitEditing'); });
+    expect(onScanned).toHaveBeenCalledTimes(2);
+    expect(onScanned).toHaveBeenLastCalledWith({ data: CODE_2, type: 'bluetooth' });
+    await sleep(400);
+    expect(onScanned).toHaveBeenCalledTimes(2); // nic nie idzie drugi raz po ciszy
+  });
 });

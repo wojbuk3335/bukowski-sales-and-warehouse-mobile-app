@@ -113,6 +113,7 @@ const BarcodeScannerModal = ({
   const btDrainingRef = useRef(false);
   const btPausedRef = useRef(false); // pytanie na ekranie - kody z czytnika czekają w kolejce, nie przepadają
   const [btWaiting, setBtWaiting] = useState(0); // ile kodów z czytnika czeka na odpowiedź na pytanie
+  const [btRejected, setBtRejected] = useState(0); // odrzucone odczyty z czytnika (pocięte / obce) - do ponownego zeskanowania (12.11.2026)
   const [alarmFlash, setAlarmFlash] = useState(null); // czerwony ekran przy alarmie (czytnik: telefon nie jest w ręce)
   const alarmFlashTimer = useRef(null);
   const pendingBatchRef = useRef({ key: '', batchId: '' }); // ten sam zestaw sztuk = ten sam klucz zatwierdzenia
@@ -267,7 +268,10 @@ const BarcodeScannerModal = ({
       const kind = toastKindOf(verdict.tone || 'warn');
       scanFeedback(kind);
       showScanToast(verdict.message || `Pominięto kod: ${data}`, kind);
-      if (bluetooth) raiseAlarm(verdict.message || `Pominięto kod: ${data}`);
+      if (bluetooth) {
+        raiseAlarm(verdict.message || `Pominięto kod: ${data}`);
+        setBtRejected((count) => count + 1);
+      }
       resumeScanning();
       return;
     }
@@ -482,6 +486,7 @@ const BarcodeScannerModal = ({
     btPausedRef.current = false;
     btQueueRef.current = [];
     setBtWaiting(0);
+    setBtRejected(0);
     setAlarmFlash(null);
     setQuantityEdit(null);
     setManualCodeOpen(false);
@@ -556,6 +561,12 @@ const BarcodeScannerModal = ({
           )}
           </ScanCamera>
         </View>
+
+        {btRejected > 0 && (
+          <Text style={styles.btRejectedText} testID="bt-rejected">
+            Odrzucone odczyty z czytnika: {btRejected} - te metki zeskanuj jeszcze raz
+          </Text>
+        )}
 
         {/* Lista zeskanowanych (pogrupowana po kodzie) */}
         {scannedJackets.length > 0 && (
@@ -945,6 +956,14 @@ const styles = createThemedStyles(() => StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  btRejectedText: {
+    color: '#FCA5A5',
+    fontWeight: '700',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
   scannedListContainer: {
     backgroundColor: tc('surface', '#1E1E2D'),

@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” 
 import { SmartScanOverlay, useSmartBarcodeScan } from "./SmartScanOverlay"; // kod tylko z ramki, potwierdzony kilkoma odczytami
 import { pickPrimaryLens } from "./iosLens"; // iPhone: zwykły szeroki aparat zamiast wirtualnego (ultraszerokiego)
 import { normalizeScannedCode, restoreLeadingZero } from "./smartScanLogic"; // EAN-13 z zerem na początku oddawany jako 12 cyfr
+import { isValidEan13 } from "../../utils/productName"; // rozdzielanie sklejonych kodów z czytnika
 import { KeyboardSafeScreen } from "../KeyboardSafe";
 import { ModalHeader, look } from "../AdminLook";
 import { tc } from "../../context/ThemeContext";
@@ -69,6 +70,13 @@ const BT_FOCUS_WATCH_MS = 1000;
 // w ukrytym polu i nic się nie działo): kod jest kompletny, gdy przez tyle ms nie przyjdzie kolejny znak.
 // Czytnik wpisuje cały kod w kilkadziesiąt ms; Enter (gdy czytnik go wysyła) kończy kod od razu.
 export const BT_IDLE_SUBMIT_MS = 250;
+// 12.11.2026 (remanent 600 szt.: pocięte i sklejone kody): kod krótszy niż 13 cyfr to prawie na pewno kod w trakcie
+// pisania (czkawka Bluetooth w środku kodu) - czekamy na resztę dłużej, zamiast oddawać ułamek i gubić sztukę
+export const BT_PARTIAL_WAIT_MS = 1500;
+// Pole nie jest czyszczone po każdym kodzie (clear() szedł do telefonu z opóźnieniem i wymazywał pierwsze cyfry
+// następnego kodu); czyścimy je dopiero, gdy urośnie i czytnik milczy
+const BT_FIELD_RESET_CHARS = 1500;
+const BT_FIELD_RESET_MS = 2000;
 
 const ScanCamera = ({
   onScanned,
@@ -211,48 +219,82 @@ const ScanCamera = ({
   // odsyłała do pola jego treść (value={…}); przy szybkim skanowaniu telefon dostawał nieaktualny tekst w trakcie
   // „pisania” czytnika i cyfry potrafiły zginąć, zdublować się albo zamienić miejscami (np. czarna Teresa zapisana
   // jako niebieska z inną cyfrą kontrolną). Teraz tekst pola zna tylko telefon; aplikacja pamięta, ile znaków już
-  // przetworzyła (btConsumedRef), i czyści pole po oddaniu kodu. btBuffer służy tylko do napisu „Odbieram: …”.
+  // przetworzyła (btConsumedRef). btBuffer służy tylko do napisu „Odbieram: …”.
+  //
+  // 12.11.2026 (remanent 600 szt.: 10 sztuk za dużo, 10 brakuje) - kod to CAŁOŚĆ, nie zgadywanka po czasie:
+  //  - koniec kodu wyznacza RAMKA od czytnika: Enter / nowa linia / tabulator / znak prefiksu (np. „*”), czyli każdy
+  //    znak, który nie jest cyfrą ani literą; z taką ramką zegar nie ma nic do roboty;
+  //  - bez ramki (czytnik fabrycznie bez Entera): 13 cyfr = kompletny kod po krótkiej ciszy; MNIEJ niż 13 cyfr = kod
+  //    w trakcie pisania (czkawka Bluetooth) - czekamy dłużej na resztę, zamiast oddać ułamek i zgubić sztukę;
+  //    26 / 39 cyfr bez przerwy (dwa skany szybciej niż cisza) = rozdzielamy na kody po 13 cyfr;
+  //  - pole NIE jest czyszczone po każdym kodzie (clear() dochodził do telefonu z opóźnieniem i wymazywał pierwsze
+  //    cyfry następnego kodu); czyścimy dopiero, gdy urośnie i czytnik milczy.
   const btTextRef = useRef(""); // cała treść pola (z ostatniego onChangeText)
   const btConsumedRef = useRef(0); // ile znaków z początku pola to kody już oddane
   const btIdleTimer = useRef(null);
-  useEffect(() => () => clearTimeout(btIdleTimer.current), []);
+  const btResetTimer = useRef(null);
+  useEffect(() => () => { clearTimeout(btIdleTimer.current); clearTimeout(btResetTimer.current); }, []);
   const pendingBluetoothText = () => btTextRef.current.slice(btConsumedRef.current);
-  // Czyszczenie pola NIE zeruje licznika przetworzonych znaków (11.11.2026, kurtki „×2” w remanencie): zanim telefon
-  // wyczyści pole, może jeszcze przyjść znak od czytnika (np. drugi znak Entera albo pierwsza cyfra kolejnego kodu)
-  // i telefon odda wtedy STARY tekst + nowy znak. Dawniej stary kod szedł wtedy drugi raz. Teraz: tekst zaczynający się
-  // od już oddanego kodu to dalszy ciąg (bierzemy tylko nowe znaki); pole puste / krótsze / inne = wyczyszczone.
-  const clearBluetoothField = () => {
+  // Tekst zaczynający się od już oddanych znaków to dalszy ciąg (bierzemy tylko nowe); pole puste / krótsze / inne =
+  // wyczyszczone przez telefon - liczymy od zera (11.11.2026, kurtki „×2”)
+  const resetBluetoothFieldIfIdle = () => {
+    clearTimeout(btResetTimer.current);
+    if (btTextRef.current.length < BT_FIELD_RESET_CHARS || cleanScannerCode(pendingBluetoothText())) return;
     btInputRef.current?.clear?.();
+    btTextRef.current = "";
+    btConsumedRef.current = 0;
+  };
+  const scheduleFieldReset = () => {
+    clearTimeout(btResetTimer.current);
+    if (btTextRef.current.length >= BT_FIELD_RESET_CHARS) btResetTimer.current = setTimeout(resetBluetoothFieldIfIdle, BT_FIELD_RESET_MS);
+  };
+  // Oddanie zebranego fragmentu jako kodu (po Enterze / ciszy); sklejone kody bez ramki rozdzielamy po 13 cyfr
+  const deliverPendingChunk = (chunk) => {
+    const code = cleanScannerCode(chunk);
+    if (!code) return;
+    if (/^\d+$/.test(code) && code.length > 13 && code.length % 13 === 0) {
+      const parts = code.match(/\d{13}/g) || [];
+      if (parts.every((part) => isValidEan13(part))) {
+        parts.forEach(deliverBluetoothCode);
+        return;
+      }
+    }
+    deliverBluetoothCode(code);
   };
   const flushBluetoothBuffer = () => {
     clearTimeout(btIdleTimer.current);
     const value = pendingBluetoothText();
     btConsumedRef.current = btTextRef.current.length;
     setBtBuffer("");
-    clearBluetoothField();
-    if (cleanScannerCode(value)) deliverBluetoothCode(value);
+    deliverPendingChunk(value);
+    scheduleFieldReset();
   };
   const scheduleIdleSubmit = () => {
     clearTimeout(btIdleTimer.current);
-    if (cleanScannerCode(pendingBluetoothText())) btIdleTimer.current = setTimeout(flushBluetoothBuffer, BT_IDLE_SUBMIT_MS);
+    const pending = cleanScannerCode(pendingBluetoothText());
+    if (!pending) return;
+    // cyfry krótsze niż kod z metki = jeszcze w trakcie pisania; cały kod (13 cyfr) albo inny format = krótka cisza
+    const wait = /^\d{1,12}$/.test(pending) ? BT_PARTIAL_WAIT_MS : BT_IDLE_SUBMIT_MS;
+    btIdleTimer.current = setTimeout(flushBluetoothBuffer, wait);
   };
   const handleBluetoothText = (text) => {
     const value = String(text ?? "");
-    // Pole wyczyszczone albo podmienione (to nie jest dalszy ciąg tego, co już przetworzyliśmy) - liczymy od zera
     const consumedPrefix = btTextRef.current.slice(0, btConsumedRef.current);
     if (value.length < btConsumedRef.current || !value.startsWith(consumedPrefix)) btConsumedRef.current = 0;
     btTextRef.current = value;
     const pending = pendingBluetoothText();
-    if (/[\r\n]/.test(pending)) {
-      // Enter w tekście (część czytników) albo kilka kodów naraz z pamięci czytnika
+    // Ramka: Enter / nowa linia / tabulator / prefiks („*”, „$”…) - wszystko, co nie jest znakiem kodu, kończy kod
+    const frameMatches = [...pending.matchAll(/[^0-9A-Za-z-]+/g)];
+    if (frameMatches.length > 0) {
       clearTimeout(btIdleTimer.current);
-      const lastBreak = Math.max(pending.lastIndexOf("\n"), pending.lastIndexOf("\r"));
-      const { codes } = splitScannerInput(pending.slice(0, lastBreak + 1));
-      btConsumedRef.current += lastBreak + 1;
-      codes.forEach(deliverBluetoothCode);
+      const last = frameMatches[frameMatches.length - 1];
+      const framed = pending.slice(0, last.index + last[0].length);
+      framed.split(/[^0-9A-Za-z-]+/).forEach(deliverPendingChunk);
+      btConsumedRef.current += framed.length;
     }
     setBtBuffer(cleanScannerCode(pendingBluetoothText()));
-    scheduleIdleSubmit(); // czytnik bez Entera: kod kompletny po krótkiej ciszy
+    scheduleIdleSubmit(); // czytnik bez Entera: kod kompletny po ciszy
+    scheduleFieldReset();
   };
   const handleBluetoothSubmit = () => {
     flushBluetoothBuffer();

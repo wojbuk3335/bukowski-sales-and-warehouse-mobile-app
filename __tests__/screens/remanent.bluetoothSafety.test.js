@@ -109,6 +109,7 @@ test('zniekształcony kod z czytnika (zła cyfra kontrolna) - odrzucony z alarme
   expect(playScanAlarm).toHaveBeenCalled();
   expect(screen.getByTestId('scan-alarm-flash')).toBeTruthy();
   expect(screen.queryByText(/Zatwierdź \(/)).toBeNull();
+  expect(screen.getByTestId('bt-rejected').props.children.join('')).toContain('Odrzucone odczyty z czytnika: 1'); // 12.11: licznik do ponownego skanu
 
   // ponowny skan tej samej metki (dobry odczyt) przechodzi normalnie, bez alarmu
   playScanAlarm.mockClear();
