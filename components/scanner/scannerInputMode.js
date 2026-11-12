@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const INPUT_MODE_KEY = 'scanner-input-mode';
 export const KEEP_AWAKE_KEY = 'scanner-keep-awake';
-export const INPUT_MODES = ['camera', 'bluetooth'];
+// 'ssi' (12.11.2026): czytnik Zebra przez SDK (SSI przez Bluetooth) - cały kod jednym zdarzeniem, sygnał błędu z czytnika
+export const INPUT_MODES = ['camera', 'bluetooth', 'ssi'];
 
 export const getInputMode = async () => {
   try {

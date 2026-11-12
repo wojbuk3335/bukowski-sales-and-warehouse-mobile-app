@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import ScanCamera from './ScanCamera'; // kamera jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
+import ScanCamera from './ScanCamera';
+import { scannerFeedback } from '../../services/zebraSsi'; // sygnał OK/błąd z czytnika Zebra (SSI, 12.11.2026) // kamera jak w całej aplikacji: ramka, zdjęcie, „Wpisz kod”
 import { tc, createThemedStyles, useAppTheme } from '../../context/ThemeContext';
 import { isValidEan13, jacketCodeForSize } from '../../utils/productName';
 import { KeyboardSafeOverlay } from '../KeyboardSafe'; // klawiatura nie zasłania pola w nakładce
@@ -172,6 +173,8 @@ const BarcodeScannerModal = ({
   // Wibracja: krótka przy dodanej sztuce, inna (ostrzegawcza) przy powtórce metki albo odrzuconym kodzie,
   // żeby dało się skanować bez patrzenia w ekran
   const scanFeedback = (kind = 'ok') => {
+    // czytnik Zebra (SSI): sygnał z samego czytnika - OK = krótki wysoki, błąd = długi niski (telefon w kieszeni)
+    scannerFeedback(kind).catch(() => {});
     try {
       const Haptics = require('expo-haptics');
       if (kind === 'warn' || kind === 'error') {

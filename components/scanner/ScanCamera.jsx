@@ -13,6 +13,7 @@ import { tc } from "../../context/ThemeContext";
 import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
 import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
+import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
 
 // Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
 const keepAwakeModule = () => {
@@ -126,6 +127,52 @@ const ScanCamera = ({
     setInputModeState(mode);
     setBtBuffer("");
     setInputMode(mode);
+  };
+
+  // Czytnik Zebra (SSI, 12.11.2026): SDK oddaje cały kod jednym zdarzeniem; czytnik łączy się sam po zeskanowaniu
+  // kodu parowania z ekranu. Tryb widoczny tylko w buildzie z modułem (Android).
+  const ssiAvailable = isSsiAvailable();
+  const [ssiState, setSsiState] = useState(() => getSsiState());
+  const [ssiStarting, setSsiStarting] = useState(false);
+  const [ssiPairing, setSsiPairing] = useState(null); // null | { png, needsAddress, address, error }
+  const [ssiLastCode, setSsiLastCode] = useState("");
+  useEffect(() => {
+    if (inputMode !== "ssi" || !ssiAvailable) return undefined;
+    let cancelled = false;
+    setSsiStarting(true);
+    startSsi().finally(() => { if (!cancelled) setSsiStarting(false); });
+    const unsubscribeState = onSsiStateChange((state) => { if (!cancelled) setSsiState(state); });
+    const barcodeSub = onSsiBarcode((event) => {
+      const raw = String(event?.data ?? "").trim();
+      if (!raw) return;
+      // typy kodów Zebry: 0x08 UPC-A, 0x0B EAN-13 (także z dodatkiem: 0x48, 0x4B) - zero na początku jak przy kamerze
+      const type = [0x08, 0x48].includes(event?.type) ? "upc_a" : [0x0b, 0x4b].includes(event?.type) ? "ean13" : "code128";
+      const code = normalizeScannedCode(raw, type);
+      setSsiLastCode(code);
+      if (!enabledRef.current && !bluetoothWhenPausedRef.current) return; // formularz otwarty - kod bez odbiorcy
+      onScannedRef.current?.({ data: code, type: "bluetooth", source: "ssi" });
+    });
+    setSsiState(getSsiState());
+    return () => {
+      cancelled = true;
+      unsubscribeState();
+      barcodeSub.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputMode, ssiAvailable]);
+  const openSsiPairing = async (address = "") => {
+    const saved = address || (await getSavedBtAddress());
+    const png = await pairingBarcodePng({ btAddress: saved, factoryDefaults: true });
+    setSsiPairing({ png, needsAddress: !png, address: saved, error: png ? "" : (saved ? "Nie udało się zbudować kodu parowania - sprawdź adres Bluetooth telefonu." : "") });
+  };
+  const submitSsiAddress = async () => {
+    const address = String(ssiPairing?.address || "").trim().toUpperCase();
+    if (!isValidBtAddress(address)) {
+      setSsiPairing((prev) => ({ ...(prev || {}), error: "Adres Bluetooth ma postać AA:BB:CC:DD:EE:FF (Ustawienia → Informacje o telefonie → Stan)." }));
+      return;
+    }
+    await saveBtAddress(address);
+    await openSsiPairing(address);
   };
   const toggleKeepAwake = (on) => {
     setKeepAwakeOn(on);
@@ -411,7 +458,103 @@ const ScanCamera = ({
     manualAction,
     ...extraActions,
     { label: "Czytnik", icon: "bluetooth", onPress: () => switchInputMode("bluetooth"), testID: "scan-mode-bluetooth" },
+    ...(ssiAvailable ? [{ label: "Czytnik Zebra", icon: "barcode-outline", onPress: () => switchInputMode("ssi"), testID: "scan-mode-ssi" }] : []),
   ] : [];
+
+  if (inputMode === "ssi" && ssiAvailable) {
+    // Czytnik Zebra (SSI): bez kamery i bez ukrytego pola - kody przychodzą z SDK zdarzeniem
+    const bt = btStyles();
+    const scanner = ssiState.scanner;
+    return (
+      <View style={[styles.container, style]}>
+        <View style={[bt.panel, enabled && !scanner && { backgroundColor: "#7F1D1D" }]} testID="ssi-panel">
+          <Ionicons name="barcode-outline" size={56} color={bt.icon} />
+          <Text style={bt.title}>Czytnik Zebra (SSI)</Text>
+          <Text style={[bt.status, { color: scanner ? "#10B981" : "#EF4444" }]} testID="ssi-status">
+            {scanner
+              ? `● Połączony: ${scanner.name || scanner.model || "czytnik"}`
+              : ssiStarting ? "● Uruchamiam…" : "● Czytnik niepołączony - sparuj kodem z ekranu"}
+          </Text>
+          <Text style={bt.hint}>
+            {enabled
+              ? (scanner ? `${hint || "Naciśnij spust czytnika na metce. Kod przyjęty = krótki pisk, odrzucony = długi niski."}` : "Włącz czytnik i zeskanuj nim kod parowania (przycisk poniżej).")
+              : "Czytnik wstrzymany - zamknij formularz, żeby skanować dalej."}
+          </Text>
+          {!!ssiLastCode && <Text style={bt.last} testID="ssi-last">Ostatni odczyt: {ssiLastCode}</Text>}
+          <View style={styles.btActionsRow}>
+            <TouchableOpacity style={bt.action} onPress={() => openSsiPairing()} testID="ssi-pair" accessibilityRole="button">
+              <Ionicons name="link-outline" size={18} color={bt.actionText.color} />
+              <Text style={bt.actionText}>{scanner ? "Paruj inny czytnik" : "Paruj czytnik"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={bt.action} onPress={() => switchInputMode("camera")} testID="scan-mode-camera" accessibilityRole="button">
+              <Ionicons name="camera-outline" size={18} color={bt.actionText.color} />
+              <Text style={bt.actionText}>Kamera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={bt.action} onPress={() => switchInputMode("bluetooth")} testID="scan-mode-bluetooth" accessibilityRole="button">
+              <Ionicons name="bluetooth" size={18} color={bt.actionText.color} />
+              <Text style={bt.actionText}>Klawiatura BT</Text>
+            </TouchableOpacity>
+            {enabled && [manualAction, ...extraActions].map((action) => (
+              <TouchableOpacity key={action.label} style={bt.action} onPress={action.onPress} disabled={action.disabled} testID={action.testID} accessibilityRole="button">
+                {!!action.icon && <Ionicons name={action.icon} size={18} color={bt.actionText.color} />}
+                <Text style={bt.actionText}>{action.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.btKeepAwakeRow}>
+            <Text style={bt.keepAwakeText}>Nie gaś ekranu w trybie czytnika</Text>
+            <Switch value={keepAwakeOn} onValueChange={toggleKeepAwake} trackColor={{ true: bt.icon }} testID="scanner-keep-awake" />
+          </View>
+          {children}
+        </View>
+
+        {/* Kod parowania Scan-To-Connect: czytnik skanuje go z ekranu i łączy się z telefonem */}
+        <Modal visible={Boolean(ssiPairing)} transparent animationType="fade" onRequestClose={() => setSsiPairing(null)}>
+          <KeyboardSafeScreen>
+            <View style={look.modalOverlay}>
+              <View style={look.modalContent}>
+                <ModalHeader icon="link" color="#0D6EFD" title="Parowanie czytnika Zebra" subtitle="Zeskanuj czytnikiem kod z ekranu" />
+                {ssiPairing?.png ? (
+                  <View style={{ alignItems: "center", gap: 8 }}>
+                    <Image source={{ uri: `data:image/png;base64,${ssiPairing.png}` }} style={{ width: 300, height: 90, backgroundColor: "#fff" }} resizeMode="contain" testID="ssi-pairing-image" />
+                    <Text style={bt.hint}>Czytnik piszczy i po chwili łączy się sam. Przy pierwszym parowaniu Android może zapytać o zgodę na połączenie - potwierdź.</Text>
+                  </View>
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    <Text style={bt.hint}>
+                      Telefon nie zdradza aplikacji swojego adresu Bluetooth. Wpisz go raz (Ustawienia → Informacje o telefonie → Stan → Adres Bluetooth).
+                    </Text>
+                    <TextInput
+                      testID="ssi-bt-address"
+                      style={look.formInput}
+                      value={ssiPairing?.address || ""}
+                      onChangeText={(text) => setSsiPairing((prev) => ({ ...(prev || {}), address: text, error: "" }))}
+                      placeholder="AA:BB:CC:DD:EE:FF"
+                      placeholderTextColor={tc('muted', '#9ca3af')}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      onSubmitEditing={submitSsiAddress}
+                    />
+                  </View>
+                )}
+                {!!ssiPairing?.error && <Text style={{ color: "#F87171", textAlign: "center", marginTop: 6 }}>{ssiPairing.error}</Text>}
+                <View style={look.buttonRow}>
+                  <TouchableOpacity style={look.neutralButton} onPress={() => setSsiPairing(null)} accessibilityRole="button">
+                    <Text style={look.neutralButtonText}>Zamknij</Text>
+                  </TouchableOpacity>
+                  {!ssiPairing?.png && (
+                    <TouchableOpacity style={look.primaryButton} onPress={submitSsiAddress} testID="ssi-bt-address-save" accessibilityRole="button">
+                      <Text style={look.buttonText}>Pokaż kod</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
+          </KeyboardSafeScreen>
+        </Modal>
+      </View>
+    );
+  }
 
   if (inputMode === "bluetooth") {
     // Czytnik Bluetooth: kamera wyłączona, ukryte pole odbiera kody; dotknięcie panelu przywraca fokus
@@ -473,6 +616,12 @@ const ScanCamera = ({
               <Ionicons name="camera-outline" size={18} color={bt.actionText.color} />
               <Text style={bt.actionText}>Kamera</Text>
             </TouchableOpacity>
+            {ssiAvailable && (
+              <TouchableOpacity style={bt.action} onPress={() => switchInputMode("ssi")} testID="scan-mode-ssi" accessibilityRole="button">
+                <Ionicons name="barcode-outline" size={18} color={bt.actionText.color} />
+                <Text style={bt.actionText}>Czytnik Zebra</Text>
+              </TouchableOpacity>
+            )}
             {enabled && [manualAction, ...extraActions].map((action) => (
               <TouchableOpacity key={action.label} style={bt.action} onPress={action.onPress} disabled={action.disabled} testID={action.testID} accessibilityRole="button">
                 {!!action.icon && <Ionicons name={action.icon} size={18} color={bt.actionText.color} />}
