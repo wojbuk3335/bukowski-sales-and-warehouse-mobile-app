@@ -46,3 +46,6 @@ app-example
 # log automatycznych aktualizacji OTA
 .eas-update.log
 
+
+# moduł natywny czytnika Zebra (12.11.2026): jego android/ NIE jest katalogiem prebuildu - ma iść do repo i na EAS
+!modules/zebra-ssi-scanner/android/

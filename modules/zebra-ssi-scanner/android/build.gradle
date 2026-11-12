@@ -1,0 +1,28 @@
+// Moduł natywny „Czytnik Zebra (SSI)” (12.11.2026): czytnik DS2278 rozmawia z aplikacją protokołem SSI przez Bluetooth
+// (Zebra Barcode Scanner SDK for Android, biblioteka z publicznego repozytorium ZebraDevs/Scanner-SDK-for-Android, MIT).
+// Zamiast „klawiatury” czytnik oddaje cały kod jednym zdarzeniem, a aplikacja steruje jego sygnałem (beep OK / błąd).
+// Tylko Android. Zmiana natywna - działa dopiero w nowym buildzie (EAS build), nie przez OTA.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.zebrassiscanner'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.zebrassiscanner"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation files("libs/barcode_scanner_library_v2.6.29.0-release.aar")
+  implementation "androidx.lifecycle:lifecycle-common:2.6.2"
+  implementation "androidx.lifecycle:lifecycle-process:2.6.2"
+}
