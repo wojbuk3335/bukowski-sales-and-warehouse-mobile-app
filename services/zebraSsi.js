@@ -29,19 +29,36 @@ let started = false;
 let connectedScanner = null; // { id, name, model } albo null
 let lastError = ''; // dlaczego SDK nie działa (brak zgody na Bluetooth, błąd modułu) - widoczne na ekranie (12.11.2026)
 let availableScanners = []; // czytniki, które SDK widzi (po parowaniu), ale sesja jeszcze nie powstała - [{ id, name, model }]
+let sdkLog = []; // ostatnie komunikaty z modułu (wyniki wywołań SDK) - widoczne na ekranie czytnika
+let currentProtocol = 'classic'; // tryb zapisany (wybór użytkownika)
+let runningProtocol = ''; // tryb, w którym SDK faktycznie działa ('' = nie działa)
+export const PROTOCOL_KEY = 'zebra-ssi-protocol';
 const stateListeners = new Set();
 const notifyState = () => stateListeners.forEach((listener) => { try { listener(getState()); } catch (error) { /* słuchacz */ } });
-export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners });
+export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners, log: sdkLog, protocol: currentProtocol });
 const scannerInfo = (scanner) => ({ id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '', connectionType: scanner?.connectionType || '' });
 export const onStateChange = (listener) => { stateListeners.add(listener); return () => stateListeners.delete(listener); };
 
 let subscriptions = [];
 const unsubscribeAll = () => { subscriptions.forEach((sub) => sub.remove()); subscriptions = []; };
 
+export const getSavedProtocol = async () => {
+  try { const value = await AsyncStorage.getItem(PROTOCOL_KEY); return value === 'ble' ? 'ble' : 'classic'; } catch (error) { return 'classic'; }
+};
+export const saveProtocol = async (protocol) => {
+  currentProtocol = protocol === 'ble' ? 'ble' : 'classic';
+  try { await AsyncStorage.setItem(PROTOCOL_KEY, currentProtocol); } catch (error) { /* bez pamięci */ }
+  return currentProtocol;
+};
+
 // Uruchomienie: uprawnienia → SDK → nasłuch połączeń. Zwraca true, gdy SDK działa (czytnik może się jeszcze nie łączyć).
-export const startSsi = async () => {
+// protocol: 'classic' | 'ble' - tryb SDK zgodny z kodem parowania (zmiana trybu uruchamia SDK od nowa)
+export const startSsi = async (protocol) => {
   if (!isSsiAvailable()) { lastError = 'Brak modułu czytnika w tej wersji aplikacji.'; return false; }
-  if (started) return true;
+  const wanted = protocol || (await getSavedProtocol());
+  if (started && wanted === runningProtocol) return true;
+  if (started) { await stopSsi(); } // zmiana trybu LE <-> Classic = SDK od nowa
+  currentProtocol = wanted;
   const granted = await ensureBluetoothPermissions();
   if (!granted) {
     lastError = 'Brak zgody na Bluetooth („Urządzenia w pobliżu”). Włącz ją w Ustawienia → Aplikacje → Bukowski → Uprawnienia.';
@@ -77,9 +94,15 @@ export const startSsi = async () => {
     availableScanners = availableScanners.filter((item) => item.id !== (event?.id ?? -1));
     notifyState();
   }));
+  subscriptions.push(zebra.addListener('onLog', (event) => {
+    const stamp = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    sdkLog = [...sdkLog, `${stamp} ${event?.message || ''}`].slice(-12);
+    notifyState();
+  }));
   try {
-    const status = await zebra.start();
+    const status = await zebra.start(currentProtocol);
     started = true;
+    runningProtocol = currentProtocol;
     lastError = '';
     const active = Array.isArray(status?.active) ? status.active[0] : null;
     if (active) connectedScanner = scannerInfo(active);
@@ -130,8 +153,10 @@ export const stopSsi = async () => {
   if (!started) return;
   unsubscribeAll();
   started = false;
+  runningProtocol = '';
   connectedScanner = null;
   availableScanners = [];
+  sdkLog = [];
   try { await zebra.stop(); } catch (error) { /* SDK już zamknięte */ }
   notifyState();
 };
@@ -164,10 +189,12 @@ export const isValidBtAddress = (address) => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.t
 // protocol: 'ble' (SSI przez Bluetooth LE - telefon sam łączy się z czytnikiem, bez potwierdzania parowania; domyślny
 // w aplikacji Zebry) albo 'classic' (SSI przez Bluetooth Classic - czytnik łączy się z telefonem, Android pyta o parowanie).
 // Bez działającego SDK próbujemy je uruchomić (np. zgoda na Bluetooth dana dopiero teraz); błąd modułu trafia do stanu.
-export const pairingBarcodePng = async ({ btAddress = '', factoryDefaults = true, protocol = 'ble' } = {}) => {
-  if (!started && !(await startSsi())) return null;
+export const pairingBarcodePng = async ({ btAddress = '', factoryDefaults = true, protocol = 'classic' } = {}) => {
+  const wanted = protocol === 'ble' ? 'ble' : 'classic';
+  await saveProtocol(wanted);
+  if (!(await startSsi(wanted))) return null; // SDK w trybie zgodnym z kodem parowania
   try {
-    const png = await zebra.getPairingBarcodePng({ protocol: protocol === 'classic' ? 'classic' : 'ble', factoryDefaults, btAddress, width: 1000, height: 300 });
+    const png = await zebra.getPairingBarcodePng({ protocol: wanted, factoryDefaults, btAddress, width: 1000, height: 300 });
     if (!png && btAddress) lastError = 'Moduł Zebry nie zbudował kodu parowania mimo adresu - sprawdź, czy Bluetooth w telefonie jest włączony.';
     if (png) lastError = '';
     notifyState();

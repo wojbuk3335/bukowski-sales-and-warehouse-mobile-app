@@ -32,7 +32,8 @@ export const BEEP = {
 
 export const isAvailable = () => Boolean(native);
 
-export const start = async () => (native ? native.start() : null);
+// protocol: 'classic' | 'ble' | 'both' - tryb Bluetooth SDK, zgodny z kodem parowania
+export const start = async (protocol = 'classic') => (native ? native.start(protocol) : null);
 export const stop = async () => { if (native) await native.stop(); };
 export const getStatus = async () => (native ? native.getStatus() : { started: false, activeScannerId: -1, available: [], active: [] });
 export const getPairingBarcodePng = async ({ protocol = 'classic', factoryDefaults = true, btAddress = '', width = 1000, height = 300 } = {}) =>
@@ -43,7 +44,7 @@ export const beep = async (pattern) => (native ? native.beep(pattern) : false);
 export const setScanEnabled = async (enabled) => (native ? native.setScanEnabled(enabled) : false);
 
 // addListener(event, handler) → { remove() }; zdarzenia: onBarcode, onScannerAppeared, onScannerDisappeared,
-// onSessionEstablished, onSessionTerminated
+// onSessionEstablished, onSessionTerminated, onLog { message } (komunikaty SDK na ekran)
 export const addListener = (event, handler) => {
   if (!native || typeof native.addListener !== 'function') return { remove: () => {} };
   const subscription = native.addListener(event, handler);

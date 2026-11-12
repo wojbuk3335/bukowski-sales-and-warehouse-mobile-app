@@ -135,7 +135,7 @@ const ScanCamera = ({
   const [ssiState, setSsiState] = useState(() => getSsiState());
   const [ssiStarting, setSsiStarting] = useState(false);
   const [ssiPairing, setSsiPairing] = useState(null); // null | { png, needsAddress, address, error, protocol }
-  const [ssiProtocol, setSsiProtocol] = useState("ble"); // 'ble' (domyślnie, jak w aplikacji Zebry) albo 'classic'
+  const [ssiProtocol, setSsiProtocol] = useState("classic"); // 'classic' (DS2278, SSI cradle host) albo 'ble'; zapamiętany w telefonie
   const [ssiLastCode, setSsiLastCode] = useState("");
   useEffect(() => {
     if (inputMode !== "ssi" || !ssiAvailable) return undefined;
@@ -508,6 +508,14 @@ const ScanCamera = ({
           {!scanner && ssiState.started && (ssiState.availableScanners || []).length === 0 && !ssiState.error && (
             <Text style={bt.hint} testID="ssi-nothing-seen">SDK nie widzi jeszcze żadnego czytnika. Po zeskanowaniu kodu parowania potwierdź na telefonie prośbę o sparowanie Bluetooth (pasek powiadomień), potem „Odśwież”.</Text>
           )}
+          {(ssiState.log || []).length > 0 && (
+            // komunikaty SDK (wyniki wywołań) - do diagnozy połączenia bez logcata
+            <View style={{ alignSelf: "stretch", paddingHorizontal: 8 }} testID="ssi-log">
+              {(ssiState.log || []).slice(-6).map((line, index) => (
+                <Text key={`${index}-${line}`} style={[bt.hint, { fontSize: 11, textAlign: "left" }]} numberOfLines={2}>{line}</Text>
+              ))}
+            </View>
+          )}
           <View style={styles.btActionsRow}>
             <TouchableOpacity style={bt.action} onPress={() => openSsiPairing()} testID="ssi-pair" accessibilityRole="button">
               <Ionicons name="link-outline" size={18} color={bt.actionText.color} />
@@ -546,7 +554,7 @@ const ScanCamera = ({
               <View style={look.modalContent}>
                 <ModalHeader icon="link" color="#0D6EFD" title="Parowanie czytnika Zebra" subtitle="Zeskanuj czytnikiem kod z ekranu" />
                 <View style={[styles.btActionsRow, { marginTop: 0, marginBottom: 8 }]}>
-                  {[{ key: "ble", label: "Bluetooth LE (zalecane)" }, { key: "classic", label: "Bluetooth Classic" }].map((option) => (
+                  {[{ key: "classic", label: "Bluetooth Classic" }, { key: "ble", label: "Bluetooth LE" }].map((option) => (
                     <TouchableOpacity
                       key={option.key}
                       style={[bt.action, (ssiPairing?.protocol || ssiProtocol) === option.key && { backgroundColor: bt.icon, borderColor: bt.icon }]}

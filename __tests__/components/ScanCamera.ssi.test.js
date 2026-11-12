@@ -83,7 +83,7 @@ test('parowanie: SDK nie zna adresu Bluetooth telefonu → wpisanie adresu → k
   const screen = await openSsi();
   fireEvent.press(screen.getByTestId('ssi-pair'));
   const input = await screen.findByTestId('ssi-bt-address');
-  expect(pairingBarcodePng).toHaveBeenCalledWith({ btAddress: '', factoryDefaults: true, protocol: 'ble' });
+  expect(pairingBarcodePng).toHaveBeenCalledWith({ btAddress: '', factoryDefaults: true, protocol: 'classic' });
 
   fireEvent.changeText(input, 'zly adres');
   fireEvent.press(screen.getByTestId('ssi-bt-address-save'));
@@ -94,11 +94,11 @@ test('parowanie: SDK nie zna adresu Bluetooth telefonu → wpisanie adresu → k
   fireEvent.press(screen.getByTestId('ssi-bt-address-save'));
   await waitFor(() => expect(screen.getByTestId('ssi-pairing-image')).toBeTruthy());
   expect(saveBtAddress).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF');
-  expect(pairingBarcodePng).toHaveBeenLastCalledWith({ btAddress: 'AA:BB:CC:DD:EE:FF', factoryDefaults: true, protocol: 'ble' });
+  expect(pairingBarcodePng).toHaveBeenLastCalledWith({ btAddress: 'AA:BB:CC:DD:EE:FF', factoryDefaults: true, protocol: 'classic' });
 
-  // przełączenie na Bluetooth Classic buduje kod od nowa tym protokołem
-  fireEvent.press(screen.getByTestId('ssi-protocol-classic'));
-  await waitFor(() => expect(pairingBarcodePng).toHaveBeenLastCalledWith({ btAddress: 'AA:BB:CC:DD:EE:FF', factoryDefaults: true, protocol: 'classic' }));
+  // przełączenie na Bluetooth LE buduje kod od nowa tym protokołem
+  fireEvent.press(screen.getByTestId('ssi-protocol-ble'));
+  await waitFor(() => expect(pairingBarcodePng).toHaveBeenLastCalledWith({ btAddress: 'AA:BB:CC:DD:EE:FF', factoryDefaults: true, protocol: 'ble' }));
 });
 
 test('czytnik widoczny dla SDK, ale bez sesji: przycisk „Połącz” wywołuje connectScanner', async () => {

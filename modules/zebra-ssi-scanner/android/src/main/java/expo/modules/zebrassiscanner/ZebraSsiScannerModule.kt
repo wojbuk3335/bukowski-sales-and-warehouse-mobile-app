@@ -52,7 +52,8 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
       "onScannerAppeared",
       "onScannerDisappeared",
       "onSessionEstablished",
-      "onSessionTerminated"
+      "onSessionTerminated",
+      "onLog"
     )
 
     // Moduł jest w tym buildzie (JS sprawdza to przed pokazaniem trybu „Czytnik Zebra (SSI)”)
@@ -61,8 +62,11 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
     // Uruchomienie SDK: nasłuch czytników (Bluetooth Classic SSI + BLE), automatyczne łączenie z tym, który się pojawi
     // SDKHandler rejestruje obserwator cyklu życia (addObserver) - wolno to robić tylko z wątku głównego
     // (build 19: „Method addObserver must be called on the main thread”), stąd runOnQueue(Queues.MAIN)
-    AsyncFunction("start") {
-      startSdk()
+    // protocol: "classic" = tylko Bluetooth Classic (SSI cradle host), "ble" = tylko Bluetooth LE, "both" = oba.
+    // Build 20: oba tryby naraz + ponowne nawiązywanie sesji z już połączonym czytnikiem = połączenie zrywane zaraz
+    // po nawiązaniu; teraz jeden tryb, zgodny z kodem parowania, i sesja tylko gdy czytnik nie jest aktywny.
+    AsyncFunction("start") { protocol: String ->
+      startSdk(protocol)
       status()
     }.runOnQueue(Queues.MAIN)
 
@@ -81,7 +85,13 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
 
     AsyncFunction("connect") { scannerId: Int ->
       val sdk = handler ?: return@AsyncFunction false
-      sdk.dcssdkEstablishCommunicationSession(scannerId) == DCSSDKDefs.DCSSDK_RESULT.DCSSDK_RESULT_SUCCESS
+      if (activeScannerId == scannerId) {
+        log("connect: czytnik $scannerId już ma sesję")
+        return@AsyncFunction true
+      }
+      val result = sdk.dcssdkEstablishCommunicationSession(scannerId)
+      log("connect($scannerId) -> ${result.name}")
+      result == DCSSDKDefs.DCSSDK_RESULT.DCSSDK_RESULT_SUCCESS
     }
 
     AsyncFunction("disconnect") { scannerId: Int ->
@@ -111,13 +121,35 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
 
   // ---------- SDK ----------
 
-  private fun startSdk() {
-    if (handler != null) return
+  // Komunikaty z modułu na ekran (wyniki wywołań SDK) - bez logcata nie da się inaczej zobaczyć, co SDK odpowiada
+  private fun log(message: String) {
+    try { sendEvent("onLog", mapOf("message" to message)) } catch (error: Throwable) { /* brak JS */ }
+  }
+
+  private var currentProtocol: String = "classic"
+
+  private fun startSdk(protocol: String) {
+    if (handler != null) {
+      if (protocol != currentProtocol) {
+        // zmiana trybu (LE <-> Classic) = SDK od nowa
+        stopSdk()
+      } else {
+        return
+      }
+    }
+    currentProtocol = protocol
     val sdk = SDKHandler(appContext.currentActivity ?: context)
     sdk.dcssdkSetDelegate(this)
-    // oba tryby Bluetooth: Classic (SSI_BT_CRADLE_HOST) i LE - czytnik łączy się tym, który zakodowano w kodzie parowania
-    sdk.dcssdkSetOperationalMode(DCSSDKDefs.DCSSDK_MODE.DCSSDK_OPMODE_BT_NORMAL)
-    sdk.dcssdkSetOperationalMode(DCSSDKDefs.DCSSDK_MODE.DCSSDK_OPMODE_BT_LE)
+    if (protocol == "ble") {
+      sdk.dcssdkSetOperationalMode(DCSSDKDefs.DCSSDK_MODE.DCSSDK_OPMODE_BT_LE)
+      sdk.dcssdkSetCommunicationProtocol(DCSSDKDefs.DCSSDK_BT_PROTOCOL.SSI_BT_LE)
+    } else if (protocol == "both") {
+      sdk.dcssdkSetOperationalMode(DCSSDKDefs.DCSSDK_MODE.DCSSDK_OPMODE_BT_NORMAL)
+      sdk.dcssdkSetOperationalMode(DCSSDKDefs.DCSSDK_MODE.DCSSDK_OPMODE_BT_LE)
+    } else {
+      sdk.dcssdkSetOperationalMode(DCSSDKDefs.DCSSDK_MODE.DCSSDK_OPMODE_BT_NORMAL)
+      sdk.dcssdkSetCommunicationProtocol(DCSSDKDefs.DCSSDK_BT_PROTOCOL.SSI_BT_CRADLE_HOST)
+    }
     val mask = DCSSDKDefs.DCSSDK_EVENT.DCSSDK_EVENT_SCANNER_APPEARANCE.value or
       DCSSDKDefs.DCSSDK_EVENT.DCSSDK_EVENT_SCANNER_DISAPPEARANCE.value or
       DCSSDKDefs.DCSSDK_EVENT.DCSSDK_EVENT_SESSION_ESTABLISHMENT.value or
@@ -125,12 +157,14 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
       DCSSDKDefs.DCSSDK_EVENT.DCSSDK_EVENT_BARCODE.value
     sdk.dcssdkSubsribeForEvents(mask)
     sdk.dcssdkSetSTCEnabledState(true)
-    sdk.dcssdkEnableAvailableScannersDetection(true)
+    val detection = sdk.dcssdkEnableAvailableScannersDetection(true)
     handler = sdk
-    // czytnik sparowany wcześniej (już „widoczny” dla SDK) - łączymy od razu
+    log("SDK ${sdk.dcssdkGetVersion()} start, tryb=$protocol, wykrywanie=${detection.name}")
+    // czytnik sparowany wcześniej (już „widoczny” dla SDK) - łączymy, jeśli nie ma jeszcze sesji
     val known = ArrayList<DCSScannerInfo>()
     sdk.dcssdkGetAvailableScannersList(known)
-    known.firstOrNull()?.let { tryConnect(it.scannerID) }
+    known.forEach { log("widoczny: id=${it.scannerID} ${it.scannerName} ${it.connectionType?.name} active=${it.isActive}") }
+    known.firstOrNull { !it.isActive }?.let { tryConnect(it.scannerID) }
   }
 
   private fun stopSdk() {
@@ -148,11 +182,13 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
 
   private fun tryConnect(scannerId: Int) {
     val sdk = handler ?: return
+    if (activeScannerId == scannerId) return // sesja już jest - ponowne nawiązywanie ją zrywało (build 20)
     Thread {
       try {
-        sdk.dcssdkEstablishCommunicationSession(scannerId)
+        val result = sdk.dcssdkEstablishCommunicationSession(scannerId)
+        log("auto-connect($scannerId) -> ${result.name}")
       } catch (error: Throwable) {
-        // sesja nie powstała - czytnik zgłosi się ponownie
+        log("auto-connect($scannerId) wyjątek: ${error.message}")
       }
     }.start()
   }
@@ -228,8 +264,10 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
   // ---------- IDcsSdkApiDelegate (wywołania z wątków SDK) ----------
 
   override fun dcssdkEventScannerAppeared(availableScanner: DCSScannerInfo?) {
+    log("pojawił się: id=${availableScanner?.scannerID} ${availableScanner?.scannerName} ${availableScanner?.connectionType?.name} active=${availableScanner?.isActive}")
     sendEvent("onScannerAppeared", scannerMap(availableScanner))
-    availableScanner?.let { tryConnect(it.scannerID) }
+    // czytnik już aktywny (sesja zestawiona przez SDK) - nie nawiązujemy drugiej
+    availableScanner?.takeIf { !it.isActive }?.let { tryConnect(it.scannerID) }
   }
 
   override fun dcssdkEventScannerDisappeared(scannerID: Int) {
@@ -239,12 +277,22 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
   override fun dcssdkEventCommunicationSessionEstablished(activeScanner: DCSScannerInfo?) {
     activeScannerId = activeScanner?.scannerID ?: -1
     lastScannerName = activeScanner?.scannerName ?: ""
-    // po przerwie (poza zasięgiem, uśpienie) SDK sam odnawia sesję z tym czytnikiem
-    try { handler?.dcssdkEnableAutomaticSessionReestablishment(true, activeScannerId) } catch (error: Throwable) { /* bez auto-reconnect */ }
+    log("sesja zestawiona: id=$activeScannerId $lastScannerName ${activeScanner?.connectionType?.name}")
     sendEvent("onSessionEstablished", scannerMap(activeScanner))
+    // po przerwie (poza zasięgiem, uśpienie) SDK sam odnawia sesję - ustawiane poza wątkiem zdarzenia SDK
+    val id = activeScannerId
+    Thread {
+      try {
+        val result = handler?.dcssdkEnableAutomaticSessionReestablishment(true, id)
+        log("auto-reconnect($id) -> ${result?.name}")
+      } catch (error: Throwable) {
+        log("auto-reconnect($id) wyjątek: ${error.message}")
+      }
+    }.start()
   }
 
   override fun dcssdkEventCommunicationSessionTerminated(scannerID: Int) {
+    log("sesja zakończona: id=$scannerID")
     if (activeScannerId == scannerID) activeScannerId = -1
     sendEvent("onSessionTerminated", mapOf("id" to scannerID))
   }

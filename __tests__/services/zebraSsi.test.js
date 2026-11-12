@@ -44,7 +44,9 @@ test('start: pyta o uprawnienia Bluetooth (Android 12+), uruchamia SDK, stan po�
   expect(await zebraSsi.startSsi()).toBe(true);
   expect(PermissionsAndroid.requestMultiple).toHaveBeenCalledWith([PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT, PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN]);
   expect(mockNative.start).toHaveBeenCalledTimes(1);
-  expect(zebraSsi.getState()).toEqual({ available: true, started: true, scanner: null, error: '', availableScanners: [] });
+  expect(zebraSsi.getState()).toMatchObject({ available: true, started: true, scanner: null, error: '', availableScanners: [], protocol: 'classic' });
+  listeners.onLog({ message: 'SDK start' });
+  expect(zebraSsi.getState().log[0]).toMatch(/SDK start$/);
   listeners.onScannerAppeared({ id: 7, name: 'DS2278', model: 'DS2278-SR' }); // sparowany, bez sesji
   expect(zebraSsi.getState().availableScanners).toEqual([{ id: 7, name: 'DS2278', model: 'DS2278-SR', connectionType: '' }]);
   expect(await zebraSsi.connectScanner(7)).toBe(true);
@@ -91,9 +93,14 @@ test('kod parowania: zapamiętany adres Bluetooth telefonu, walidacja postaci', 
   expect(await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF' })).toBe('UElORw==');
   expect(mockNative.start).toHaveBeenCalledTimes(1);
   expect(zebraSsi.getState().started).toBe(true);
-  expect(mockNative.getPairingBarcodePng).toHaveBeenCalledWith({ protocol: 'ble', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 }); // domyślnie LE
-  await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF', protocol: 'classic' });
-  expect(mockNative.getPairingBarcodePng).toHaveBeenLastCalledWith({ protocol: 'classic', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 });
+  expect(mockNative.getPairingBarcodePng).toHaveBeenCalledWith({ protocol: 'classic', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 }); // domyślnie Classic
+  expect(mockNative.start).toHaveBeenLastCalledWith('classic');
+  await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF', protocol: 'ble' });
+  // zmiana trybu = SDK od nowa w trybie LE, kod parowania LE
+  expect(mockNative.stop).toHaveBeenCalled();
+  expect(mockNative.start).toHaveBeenLastCalledWith('ble');
+  expect(mockNative.getPairingBarcodePng).toHaveBeenLastCalledWith({ protocol: 'ble', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 });
+  expect(zebraSsi.getState().protocol).toBe('ble');
 });
 
 test('stop: odpina słuchaczy i zamyka SDK; starszy Android nie pyta o uprawnienia', async () => {
