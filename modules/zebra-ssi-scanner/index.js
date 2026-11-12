@@ -33,7 +33,16 @@ export const BEEP = {
 export const isAvailable = () => Boolean(native);
 
 // protocol: 'classic' | 'ble' | 'both' - tryb Bluetooth SDK, zgodny z kodem parowania
-export const start = async (protocol = 'classic') => (native ? native.start(protocol) : null);
+export const start = async (protocol = 'classic') => {
+  if (!native) return null;
+  try {
+    return await native.start(protocol);
+  } catch (error) {
+    // moduł z buildu 20 (start bez argumentu) + nowszy JS z OTA: „Received 1 arguments but 0 was expected”
+    if (/arguments/i.test(String(error?.message || ''))) return native.start();
+    throw error;
+  }
+};
 export const stop = async () => { if (native) await native.stop(); };
 export const getStatus = async () => (native ? native.getStatus() : { started: false, activeScannerId: -1, available: [], active: [] });
 export const getPairingBarcodePng = async ({ protocol = 'classic', factoryDefaults = true, btAddress = '', width = 1000, height = 300 } = {}) =>
