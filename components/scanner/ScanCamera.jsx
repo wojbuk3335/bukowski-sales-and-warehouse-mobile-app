@@ -13,7 +13,7 @@ import { tc } from "../../context/ThemeContext";
 import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
 import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
-import { loadScreenCapture } from "../../services/screenCapture"; // zrzuty ekranu dozwolone w panelu czytnika (diagnostyka)
+import { loadScreenCapture, SCREEN_CAPTURE_PROTECTION_PAUSED } from "../../services/screenCapture"; // zrzuty ekranu dozwolone w panelu czytnika (diagnostyka)
 import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
 
 // Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
@@ -168,7 +168,8 @@ const ScanCamera = ({
     if (inputMode !== "ssi" || !ssiAvailable) return undefined;
     const capture = loadScreenCapture();
     capture?.allowScreenCaptureAsync?.().catch?.(() => {});
-    return () => { capture?.preventScreenCaptureAsync?.().catch?.(() => {}); };
+    // przy globalnej pauzie blokady (diagnostyka) wyjście z panelu NIE włącza jej z powrotem
+    return () => { if (!SCREEN_CAPTURE_PROTECTION_PAUSED) capture?.preventScreenCaptureAsync?.().catch?.(() => {}); };
   }, [inputMode, ssiAvailable]);
   const openSsiPairing = async (address = "", protocol = ssiProtocol) => {
     const saved = address || (await getSavedBtAddress());
