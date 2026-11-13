@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, Image, Modal, Platform, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { AppState, Dimensions, Image, Modal, Platform, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
@@ -568,7 +568,16 @@ const ScanCamera = ({
                 </View>
                 {ssiPairing?.png ? (
                   <View style={{ alignItems: "center", gap: 8 }}>
-                    <Image source={{ uri: `data:image/png;base64,${ssiPairing.png}` }} style={{ width: 300, height: 90, backgroundColor: "#fff" }} resizeMode="contain" testID="ssi-pairing-image" />
+                    {/* kod na całą szerokość ekranu, z białym marginesem (strefa ciszy) - inaczej czytnik go nie łapie */}
+                    <View style={{ backgroundColor: "#fff", padding: 12, borderRadius: 6 }}>
+                      <Image
+                        source={{ uri: `data:image/png;base64,${ssiPairing.png}` }}
+                        style={{ width: Math.max(280, Dimensions.get("window").width - 88), height: Math.max(90, (Dimensions.get("window").width - 88) * 0.3), backgroundColor: "#fff" }}
+                        resizeMode="stretch"
+                        testID="ssi-pairing-image"
+                      />
+                    </View>
+                    <Text style={[bt.hint, { fontWeight: "700" }]}>Jasność ekranu na maksimum, czytnik 15–25 cm od ekranu, telefon poziomo jeśli kod dalej nie wchodzi.</Text>
                     <Text style={bt.hint}>
                       {(ssiPairing?.protocol || ssiProtocol) === "classic"
                         ? "Czytnik piszczy i sam łączy się z telefonem. Android zapyta o parowanie Bluetooth (okienko albo pasek powiadomień) - potwierdź. Potem w panelu „Odśwież” / „Połącz”."

@@ -194,7 +194,9 @@ export const pairingBarcodePng = async ({ btAddress = '', factoryDefaults = true
   await saveProtocol(wanted);
   if (!(await startSsi(wanted))) return null; // SDK w trybie zgodnym z kodem parowania
   try {
-    const png = await zebra.getPairingBarcodePng({ protocol: wanted, factoryDefaults, btAddress, width: 1000, height: 300 });
+    // kod STC jest długi (adres telefonu + ustawienia) - rysujemy go w wysokiej rozdzielczości, żeby czytnik
+    // odróżnił kreski z ekranu (13.11.2026: przy 1000 px kod był nieczytelny)
+    const png = await zebra.getPairingBarcodePng({ protocol: wanted, factoryDefaults, btAddress, width: 2400, height: 700 });
     if (!png && btAddress) lastError = 'Moduł Zebry nie zbudował kodu parowania mimo adresu - sprawdź, czy Bluetooth w telefonie jest włączony.';
     if (png) lastError = '';
     notifyState();

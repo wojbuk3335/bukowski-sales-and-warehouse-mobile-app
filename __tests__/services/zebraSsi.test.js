@@ -93,13 +93,13 @@ test('kod parowania: zapamiętany adres Bluetooth telefonu, walidacja postaci', 
   expect(await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF' })).toBe('UElORw==');
   expect(mockNative.start).toHaveBeenCalledTimes(1);
   expect(zebraSsi.getState().started).toBe(true);
-  expect(mockNative.getPairingBarcodePng).toHaveBeenCalledWith({ protocol: 'classic', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 }); // domyślnie Classic
+  expect(mockNative.getPairingBarcodePng).toHaveBeenCalledWith({ protocol: 'classic', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 2400, height: 700 }); // domyślnie Classic, duża rozdzielczość
   expect(mockNative.start).toHaveBeenLastCalledWith('classic');
   await zebraSsi.pairingBarcodePng({ btAddress: 'AA:BB:CC:DD:EE:FF', protocol: 'ble' });
   // zmiana trybu = SDK od nowa w trybie LE, kod parowania LE
   expect(mockNative.stop).toHaveBeenCalled();
   expect(mockNative.start).toHaveBeenLastCalledWith('ble');
-  expect(mockNative.getPairingBarcodePng).toHaveBeenLastCalledWith({ protocol: 'ble', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 1000, height: 300 });
+  expect(mockNative.getPairingBarcodePng).toHaveBeenLastCalledWith({ protocol: 'ble', factoryDefaults: true, btAddress: 'AA:BB:CC:DD:EE:FF', width: 2400, height: 700 });
   expect(zebraSsi.getState().protocol).toBe('ble');
 });
 
