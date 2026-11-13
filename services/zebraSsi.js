@@ -37,6 +37,9 @@ const stateListeners = new Set();
 const notifyState = () => stateListeners.forEach((listener) => { try { listener(getState()); } catch (error) { /* słuchacz */ } });
 export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners, log: sdkLog, protocol: currentProtocol });
 const scannerInfo = (scanner) => ({ id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '', connectionType: scanner?.connectionType || '' });
+// SDK bez filtru pokazuje WSZYSTKIE sparowane urządzenia Bluetooth (zegarek, czujnik tętna…) - na liście zostają
+// tylko czytniki Zebry (DS/CS/RS/LI + numer albo „Zebra”); 13.11.2026 automat próbował łączyć się z zegarkiem
+export const isZebraScanner = (scanner) => /\b(DS|CS|RS|LI|RFD)\s?\d{3,4}\b|zebra/i.test(`${scanner?.name || ''} ${scanner?.model || ''}`);
 export const onStateChange = (listener) => { stateListeners.add(listener); return () => stateListeners.delete(listener); };
 
 let subscriptions = [];
@@ -87,8 +90,11 @@ export const startSsi = async (protocol) => {
   // czytnik widoczny dla SDK (sparowany), zanim powstanie sesja - na ekranie z przyciskiem „Połącz”
   subscriptions.push(zebra.addListener('onScannerAppeared', (scanner) => {
     const info = scannerInfo(scanner);
+    if (!isZebraScanner(info)) return; // zegarki, czujniki - nie pokazujemy
     availableScanners = [...availableScanners.filter((item) => item.id !== info.id), info];
     notifyState();
+    // automat: pierwszy czytnik Zebry bez sesji - łączymy sami (SDK w buildzie 21 próbował pierwsze urządzenie z listy)
+    if (!connectedScanner) connectScanner(info.id);
   }));
   subscriptions.push(zebra.addListener('onScannerDisappeared', (event) => {
     availableScanners = availableScanners.filter((item) => item.id !== (event?.id ?? -1));
@@ -106,8 +112,10 @@ export const startSsi = async (protocol) => {
     lastError = '';
     const active = Array.isArray(status?.active) ? status.active[0] : null;
     if (active) connectedScanner = scannerInfo(active);
-    availableScanners = (Array.isArray(status?.available) ? status.available : []).map(scannerInfo);
+    availableScanners = (Array.isArray(status?.available) ? status.available : []).map(scannerInfo).filter(isZebraScanner);
     notifyState();
+    const first = availableScanners.find((item) => item.id !== connectedScanner?.id);
+    if (!connectedScanner && first) connectScanner(first.id);
     return true;
   } catch (error) {
     unsubscribeAll();
@@ -124,7 +132,7 @@ export const refreshStatus = async () => {
     const status = await zebra.getStatus();
     const active = Array.isArray(status?.active) ? status.active[0] : null;
     connectedScanner = active ? scannerInfo(active) : connectedScanner;
-    availableScanners = (Array.isArray(status?.available) ? status.available : []).map(scannerInfo);
+    availableScanners = (Array.isArray(status?.available) ? status.available : []).map(scannerInfo).filter(isZebraScanner);
     if (!active && connectedScanner && !(status?.activeScannerId >= 0)) connectedScanner = null;
   } catch (error) {
     lastError = `Błąd odczytu stanu: ${error?.message || error}`;

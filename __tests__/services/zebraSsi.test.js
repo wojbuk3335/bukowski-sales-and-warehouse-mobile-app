@@ -47,8 +47,11 @@ test('start: pyta o uprawnienia Bluetooth (Android 12+), uruchamia SDK, stan po�
   expect(zebraSsi.getState()).toMatchObject({ available: true, started: true, scanner: null, error: '', availableScanners: [], protocol: 'classic' });
   listeners.onLog({ message: 'SDK start' });
   expect(zebraSsi.getState().log[0]).toMatch(/SDK start$/);
-  listeners.onScannerAppeared({ id: 7, name: 'DS2278', model: 'DS2278-SR' }); // sparowany, bez sesji
-  expect(zebraSsi.getState().availableScanners).toEqual([{ id: 7, name: 'DS2278', model: 'DS2278-SR', connectionType: '' }]);
+  listeners.onScannerAppeared({ id: 5, name: 'fenix 7X Pro', model: '' }); // zegarek - nie jest czytnikiem
+  expect(zebraSsi.getState().availableScanners).toEqual([]);
+  listeners.onScannerAppeared({ id: 7, name: 'DS2278 26195523703468', model: '' }); // sparowany, bez sesji
+  expect(zebraSsi.getState().availableScanners).toEqual([{ id: 7, name: 'DS2278 26195523703468', model: '', connectionType: '' }]);
+  expect(mockNative.connect).toHaveBeenCalledWith(7); // automat łączy tylko z czytnikiem Zebry
   expect(await zebraSsi.connectScanner(7)).toBe(true);
   listeners.onScannerDisappeared({ id: 7 });
   expect(zebraSsi.getState().availableScanners).toEqual([]);

@@ -157,6 +157,9 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
       DCSSDKDefs.DCSSDK_EVENT.DCSSDK_EVENT_BARCODE.value
     sdk.dcssdkSubsribeForEvents(mask)
     sdk.dcssdkSetSTCEnabledState(true)
+    // bez filtru SDK zgłasza WSZYSTKIE sparowane urządzenia Bluetooth (zegarek, czujnik tętna) i automat łączył się
+    // z zegarkiem (build 21, 13.11.2026) - tylko urządzenia Zebry
+    try { sdk.dcssdkEnableBluetoothClassicFiltration(true) } catch (error: Throwable) { log("filtr Zebry: ${error.message}") }
     val detection = sdk.dcssdkEnableAvailableScannersDetection(true)
     handler = sdk
     log("SDK ${sdk.dcssdkGetVersion()} start, tryb=$protocol, wykrywanie=${detection.name}")
@@ -164,7 +167,13 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
     val known = ArrayList<DCSScannerInfo>()
     sdk.dcssdkGetAvailableScannersList(known)
     known.forEach { log("widoczny: id=${it.scannerID} ${it.scannerName} ${it.connectionType?.name} active=${it.isActive}") }
-    known.firstOrNull { !it.isActive }?.let { tryConnect(it.scannerID) }
+    known.firstOrNull { !it.isActive && isZebraScanner(it) }?.let { tryConnect(it.scannerID) }
+  }
+
+  // Czytnik Zebry po nazwie/modelu (DS2278, CS4070, RS5100…) - zegarki i czujniki nie są czytnikami
+  private fun isZebraScanner(info: DCSScannerInfo?): Boolean {
+    val text = "${info?.scannerName ?: ""} ${info?.scannerModel ?: ""}"
+    return Regex("\\b(DS|CS|RS|LI|RFD)\\s?\\d{3,4}\\b|zebra", RegexOption.IGNORE_CASE).containsMatchIn(text)
   }
 
   private fun stopSdk() {
@@ -266,8 +275,8 @@ class ZebraSsiScannerModule : Module(), IDcsSdkApiDelegate {
   override fun dcssdkEventScannerAppeared(availableScanner: DCSScannerInfo?) {
     log("pojawił się: id=${availableScanner?.scannerID} ${availableScanner?.scannerName} ${availableScanner?.connectionType?.name} active=${availableScanner?.isActive}")
     sendEvent("onScannerAppeared", scannerMap(availableScanner))
-    // czytnik już aktywny (sesja zestawiona przez SDK) - nie nawiązujemy drugiej
-    availableScanner?.takeIf { !it.isActive }?.let { tryConnect(it.scannerID) }
+    // czytnik już aktywny (sesja zestawiona przez SDK) - nie nawiązujemy drugiej; tylko czytniki Zebry
+    availableScanner?.takeIf { !it.isActive && isZebraScanner(it) }?.let { tryConnect(it.scannerID) }
   }
 
   override fun dcssdkEventScannerDisappeared(scannerID: Int) {
