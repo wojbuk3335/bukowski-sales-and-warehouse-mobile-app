@@ -38,7 +38,12 @@ export const loadScreenCapture = () => {
   return screenCapture;
 };
 
+// TYMCZASOWO WYŁĄCZONE (13.11.2026): diagnostyka czytnika Zebra - użytkownik musi wysyłać zrzuty ekranu z aplikacji.
+// PRZYWRÓCIĆ (ustawić false) po zakończeniu testów czytnika.
+export const SCREEN_CAPTURE_PROTECTION_PAUSED = true;
+
 export const enableScreenCaptureProtection = async () => {
+  if (SCREEN_CAPTURE_PROTECTION_PAUSED) return false;
   const module = loadScreenCapture();
   if (!module?.preventScreenCaptureAsync) return false;
   try {
