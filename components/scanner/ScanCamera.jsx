@@ -13,6 +13,7 @@ import { tc } from "../../context/ThemeContext";
 import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
 import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
+import { loadScreenCapture } from "../../services/screenCapture"; // zrzuty ekranu dozwolone w panelu czytnika (diagnostyka)
 import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
 
 // Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
@@ -160,6 +161,14 @@ const ScanCamera = ({
       barcodeSub.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputMode, ssiAvailable]);
+  // Panel czytnika Zebra bez danych klientów: zrzuty ekranu dozwolone (13.11.2026 - żeby dało się przesłać
+  // komunikaty SDK do diagnostyki); po wyjściu z panelu blokada wraca
+  useEffect(() => {
+    if (inputMode !== "ssi" || !ssiAvailable) return undefined;
+    const capture = loadScreenCapture();
+    capture?.allowScreenCaptureAsync?.().catch?.(() => {});
+    return () => { capture?.preventScreenCaptureAsync?.().catch?.(() => {}); };
   }, [inputMode, ssiAvailable]);
   const openSsiPairing = async (address = "", protocol = ssiProtocol) => {
     const saved = address || (await getSavedBtAddress());
