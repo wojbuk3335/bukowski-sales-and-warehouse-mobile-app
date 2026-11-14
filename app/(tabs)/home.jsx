@@ -2697,6 +2697,10 @@ const Home = () => {
         <FlatList alwaysBounceVertical
           testID="home-flatlist"
           data={filteredData}
+          // 14.11.2026: wszystkie dzisiejsze sprzedaże rysowane od razu. Domyślnie lista rysuje „na pewno” tylko 10 wierszy,
+          // a resztę dorysowuje licznikiem czasu, który ginie przy zamrożeniu zakładki (freezeOnBlur) - po ok. 10
+          // kurtkach kolejne sprzedaże nie pojawiały się na liście, choć były zapisane
+          initialNumToRender={Math.max(10, filteredData.length)}
           keyExtractor={(item, index) => item?._id?.toString() || index.toString()}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
