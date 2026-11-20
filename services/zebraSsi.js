@@ -47,7 +47,7 @@ let feedbackOn = true;
 let scanLog = []; // [{ at, text, kind: 'ok' | 'warn' | 'info' }]
 let lastScan = { code: '', at: 0 };
 const stamp = (date) => `${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.${String(date.getMilliseconds()).padStart(3, '0')}`;
-const SCAN_LOG_MAX = 5000; // cały remanent (500 sztuk = ok. 500 wpisów) musi się zmieścić w jednym dzienniku
+const SCAN_LOG_MAX = 20000; // cały remanent musi się zmieścić w jednym dzienniku (użytkownik 20.11.2026: bywa ponad 1000 sztuk)
 export const logScanEvent = (text, kind = 'info') => {
   scanLog = [...scanLog, { at: stamp(new Date()), text, kind }].slice(-SCAN_LOG_MAX);
   notifyState();
