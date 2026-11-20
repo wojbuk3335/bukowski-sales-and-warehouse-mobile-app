@@ -35,6 +35,10 @@ jest.mock('../../services/zebraSsi', () => ({
   scannerFeedback: jest.fn(() => Promise.resolve(true)),
   refreshStatus: jest.fn(() => Promise.resolve(ssi.state)),
   connectScanner: jest.fn(() => Promise.resolve(true)),
+  noteBarcode: jest.fn(),
+  clearScanLog: jest.fn(),
+  loadFeedbackEnabled: jest.fn(() => Promise.resolve(true)),
+  setFeedbackEnabled: jest.fn((on) => Promise.resolve(Boolean(on))),
 }));
 
 import ScanCamera from '../../components/scanner/ScanCamera';

@@ -116,3 +116,31 @@ test('stop: odpina słuchaczy i zamyka SDK; starszy Android nie pyta o uprawnien
   expect(listeners.onSessionEstablished).toBeUndefined();
   expect(zebraSsi.getState().started).toBe(false);
 });
+
+test('diagnostyka 20.11.2026: dziennik skanów z POWTÓRKĄ / BEZ ODBIORCY; przełącznik pisku wyłącza komendę do czytnika', async () => {
+  PermissionsAndroid.requestMultiple = jest.fn(() => Promise.resolve({ a: 'granted' }));
+  await zebraSsi.startSsi();
+  listeners.onSessionEstablished({ id: 2, name: 'DS2278' });
+  zebraSsi.clearScanLog();
+  zebraSsi.noteBarcode('1234504400007', 11, true);
+  zebraSsi.noteBarcode('1234504400007', 11, true); // ten sam kod zaraz potem = powtórka
+  zebraSsi.noteBarcode('1234504600001', 11, false); // okno skanera zamknięte
+  const log = zebraSsi.getState().scanLog;
+  expect(log).toHaveLength(3);
+  expect(log[0]).toMatchObject({ kind: 'ok' });
+  expect(log[0].text).toBe('1234504400007 (typ 11)');
+  expect(log[1].text).toMatch(/^1234504400007 \(typ 11\) POWTÓRKA po \d+ ms$/);
+  expect(log[1].kind).toBe('warn');
+  expect(log[2].text).toBe('1234504600001 (typ 11) BEZ ODBIORCY');
+  expect(log[0].at).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}$/);
+
+  mockNative.beep.mockClear();
+  expect(await zebraSsi.setFeedbackEnabled(false)).toBe(false);
+  expect(zebraSsi.getState().feedback).toBe(false);
+  expect(await zebraSsi.scannerFeedback('ok')).toBe(false);
+  expect(mockNative.beep).not.toHaveBeenCalled(); // bez komendy do czytnika
+  expect(await zebraSsi.loadFeedbackEnabled()).toBe(false); // zapamiętane
+  await zebraSsi.setFeedbackEnabled(true);
+  expect(await zebraSsi.scannerFeedback('ok')).toBe(true);
+  expect(mockNative.beep).toHaveBeenCalledTimes(1);
+});

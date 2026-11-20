@@ -14,7 +14,7 @@ import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
 import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
 import { loadScreenCapture, SCREEN_CAPTURE_PROTECTION_PAUSED } from "../../services/screenCapture"; // zrzuty ekranu dozwolone w panelu czytnika (diagnostyka)
-import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
+import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner, noteBarcode as noteSsiBarcode, clearScanLog as clearSsiScanLog, loadFeedbackEnabled as loadSsiFeedback, setFeedbackEnabled as setSsiFeedback } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
 
 // Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
 const keepAwakeModule = () => {
@@ -138,11 +138,13 @@ const ScanCamera = ({
   const [ssiPairing, setSsiPairing] = useState(null); // null | { png, needsAddress, address, error, protocol }
   const [ssiProtocol, setSsiProtocol] = useState("classic"); // 'classic' (DS2278, SSI cradle host) albo 'ble'; zapamiętany w telefonie
   const [ssiLastCode, setSsiLastCode] = useState("");
+  const [ssiLogOpen, setSsiLogOpen] = useState(false); // dziennik skanów (diagnostyka rozjazdów, 20.11.2026)
   useEffect(() => {
     if (inputMode !== "ssi" || !ssiAvailable) return undefined;
     let cancelled = false;
     setSsiStarting(true);
     startSsi().finally(() => { if (!cancelled) setSsiStarting(false); });
+    loadSsiFeedback?.().catch?.(() => {});
     const unsubscribeState = onSsiStateChange((state) => { if (!cancelled) setSsiState(state); });
     const barcodeSub = onSsiBarcode((event) => {
       const raw = String(event?.data ?? "").trim();
@@ -151,7 +153,9 @@ const ScanCamera = ({
       const type = [0x08, 0x48].includes(event?.type) ? "upc_a" : [0x0b, 0x4b].includes(event?.type) ? "ean13" : "code128";
       const code = normalizeScannedCode(raw, type);
       setSsiLastCode(code);
-      if (!enabledRef.current && !bluetoothWhenPausedRef.current) return; // formularz otwarty - kod bez odbiorcy
+      const delivered = enabledRef.current || bluetoothWhenPausedRef.current;
+      noteSsiBarcode?.(code, event?.type, delivered); // dziennik: co przyszło i czy ekran to przyjął
+      if (!delivered) return; // formularz otwarty - kod bez odbiorcy
       onScannedRef.current?.({ data: code, type: "bluetooth", source: "ssi" });
     });
     setSsiState(getSsiState());
@@ -239,7 +243,8 @@ const ScanCamera = ({
   useEffect(() => {
     const keepAwake = keepAwakeModule();
     if (!keepAwake) return undefined;
-    const shouldHold = inputMode === "bluetooth" && keepAwakeOn;
+    // 20.11.2026: także czytnik Zebra (SSI) - dawniej przełącznik był w panelu, ale blokada działała tylko w trybie klawiatury
+    const shouldHold = (inputMode === "bluetooth" || inputMode === "ssi") && keepAwakeOn;
     if (shouldHold) {
       Promise.resolve(keepAwake.activateKeepAwakeAsync?.(KEEP_AWAKE_TAG)).catch(() => {});
     }
@@ -500,6 +505,27 @@ const ScanCamera = ({
               : "Czytnik wstrzymany - zamknij formularz, żeby skanować dalej."}
           </Text>
           {!!ssiLastCode && <Text style={bt.last} testID="ssi-last">Ostatni odczyt: {ssiLastCode}</Text>}
+          {/* Dziennik skanów (20.11.2026): czas z ms, kod, typ, BEZ ODBIORCY / POWTÓRKA - do szukania rozjazdów remanentu */}
+          <TouchableOpacity onPress={() => setSsiLogOpen((open) => !open)} testID="ssi-scanlog-toggle" accessibilityRole="button">
+            <Text style={[bt.hint, { textDecorationLine: "underline" }]}>Dziennik skanów ({(ssiState.scanLog || []).length}) {ssiLogOpen ? "▲" : "▼"}</Text>
+          </TouchableOpacity>
+          {ssiLogOpen && (
+            <View style={{ alignSelf: "stretch", paddingHorizontal: 8 }} testID="ssi-scanlog">
+              {(ssiState.scanLog || []).length === 0 && <Text style={[bt.hint, { fontSize: 11 }]}>Jeszcze nic nie przyszło z czytnika.</Text>}
+              {(ssiState.scanLog || []).slice(-12).reverse().map((entry, index) => (
+                <Text key={`${index}-${entry.at}-${entry.text}`} style={[bt.hint, { fontSize: 11, textAlign: "left", color: entry.kind === "warn" ? "#FCA5A5" : entry.kind === "ok" ? "#86EFAC" : bt.hint.color }]} numberOfLines={2}>
+                  {entry.at} {entry.text}
+                </Text>
+              ))}
+              <TouchableOpacity onPress={() => clearSsiScanLog?.()} testID="ssi-scanlog-clear" accessibilityRole="button">
+                <Text style={[bt.hint, { textDecorationLine: "underline" }]}>Wyczyść dziennik</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.btKeepAwakeRow}>
+            <Text style={bt.keepAwakeText}>Pisk z czytnika po skanie (OK / błąd)</Text>
+            <Switch value={ssiState.feedback !== false} onValueChange={(on) => setSsiFeedback?.(on).then(() => setSsiState(getSsiState()))} trackColor={{ true: bt.icon }} testID="ssi-feedback" />
+          </View>
           {!!ssiState.error && (
             // dlaczego czytnik nie działa (brak zgody na Bluetooth, moduł nie wystartował) - zamiast zgadywania
             <Text style={[bt.hint, { color: "#FCA5A5" }]} testID="ssi-error">{ssiState.error}</Text>

@@ -35,7 +35,45 @@ let runningProtocol = ''; // tryb, w którym SDK faktycznie działa ('' = nie dz
 export const PROTOCOL_KEY = 'zebra-ssi-protocol';
 const stateListeners = new Set();
 const notifyState = () => stateListeners.forEach((listener) => { try { listener(getState()); } catch (error) { /* słuchacz */ } });
-export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners, log: sdkLog, protocol: currentProtocol });
+
+// Diagnostyka rozjazdów remanentu (20.11.2026): poprzedni kod wracał drugi raz, a nowy przepadał.
+// 1) Dziennik skanów: każde zdarzenie z czytnika z czasem (ms), kodem, typem i tym, co aplikacja z nim zrobiła;
+//    ten sam kod w ciągu 5 s = POWTÓRKA. Pozwala porównać metkę z tym, co naprawdę przyszło.
+// 2) Przełącznik pisku z czytnika: po każdym skanie telefon wysyła do czytnika komendę „zapiszcz” tym samym łączem,
+//    którym idą odczyty - przy szybkim skanowaniu komenda i odczyt mogą się zderzyć (SSI: brak potwierdzenia =
+//    czytnik wysyła poprzedni odczyt jeszcze raz). Wyłączenie pisku = test, czy to on psuje liczenie.
+export const FEEDBACK_KEY = 'zebra-ssi-feedback';
+let feedbackOn = true;
+let scanLog = []; // [{ at, text, kind: 'ok' | 'warn' | 'info' }]
+let lastScan = { code: '', at: 0 };
+const stamp = (date) => `${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+export const logScanEvent = (text, kind = 'info') => {
+  scanLog = [...scanLog, { at: stamp(new Date()), text, kind }].slice(-80);
+  notifyState();
+};
+// Zdarzenie „kod z czytnika”: delivered = czy ekran go przyjął (false = okno skanera zamknięte / formularz otwarty)
+export const noteBarcode = (code, type, delivered) => {
+  const now = Date.now();
+  const gap = now - lastScan.at;
+  const repeat = lastScan.code === code && gap < 5000 ? ` POWTÓRKA po ${gap} ms` : '';
+  lastScan = { code, at: now };
+  logScanEvent(`${code} (typ ${type ?? '?'})${delivered ? '' : ' BEZ ODBIORCY'}${repeat}`, repeat || !delivered ? 'warn' : 'ok');
+};
+export const clearScanLog = () => { scanLog = []; lastScan = { code: '', at: 0 }; notifyState(); };
+export const getFeedbackEnabled = () => feedbackOn;
+export const loadFeedbackEnabled = async () => {
+  try { feedbackOn = (await AsyncStorage.getItem(FEEDBACK_KEY)) !== 'off'; } catch (error) { feedbackOn = true; }
+  notifyState();
+  return feedbackOn;
+};
+export const setFeedbackEnabled = async (on) => {
+  feedbackOn = Boolean(on);
+  try { await AsyncStorage.setItem(FEEDBACK_KEY, feedbackOn ? 'on' : 'off'); } catch (error) { /* bez pamięci */ }
+  logScanEvent(`pisk z czytnika ${feedbackOn ? 'WŁĄCZONY' : 'WYŁĄCZONY'}`);
+  return feedbackOn;
+};
+
+export const getState = () => ({ available: isSsiAvailable(), started, scanner: connectedScanner, error: lastError, availableScanners, log: sdkLog, protocol: currentProtocol, scanLog, feedback: feedbackOn });
 const scannerInfo = (scanner) => ({ id: scanner?.id ?? -1, name: scanner?.name || '', model: scanner?.model || '', connectionType: scanner?.connectionType || '' });
 // SDK bez filtru pokazuje WSZYSTKIE sparowane urządzenia Bluetooth (zegarek, czujnik tętna…) - na liście zostają
 // tylko czytniki Zebry (DS/CS/RS/LI + numer albo „Zebra”); 13.11.2026 automat próbował łączyć się z zegarkiem
@@ -72,6 +110,7 @@ export const startSsi = async (protocol) => {
   subscriptions.push(zebra.addListener('onSessionEstablished', (scanner) => {
     connectedScanner = scannerInfo(scanner);
     lastError = '';
+    logScanEvent(`połączono: ${connectedScanner.name || connectedScanner.model || connectedScanner.id}`);
     notifyState();
   }));
   subscriptions.push(zebra.addListener('onSessionTerminated', (event) => {
@@ -85,6 +124,7 @@ export const startSsi = async (protocol) => {
     }
     connectedScanner = null;
     lastError = `Czytnik ${id} rozłączył się - SDK spróbuje połączyć ponownie; możesz też kliknąć „Odśwież” / „Połącz”.`;
+    logScanEvent(`ROZŁĄCZONY czytnik ${id}`, 'warn');
     notifyState();
   }));
   // czytnik widoczny dla SDK (sparowany), zanim powstanie sesja - na ekranie z przyciskiem „Połącz”
@@ -176,9 +216,13 @@ export const onBarcode = (handler) => zebra.addListener('onBarcode', handler);
 // Czytnik sam piszczy przy każdym odczycie; nasz sygnał idzie zaraz po nim i jest inny: błąd = dwa długie niskie.
 export const scannerFeedback = async (kind = 'ok') => {
   if (!started || !connectedScanner) return false;
+  if (!feedbackOn) return false; // wyłączony przełącznikiem w panelu czytnika (test zderzeń komenda/odczyt)
   try {
-    return await zebra.beep(kind === 'ok' ? BEEP.HIGH_SHORT_1 : BEEP.LOW_LONG_2);
+    const ok = await zebra.beep(kind === 'ok' ? BEEP.HIGH_SHORT_1 : BEEP.LOW_LONG_2);
+    if (!ok) logScanEvent(`pisk ${kind}: SDK odmówiło (łącze zajęte?)`, 'warn');
+    return ok;
   } catch (error) {
+    logScanEvent(`pisk ${kind}: błąd ${error?.message || error}`, 'warn');
     return false;
   }
 };
