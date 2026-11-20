@@ -9,11 +9,18 @@ beforeEach(() => {
 
 const withNative = (present) => jest.doMock('expo-modules-core', () => ({ requireOptionalNativeModule: () => (present ? {} : null) }));
 
-test('z modułem: włącza blokadę zrzutów ekranu', async () => {
+// Blokada bywa CZASOWO wstrzymana flagą SCREEN_CAPTURE_PROTECTION_PAUSED (testy czytnika DS2278, 11.2026) - wtedy
+// moduł nie jest wołany i funkcja zwraca false; po przywróceniu flagi (false) test znów wymaga włączenia blokady
+test('z modułem: włącza blokadę zrzutów ekranu (chyba że blokada jest czasowo wstrzymana flagą)', async () => {
   withNative(true);
   const preventScreenCaptureAsync = jest.fn(() => Promise.resolve());
   jest.doMock('expo-screen-capture', () => ({ preventScreenCaptureAsync }));
-  const { enableScreenCaptureProtection } = require('../services/screenCapture');
+  const { enableScreenCaptureProtection, SCREEN_CAPTURE_PROTECTION_PAUSED } = require('../services/screenCapture');
+  if (SCREEN_CAPTURE_PROTECTION_PAUSED) {
+    await expect(enableScreenCaptureProtection()).resolves.toBe(false);
+    expect(preventScreenCaptureAsync).not.toHaveBeenCalled();
+    return;
+  }
   await expect(enableScreenCaptureProtection()).resolves.toBe(true);
   expect(preventScreenCaptureAsync).toHaveBeenCalledTimes(1);
 });
