@@ -5,8 +5,8 @@ import { GlobalStateContext } from '../../context/GlobalState';
 import tokenService from '../../services/tokenService';
 import useLiveRefresh from '../../services/useLiveRefresh';
 
-// Audyt Remanentu 26.10.2026 - lista skanów: jeden wiersz na kod z licznikiem ×N (dawniej 1 wiersz = 1 sztuka),
-// X usuwa JEDNĄ sztukę (ostatnio zeskanowaną z tego kodu); wyszukiwarka dalej liczy sztuki.
+// Remanent PUNKTU (decyzja użytkownika 20.11.2026): każdy skan osobnym wierszem - druga taka sama kurtka = nowy wiersz,
+// bez licznika ×N (ten został tylko w remanencie MAGAZYNU); X usuwa ten jeden skan; pasek sesji liczy skany.
 
 jest.mock('expo-camera', () => {
   const React = require('react');
@@ -81,23 +81,21 @@ const renderRemanent = () => render(
   </GlobalStateContext.Provider>
 );
 
-test('dwie sztuki tego samego kodu = jeden wiersz „×2”; X usuwa jedną (ostatnio zeskanowaną); ręczne liczone osobno', async () => {
+test('dwie sztuki tego samego kodu = DWA wiersze bez „×2”; X usuwa ten jeden skan; ręczne liczone osobno (20.11.2026)', async () => {
   const screen = renderRemanent();
-  await waitFor(() => expect(screen.getByTestId('remanent-row-count')).toBeTruthy());
-  expect(screen.getByTestId('remanent-row-count').props.children.join('')).toBe('×2');
-  expect(screen.getAllByText(CODE_44)).toHaveLength(1); // jeden wiersz dla 44
+  await waitFor(() => expect(screen.getAllByText(CODE_44)).toHaveLength(2)); // dwa wiersze dla 44
+  expect(screen.queryByTestId('remanent-row-count')).toBeNull(); // bez licznika ×N
   expect(screen.getByText('wpisane ręcznie: 1')).toBeTruthy(); // 46 wpisana ręcznie
-  expect(screen.getByText(/3 szt\./)).toBeTruthy(); // pasek sesji dalej liczy sztuki
+  expect(screen.getByText(/3 szt\./)).toBeTruthy(); // pasek sesji liczy skany
 
-  // grupy od ostatnio skanowanego: 44 (a2 sprzed 10 min) przed 46 (sprzed 20 min)
+  // od ostatnio skanowanego: 44 (a2 sprzed 10 min), 46 (sprzed 20 min), 44 (a1 sprzed 30 min)
   const codes = screen.getAllByText(/^\d{13}$/).map((node) => node.props.children);
-  expect(codes).toEqual([CODE_44, CODE_46]);
+  expect(codes).toEqual([CODE_44, CODE_46, CODE_44]);
 
-  fireEvent.press(screen.getByTestId(`remanent-remove-${CODE_44}`));
+  fireEvent.press(screen.getByTestId('remanent-remove-a2'));
   await waitFor(() => expect(deletes()).toHaveLength(1));
-  expect(deletes()[0][0]).toMatch(/\/items\/a2$/); // ostatnio zeskanowana sztuka z tego kodu
-  await waitFor(() => expect(screen.queryByTestId('remanent-row-count')).toBeNull(), { timeout: 10000 }); // została jedna 44 - bez licznika (CI bywa wolne)
-  expect(screen.getAllByText(CODE_44)).toHaveLength(1);
+  expect(deletes()[0][0]).toMatch(/\/items\/a2$/); // dokładnie ten skan
+  await waitFor(() => expect(screen.getAllByText(CODE_44)).toHaveLength(1), { timeout: 10000 }); // została jedna 44 (CI bywa wolne)
   expect(screen.getByText(/2 szt\./)).toBeTruthy();
   screen.unmount();
 }, 20000);
@@ -111,9 +109,10 @@ test('skany z dwóch telefonów: nazwa telefonu przy pozycji; odświeżanie na �
     { _id: 'b1', code: CODE_46, name: 'Amanda CZARNY 46', scannedAt: at(20), device: 'iPhone B' },
   ];
   const screen = renderRemanent();
-  await waitFor(() => expect(screen.getAllByTestId('remanent-row-device')).toHaveLength(2));
+  // każdy skan osobno (20.11.2026): a2 (iPhone), b1 (iPhone), a1 (Samsung) - od ostatnio skanowanego
+  await waitFor(() => expect(screen.getAllByTestId('remanent-row-device')).toHaveLength(3));
   const labels = screen.getAllByTestId('remanent-row-device').map((node) => node.props.children);
-  expect(labels).toEqual(['Samsung A, iPhone B', 'iPhone B']);
+  expect(labels).toEqual(['iPhone B', 'iPhone B', 'Samsung A']);
 
   expect(useLiveRefresh).toHaveBeenCalledWith(['remanent'], expect.any(Function));
   // sygnał z serwera -> lista pobierana ponownie w tle (bez pełnoekranowego spinnera)

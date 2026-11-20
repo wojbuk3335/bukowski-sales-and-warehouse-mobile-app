@@ -148,6 +148,6 @@ test('kurtki „×2”: stary tekst pola, który telefon odda jeszcze raz przed 
   await waitFor(() => expect(screen.getByText('Zatwierdź (2)')).toBeTruthy());
   await new Promise((resolve) => setTimeout(resolve, 400)); // nic więcej nie dochodzi (także po przerwie)
   expect(screen.getByText('Zatwierdź (2)')).toBeTruthy();
-  expect(screen.getByText('Zeskanowano: 2 szt. (2 produktów)')).toBeTruthy();
+  expect(screen.getByText('Zeskanowano: 2 skany')).toBeTruthy();
   screen.unmount();
 }, 20000);

@@ -29,7 +29,8 @@ export const draftStorageKey = (draftKey) => `${DRAFT_PREFIX}${draftKey}`;
 
 // Skaner kodów kreskowych w trybie ciągłym - ten sam w Remanencie (panel użytkownika) i w zakładce „Sprawdź” (panel admina).
 // Kamera, potwierdzenie skanu nad kamerą (toast) z wibracją, okienko „ta sama metka / kolejna sztuka”,
-// lista pogrupowana po kodzie (−1 / ×N / +1, wpisanie ilości), „Wpisz kod”, „Odczytaj ze zdjęcia”, „Z bazy” i „Zatwierdź (N)”.
+// lista pogrupowana po kodzie (−1 / ×N / +1, wpisanie ilości) albo - w remanencie PUNKTU - każdy skan osobno (groupByCode=false),
+// „Wpisz kod”, „Odczytaj ze zdjęcia”, „Z bazy” i „Zatwierdź (N)”.
 // O tym, czy kod przyjąć i jaki pokazać komunikat, decyduje ekran (validateCode); co zrobić ze skanami - onConfirm.
 //
 // Props:
@@ -53,6 +54,8 @@ export const draftStorageKey = (draftKey) => `${DRAFT_PREFIX}${draftKey}`;
 //                                     skany zrobione w trakcie zapisu zostają), false = skany zostają;
 //                                     batchId - ten sam klucz przy ponownej próbie tego samego zestawu (serwer nie liczy podwójnie)
 //   goods, pickerSizes              - karty produktów i rozmiary dla „Z bazy”
+//   groupByCode                     - true (domyślnie): identyczne kody jako jedna pozycja ×N; false: każdy skan osobnym
+//                                     wierszem „×1” i licznik = liczba SKANÓW (remanent punktu, decyzja użytkownika 20.11.2026)
 
 // Ochrona przed wielokrotnym odczytem JEDNEJ metki przez kamerę (kilka odczytów na sekundę).
 // Identyczne sztuki mają ten sam kod, więc kolejne skany tego kodu po przerwie to kolejne sztuki.
@@ -60,6 +63,9 @@ const SAME_LABEL_PAUSE_MS = 1500;
 const RESUME_AFTER_MS = 800;
 
 const toastKindOf = (tone) => (tone === 'warn' ? 'warn' : tone === 'error' ? 'error' : 'ok');
+
+// „1 skan”, „2 skany”, „5 skanów”, „22 skany”
+const scanCountLabel = (count) => `${count} ${count === 1 ? 'skan' : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'skany' : 'skanów')}`;
 
 const BarcodeScannerModal = ({
   visible,
@@ -76,6 +82,7 @@ const BarcodeScannerModal = ({
   goods = [],
   pickerSizes = [],
   draftKey = null,
+  groupByCode = true,
 }) => {
   useAppTheme(); // przerysowanie po zmianie motywu
   const [scannedJackets, setScannedJacketsState] = useState([]);
@@ -437,6 +444,14 @@ const BarcodeScannerModal = ({
     return [...groups.values()].reverse(); // ostatnio skanowane na początku
   }, [scannedJackets]);
 
+  // Remanent PUNKTU (decyzja użytkownika 20.11.2026): bez łączenia w ×N - druga taka sama kurtka = nowy wiersz „×1”,
+  // a licznik to liczba SKANÓW. Tak widać, w którym miejscu liczenie się rozjechało (brak / nadwyżka na końcu)
+  const scannedRows = useMemo(() => (groupByCode
+    ? scannedGroups
+    : [...scannedJackets].reverse().map((jacket) => ({ code: jacket.code, name: jacket.name, ids: [jacket.id], single: true }))
+  ), [groupByCode, scannedGroups, scannedJackets]);
+  const removeScanById = (id) => setScannedJackets((prev) => prev.filter((jacket) => jacket.id !== id));
+
   // −1: cofnięcie ostatniego skanu tego kodu
   const removeOnePiece = (code) => {
     setScannedJackets((prev) => {
@@ -571,20 +586,31 @@ const BarcodeScannerModal = ({
           </Text>
         )}
 
-        {/* Lista zeskanowanych (pogrupowana po kodzie) */}
+        {/* Lista zeskanowanych (pogrupowana po kodzie albo skan po skanie) */}
         {scannedJackets.length > 0 && (
           <View style={styles.scannedListContainer}>
-            <Text style={styles.scannedListTitle}>
-              Zeskanowano: {scannedJackets.length} szt. ({scannedGroups.length} {scannedGroups.length === 1 ? 'produkt' : 'produktów'})
+            <Text style={styles.scannedListTitle} testID="scanned-list-title">
+              {groupByCode
+                ? `Zeskanowano: ${scannedJackets.length} szt. (${scannedGroups.length} ${scannedGroups.length === 1 ? 'produkt' : 'produktów'})`
+                : `Zeskanowano: ${scanCountLabel(scannedJackets.length)}`}
             </Text>
             <FlatList
-              data={scannedGroups}
+              data={scannedRows}
               horizontal
-              keyExtractor={(item) => item.code}
+              keyExtractor={(item) => (item.single ? String(item.ids[0]) : item.code)}
               renderItem={({ item }) => (
                 <View style={styles.scannedJacket}>
                   <Text style={styles.jacketName} numberOfLines={2}>{item.name}</Text>
                   <Text style={styles.jacketCode}>{item.code}</Text>
+                  {item.single ? (
+                    // jeden skan = jeden wiersz: tylko ×1 i usunięcie tego skanu
+                    <View style={styles.pieceCounterRow}>
+                      <Text style={styles.pieceCount}>×1</Text>
+                      <TouchableOpacity onPress={() => removeScanById(item.ids[0])} style={[styles.pieceButton, styles.pieceButtonMinus]} accessibilityLabel="Usuń ten skan" testID={`scan-row-remove-${item.ids[0]}`}>
+                        <Ionicons name="close" size={18} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
                   <View style={styles.pieceCounterRow}>
                     <TouchableOpacity onPress={() => removeOnePiece(item.code)} style={[styles.pieceButton, styles.pieceButtonMinus]}>
                       <Ionicons name="remove" size={18} color="white" />
@@ -596,6 +622,7 @@ const BarcodeScannerModal = ({
                       <Ionicons name="add" size={18} color="white" />
                     </TouchableOpacity>
                   </View>
+                  )}
                 </View>
               )}
               showsHorizontalScrollIndicator={false}

@@ -876,10 +876,20 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
   const sessionAgeHours = Math.floor(sessionAgeMs / (60 * 60 * 1000));
   const sessionAgeLabel = sessionAgeHours >= 48 ? `${Math.floor(sessionAgeHours / 24)} dni` : `${sessionAgeHours} godz.`;
 
-  // Lista: jeden wiersz na kod z licznikiem ×N (audyt 26.10.2026 - dawniej 1 wiersz = 1 sztuka, 500 sztuk = 500 wierszy).
-  // Postęp, wyszukiwarka („Znaleziono N z M szt.”) i porównanie liczą się nadal po sztukach (visibleRemanentData).
-  // X w wierszu usuwa JEDNĄ sztukę - ostatnio zeskanowaną z tego kodu. Grupy od ostatnio skanowanego.
+  // Lista remanentu MAGAZYNU: jeden wiersz na kod z licznikiem ×N (audyt 26.10.2026), X usuwa JEDNĄ sztukę - ostatnio
+  // zeskanowaną z tego kodu. Grupy od ostatnio skanowanego.
+  // Lista remanentu PUNKTU (decyzja użytkownika 20.11.2026): BEZ łączenia - każdy skan osobnym wierszem (druga taka sama
+  // kurtka = nowy wiersz), żeby dało się prześledzić, w którym miejscu liczenie się rozjechało; X usuwa ten jeden skan.
+  // Postęp, wyszukiwarka („Znaleziono N z M szt.”) i porównanie liczą się po sztukach (visibleRemanentData).
   const groupedRemanentData = React.useMemo(() => {
+    if (!isAdminTarget) {
+      return visibleRemanentData
+        .map((item) => ({
+          code: String(item.code || ''), name: item.name, count: 1, ids: [item.id], manualCount: item.manual ? 1 : 0,
+          latestScannedAt: new Date(item.scannedAt || 0).getTime() || 0, latestId: item.id, devices: item.device ? [item.device] : []
+        }))
+        .sort((a, b) => b.latestScannedAt - a.latestScannedAt);
+    }
     const groups = new Map();
     visibleRemanentData.forEach((item) => {
       const code = String(item.code || '');
@@ -897,7 +907,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
       groups.set(code, group);
     });
     return [...groups.values()].sort((a, b) => b.latestScannedAt - a.latestScannedAt);
-  }, [visibleRemanentData]);
+  }, [visibleRemanentData, isAdminTarget]);
   // Nazwa telefonu przy pozycji tylko wtedy, gdy skanuje więcej niż jeden telefon (jeden telefon = szum)
   const multiDevice = React.useMemo(() => new Set(remanentData.map((item) => item.device).filter(Boolean)).size > 1, [remanentData]);
 
@@ -923,7 +933,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
             onPress={() => removeRemanentItem(item.latestId)}
             style={styles.removeRemanentButton}
             accessibilityLabel="Usuń jedną sztukę"
-            testID={`remanent-remove-${item.code}`}
+            testID={isAdminTarget ? `remanent-remove-${item.code}` : `remanent-remove-${item.latestId}`}
           >
             <Ionicons name="close" size={18} color="white" />
           </TouchableOpacity>
@@ -1088,7 +1098,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
         <FlatList alwaysBounceVertical
           data={groupedRemanentData}
           renderItem={renderRemanentItem}
-          keyExtractor={(item) => item.code}
+          keyExtractor={(item) => (isAdminTarget ? item.code : `${item.code}-${item.latestId}`)}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={searchWords.length > 0 ? (
             <View style={styles.emptyContainer}>
@@ -1204,6 +1214,7 @@ const Remanent = ({ symbol: targetSymbol = null } = {}) => {
         goods={goodsList}
         pickerSizes={pickerSizes}
         draftKey={scopeSymbol ? `remanent-${scopeSymbol}` : null}
+        groupByCode={isAdminTarget} // punkt: każdy skan osobno (×1), licznik = liczba skanów
       />
 
       {/* Remanent MAGAZYNU (admin): „Z bazy” - produkt -> rozmiar -> ilość; poprawka ilości od razu na kroku ilości */}

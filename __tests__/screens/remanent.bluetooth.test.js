@@ -121,7 +121,7 @@ test('pamięć czytnika: kilka kodów naraz z nowymi liniami - wszystkie po kole
   await act(async () => { fireEvent.changeText(input, `${CODE_44}\n${CODE_46}\n${CODE_44}\n`); });
   await waitFor(() => expect(screen.getByText('Zatwierdź (3)')).toBeTruthy(), { timeout: 4000 });
   expect(screen.queryByTestId('duplicate-prompt-title')).toBeNull();
-  expect(screen.getByText('Zeskanowano: 3 szt. (2 produktów)')).toBeTruthy();
+  expect(screen.getByText('Zeskanowano: 3 skany')).toBeTruthy(); // punkt: liczba skanów, bez „produktów” (20.11.2026)
 
   // zamknięcie z odrzuceniem i ponowne otwarcie - tryb czytnika wraca
   fireEvent.press(screen.getByTestId('scanner-close'));
