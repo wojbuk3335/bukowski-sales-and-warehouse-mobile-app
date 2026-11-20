@@ -47,9 +47,20 @@ let feedbackOn = true;
 let scanLog = []; // [{ at, text, kind: 'ok' | 'warn' | 'info' }]
 let lastScan = { code: '', at: 0 };
 const stamp = (date) => `${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+const SCAN_LOG_MAX = 5000; // cały remanent (500 sztuk = ok. 500 wpisów) musi się zmieścić w jednym dzienniku
 export const logScanEvent = (text, kind = 'info') => {
-  scanLog = [...scanLog, { at: stamp(new Date()), text, kind }].slice(-80);
+  scanLog = [...scanLog, { at: stamp(new Date()), text, kind }].slice(-SCAN_LOG_MAX);
   notifyState();
+};
+// Cały dziennik jako tekst do wysłania (e-mail / komunikator przez „Udostępnij”): nagłówek + wpisy od najstarszego
+export const scanLogText = () => {
+  const scanner = connectedScanner ? `${connectedScanner.name || connectedScanner.model || ''} (sesja ${connectedScanner.id})` : 'niepołączony';
+  const head = [
+    `Dziennik skanów czytnika Zebra (SSI) - ${new Date().toLocaleString('pl-PL')}`,
+    `Czytnik: ${scanner}, tryb: ${currentProtocol}, pisk z czytnika: ${feedbackOn ? 'włączony' : 'wyłączony'}, wpisów: ${scanLog.length}`,
+    ''
+  ];
+  return [...head, ...scanLog.map((entry) => `${entry.at} ${entry.kind === 'warn' ? '!! ' : ''}${entry.text}`)].join('\n');
 };
 // Zdarzenie „kod z czytnika”: delivered = czy ekran go przyjął (false = okno skanera zamknięte / formularz otwarty)
 export const noteBarcode = (code, type, delivered, scannerId) => {

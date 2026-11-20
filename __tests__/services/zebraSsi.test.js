@@ -133,6 +133,10 @@ test('diagnostyka 20.11.2026: dziennik skanów z POWTÓRKĄ / BEZ ODBIORCY; prze
   expect(log[1].kind).toBe('warn');
   expect(log[2].text).toBe('1234504600001 (typ 11) BEZ ODBIORCY');
   expect(log[0].at).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}$/);
+  const text = zebraSsi.scanLogText();
+  expect(text).toMatch(/^Dziennik skanów czytnika Zebra \(SSI\)/);
+  expect(text).toContain('Czytnik: DS2278 (sesja 2), tryb: classic, pisk z czytnika: włączony, wpisów: 3');
+  expect(text).toContain('!! 1234504600001 (typ 11) BEZ ODBIORCY');
 
   mockNative.beep.mockClear();
   expect(await zebraSsi.setFeedbackEnabled(false)).toBe(false);

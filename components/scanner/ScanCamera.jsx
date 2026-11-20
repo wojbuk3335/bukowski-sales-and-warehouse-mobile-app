@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AppState, Dimensions, Image, Modal, Platform, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { AppState, Dimensions, Image, Modal, Platform, Share, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CameraView, scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker"; // „Odczytaj ze zdjęcia” - kod kreskowy z galerii
@@ -14,7 +14,7 @@ import { appAlert } from "../../services/appAlert";
 import Logger from "../../services/logger";
 import { getInputMode, setInputMode, getKeepAwake, setKeepAwake, splitScannerInput, cleanScannerCode } from "./scannerInputMode"; // czytnik Bluetooth
 import { loadScreenCapture, SCREEN_CAPTURE_PROTECTION_PAUSED } from "../../services/screenCapture"; // zrzuty ekranu dozwolone w panelu czytnika (diagnostyka)
-import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner, noteBarcode as noteSsiBarcode, clearScanLog as clearSsiScanLog, loadFeedbackEnabled as loadSsiFeedback, setFeedbackEnabled as setSsiFeedback } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
+import { isSsiAvailable, startSsi, onBarcode as onSsiBarcode, onStateChange as onSsiStateChange, getState as getSsiState, pairingBarcodePng, getSavedBtAddress, saveBtAddress, isValidBtAddress, refreshStatus as refreshSsiStatus, connectScanner as connectSsiScanner, noteBarcode as noteSsiBarcode, clearScanLog as clearSsiScanLog, scanLogText as ssiScanLogText, loadFeedbackEnabled as loadSsiFeedback, setFeedbackEnabled as setSsiFeedback } from "../../services/zebraSsi"; // czytnik Zebra (SSI, 12.11.2026)
 
 // Podtrzymanie ekranu w trybie czytnika (expo-keep-awake jest w Expo; gdy modułu brak - bez podtrzymania)
 const keepAwakeModule = () => {
@@ -175,6 +175,15 @@ const ScanCamera = ({
     // przy globalnej pauzie blokady (diagnostyka) wyjście z panelu NIE włącza jej z powrotem
     return () => { if (!SCREEN_CAPTURE_PROTECTION_PAUSED) capture?.preventScreenCaptureAsync?.().catch?.(() => {}); };
   }, [inputMode, ssiAvailable]);
+  // Cały dziennik skanów przez systemowe „Udostępnij” (e-mail, komunikator) - diagnostyka 500 sztuk bez przepisywania
+  const shareSsiScanLog = async () => {
+    try {
+      const message = ssiScanLogText?.() || "";
+      await Share.share({ title: "Dziennik skanów czytnika Zebra", message }, { subject: "Dziennik skanów czytnika Zebra", dialogTitle: "Wyślij dziennik skanów" });
+    } catch (error) {
+      // użytkownik zamknął okno udostępniania
+    }
+  };
   const openSsiPairing = async (address = "", protocol = ssiProtocol) => {
     const saved = address || (await getSavedBtAddress());
     const png = await pairingBarcodePng({ btAddress: saved, factoryDefaults: true, protocol });
@@ -517,9 +526,14 @@ const ScanCamera = ({
                   {entry.at} {entry.text}
                 </Text>
               ))}
-              <TouchableOpacity onPress={() => clearSsiScanLog?.()} testID="ssi-scanlog-clear" accessibilityRole="button">
-                <Text style={[bt.hint, { textDecorationLine: "underline" }]}>Wyczyść dziennik</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: 18 }}>
+                <TouchableOpacity onPress={() => shareSsiScanLog()} testID="ssi-scanlog-share" accessibilityRole="button">
+                  <Text style={[bt.hint, { textDecorationLine: "underline" }]}>Wyślij dziennik (e-mail)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => clearSsiScanLog?.()} testID="ssi-scanlog-clear" accessibilityRole="button">
+                  <Text style={[bt.hint, { textDecorationLine: "underline" }]}>Wyczyść dziennik</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           <View style={styles.btKeepAwakeRow}>

@@ -37,6 +37,7 @@ jest.mock('../../services/zebraSsi', () => ({
   connectScanner: jest.fn(() => Promise.resolve(true)),
   noteBarcode: jest.fn(),
   clearScanLog: jest.fn(),
+  scanLogText: jest.fn(() => 'Dziennik'),
   loadFeedbackEnabled: jest.fn(() => Promise.resolve(true)),
   setFeedbackEnabled: jest.fn((on) => Promise.resolve(Boolean(on))),
 }));
