@@ -122,14 +122,14 @@ test('diagnostyka 20.11.2026: dziennik skanów z POWTÓRKĄ / BEZ ODBIORCY; prze
   await zebraSsi.startSsi();
   listeners.onSessionEstablished({ id: 2, name: 'DS2278' });
   zebraSsi.clearScanLog();
-  zebraSsi.noteBarcode('1234504400007', 11, true);
-  zebraSsi.noteBarcode('1234504400007', 11, true); // ten sam kod zaraz potem = powtórka
+  zebraSsi.noteBarcode('1234504400007', 11, true, 1);
+  zebraSsi.noteBarcode('1234504400007', 11, true, 2); // ten sam kod zaraz potem = powtórka (z drugiej sesji SDK)
   zebraSsi.noteBarcode('1234504600001', 11, false); // okno skanera zamknięte
   const log = zebraSsi.getState().scanLog;
   expect(log).toHaveLength(3);
   expect(log[0]).toMatchObject({ kind: 'ok' });
-  expect(log[0].text).toBe('1234504400007 (typ 11)');
-  expect(log[1].text).toMatch(/^1234504400007 \(typ 11\) POWTÓRKA po \d+ ms$/);
+  expect(log[0].text).toBe('1234504400007 (typ 11, sesja 1)');
+  expect(log[1].text).toMatch(/^1234504400007 \(typ 11, sesja 2\) POWTÓRKA po \d+ ms$/);
   expect(log[1].kind).toBe('warn');
   expect(log[2].text).toBe('1234504600001 (typ 11) BEZ ODBIORCY');
   expect(log[0].at).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}$/);

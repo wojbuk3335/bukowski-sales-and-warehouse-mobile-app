@@ -154,7 +154,7 @@ const ScanCamera = ({
       const code = normalizeScannedCode(raw, type);
       setSsiLastCode(code);
       const delivered = enabledRef.current || bluetoothWhenPausedRef.current;
-      noteSsiBarcode?.(code, event?.type, delivered); // dziennik: co przyszło i czy ekran to przyjął
+      noteSsiBarcode?.(code, event?.type, delivered, event?.scannerId); // dziennik: co przyszło, z której sesji, czy ekran przyjął
       if (!delivered) return; // formularz otwarty - kod bez odbiorcy
       onScannedRef.current?.({ data: code, type: "bluetooth", source: "ssi" });
     });

@@ -52,12 +52,14 @@ export const logScanEvent = (text, kind = 'info') => {
   notifyState();
 };
 // Zdarzenie „kod z czytnika”: delivered = czy ekran go przyjął (false = okno skanera zamknięte / formularz otwarty)
-export const noteBarcode = (code, type, delivered) => {
+export const noteBarcode = (code, type, delivered, scannerId) => {
   const now = Date.now();
   const gap = now - lastScan.at;
   const repeat = lastScan.code === code && gap < 5000 ? ` POWTÓRKA po ${gap} ms` : '';
   lastScan = { code, at: now };
-  logScanEvent(`${code} (typ ${type ?? '?'})${delivered ? '' : ' BEZ ODBIORCY'}${repeat}`, repeat || !delivered ? 'warn' : 'ok');
+  // scannerId = numer sesji SDK; dwa różne numery przy jednym czytniku = SDK ma dwie sesje (Classic + LE) i ACK może iść złą
+  const session = scannerId !== undefined && scannerId !== null ? `, sesja ${scannerId}` : '';
+  logScanEvent(`${code} (typ ${type ?? '?'}${session})${delivered ? '' : ' BEZ ODBIORCY'}${repeat}`, repeat || !delivered ? 'warn' : 'ok');
 };
 export const clearScanLog = () => { scanLog = []; lastScan = { code: '', at: 0 }; notifyState(); };
 export const getFeedbackEnabled = () => feedbackOn;
