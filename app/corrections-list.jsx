@@ -331,19 +331,38 @@ const CorrectionsList = () => {
       
       const { itemToWriteOff, fromSymbol, sellingPointCountBefore, warehouseCountBefore } = confirmModalData;
       
+      // Dane korekty także w adresie (24.11.2026): gdy same nagłówki nie docierały do serwera, sztuka schodziła
+      // ze stanu jak zwykłe usunięcie - korekta zostawała „Oczekuje” i nie było jej na Wydruku z dnia
+      const writeOffQuery = [
+        'count=1',
+        'operationType=write-off',
+        `correctionId=${encodeURIComponent(String(selectedCorrection._id))}`,
+        ...(selectedCorrection.transactionId
+          ? [`correctionTransactionId=${encodeURIComponent(String(selectedCorrection.transactionId))}`]
+          : [])
+      ].join('&');
       const writeOffResponse = await tokenService.authenticatedFetch(
-        getApiUrl(`/state/barcode/${itemToWriteOff.barcode}/symbol/${fromSymbol}?count=1`),
+        getApiUrl(`/state/barcode/${encodeURIComponent(itemToWriteOff.barcode)}/symbol/${encodeURIComponent(fromSymbol)}?${writeOffQuery}`),
         {
           method: 'DELETE',
           headers: {
             'operation-type': 'write-off',
             'correction-id': selectedCorrection._id,
-            'correction-transaction-id': selectedCorrection.transactionId
+            ...(selectedCorrection.transactionId ? { 'correction-transaction-id': selectedCorrection.transactionId } : {})
           }
         }
       );
-      
+
       if (writeOffResponse.ok) {
+        let writeOffData = null;
+        try { writeOffData = await writeOffResponse.json(); } catch (_e) { writeOffData = null; }
+        // Serwer rozlicza korektę razem ze zdjęciem sztuki i to potwierdza - bez potwierdzenia nie pokazujemy sukcesu
+        if (writeOffData?.correctionResolved !== true) {
+          setShowProductModal(false);
+          appAlert('Korekta nie została rozliczona', `Sztuka zeszła ze stanu w punkcie ${fromSymbol}, ale serwer nie rozliczył korekty - zostaje „Oczekuje”. Nie odpisuj kolejnej sztuki, zgłoś to.`);
+          await loadCorrections();
+          return;
+        }
         await handleStatusUpdate(selectedCorrection._id, 'RESOLVED', selectedCorrection);
         setShowProductModal(false);
         

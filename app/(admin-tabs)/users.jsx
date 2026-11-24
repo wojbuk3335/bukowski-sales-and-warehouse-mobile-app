@@ -2637,18 +2637,23 @@ const Users = () => {
                 {/* Podsumowanie +/- */}
                 {(blueItems.length + transfers.length + matchedPairs.length + yellowTransfers.length) > 0 && (
                   <View style={styles.processingSummaryBox}>
-                    {balanceStats.balance !== 0 && (
-                      <Text
-                        style={[
-                          styles.summaryLine,
-                          balanceStats.balance > 0 ? styles.summaryPositive : styles.summaryNegative
-                        ]}
-                      >
-                        {balanceStats.balance > 0
-                          ? `Zostanie dopisane do stanu: +${balanceStats.balance}`
-                          : `Zostanie odpisane ze stanu: ${balanceStats.balance}`}
-                      </Text>
-                    )}
+                    {/* Osobno odpisane i dodane (dawniej jeden wiersz z różnicą) */}
+                    <Text
+                      style={[
+                        styles.summaryLine,
+                        balanceStats.removed === 0 ? styles.summaryMuted : styles.summaryNegative
+                      ]}
+                    >
+                      Zostanie odpisane ze stanu: {balanceStats.removed === 0 ? '0' : `-${balanceStats.removed}`}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.summaryLine,
+                        balanceStats.added === 0 ? styles.summaryMuted : styles.summaryPositive
+                      ]}
+                    >
+                      Zostanie dodane do stanu: {balanceStats.added === 0 ? '0' : `+${balanceStats.added}`}
+                    </Text>
                     <Text
                       style={[
                         styles.summaryLine,
